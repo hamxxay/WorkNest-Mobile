@@ -38,12 +38,7 @@ export function Header() {
         >
           <Text style={styles.dangerText}>Log Out</Text>
         </Pressable>
-        {/* <Pressable
-          onPress={() => navigation.navigate('Signup')}
-          style={[styles.button, styles.primaryButton]}
-        >
-          <Text style={styles.primaryText}>Sign Up</Text>
-        </Pressable> */}
+
       </View>
 
       <Modal
