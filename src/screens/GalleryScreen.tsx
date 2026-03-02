@@ -1,105 +1,163 @@
-import React from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
+  Modal,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
-  Image,
-  Dimensions,
 } from "react-native";
+import Ionicons from "react-native-vector-icons/Ionicons";
 import { Header } from "../components/Header";
 import { Screen } from "../components/Screen";
+import { SmartImage } from "../components/SmartImage";
 import { colors, radii } from "../theme";
+import { getGalleryImages, type GalleryImage } from "../services/galleryService";
 
-const images = [
-  {
-    src: "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=800",
-    alt: "Workspace 1",
-  },
-  {
-    src: "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=800",
-    alt: "Workspace 2",
-  },
-  {
-    src: "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=800",
-    alt: "Workspace 3",
-  },
-  {
-    src: "https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=800",
-    alt: "Workspace 4",
-  },
-];
-
-const GAP = 12;
-const SCREEN_WIDTH = Dimensions.get("window").width;
-const CARD_WIDTH = (SCREEN_WIDTH - 20 * 2 - GAP) / 2; // 2 columns
+const categories = ["All", "Offices", "Meeting Rooms", "Co-Working", "Lounges"];
 
 export default function GalleryScreen() {
+  const [images, setImages] = useState<GalleryImage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeCategory, setActiveCategory] = useState("All");
+  const [lightboxImage, setLightboxImage] = useState<GalleryImage | null>(null);
+
+  useEffect(() => {
+    getGalleryImages()
+      .then((items) => setImages(items))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const filteredImages = useMemo(() => {
+    if (activeCategory === "All") {
+      return images;
+    }
+
+    return images.filter((image) => image.category === activeCategory);
+  }, [activeCategory, images]);
+
   return (
     <Screen>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Header />
 
         <View style={styles.hero}>
           <Text style={styles.title}>Gallery</Text>
           <Text style={styles.subtitle}>
-            A peek at our spaces and amenities.
+            Explore our workspace collection by category.
           </Text>
         </View>
 
+        <View style={styles.filterRow}>
+          {categories.map((category) => {
+            const active = activeCategory === category;
+            return (
+              <Pressable
+                key={category}
+                onPress={() => setActiveCategory(category)}
+                style={[styles.filterChip, active && styles.filterChipActive]}
+              >
+                <Text style={[styles.filterText, active && styles.filterTextActive]}>
+                  {category}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {loading ? <Text style={styles.helper}>Loading gallery...</Text> : null}
+        {!loading && filteredImages.length === 0 ? (
+          <Text style={styles.helper}>No images in this category yet.</Text>
+        ) : null}
+
         <View style={styles.grid}>
-          {images.map((image, index) => (
-            <View key={index} style={styles.card}>
-              <Image
-                source={{ uri: image.src }}
-                style={styles.image}
-                resizeMode="cover"
-              />
-            </View>
+          {filteredImages.map((image, index) => (
+            <Pressable
+              key={image.id ?? index}
+              style={styles.card}
+              onPress={() => setLightboxImage(image)}
+            >
+              <SmartImage uri={image.src} style={styles.image} resizeMode="cover" />
+              <View style={styles.overlay}>
+                <Text style={styles.overlayTitle}>{image.title}</Text>
+                {!!image.category && <Text style={styles.overlaySub}>{image.category}</Text>}
+              </View>
+            </Pressable>
           ))}
         </View>
       </ScrollView>
+
+      <Modal visible={!!lightboxImage} transparent animationType="fade" onRequestClose={() => setLightboxImage(null)}>
+        <View style={styles.modalBackdrop}>
+          <Pressable style={styles.modalClose} onPress={() => setLightboxImage(null)}>
+            <Ionicons name="close" color={colors.background} size={22} />
+          </Pressable>
+          {lightboxImage ? (
+            <View style={styles.modalContent}>
+              <SmartImage uri={lightboxImage.src} style={styles.modalImage} resizeMode="cover" />
+              <Text style={styles.modalTitle}>{lightboxImage.title}</Text>
+              {lightboxImage.description ? (
+                <Text style={styles.modalDesc}>{lightboxImage.description}</Text>
+              ) : null}
+            </View>
+          ) : null}
+        </View>
+      </Modal>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  content: {
-    padding: 20,
-    paddingBottom: 24,
-  },
+  content: { padding: 20, paddingBottom: 24 },
   hero: {
     backgroundColor: colors.muted,
     borderRadius: radii.md,
     padding: 20,
-    marginBottom: 18,
+    marginBottom: 14,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: colors.foreground,
+  title: { fontSize: 28, fontWeight: "800", color: colors.foreground },
+  subtitle: { marginTop: 8, fontSize: 16, color: colors.mutedForeground },
+  filterRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 14 },
+  filterChip: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
   },
-  subtitle: {
-    marginTop: 8,
-    fontSize: 16,
-    color: colors.mutedForeground,
-  },
-  grid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-  },
+  filterChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  filterText: { color: colors.mutedForeground, fontSize: 13, fontWeight: "700" },
+  filterTextActive: { color: colors.background },
+  helper: { color: colors.mutedForeground, marginBottom: 12 },
+  grid: { gap: 12 },
   card: {
-    width: CARD_WIDTH,
-    height: 160,
     borderRadius: radii.md,
     overflow: "hidden",
     backgroundColor: colors.muted,
-    marginBottom: 12,
+    height: 180,
   },
-  image: {
-    width: "100%",
-    height: "100%",
+  image: { width: "100%", height: "100%" },
+  overlay: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(15, 23, 42, 0.65)",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
+  overlayTitle: { color: colors.background, fontSize: 14, fontWeight: "700" },
+  overlaySub: { color: "#cbd5e1", fontSize: 12, marginTop: 2 },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.85)",
+    justifyContent: "center",
+    padding: 20,
+  },
+  modalClose: { position: "absolute", right: 20, top: 48, zIndex: 2 },
+  modalContent: { gap: 10 },
+  modalImage: { width: "100%", height: 280, borderRadius: radii.md },
+  modalTitle: { color: colors.background, fontSize: 20, fontWeight: "700" },
+  modalDesc: { color: "#cbd5e1", fontSize: 14 },
 });
-

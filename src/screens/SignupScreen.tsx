@@ -15,6 +15,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/types";
 import { Screen } from "../components/Screen";
 import { colors, radii } from "../theme";
+import { signupUser } from "../services/authService";
 
 export default function SignupScreen() {
   const navigation =
@@ -24,6 +25,45 @@ export default function SignupScreen() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const handleSignup = async () => {
+    if (!name.trim() || !email.trim() || !password.trim()) {
+      setErrorMessage("Name, email and password are required.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setErrorMessage("Password and confirm password must match.");
+      return;
+    }
+    if (password.trim().length < 8) {
+      setErrorMessage("Password must be at least 8 characters.");
+      return;
+    }
+
+    setErrorMessage("");
+    setIsSubmitting(true);
+
+    try {
+      await signupUser({
+        name: name.trim(),
+        email: email.trim(),
+        password,
+      });
+      setErrorMessage("Account created successfully. Redirecting to login...");
+      setTimeout(() => {
+        navigation.replace("Login");
+      }, 1500);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to create account.";
+      setErrorMessage(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <Screen>
@@ -117,11 +157,16 @@ export default function SignupScreen() {
               />
             </View>
 
+            {!!errorMessage && <Text style={styles.errorText}>{errorMessage}</Text>}
+
             <Pressable
-              style={styles.primaryButton}
-              onPress={() => navigation.replace("MainTabs")}
+              style={[styles.primaryButton, isSubmitting && styles.primaryButtonDisabled]}
+              onPress={handleSignup}
+              disabled={isSubmitting}
             >
-              <Text style={styles.primaryButtonText}>Create Account</Text>
+              <Text style={styles.primaryButtonText}>
+                {isSubmitting ? "Creating account..." : "Create Account"}
+              </Text>
             </Pressable>
 
             <Pressable
@@ -217,10 +262,18 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: "center",
   },
+  primaryButtonDisabled: {
+    opacity: 0.65,
+  },
   primaryButtonText: {
     color: colors.background,
     fontWeight: "700",
     fontSize: 16,
+  },
+  errorText: {
+    color: "#dc2626",
+    fontSize: 14,
+    fontWeight: "600",
   },
   helperText: {
     color: colors.mutedForeground,

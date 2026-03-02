@@ -1,6 +1,8 @@
 export type MainTabParamList = {
   Home: undefined;
   Booking: undefined;
+  MyBookings: undefined;
+  MyPayments: undefined;
   Pricing: undefined;
   Gallery: undefined;
 };
@@ -10,4 +12,5 @@ export type RootStackParamList = {
   Login: undefined;
   Signup: undefined;
   MainTabs: undefined;
+  AdminPanel: undefined;
 };

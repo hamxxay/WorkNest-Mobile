@@ -15,19 +15,43 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/types";
 import { Screen } from "../components/Screen";
 import { colors, radii } from "../theme";
-import { saveToken } from "../utils/authStorage";
+import { loginUser } from "../services/authService";
+import { API_BASE_URL } from "../config/api";
+import { useAuth } from "../context/AuthContext";
 
 export default function LoginScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const { refreshUser } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   const handleLogin = async () => {
-    // Temporary token until backend auth is wired.
-    await saveToken("worknest-session-token");
-    navigation.replace("MainTabs");
+    if (!email.trim() || !password.trim()) {
+      setErrorMessage("Email and password are required.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setErrorMessage("");
+
+    try {
+      await loginUser({
+        email: email.trim(),
+        password,
+      });
+      await refreshUser();
+      navigation.replace("MainTabs");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to login right now.";
+      setErrorMessage(message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -89,11 +113,21 @@ export default function LoginScreen() {
               </Pressable>
             </View>
 
+            {!!errorMessage && (
+              <View style={styles.errorBlock}>
+                <Text style={styles.errorText}>{errorMessage}</Text>
+                <Text style={styles.errorHint}>API: {API_BASE_URL}</Text>
+              </View>
+            )}
+
             <Pressable
-              style={styles.primaryButton}
+              style={[styles.primaryButton, isSubmitting && styles.primaryButtonDisabled]}
               onPress={handleLogin}
+              disabled={isSubmitting}
             >
-              <Text style={styles.primaryButtonText}>Log In</Text>
+              <Text style={styles.primaryButtonText}>
+                {isSubmitting ? "Logging in..." : "Log In"}
+              </Text>
             </Pressable>
 
             <Pressable style={styles.linkButton}>
@@ -189,10 +223,25 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: "center",
   },
+  primaryButtonDisabled: {
+    opacity: 0.65,
+  },
   primaryButtonText: {
     color: colors.background,
     fontWeight: "700",
     fontSize: 16,
+  },
+  errorText: {
+    color: "#dc2626",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  errorBlock: {
+    gap: 4,
+  },
+  errorHint: {
+    color: colors.mutedForeground,
+    fontSize: 12,
   },
   linkButton: {
     alignItems: "center",

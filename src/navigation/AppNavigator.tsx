@@ -6,9 +6,12 @@ import HomeScreen from "../screens/HomeScreen";
 import BookingScreen from "../screens/BookingScreen";
 import PricingScreen from "../screens/PricingScreen";
 import GalleryScreen from "../screens/GalleryScreen";
+import MyBookingsScreen from "../screens/MyBookingsScreen";
+import MyPaymentsScreen from "../screens/MyPaymentsScreen";
 import LoginScreen from "../screens/LoginScreen";
 import SignupScreen from "../screens/SignupScreen";
 import SplashScreen from "../screens/SplashScreen";
+import AdminPanelScreen from "../screens/AdminPanelScreen";
 import { colors } from "../theme";
 import type { MainTabParamList, RootStackParamList } from "./types";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -38,14 +41,15 @@ function MainTabs() {
           fontWeight: "600",
         },
         tabBarIcon: ({ color, size }) => {
-          const iconName =
-            route.name === "Home"
-              ? "home-outline"
-              : route.name === "Booking"
-                ? "calendar-outline"
-                : route.name === "Pricing"
-                  ? "pricetag-outline"
-                  : "images-outline";
+          const iconByRoute: Record<keyof MainTabParamList, string> = {
+            Home: "home-outline",
+            Booking: "calendar-outline",
+            MyBookings: "receipt-outline",
+            MyPayments: "card-outline",
+            Pricing: "pricetag-outline",
+            Gallery: "images-outline",
+          };
+          const iconName = iconByRoute[route.name];
 
           return <Ionicons name={iconName} color={color} size={size} />;
         },
@@ -53,6 +57,16 @@ function MainTabs() {
     >
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Booking" component={BookingScreen} />
+      <Tab.Screen
+        name="MyBookings"
+        component={MyBookingsScreen}
+        options={{ title: "My Bookings" }}
+      />
+      <Tab.Screen
+        name="MyPayments"
+        component={MyPaymentsScreen}
+        options={{ title: "My Payments" }}
+      />
       <Tab.Screen name="Pricing" component={PricingScreen} />
       <Tab.Screen name="Gallery" component={GalleryScreen} />
     </Tab.Navigator>
@@ -67,6 +81,7 @@ export function AppNavigator() {
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="Signup" component={SignupScreen} />
         <Stack.Screen name="MainTabs" component={MainTabs} />
+        <Stack.Screen name="AdminPanel" component={AdminPanelScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

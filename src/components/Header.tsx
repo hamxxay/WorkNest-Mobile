@@ -5,17 +5,20 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 import { colors, radii } from '../theme';
 import { logoutUser } from '../services/authService';
+import { useAuth } from '../context/AuthContext';
 
 const destructiveColor = '#dc2626';
 
 export function Header() {
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const { clearSession } = useAuth();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const handleLogout = async () => {
     setShowLogoutConfirm(false);
     await logoutUser();
+    await clearSession();
 
     navigation.reset({
       index: 0,
