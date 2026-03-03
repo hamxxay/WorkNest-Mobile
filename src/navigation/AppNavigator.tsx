@@ -61,7 +61,7 @@ function MainTabs() {
     >
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Booking" component={BookingScreen} />
-      <Tab.Screen
+      {/* <Tab.Screen
         name="MyBookings"
         component={MyBookingsScreen}
         options={{ title: "My Bookings" }}
@@ -70,7 +70,7 @@ function MainTabs() {
         name="MyPayments"
         component={MyPaymentsScreen}
         options={{ title: "My Payments" }}
-      />
+      /> */}
       <Tab.Screen name="Pricing" component={PricingScreen} />
       {/* <Tab.Screen name="Gallery" component={GalleryScreen} /> */}
       {/* <Tab.Screen name="Gallery" component={GalleryScreen} /> */}

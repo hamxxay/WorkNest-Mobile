@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { Header } from "../components/Header";
-import { Screen } from "../components/Screen";
-import { colors, radii } from "../theme";
-import { cancelBooking, getMyBookings } from "../services/workspaceService";
+import { Header } from "../../components/Header";
+import { Screen } from "../../components/Screen";
+import { colors, radii } from "../../theme";
+import { cancelBooking, getMyBookings } from "../../services/workspaceService";
 
 type BookingItem = {
   id: number;

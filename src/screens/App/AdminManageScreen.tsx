@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { colors, radii } from "../theme";
+import { colors, radii } from "../../theme";
 import {
   getBookingsPage,
   getContactsPage,
@@ -21,7 +21,7 @@ import {
   type AdminSpace,
   type AdminSpaceType,
   type PaginatedList,
-} from "../services/adminService";
+} from "../../services/adminService";
 
 const PAGE_SIZE = 20;
 

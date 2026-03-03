@@ -1,15 +1,15 @@
 import { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
-import { Header } from "../components/Header";
-import { Screen } from "../components/Screen";
-import { colors, radii } from "../theme";
+import { Header } from "../../components/Header";
+import { Screen } from "../../components/Screen";
+import { colors, radii } from "../../theme";
 import {
   getDashboardSummary,
   getRecentBookings,
   getRecentContacts,
   type RecentBooking,
   type RecentContact,
-} from "../services/adminService";
+} from "../../services/adminService";
 
 export default function AdminDashboardScreen({ embedded = false }: { embedded?: boolean }) {
   const [loading, setLoading] = useState(true);
