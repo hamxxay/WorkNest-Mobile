@@ -2,10 +2,10 @@ import { useEffect } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import type { RootStackParamList } from "../navigation/types";
-import { Screen } from "../components/Screen";
-import { colors } from "../theme";
-import { isAuthenticated } from "../utils/authStorage";
+import type { RootStackParamList } from "../../navigation/types";
+import { Screen } from "../../components/Screen";
+import { colors } from "../../theme";
+import { isAuthenticated } from "../../utils/authStorage";
 
 export default function SplashScreen() {
   const navigation =
@@ -15,16 +15,21 @@ export default function SplashScreen() {
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     const checkAuth = async () => {
+      
       const hasSession = await isAuthenticated();
 
       timer = setTimeout(() => {
-        navigation.replace(hasSession ? "MainTabs" : "Login");
+        if (hasSession) {
+          navigation.replace("AppStack", { screen: "MainTabs" });
+          return;
+        }
+        navigation.replace("AuthStack", { screen: "Login" });
       }, 1500);
     };
 
     checkAuth().catch(() => {
       timer = setTimeout(() => {
-        navigation.replace("Login");
+        navigation.replace("AuthStack", { screen: "Login" });
       }, 1500);
     });
 
@@ -64,3 +69,4 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
 });
+

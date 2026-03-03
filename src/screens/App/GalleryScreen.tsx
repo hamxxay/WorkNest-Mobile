@@ -7,9 +7,9 @@ import {
   Image,
   Dimensions,
 } from "react-native";
-import { Header } from "../components/Header";
-import { Screen } from "../components/Screen";
-import { colors, radii } from "../theme";
+import { Header } from "../../components/Header";
+import { Screen } from "../../components/Screen";
+import { colors, radii } from "../../theme";
 
 const images = [
   {

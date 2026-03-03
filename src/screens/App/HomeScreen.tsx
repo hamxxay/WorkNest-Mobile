@@ -1,11 +1,11 @@
 import { ScrollView, StyleSheet, Text, View, Pressable } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
-import type { MainTabParamList } from "../navigation/types";
-import { Header } from "../components/Header";
-import { Screen } from "../components/Screen";
-import { WaveDivider } from "../components/WaveBackground";
-import { colors, radii } from "../theme";
+import type { MainTabParamList } from "../../navigation/types";
+import { Header } from "../../components/Header";
+import { Screen } from "../../components/Screen";
+import { WaveDivider } from "../../components/WaveBackground";
+import { colors, radii } from "../../theme";
 
 export default function HomeScreen() {
   const navigation = useNavigation<BottomTabNavigationProp<MainTabParamList>>();

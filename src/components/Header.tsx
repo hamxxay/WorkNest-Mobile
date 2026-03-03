@@ -19,7 +19,7 @@ export function Header() {
 
     navigation.reset({
       index: 0,
-      routes: [{ name: 'Login' }],
+      routes: [{ name: 'AuthStack', params: { screen: 'Login' } }],
     });
   };
 

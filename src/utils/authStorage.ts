@@ -17,3 +17,7 @@ export const removeToken = async () => {
 export const clearAuthStorage = async () => {
   await AsyncStorage.multiRemove([TOKEN_KEY]);
 };
+export const isAuthenticated = async (): Promise<boolean> => {
+  const token = await getToken();
+  return !!token;
+}

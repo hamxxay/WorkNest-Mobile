@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -12,18 +13,70 @@ import {
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import type { RootStackParamList } from "../navigation/types";
-import { Screen } from "../components/Screen";
-import { colors, radii } from "../theme";
+import type { AuthStackParamList, RootStackParamList } from "../../navigation/types";
+import { Screen } from "../../components/Screen";
+import { colors, radii } from "../../theme";
+import { ApiError } from "../../services/api/client";
+import { registerUser } from "../../services/authService";
 
 export default function SignupScreen() {
   const navigation =
-    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+    useNavigation<NativeStackNavigationProp<AuthStackParamList>>();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const parseName = (fullName: string): { firstName?: string; lastName?: string } => {
+    const normalized = fullName.trim().replace(/\s+/g, " ");
+    if (!normalized) {
+      return {};
+    }
+    const [firstName, ...rest] = normalized.split(" ");
+    return {
+      firstName,
+      lastName: rest.length ? rest.join(" ") : undefined,
+    };
+  };
+
+  const handleSignup = async () => {
+    if (!email.trim() || !password.trim()) {
+      setError("Email and password are required.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      const { firstName, lastName } = parseName(name);
+      await registerUser({
+        email: email.trim(),
+        password,
+        firstName,
+        lastName,
+      });
+
+      navigation
+        .getParent<NativeStackNavigationProp<RootStackParamList>>()
+        ?.replace("AppStack", { screen: "MainTabs" });
+    } catch (err) {
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : "Unable to create account right now. Please try again.";
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <Screen>
@@ -118,11 +171,17 @@ export default function SignupScreen() {
             </View>
 
             <Pressable
-              style={styles.primaryButton}
-              onPress={() => navigation.replace("MainTabs")}
+              style={[styles.primaryButton, loading && styles.primaryButtonDisabled]}
+              onPress={handleSignup}
+              disabled={loading}
             >
-              <Text style={styles.primaryButtonText}>Create Account</Text>
+              {loading ? (
+                <ActivityIndicator size="small" color={colors.background} />
+              ) : (
+                <Text style={styles.primaryButtonText}>Create Account</Text>
+              )}
             </Pressable>
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
             <Pressable
               style={styles.linkButton}
@@ -221,6 +280,14 @@ const styles = StyleSheet.create({
     color: colors.background,
     fontWeight: "700",
     fontSize: 16,
+  },
+  primaryButtonDisabled: {
+    opacity: 0.7,
+  },
+  errorText: {
+    color: "#dc2626",
+    fontSize: 13,
+    textAlign: "center",
   },
   helperText: {
     color: colors.mutedForeground,

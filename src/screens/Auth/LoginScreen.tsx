@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -12,22 +13,43 @@ import {
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import type { RootStackParamList } from "../navigation/types";
-import { Screen } from "../components/Screen";
-import { colors, radii } from "../theme";
-import { saveToken } from "../utils/authStorage";
+import type { AuthStackParamList, RootStackParamList } from "../../navigation/types";
+import { Screen } from "../../components/Screen";
+import { colors, radii } from "../../theme";
+import { ApiError } from "../../services/api/client";
+import { loginUser } from "../../services/authService";
 
 export default function LoginScreen() {
   const navigation =
-    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+    useNavigation<NativeStackNavigationProp<AuthStackParamList>>();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleLogin = async () => {
-    // Temporary token until backend auth is wired.
-    await saveToken("worknest-session-token");
-    navigation.replace("MainTabs");
+    if (!email.trim() || !password.trim()) {
+      setError("Email and password are required.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      await loginUser({ email: email.trim(), password });
+      navigation
+        .getParent<NativeStackNavigationProp<RootStackParamList>>()
+        ?.replace("AppStack", { screen: "MainTabs" });
+    } catch (err) {
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : "Unable to login right now. Please try again.";
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -90,11 +112,17 @@ export default function LoginScreen() {
             </View>
 
             <Pressable
-              style={styles.primaryButton}
+              style={[styles.primaryButton, loading && styles.primaryButtonDisabled]}
               onPress={handleLogin}
+              disabled={loading}
             >
-              <Text style={styles.primaryButtonText}>Log In</Text>
+              {loading ? (
+                <ActivityIndicator size="small" color={colors.background} />
+              ) : (
+                <Text style={styles.primaryButtonText}>Log In</Text>
+              )}
             </Pressable>
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
             <Pressable style={styles.linkButton}>
               <Text style={styles.linkText}>Forgot password?</Text>
@@ -193,6 +221,14 @@ const styles = StyleSheet.create({
     color: colors.background,
     fontWeight: "700",
     fontSize: 16,
+  },
+  primaryButtonDisabled: {
+    opacity: 0.7,
+  },
+  errorText: {
+    color: "#dc2626",
+    fontSize: 13,
+    textAlign: "center",
   },
   linkButton: {
     alignItems: "center",
