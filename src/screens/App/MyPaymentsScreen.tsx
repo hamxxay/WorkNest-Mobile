@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
-import { Header } from "../components/Header";
-import { Screen } from "../components/Screen";
-import { colors, radii } from "../theme";
-import { getMyPayments, type PaymentItem } from "../services/paymentService";
+import { Header } from "../../components/Header";
+import { Screen } from "../../components/Screen";
+import { colors, radii } from "../../theme";
+import { getMyPayments, type PaymentItem } from "../../services/paymentService";
 
 export default function MyPaymentsScreen() {
   const [payments, setPayments] = useState<PaymentItem[]>([]);

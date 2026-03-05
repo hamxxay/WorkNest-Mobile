@@ -7,10 +7,10 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import AdminDashboardScreen from "./AdminDashboardScreen";
 import AdminUsersScreen from "./AdminUsersScreen";
 import AdminManageScreen, { type AdminEntity } from "./AdminManageScreen";
-import { colors, radii } from "../theme";
-import type { RootStackParamList } from "../navigation/types";
-import { logoutUser } from "../services/authService";
-import { useAuth } from "../context/AuthContext";
+import { colors, radii } from "../../theme";
+import type { RootStackParamList } from "../../navigation/types";
+import { logoutUser } from "../../services/authService";
+import { useAuth } from "../../context/AuthContext";
 
 type AdminView = "dashboard" | "users" | AdminEntity;
 

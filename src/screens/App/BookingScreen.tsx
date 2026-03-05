@@ -9,15 +9,101 @@ import {
   View,
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
-import { Header } from "../components/Header";
-import { Screen } from "../components/Screen";
-import { SmartImage } from "../components/SmartImage";
-import { colors, radii } from "../theme";
-import {
-  createBooking,
-  getWorkspaces,
-  type Workspace,
-} from "../services/workspaceService";
+import { Header } from "../../components/Header";
+import { Screen } from "../../components/Screen";
+import { colors, radii } from "../../theme";
+
+type DateRange = {
+  from: Date | null;
+  to: Date | null;
+};
+
+type Workspace = {
+  id: number;
+  name: string;
+  type: "Private Office" | "Co-Working Space" | "Meeting Room" | "Event Space";
+  location: string;
+  capacity: string;
+  price: number;
+  amenities: string[];
+  image: string;
+  available: boolean;
+};
+
+const workspaces: Workspace[] = [
+  {
+    id: 1,
+    name: "Premium Private Office",
+    type: "Private Office",
+    location: "Downtown Financial District",
+    capacity: "1-2 people",
+    price: 45,
+    amenities: ["Standing desk", "High-speed WiFi", "Printing access"],
+    image:
+      "https://images.unsplash.com/photo-1497366216548-37526070297c?w=800&h=600&fit=crop",
+    available: true,
+  },
+  {
+    id: 2,
+    name: "Co-Working Hot Desk",
+    type: "Co-Working Space",
+    location: "Creative Arts Quarter",
+    capacity: "Open seating",
+    price: 25,
+    amenities: ["Coffee bar", "Collaborative atmosphere", "Natural light"],
+    image:
+      "https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=800&h=600&fit=crop",
+    available: true,
+  },
+  {
+    id: 3,
+    name: "Executive Meeting Room",
+    type: "Meeting Room",
+    location: "Tech Innovation Hub",
+    capacity: "8-12 people",
+    price: 75,
+    amenities: ["Video conferencing", "Whiteboard", "Catering available"],
+    image:
+      "https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=800&h=600&fit=crop",
+    available: true,
+  },
+  {
+    id: 4,
+    name: "Modern Startup Space",
+    type: "Private Office",
+    location: "Innovation District",
+    capacity: "4-6 people",
+    price: 85,
+    amenities: ["24/7 access", "Kitchen", "Phone booths"],
+    image:
+      "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=800&h=600&fit=crop",
+    available: true,
+  },
+  {
+    id: 5,
+    name: "Creative Co-Working Area",
+    type: "Co-Working Space",
+    location: "Arts and Culture Center",
+    capacity: "Open seating",
+    price: 30,
+    amenities: ["Event space", "Workshops", "Community events"],
+    image:
+      "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=800&h=600&fit=crop",
+    available: false,
+  },
+  {
+    id: 6,
+    name: "Spacious Conference Room",
+    type: "Meeting Room",
+    location: "Business District",
+    capacity: "15-20 people",
+    price: 95,
+    amenities: ["Projector", "Conference phone", "Refreshments"],
+    image:
+      "https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=800&h=600&fit=crop",
+    available: true,
+  },
+];
 
 const typeOptions = ["", "private", "co-working", "meeting", "event"] as const;
 

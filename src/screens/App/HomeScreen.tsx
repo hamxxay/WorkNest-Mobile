@@ -2,30 +2,11 @@ import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
-import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import type { MainTabParamList, RootStackParamList } from "../navigation/types";
-import { Header } from "../components/Header";
-import { Screen } from "../components/Screen";
-import { SmartImage } from "../components/SmartImage";
-import { colors, radii } from "../theme";
-import { getGalleryImages, type GalleryImage } from "../services/galleryService";
-import { getPricingPlans, type PricingPlan } from "../services/pricingService";
-import { useAuth } from "../context/AuthContext";
-
-const fallbackFeatures = [
-  {
-    title: "Real-Time Availability",
-    text: "View live workspace availability and book instantly without conflicts.",
-  },
-  {
-    title: "Easy Booking Process",
-    text: "Simple booking flow with instant confirmations.",
-  },
-  {
-    title: "Premium Workspaces",
-    text: "Fully-equipped spaces with internet, meeting rooms, and amenities.",
-  },
-];
+import type { MainTabParamList } from "../../navigation/types";
+import { Header } from "../../components/Header";
+import { Screen } from "../../components/Screen";
+import { WaveDivider } from "../../components/WaveBackground";
+import { colors, radii } from "../../theme";
 
 export default function HomeScreen() {
   const navigation = useNavigation<BottomTabNavigationProp<MainTabParamList>>();

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -12,45 +13,68 @@ import {
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import type { RootStackParamList } from "../navigation/types";
-import { Screen } from "../components/Screen";
-import { colors, radii } from "../theme";
-import { loginUser } from "../services/authService";
-import { API_BASE_URL } from "../config/api";
-import { useAuth } from "../context/AuthContext";
+import type { AuthStackParamList, RootStackParamList } from "../../navigation/types";
+import { Screen } from "../../components/Screen";
+import { colors, radii } from "../../theme";
+import { ApiError } from "../../services/api/client";
+import { registerUser } from "../../services/authService";
 
-export default function LoginScreen() {
+export default function SignupScreen() {
   const navigation =
-    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { refreshUser } = useAuth();
+    useNavigation<NativeStackNavigationProp<AuthStackParamList>>();
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleLogin = async () => {
+  const parseName = (fullName: string): { firstName?: string; lastName?: string } => {
+    const normalized = fullName.trim().replace(/\s+/g, " ");
+    if (!normalized) {
+      return {};
+    }
+    const [firstName, ...rest] = normalized.split(" ");
+    return {
+      firstName,
+      lastName: rest.length ? rest.join(" ") : undefined,
+    };
+  };
+
+  const handleSignup = async () => {
     if (!email.trim() || !password.trim()) {
-      setErrorMessage("Email and password are required.");
+      setError("Email and password are required.");
       return;
     }
 
-    setIsSubmitting(true);
-    setErrorMessage("");
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
 
     try {
-      await loginUser({
+      setLoading(true);
+      setError(null);
+      const { firstName, lastName } = parseName(name);
+      await registerUser({
         email: email.trim(),
         password,
+        firstName,
+        lastName,
       });
-      await refreshUser();
-      navigation.replace("MainTabs");
-    } catch (error) {
+
+      navigation
+        .getParent<NativeStackNavigationProp<RootStackParamList>>()
+        ?.replace("AppStack", { screen: "MainTabs" });
+    } catch (err) {
       const message =
-        error instanceof Error ? error.message : "Unable to login right now.";
-      setErrorMessage(message);
+        err instanceof ApiError
+          ? err.message
+          : "Unable to create account right now. Please try again.";
+      setError(message);
     } finally {
-      setIsSubmitting(false);
+      setLoading(false);
     }
   };
 
@@ -67,14 +91,30 @@ export default function LoginScreen() {
         >
           <View style={styles.brandBlock}>
             <Text style={styles.brandTitle}>WorkNest</Text>
-            <Text style={styles.brandSubtitle}>Welcome back</Text>
+            <Text style={styles.brandSubtitle}>Create your account</Text>
           </View>
 
           <View style={styles.card}>
-            <Text style={styles.title}>Log In</Text>
+            <Text style={styles.title}>Sign Up</Text>
             <Text style={styles.subtitle}>
-              Access your bookings and workspace history.
+              Set up your account in less than a minute.
             </Text>
+            <Text style={styles.label}>Full name</Text>
+            <View style={styles.inputWrapper}>
+              <Ionicons
+                name="person-outline"
+                size={18}
+                color={colors.mutedForeground}
+              />
+              <TextInput
+                placeholder="Jane Doe"
+                placeholderTextColor={colors.mutedForeground}
+                value={name}
+                onChangeText={setName}
+                style={styles.input}
+              />
+            </View>
+
             <Text style={styles.label}>Email</Text>
             <View style={styles.inputWrapper}>
               <Ionicons name="mail-outline" size={18} color={colors.mutedForeground} />
@@ -97,7 +137,7 @@ export default function LoginScreen() {
                 color={colors.mutedForeground}
               />
               <TextInput
-                placeholder="Enter your password"
+                placeholder="Create a password"
                 placeholderTextColor={colors.mutedForeground}
                 value={password}
                 onChangeText={setPassword}
@@ -113,33 +153,48 @@ export default function LoginScreen() {
               </Pressable>
             </View>
 
-            {!!errorMessage && (
-              <View style={styles.errorBlock}>
-                <Text style={styles.errorText}>{errorMessage}</Text>
-                <Text style={styles.errorHint}>API: {API_BASE_URL}</Text>
-              </View>
-            )}
+            <Text style={styles.label}>Confirm password</Text>
+            <View style={styles.inputWrapper}>
+              <Ionicons
+                name="lock-closed-outline"
+                size={18}
+                color={colors.mutedForeground}
+              />
+              <TextInput
+                placeholder="Re-enter password"
+                placeholderTextColor={colors.mutedForeground}
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                secureTextEntry={!showPassword}
+                style={styles.input}
+              />
+            </View>
+
+            {!!errorMessage && <Text style={styles.errorText}>{errorMessage}</Text>}
 
             <Pressable
-              style={[styles.primaryButton, isSubmitting && styles.primaryButtonDisabled]}
-              onPress={handleLogin}
-              disabled={isSubmitting}
+              style={[styles.primaryButton, loading && styles.primaryButtonDisabled]}
+              onPress={handleSignup}
+              disabled={loading}
             >
-              <Text style={styles.primaryButtonText}>
-                {isSubmitting ? "Logging in..." : "Log In"}
-              </Text>
+              {loading ? (
+                <ActivityIndicator size="small" color={colors.background} />
+              ) : (
+                <Text style={styles.primaryButtonText}>Create Account</Text>
+              )}
             </Pressable>
-
-            <Pressable style={styles.linkButton}>
-              <Text style={styles.linkText}>Forgot password?</Text>
-            </Pressable>
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
             <Pressable
               style={styles.linkButton}
-              onPress={() => navigation.navigate("Signup")}
+              onPress={() => navigation.replace("Login")}
             >
-              <Text style={styles.linkText}>Create an account</Text>
+              <Text style={styles.linkText}>Already have an account? Log in</Text>
             </Pressable>
+
+            <Text style={styles.helperText}>
+              By signing up, you agree to our Terms and Privacy Policy.
+            </Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -231,17 +286,18 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontSize: 16,
   },
+  primaryButtonDisabled: {
+    opacity: 0.7,
+  },
   errorText: {
     color: "#dc2626",
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 13,
+    textAlign: "center",
   },
-  errorBlock: {
-    gap: 4,
-  },
-  errorHint: {
+  helperText: {
     color: colors.mutedForeground,
-    fontSize: 12,
+    fontSize: 13,
+    textAlign: "center",
   },
   linkButton: {
     alignItems: "center",

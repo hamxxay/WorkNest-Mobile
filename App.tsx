@@ -1,16 +1,17 @@
 import { StatusBar } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { Provider } from "react-redux";
 import { AppNavigator } from "./src/navigation/AppNavigator";
-import { AuthProvider } from "./src/context/AuthContext";
+import { store } from "./src/store/store";
 
 function App() {
   return (
-    <SafeAreaProvider>
-      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
-      <AuthProvider>
+    <Provider store={store}>
+      <SafeAreaProvider>
+        <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
         <AppNavigator />
-      </AuthProvider>
-    </SafeAreaProvider>
+      </SafeAreaProvider>
+    </Provider>
   );
 }
 

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -12,56 +13,42 @@ import {
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import type { RootStackParamList } from "../navigation/types";
-import { Screen } from "../components/Screen";
-import { colors, radii } from "../theme";
-import { signupUser } from "../services/authService";
+import type { AuthStackParamList, RootStackParamList } from "../../navigation/types";
+import { Screen } from "../../components/Screen";
+import { colors, radii } from "../../theme";
+import { ApiError } from "../../services/api/client";
+import { loginUser } from "../../services/authService";
 
-export default function SignupScreen() {
+export default function LoginScreen() {
   const navigation =
-    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const [name, setName] = useState("");
+    useNavigation<NativeStackNavigationProp<AuthStackParamList>>();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSignup = async () => {
-    if (!name.trim() || !email.trim() || !password.trim()) {
-      setErrorMessage("Name, email and password are required.");
+  const handleLogin = async () => {
+    if (!email.trim() || !password.trim()) {
+      setError("Email and password are required.");
       return;
     }
-
-    if (password !== confirmPassword) {
-      setErrorMessage("Password and confirm password must match.");
-      return;
-    }
-    if (password.trim().length < 8) {
-      setErrorMessage("Password must be at least 8 characters.");
-      return;
-    }
-
-    setErrorMessage("");
-    setIsSubmitting(true);
 
     try {
-      await signupUser({
-        name: name.trim(),
-        email: email.trim(),
-        password,
-      });
-      setErrorMessage("Account created successfully. Redirecting to login...");
-      setTimeout(() => {
-        navigation.replace("Login");
-      }, 1500);
-    } catch (error) {
+      setLoading(true);
+      setError(null);
+      await loginUser({ email: email.trim(), password });
+      navigation
+        .getParent<NativeStackNavigationProp<RootStackParamList>>()
+        ?.replace("AppStack", { screen: "MainTabs" });
+    } catch (err) {
       const message =
-        error instanceof Error ? error.message : "Unable to create account.";
-      setErrorMessage(message);
+        err instanceof ApiError
+          ? err.message
+          : "Unable to login right now. Please try again.";
+      setError(message);
     } finally {
-      setIsSubmitting(false);
+      setLoading(false);
     }
   };
 
@@ -78,30 +65,14 @@ export default function SignupScreen() {
         >
           <View style={styles.brandBlock}>
             <Text style={styles.brandTitle}>WorkNest</Text>
-            <Text style={styles.brandSubtitle}>Create your account</Text>
+            <Text style={styles.brandSubtitle}>Welcome back</Text>
           </View>
 
           <View style={styles.card}>
-            <Text style={styles.title}>Sign Up</Text>
+            <Text style={styles.title}>Log In</Text>
             <Text style={styles.subtitle}>
-              Set up your account in less than a minute.
+              Access your bookings and workspace history.
             </Text>
-            <Text style={styles.label}>Full name</Text>
-            <View style={styles.inputWrapper}>
-              <Ionicons
-                name="person-outline"
-                size={18}
-                color={colors.mutedForeground}
-              />
-              <TextInput
-                placeholder="Jane Doe"
-                placeholderTextColor={colors.mutedForeground}
-                value={name}
-                onChangeText={setName}
-                style={styles.input}
-              />
-            </View>
-
             <Text style={styles.label}>Email</Text>
             <View style={styles.inputWrapper}>
               <Ionicons name="mail-outline" size={18} color={colors.mutedForeground} />
@@ -124,7 +95,7 @@ export default function SignupScreen() {
                 color={colors.mutedForeground}
               />
               <TextInput
-                placeholder="Create a password"
+                placeholder="Enter your password"
                 placeholderTextColor={colors.mutedForeground}
                 value={password}
                 onChangeText={setPassword}
@@ -140,45 +111,36 @@ export default function SignupScreen() {
               </Pressable>
             </View>
 
-            <Text style={styles.label}>Confirm password</Text>
-            <View style={styles.inputWrapper}>
-              <Ionicons
-                name="lock-closed-outline"
-                size={18}
-                color={colors.mutedForeground}
-              />
-              <TextInput
-                placeholder="Re-enter password"
-                placeholderTextColor={colors.mutedForeground}
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                secureTextEntry={!showPassword}
-                style={styles.input}
-              />
-            </View>
-
-            {!!errorMessage && <Text style={styles.errorText}>{errorMessage}</Text>}
+            {!!errorMessage && (
+              <View style={styles.errorBlock}>
+                <Text style={styles.errorText}>{errorMessage}</Text>
+                <Text style={styles.errorHint}>API: {API_BASE_URL}</Text>
+              </View>
+            )}
 
             <Pressable
-              style={[styles.primaryButton, isSubmitting && styles.primaryButtonDisabled]}
-              onPress={handleSignup}
-              disabled={isSubmitting}
+              style={[styles.primaryButton, loading && styles.primaryButtonDisabled]}
+              onPress={handleLogin}
+              disabled={loading}
             >
-              <Text style={styles.primaryButtonText}>
-                {isSubmitting ? "Creating account..." : "Create Account"}
-              </Text>
+              {loading ? (
+                <ActivityIndicator size="small" color={colors.background} />
+              ) : (
+                <Text style={styles.primaryButtonText}>Log In</Text>
+              )}
+            </Pressable>
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+            <Pressable style={styles.linkButton}>
+              <Text style={styles.linkText}>Forgot password?</Text>
             </Pressable>
 
             <Pressable
               style={styles.linkButton}
-              onPress={() => navigation.replace("Login")}
+              onPress={() => navigation.navigate("Signup")}
             >
-              <Text style={styles.linkText}>Already have an account? Log in</Text>
+              <Text style={styles.linkText}>Create an account</Text>
             </Pressable>
-
-            <Text style={styles.helperText}>
-              By signing up, you agree to our Terms and Privacy Policy.
-            </Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -270,13 +232,11 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontSize: 16,
   },
+  primaryButtonDisabled: {
+    opacity: 0.7,
+  },
   errorText: {
     color: "#dc2626",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  helperText: {
-    color: colors.mutedForeground,
     fontSize: 13,
     textAlign: "center",
   },

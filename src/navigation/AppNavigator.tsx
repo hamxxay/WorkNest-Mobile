@@ -2,22 +2,26 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import Ionicons from "react-native-vector-icons/Ionicons";
-import HomeScreen from "../screens/HomeScreen";
-import BookingScreen from "../screens/BookingScreen";
-import PricingScreen from "../screens/PricingScreen";
-import GalleryScreen from "../screens/GalleryScreen";
-import MyBookingsScreen from "../screens/MyBookingsScreen";
-import MyPaymentsScreen from "../screens/MyPaymentsScreen";
-import LoginScreen from "../screens/LoginScreen";
-import SignupScreen from "../screens/SignupScreen";
-import SplashScreen from "../screens/SplashScreen";
-import AdminPanelScreen from "../screens/AdminPanelScreen";
+import HomeScreen from "../screens/App/HomeScreen";
+import BookingScreen from "../screens/App/BookingScreen";
+import PricingScreen from "../screens/App/PricingScreen";
+import GalleryScreen from "../screens/App/GalleryScreen";
+import SignupScreen from "../screens/Auth/SignupScreen";
 import { colors } from "../theme";
-import type { MainTabParamList, RootStackParamList } from "./types";
+import type {
+  AppStackParamList,
+  AuthStackParamList,
+  MainTabParamList,
+  RootStackParamList,
+} from "./types";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import SplashScreen from "../screens/Auth/SplashScreen";
+import LoginScreen from "../screens/Auth/LoginScreen";
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
-const Stack = createNativeStackNavigator<RootStackParamList>();
+const RootStack = createNativeStackNavigator<RootStackParamList>();
+const AuthStack = createNativeStackNavigator<AuthStackParamList>();
+const AppStack = createNativeStackNavigator<AppStackParamList>();
 
 function MainTabs() {
   const insets = useSafeAreaInsets();
@@ -57,7 +61,7 @@ function MainTabs() {
     >
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Booking" component={BookingScreen} />
-      <Tab.Screen
+      {/* <Tab.Screen
         name="MyBookings"
         component={MyBookingsScreen}
         options={{ title: "My Bookings" }}
@@ -66,23 +70,39 @@ function MainTabs() {
         name="MyPayments"
         component={MyPaymentsScreen}
         options={{ title: "My Payments" }}
-      />
+      /> */}
       <Tab.Screen name="Pricing" component={PricingScreen} />
-      <Tab.Screen name="Gallery" component={GalleryScreen} />
+      {/* <Tab.Screen name="Gallery" component={GalleryScreen} /> */}
+      {/* <Tab.Screen name="Gallery" component={GalleryScreen} /> */}
     </Tab.Navigator>
+  );
+}
+
+function AuthStackNavigator() {
+  return (
+    <AuthStack.Navigator initialRouteName="Login" screenOptions={{ headerShown: false }}>
+      <AuthStack.Screen name="Login" component={LoginScreen} />
+      <AuthStack.Screen name="Signup" component={SignupScreen} />
+    </AuthStack.Navigator>
+  );
+}
+
+function AppStackNavigator() {
+  return (
+    <AppStack.Navigator initialRouteName="MainTabs" screenOptions={{ headerShown: false }}>
+      <AppStack.Screen name="MainTabs" component={MainTabs} />
+    </AppStack.Navigator>
   );
 }
 
 export function AppNavigator() {
   return (
     <NavigationContainer>
-      <Stack.Navigator initialRouteName="Splash" screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="Splash" component={SplashScreen} />
-        <Stack.Screen name="Login" component={LoginScreen} />
-        <Stack.Screen name="Signup" component={SignupScreen} />
-        <Stack.Screen name="MainTabs" component={MainTabs} />
-        <Stack.Screen name="AdminPanel" component={AdminPanelScreen} />
-      </Stack.Navigator>
+      <RootStack.Navigator initialRouteName="Splash" screenOptions={{ headerShown: false }}>
+        <RootStack.Screen name="Splash" component={SplashScreen} />
+        <RootStack.Screen name="AuthStack" component={AuthStackNavigator} />
+        <RootStack.Screen name="AppStack" component={AppStackNavigator} />
+      </RootStack.Navigator>
     </NavigationContainer>
   );
 }

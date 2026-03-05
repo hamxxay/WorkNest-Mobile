@@ -1,62 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { Header } from "../components/Header";
-import { Screen } from "../components/Screen";
-import { colors, radii } from "../theme";
-import { getPricingPlans, type PricingPlan } from "../services/pricingService";
-
-type Faq = { question: string; answer: string; open: boolean };
-
-const fallbackPlans: PricingPlan[] = [
-  {
-    id: 1,
-    name: "Standard",
-    price: 29,
-    description: "Flexible access for freelancers and solo founders.",
-    features: ["5 hours / month", "High-speed WiFi", "Community events"],
-    popular: false,
-    cta: "Get Started",
-  },
-  {
-    id: 2,
-    name: "Premium",
-    price: 79,
-    description: "Unlimited access for remote teams and power users.",
-    features: ["Unlimited access", "Meeting rooms", "24/7 entry"],
-    popular: true,
-    cta: "Start Free Trial",
-  },
-  {
-    id: 3,
-    name: "Executive",
-    price: 199,
-    description: "Private offices with premium services included.",
-    features: ["Private office", "Concierge support", "Guest passes"],
-    popular: false,
-    cta: "Contact Sales",
-  },
-];
-
-const initialFaqs: Faq[] = [
-  {
-    question: "Can I switch plans at any time?",
-    answer:
-      "Yes, you can upgrade or downgrade your plan anytime. Changes apply from the next billing cycle.",
-    open: false,
-  },
-  {
-    question: "Are there any long-term commitments?",
-    answer:
-      "No. Plans are month-to-month and can be cancelled anytime.",
-    open: false,
-  },
-  {
-    question: "Do you offer team or enterprise pricing?",
-    answer:
-      "Yes, custom pricing is available for teams of 5 or more.",
-    open: false,
-  },
-];
+import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Header } from "../../components/Header";
+import { Screen } from "../../components/Screen";
+import { colors, radii } from "../../theme";
 
 export default function PricingScreen() {
   const [plans, setPlans] = useState<PricingPlan[]>(fallbackPlans);
@@ -102,7 +47,7 @@ export default function PricingScreen() {
             <Text style={styles.cardDescription}>{plan.description}</Text>
 
             {plan.features.map((feature) => (
-              <Text key={feature} style={styles.featureText}>• {feature}</Text>
+              <Text key={feature} style={styles.featureText}>ï¿½ {feature}</Text>
             ))}
 
             <Pressable style={[styles.ctaButton, plan.popular && styles.ctaButtonPopular]}>
