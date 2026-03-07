@@ -12,6 +12,8 @@ import Ionicons from "react-native-vector-icons/Ionicons";
 import { Header } from "../../components/Header";
 import { Screen } from "../../components/Screen";
 import { colors, radii } from "../../theme";
+import { createBooking, getWorkspaces } from "../../services/workspaceService";
+import { SmartImage } from "../../components/SmartImage";
 
 type DateRange = {
   from: Date | null;
@@ -258,8 +260,11 @@ export default function BookingScreen() {
           <Text style={styles.helperText}>No workspaces found. Try adjusting filters.</Text>
         ) : null}
 
-        {filteredWorkspaces.map((workspace) => (
-          <View key={workspace.id} style={styles.workspaceCard}>
+        {filteredWorkspaces.map((workspace, index) => (
+          <View
+            key={`workspace-${String(workspace.id ?? "missing")}-${index}`}
+            style={styles.workspaceCard}
+          >
             <SmartImage uri={workspace.image} style={styles.image} />
 
             <View style={styles.cardBody}>

@@ -6,17 +6,24 @@ import type { RootStackParamList } from "../../navigation/types";
 import { Screen } from "../../components/Screen";
 import { colors } from "../../theme";
 import { isAuthenticated } from "../../utils/authStorage";
+import { hasCompletedOnboarding } from "../../utils/onboardingStorage";
 
 export default function SplashScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { refreshUser } = useAuth();
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     const checkAuth = async () => {
-      
+      const onboardingDone = await hasCompletedOnboarding();
+      if (!onboardingDone) {
+        timer = setTimeout(() => {
+          navigation.replace("Onboarding");
+        }, 1500);
+        return;
+      }
+
       const hasSession = await isAuthenticated();
 
       timer = setTimeout(() => {
@@ -39,7 +46,7 @@ export default function SplashScreen() {
         clearTimeout(timer);
       }
     };
-  }, [navigation, refreshUser]);
+  }, [navigation]);
 
   return (
     <Screen>

@@ -89,7 +89,7 @@ export default function GalleryScreen() {
         <View style={styles.grid}>
           {filteredImages.map((image, index) => (
             <Pressable
-              key={image.id ?? index}
+              key={`gallery-item-${String(image.id ?? "missing")}-${index}`}
               style={styles.card}
               onPress={() => setLightboxImage(image)}
             >

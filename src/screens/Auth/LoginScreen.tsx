@@ -111,12 +111,11 @@ export default function LoginScreen() {
               </Pressable>
             </View>
 
-            {!!errorMessage && (
+            {/* {!!error && (
               <View style={styles.errorBlock}>
-                <Text style={styles.errorText}>{errorMessage}</Text>
-                <Text style={styles.errorHint}>API: {API_BASE_URL}</Text>
+                <Text style={styles.errorText}>{error}</Text>
               </View>
-            )}
+            )} */}
 
             <Pressable
               style={[styles.primaryButton, loading && styles.primaryButtonDisabled]}
@@ -231,9 +230,6 @@ const styles = StyleSheet.create({
     color: colors.background,
     fontWeight: "700",
     fontSize: 16,
-  },
-  primaryButtonDisabled: {
-    opacity: 0.7,
   },
   errorText: {
     color: "#dc2626",

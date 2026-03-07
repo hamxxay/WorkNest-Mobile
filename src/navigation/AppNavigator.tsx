@@ -17,6 +17,7 @@ import type {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import SplashScreen from "../screens/Auth/SplashScreen";
 import LoginScreen from "../screens/Auth/LoginScreen";
+import OnboardingScreen from "../screens/Auth/OnboardingScreen";
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const RootStack = createNativeStackNavigator<RootStackParamList>();
@@ -100,6 +101,7 @@ export function AppNavigator() {
     <NavigationContainer>
       <RootStack.Navigator initialRouteName="Splash" screenOptions={{ headerShown: false }}>
         <RootStack.Screen name="Splash" component={SplashScreen} />
+        <RootStack.Screen name="Onboarding" component={OnboardingScreen} />
         <RootStack.Screen name="AuthStack" component={AuthStackNavigator} />
         <RootStack.Screen name="AppStack" component={AppStackNavigator} />
       </RootStack.Navigator>

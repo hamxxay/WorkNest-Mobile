@@ -1,7 +1,14 @@
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Header } from "../../components/Header";
 import { Screen } from "../../components/Screen";
 import { colors, radii } from "../../theme";
+import { useEffect, useMemo, useState } from "react";
+import { getPricingPlans, PricingPlan } from "../../services/pricingService";
+import { Faq } from "../../services/workspaceService";
+
+const fallbackPlans: PricingPlan[] = [];
+
+const initialFaqs: Faq[] = [];
 
 export default function PricingScreen() {
   const [plans, setPlans] = useState<PricingPlan[]>(fallbackPlans);
@@ -57,13 +64,13 @@ export default function PricingScreen() {
         ))}
 
         <Text style={styles.faqTitle}>FAQs</Text>
-        {faqs.map((faq, index) => (
-          <View key={faq.question} style={styles.faqCard}>
+        {/* {faqs.map((faq, index) => (
+          <View key={faq?.question} style={styles.faqCard}>
             <Pressable
               onPress={() => {
                 setFaqs((prev) =>
                   prev.map((entry, i) =>
-                    i === index ? { ...entry, open: !entry.open } : entry
+                    i === index ? { ...entry, open: !entry?.open } : entry
                   )
                 );
               }}
@@ -72,7 +79,7 @@ export default function PricingScreen() {
             </Pressable>
             {faq.open ? <Text style={styles.faqAnswer}>{faq.answer}</Text> : null}
           </View>
-        ))}
+        ))} */}
       </ScrollView>
     </Screen>
   );
