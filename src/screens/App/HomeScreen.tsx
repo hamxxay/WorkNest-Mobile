@@ -2,11 +2,16 @@ import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
-import type { MainTabParamList } from "../../navigation/types";
+import type { MainTabParamList, RootStackParamList } from "../../navigation/types";
 import { Header } from "../../components/Header";
 import { Screen } from "../../components/Screen";
 import { WaveDivider } from "../../components/WaveBackground";
 import { colors, radii } from "../../theme";
+import { useAuth } from "../../context/AuthContext";
+import { getPricingPlans, PricingPlan } from "../../services/pricingService";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { GalleryImage, getGalleryImages } from "../../services/galleryService";
+import { SmartImage } from "../../components/SmartImage";
 
 export default function HomeScreen() {
   const navigation = useNavigation<BottomTabNavigationProp<MainTabParamList>>();
@@ -72,7 +77,10 @@ export default function HomeScreen() {
           </View>
           <View style={styles.galleryGrid}>
             {galleryImages.map((img, index) => (
-              <View key={img.id ?? index} style={styles.galleryCard}>
+              <View
+                key={`gallery-${String(img.id ?? "missing")}-${index}`}
+                style={styles.galleryCard}
+              >
                 <SmartImage uri={img.src} style={styles.galleryImage} />
               </View>
             ))}
@@ -87,8 +95,11 @@ export default function HomeScreen() {
             </Pressable>
           </View>
 
-          {plans.map((plan) => (
-            <View key={plan.id ?? plan.name} style={[styles.planCard, plan.popular && styles.popularCard]}>
+          {plans.map((plan, index) => (
+            <View
+              key={`plan-${String(plan.id ?? "missing")}-${plan.name}-${index}`}
+              style={[styles.planCard, plan.popular && styles.popularCard]}
+            >
               <Text style={styles.planName}>{plan.name}</Text>
               <Text style={styles.planPrice}>${Number(plan.price).toFixed(0)}/mo</Text>
               <Text style={styles.planDescription}>{plan.description}</Text>
@@ -96,7 +107,7 @@ export default function HomeScreen() {
           ))}
         </View>
 
-        <View style={styles.section}>
+        {/* <View style={styles.section}>
           <Text style={styles.sectionTitle}>Why WorkNest</Text>
           {fallbackFeatures.map((feature) => (
             <View key={feature.title} style={styles.feature}>
@@ -104,7 +115,7 @@ export default function HomeScreen() {
               <Text style={styles.featureText}>{feature.text}</Text>
             </View>
           ))}
-        </View>
+        </View> */}
       </ScrollView>
     </Screen>
   );
@@ -177,3 +188,4 @@ const styles = StyleSheet.create({
   featureTitle: { color: colors.foreground, fontWeight: "600", fontSize: 16 },
   featureText: { color: colors.mutedForeground, marginTop: 4, fontSize: 14 },
 });
+

@@ -170,7 +170,7 @@ export default function SignupScreen() {
               />
             </View>
 
-            {!!errorMessage && <Text style={styles.errorText}>{errorMessage}</Text>}
+            {/* {!!error && <Text style={styles.errorText}>{error}</Text>} */}
 
             <Pressable
               style={[styles.primaryButton, loading && styles.primaryButtonDisabled]}
@@ -286,9 +286,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontSize: 16,
   },
-  primaryButtonDisabled: {
-    opacity: 0.7,
-  },
+  
   errorText: {
     color: "#dc2626",
     fontSize: 13,

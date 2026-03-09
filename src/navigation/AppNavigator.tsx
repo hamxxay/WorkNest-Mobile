@@ -1,14 +1,21 @@
 import { NavigationContainer } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import {
+  createDrawerNavigator,
+  DrawerContentScrollView,
+  DrawerItem,
+  DrawerItemList,
+  type DrawerContentComponentProps,
+} from "@react-navigation/drawer";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import HomeScreen from "../screens/App/HomeScreen";
 import BookingScreen from "../screens/App/BookingScreen";
 import PricingScreen from "../screens/App/PricingScreen";
-import GalleryScreen from "../screens/App/GalleryScreen";
 import SignupScreen from "../screens/Auth/SignupScreen";
 import { colors } from "../theme";
 import type {
+  AppDrawerParamList,
   AppStackParamList,
   AuthStackParamList,
   MainTabParamList,
@@ -17,8 +24,19 @@ import type {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import SplashScreen from "../screens/Auth/SplashScreen";
 import LoginScreen from "../screens/Auth/LoginScreen";
+import OnboardingScreen from "../screens/Auth/OnboardingScreen";
+import ProfileScreen from "../screens/App/ProfileScreen";
+import BookingHistoryScreen from "../screens/App/BookingHistoryScreen";
+import PrivacyPolicyScreen from "../screens/App/PrivacyPolicyScreen";
+import AboutUsScreen from "../screens/App/AboutUsScreen";
+import { logoutUser } from "../services/authService";
+import { useAuth } from "../context/AuthContext";
+import { StyleSheet } from "react-native";
+import { useState } from "react";
+import { ConfirmModal } from "../components/ConfirmModal";
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
+const Drawer = createDrawerNavigator<AppDrawerParamList>();
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 const AppStack = createNativeStackNavigator<AppStackParamList>();
@@ -78,6 +96,98 @@ function MainTabs() {
   );
 }
 
+function AppDrawerContent(props: DrawerContentComponentProps) {
+  const { clearSession } = useAuth();
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+  const resetToLogin = () => {
+    const rootNavigation = props.navigation.getParent();
+    if (!rootNavigation) {
+      return;
+    }
+    rootNavigation.reset({
+      index: 0,
+      routes: [{ name: "AuthStack", params: { screen: "Login" } }],
+    });
+  };
+
+  const handleLogout = async () => {
+    setShowLogoutConfirm(false);
+    await logoutUser();
+    await clearSession();
+    resetToLogin();
+  };
+
+  return (
+    <>
+      <DrawerContentScrollView {...props} contentContainerStyle={styles.drawerContent}>
+        <DrawerItemList {...props} />
+        <DrawerItem
+          label="Log Out"
+          onPress={() => setShowLogoutConfirm(true)}
+          labelStyle={styles.logoutLabel}
+          icon={({ color, size }) => (
+            <Ionicons name="log-out-outline" size={size} color={color} />
+          )}
+        />
+      </DrawerContentScrollView>
+
+      <ConfirmModal
+        visible={showLogoutConfirm}
+        title="Confirm Logout"
+        message="Are you sure you want to log out?"
+        confirmText="Log Out"
+        cancelText="Cancel"
+        onCancel={() => setShowLogoutConfirm(false)}
+        onConfirm={() => {
+          handleLogout().catch(() => {
+            setShowLogoutConfirm(false);
+            resetToLogin();
+          });
+        }}
+      />
+    </>
+  );
+}
+
+function AppDrawerNavigator() {
+  return (
+    <Drawer.Navigator
+      drawerContent={(props) => <AppDrawerContent {...props} />}
+      screenOptions={{
+        headerShown: false,
+        drawerActiveTintColor: colors.primary,
+        drawerInactiveTintColor: colors.mutedForeground,
+        drawerStyle: {
+          backgroundColor: colors.background,
+        },
+      }}
+    >
+      <Drawer.Screen
+        name="Workspace"
+        component={MainTabs}
+        options={{ drawerLabel: "Home" }}
+      />
+      <Drawer.Screen name="Profile" component={ProfileScreen} />
+      <Drawer.Screen
+        name="BookingHistory"
+        component={BookingHistoryScreen}
+        options={{ drawerLabel: "Booking History" }}
+      />
+      <Drawer.Screen
+        name="PrivacyPolicy"
+        component={PrivacyPolicyScreen}
+        options={{ drawerLabel: "Privacy Policy" }}
+      />
+      <Drawer.Screen
+        name="AboutUs"
+        component={AboutUsScreen}
+        options={{ drawerLabel: "About Us" }}
+      />
+    </Drawer.Navigator>
+  );
+}
+
 function AuthStackNavigator() {
   return (
     <AuthStack.Navigator initialRouteName="Login" screenOptions={{ headerShown: false }}>
@@ -90,7 +200,7 @@ function AuthStackNavigator() {
 function AppStackNavigator() {
   return (
     <AppStack.Navigator initialRouteName="MainTabs" screenOptions={{ headerShown: false }}>
-      <AppStack.Screen name="MainTabs" component={MainTabs} />
+      <AppStack.Screen name="MainTabs" component={AppDrawerNavigator} />
     </AppStack.Navigator>
   );
 }
@@ -100,9 +210,22 @@ export function AppNavigator() {
     <NavigationContainer>
       <RootStack.Navigator initialRouteName="Splash" screenOptions={{ headerShown: false }}>
         <RootStack.Screen name="Splash" component={SplashScreen} />
+        <RootStack.Screen name="Onboarding" component={OnboardingScreen} />
         <RootStack.Screen name="AuthStack" component={AuthStackNavigator} />
         <RootStack.Screen name="AppStack" component={AppStackNavigator} />
       </RootStack.Navigator>
     </NavigationContainer>
   );
 }
+
+export default AppNavigator;
+
+const styles = StyleSheet.create({
+  drawerContent: {
+    flex: 1,
+  },
+  logoutLabel: {
+    color: "#dc2626",
+    fontWeight: "700",
+  },
+});
