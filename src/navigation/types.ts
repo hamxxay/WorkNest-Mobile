@@ -9,6 +9,14 @@ export type MainTabParamList = {
   Gallery: undefined;
 };
 
+export type AppDrawerParamList = {
+  Workspace: undefined;
+  Profile: undefined;
+  BookingHistory: undefined;
+  PrivacyPolicy: undefined;
+  AboutUs: undefined;
+};
+
 export type AuthStackParamList = {
   Login: undefined;
   Signup: undefined;
