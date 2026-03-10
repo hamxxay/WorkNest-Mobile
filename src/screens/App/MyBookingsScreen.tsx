@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Header } from "../../components/Header";
 import { Screen } from "../../components/Screen";
@@ -121,3 +121,4 @@ const styles = StyleSheet.create({
   },
   cancelText: { color: "#dc2626", fontWeight: "700", fontSize: 13 },
 });
+

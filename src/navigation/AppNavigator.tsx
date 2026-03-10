@@ -29,6 +29,7 @@ import ProfileScreen from "../screens/App/ProfileScreen";
 import BookingHistoryScreen from "../screens/App/BookingHistoryScreen";
 import PrivacyPolicyScreen from "../screens/App/PrivacyPolicyScreen";
 import AboutUsScreen from "../screens/App/AboutUsScreen";
+import AdminPanelScreen from "../screens/App/AdminPanelScreen";
 import { logoutUser } from "../services/authService";
 import { useAuth } from "../context/AuthContext";
 import { StyleSheet } from "react-native";
@@ -201,6 +202,7 @@ function AppStackNavigator() {
   return (
     <AppStack.Navigator initialRouteName="MainTabs" screenOptions={{ headerShown: false }}>
       <AppStack.Screen name="MainTabs" component={AppDrawerNavigator} />
+      <AppStack.Screen name="AdminPanel" component={AdminPanelScreen} />
     </AppStack.Navigator>
   );
 }

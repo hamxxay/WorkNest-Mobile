@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import {
   Modal,
   Pressable,
@@ -9,16 +9,13 @@ import {
   View,
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
-import { Header } from "../../components/Header";
+import { DrawerActions, useNavigation } from "@react-navigation/native";
+import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
+import type { MainTabParamList } from "../../navigation/types";
 import { Screen } from "../../components/Screen";
 import { colors, radii } from "../../theme";
 import { createBooking, getWorkspaces } from "../../services/workspaceService";
 import { SmartImage } from "../../components/SmartImage";
-
-type DateRange = {
-  from: Date | null;
-  to: Date | null;
-};
 
 type Workspace = {
   id: number;
@@ -32,97 +29,45 @@ type Workspace = {
   available: boolean;
 };
 
-const workspaces: Workspace[] = [
-  {
-    id: 1,
-    name: "Premium Private Office",
-    type: "Private Office",
-    location: "Downtown Financial District",
-    capacity: "1-2 people",
-    price: 45,
-    amenities: ["Standing desk", "High-speed WiFi", "Printing access"],
-    image:
-      "https://images.unsplash.com/photo-1497366216548-37526070297c?w=800&h=600&fit=crop",
-    available: true,
-  },
-  {
-    id: 2,
-    name: "Co-Working Hot Desk",
-    type: "Co-Working Space",
-    location: "Creative Arts Quarter",
-    capacity: "Open seating",
-    price: 25,
-    amenities: ["Coffee bar", "Collaborative atmosphere", "Natural light"],
-    image:
-      "https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=800&h=600&fit=crop",
-    available: true,
-  },
-  {
-    id: 3,
-    name: "Executive Meeting Room",
-    type: "Meeting Room",
-    location: "Tech Innovation Hub",
-    capacity: "8-12 people",
-    price: 75,
-    amenities: ["Video conferencing", "Whiteboard", "Catering available"],
-    image:
-      "https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=800&h=600&fit=crop",
-    available: true,
-  },
-  {
-    id: 4,
-    name: "Modern Startup Space",
-    type: "Private Office",
-    location: "Innovation District",
-    capacity: "4-6 people",
-    price: 85,
-    amenities: ["24/7 access", "Kitchen", "Phone booths"],
-    image:
-      "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=800&h=600&fit=crop",
-    available: true,
-  },
-  {
-    id: 5,
-    name: "Creative Co-Working Area",
-    type: "Co-Working Space",
-    location: "Arts and Culture Center",
-    capacity: "Open seating",
-    price: 30,
-    amenities: ["Event space", "Workshops", "Community events"],
-    image:
-      "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=800&h=600&fit=crop",
-    available: false,
-  },
-  {
-    id: 6,
-    name: "Spacious Conference Room",
-    type: "Meeting Room",
-    location: "Business District",
-    capacity: "15-20 people",
-    price: 95,
-    amenities: ["Projector", "Conference phone", "Refreshments"],
-    image:
-      "https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=800&h=600&fit=crop",
-    available: true,
-  },
-];
+type CalendarDay = {
+  date: Date;
+  isCurrentMonth: boolean;
+};
 
 const typeOptions = ["", "private", "co-working", "meeting", "event"] as const;
+const MONTH_LABELS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
 
 export default function BookingScreen() {
+  const navigation = useNavigation<BottomTabNavigationProp<MainTabParamList>>();
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [workspaceType, setWorkspaceType] = useState<string>("");
   const [selectedSpace, setSelectedSpace] = useState<Workspace | null>(null);
   const [bookingNotes, setBookingNotes] = useState("");
-  const [bookingStartDate, setBookingStartDate] = useState(todayDate());
   const [bookingStartTime, setBookingStartTime] = useState("09:00");
-  const [bookingEndDate, setBookingEndDate] = useState(todayDate());
   const [bookingEndTime, setBookingEndTime] = useState("17:00");
   const [bookingInProgress, setBookingInProgress] = useState(false);
   const [bookingSuccess, setBookingSuccess] = useState("");
   const [bookingError, setBookingError] = useState("");
+
+  const [rangeStart, setRangeStart] = useState<Date | null>(new Date());
+  const [rangeEnd, setRangeEnd] = useState<Date | null>(new Date());
+  const [rangeMonth, setRangeMonth] = useState<Date>(startOfMonth(new Date()));
+  const [rangePickerOpen, setRangePickerOpen] = useState(false);
 
   useEffect(() => {
     getWorkspaces()
@@ -151,15 +96,19 @@ export default function BookingScreen() {
     });
   }, [searchQuery, workspaceType, workspaces]);
 
+  const calendarDays = useMemo(() => buildCalendarDays(rangeMonth), [rangeMonth]);
+
   const openBookingModal = (workspace: Workspace) => {
+    const today = new Date();
     setSelectedSpace(workspace);
     setBookingError("");
     setBookingSuccess("");
     setBookingNotes("");
-    setBookingStartDate(todayDate());
-    setBookingEndDate(todayDate());
     setBookingStartTime("09:00");
     setBookingEndTime("17:00");
+    setRangeStart(today);
+    setRangeEnd(today);
+    setRangeMonth(startOfMonth(today));
   };
 
   const closeBookingModal = () => {
@@ -167,16 +116,17 @@ export default function BookingScreen() {
     setBookingNotes("");
     setBookingError("");
     setBookingSuccess("");
+    setRangePickerOpen(false);
   };
 
   const submitBooking = async () => {
-    if (!selectedSpace || !bookingStartDate || !bookingEndDate) {
-      setBookingError("Please select start and end dates.");
+    if (!selectedSpace || !rangeStart || !rangeEnd) {
+      setBookingError("Please select a date range.");
       return;
     }
 
-    const startDateTime = `${bookingStartDate}T${bookingStartTime}:00`;
-    const endDateTime = `${bookingEndDate}T${bookingEndTime}:00`;
+    const startDateTime = `${formatDate(rangeStart)}T${bookingStartTime}:00`;
+    const endDateTime = `${formatDate(rangeEnd)}T${bookingEndTime}:00`;
 
     if (new Date(endDateTime) <= new Date(startDateTime)) {
       setBookingError("End date/time must be after start date/time.");
@@ -206,25 +156,67 @@ export default function BookingScreen() {
     }
   };
 
+  const onSelectRangeDate = (date: Date) => {
+    if (!rangeStart || (rangeStart && rangeEnd)) {
+      setRangeStart(date);
+      setRangeEnd(null);
+      return;
+    }
+
+    if (rangeStart && !rangeEnd) {
+      if (date < rangeStart) {
+        setRangeStart(date);
+        return;
+      }
+      setRangeEnd(date);
+    }
+  };
+
+  const dateRangeLabel = rangeStart && rangeEnd
+    ? `${formatDate(rangeStart)}  ${formatDate(rangeEnd)}`
+    : rangeStart
+      ? `${formatDate(rangeStart)}  Select end date`
+      : "Select date range";
+
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Header />
+        <View style={styles.topBar}>
+          <Text style={styles.logoText}>LOGO</Text>
+          <Pressable
+            style={styles.menuButton}
+            onPress={() => navigation.dispatch(DrawerActions.openDrawer())}
+          >
+            <Ionicons name="menu" size={20} color={colors.foreground} />
+          </Pressable>
+        </View>
 
         <Text style={styles.pageTitle}>Book Your Workspace</Text>
 
         <View style={styles.filterCard}>
-          <Text style={styles.filterTitle}>Search & Filter Workspaces</Text>
-
-          <View style={styles.inputWrapper}>
+          <View style={styles.searchRow}>
             <Ionicons name="search" size={18} color={colors.mutedForeground} />
             <TextInput
-              placeholder="Enter location or workspace name"
+              placeholder="Search for a coworking space"
               placeholderTextColor={colors.mutedForeground}
               value={searchQuery}
               onChangeText={setSearchQuery}
-              style={styles.input}
+              style={styles.searchInput}
             />
+          </View>
+
+          <View style={styles.filterRow}>
+            <Pressable style={styles.dropdown}>
+              <Text style={styles.dropdownText}>Location</Text>
+              <Ionicons name="chevron-down" size={16} color={colors.mutedForeground} />
+            </Pressable>
+            <Pressable style={styles.dropdown}>
+              <Text style={styles.dropdownText}>Date</Text>
+              <Ionicons name="chevron-down" size={16} color={colors.mutedForeground} />
+            </Pressable>
+            <Pressable style={styles.searchButton}>
+              <Text style={styles.searchButtonText}>Search</Text>
+            </Pressable>
           </View>
 
           <Text style={styles.filterLabel}>Workspace Type</Text>
@@ -249,7 +241,7 @@ export default function BookingScreen() {
         </View>
 
         <View style={styles.galleryHeader}>
-          <Text style={styles.galleryTitle}>Workspace Gallery</Text>
+          <Text style={styles.galleryTitle}>Workspace Listings</Text>
           <Text style={styles.gallerySubtitle}>
             Browse available workspaces and find your perfect fit.
           </Text>
@@ -302,14 +294,14 @@ export default function BookingScreen() {
             {!!bookingError && <Text style={styles.errorText}>{bookingError}</Text>}
             {!!bookingSuccess && <Text style={styles.successText}>{bookingSuccess}</Text>}
 
-            <Text style={styles.label}>Start Date</Text>
-            <TextInput style={styles.inputPlain} value={bookingStartDate} onChangeText={setBookingStartDate} placeholder="YYYY-MM-DD" />
+            <Text style={styles.label}>Date Range</Text>
+            <Pressable style={styles.rangeField} onPress={() => setRangePickerOpen(true)}>
+              <Text style={rangeStart ? styles.rangeText : styles.rangePlaceholder}>{dateRangeLabel}</Text>
+              <Ionicons name="calendar-outline" size={16} color={colors.mutedForeground} />
+            </Pressable>
 
             <Text style={styles.label}>Start Time</Text>
             <TextInput style={styles.inputPlain} value={bookingStartTime} onChangeText={setBookingStartTime} placeholder="HH:mm" />
-
-            <Text style={styles.label}>End Date</Text>
-            <TextInput style={styles.inputPlain} value={bookingEndDate} onChangeText={setBookingEndDate} placeholder="YYYY-MM-DD" />
 
             <Text style={styles.label}>End Time</Text>
             <TextInput style={styles.inputPlain} value={bookingEndTime} onChangeText={setBookingEndTime} placeholder="HH:mm" />
@@ -334,40 +326,180 @@ export default function BookingScreen() {
           </View>
         </View>
       </Modal>
+
+      <Modal transparent visible={rangePickerOpen} animationType="fade">
+        <View style={styles.pickerOverlay}>
+          <View style={styles.pickerCard}>
+            <View style={styles.pickerHeader}>
+              <Pressable style={styles.pickerNav} onPress={() => setRangeMonth((prev) => addMonths(prev, -1))}>
+                <Ionicons name="chevron-back" size={18} color={colors.foreground} />
+              </Pressable>
+              <Text style={styles.pickerTitle}>
+                {MONTH_LABELS[rangeMonth.getMonth()]} {rangeMonth.getFullYear()}
+              </Text>
+              <Pressable style={styles.pickerNav} onPress={() => setRangeMonth((prev) => addMonths(prev, 1))}>
+                <Ionicons name="chevron-forward" size={18} color={colors.foreground} />
+              </Pressable>
+            </View>
+
+            <View style={styles.calendarGrid}>
+              {calendarDays.map((day, index) => {
+                const isSelectedStart = rangeStart ? isSameDay(day.date, rangeStart) : false;
+                const isSelectedEnd = rangeEnd ? isSameDay(day.date, rangeEnd) : false;
+                const isInRange = rangeStart && rangeEnd
+                  ? day.date > rangeStart && day.date < rangeEnd
+                  : false;
+                return (
+                  <Pressable
+                    key={`${day.date.toISOString()}-${index}`}
+                    style={[
+                      styles.dayCell,
+                      !day.isCurrentMonth && styles.dayCellMuted,
+                      isInRange && styles.dayCellInRange,
+                      (isSelectedStart || isSelectedEnd) && styles.dayCellSelected,
+                    ]}
+                    onPress={() => onSelectRangeDate(day.date)}
+                  >
+                    <Text
+                      style={[
+                        styles.dayText,
+                        !day.isCurrentMonth && styles.dayTextMuted,
+                        (isSelectedStart || isSelectedEnd) && styles.dayTextSelected,
+                      ]}
+                    >
+                      {day.date.getDate()}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <View style={styles.rangeFooter}>
+              <Text style={styles.rangeFooterText}>{dateRangeLabel}</Text>
+              <Pressable style={styles.pickerDone} onPress={() => setRangePickerOpen(false)}>
+                <Text style={styles.pickerDoneText}>Done</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </Screen>
   );
 }
 
-function todayDate() {
-  return new Date().toISOString().slice(0, 10);
+function formatDate(value: Date) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function buildCalendarDays(baseMonth: Date): CalendarDay[] {
+  const year = baseMonth.getFullYear();
+  const month = baseMonth.getMonth();
+  const firstDayOfMonth = new Date(year, month, 1);
+  const startDay = firstDayOfMonth.getDay();
+  const startDate = new Date(year, month, 1 - startDay);
+  const days: CalendarDay[] = [];
+
+  for (let i = 0; i < 42; i += 1) {
+    const date = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + i);
+    days.push({
+      date,
+      isCurrentMonth: date.getMonth() === month,
+    });
+  }
+
+  return days;
+}
+
+function startOfMonth(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function addMonths(date: Date, delta: number) {
+  return new Date(date.getFullYear(), date.getMonth() + delta, 1);
+}
+
+function isSameDay(a: Date, b: Date) {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: 20, paddingBottom: 24 },
-  pageTitle: { fontSize: 28, fontWeight: "800", color: colors.foreground, marginBottom: 16 },
+  content: { paddingHorizontal: 18, paddingBottom: 24 },
+  topBar: {
+    marginTop: 4,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  logoText: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: colors.foreground,
+  },
+  menuButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.background,
+  },
+  pageTitle: { fontSize: 26, fontWeight: "800", color: colors.foreground, marginTop: 10, marginBottom: 12 },
   filterCard: {
     backgroundColor: colors.background,
     borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 16,
-    marginBottom: 20,
+    padding: 14,
+    marginBottom: 18,
+    shadowColor: "#1F2A44",
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 2,
+    gap: 10,
   },
-  filterTitle: { fontSize: 18, fontWeight: "700", color: colors.foreground, marginBottom: 12 },
-  filterLabel: { marginTop: 14, marginBottom: 8, color: colors.foreground, fontWeight: "600", fontSize: 15 },
-  inputWrapper: {
+  searchRow: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 8,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: radii.md,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     backgroundColor: colors.muted,
   },
-  input: { flex: 1, color: colors.foreground, fontSize: 16 },
-  filterHint: { marginTop: 10, color: colors.mutedForeground, fontSize: 13 },
+  searchInput: { flex: 1, color: colors.foreground, fontSize: 14 },
+  filterRow: { flexDirection: "row", gap: 8 },
+  dropdown: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    backgroundColor: colors.background,
+  },
+  dropdownText: { color: colors.mutedForeground, fontSize: 12, fontWeight: "700" },
+  searchButton: {
+    backgroundColor: colors.accent,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  searchButtonText: { color: "#FFFFFF", fontSize: 12, fontWeight: "800" },
+  filterLabel: { marginTop: 4, color: colors.foreground, fontWeight: "700", fontSize: 14 },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: {
     paddingVertical: 6,
@@ -378,19 +510,23 @@ const styles = StyleSheet.create({
     backgroundColor: colors.muted,
   },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipText: { fontSize: 13, color: colors.mutedForeground, fontWeight: "600", textTransform: "capitalize" },
+  chipText: { fontSize: 12, color: colors.mutedForeground, fontWeight: "600", textTransform: "capitalize" },
   chipTextActive: { color: colors.background },
+  filterHint: { color: colors.mutedForeground, fontSize: 12 },
   galleryHeader: { marginBottom: 12 },
   galleryTitle: { fontSize: 20, fontWeight: "700", color: colors.foreground },
   gallerySubtitle: { color: colors.mutedForeground, marginTop: 4, fontSize: 14 },
   helperText: { color: colors.mutedForeground, marginBottom: 12 },
   workspaceCard: {
     borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
     marginBottom: 16,
     overflow: "hidden",
     backgroundColor: colors.background,
+    shadowColor: "#1F2A44",
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 2,
   },
   image: { width: "100%", height: 180 },
   cardBody: { padding: 14, gap: 6 },
@@ -418,6 +554,19 @@ const styles = StyleSheet.create({
   modalTitle: { fontSize: 22, fontWeight: "700", color: colors.foreground },
   modalSpace: { color: colors.mutedForeground, marginBottom: 2 },
   label: { color: colors.foreground, fontWeight: "600", fontSize: 14 },
+  rangeField: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: colors.muted,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  rangeText: { color: colors.foreground, fontWeight: "600", fontSize: 13 },
+  rangePlaceholder: { color: colors.mutedForeground, fontWeight: "600", fontSize: 13 },
   inputPlain: {
     borderWidth: 1,
     borderColor: colors.border,
@@ -448,4 +597,67 @@ const styles = StyleSheet.create({
   modalPrimaryText: { color: colors.background, fontWeight: "700" },
   errorText: { color: "#dc2626", fontSize: 13, fontWeight: "600" },
   successText: { color: "#059669", fontSize: 13, fontWeight: "600" },
+  pickerOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.4)",
+    justifyContent: "center",
+    padding: 20,
+  },
+  pickerCard: {
+    backgroundColor: colors.background,
+    borderRadius: radii.lg,
+    padding: 12,
+  },
+  pickerHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  pickerNav: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.muted,
+  },
+  pickerTitle: { color: colors.foreground, fontWeight: "700", fontSize: 14 },
+  calendarGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
+  dayCell: {
+    width: "14.2857%",
+    aspectRatio: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 8,
+  },
+  dayCellMuted: {
+    opacity: 0.4,
+  },
+  dayCellInRange: {
+    backgroundColor: "rgba(74, 125, 255, 0.15)",
+  },
+  dayCellSelected: {
+    backgroundColor: colors.primary,
+  },
+  dayText: { color: colors.foreground, fontWeight: "600" },
+  dayTextMuted: { color: colors.mutedForeground },
+  dayTextSelected: { color: colors.background },
+  rangeFooter: {
+    marginTop: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  rangeFooterText: { color: colors.mutedForeground, fontWeight: "600", fontSize: 12 },
+  pickerDone: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: colors.primary,
+  },
+  pickerDoneText: { color: colors.background, fontWeight: "700" },
 });

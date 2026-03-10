@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { Header } from "../../components/Header";
 import { Screen } from "../../components/Screen";
@@ -179,3 +179,4 @@ const styles = StyleSheet.create({
   rowText: { color: colors.mutedForeground, fontSize: 12 },
   rowStatus: { color: colors.primary, fontSize: 12, fontWeight: "700" },
 });
+

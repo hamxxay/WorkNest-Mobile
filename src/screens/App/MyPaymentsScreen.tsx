@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { Header } from "../../components/Header";
 import { Screen } from "../../components/Screen";
@@ -99,3 +99,4 @@ const styles = StyleSheet.create({
   cardTitle: { color: colors.foreground, fontSize: 17, fontWeight: "700" },
   meta: { color: colors.mutedForeground, fontSize: 13 },
 });
+

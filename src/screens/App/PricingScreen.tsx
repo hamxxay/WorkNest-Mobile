@@ -1,19 +1,15 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+﻿import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Header } from "../../components/Header";
 import { Screen } from "../../components/Screen";
 import { colors, radii } from "../../theme";
 import { useEffect, useMemo, useState } from "react";
 import { getPricingPlans, PricingPlan } from "../../services/pricingService";
-import { Faq } from "../../services/workspaceService";
 
 const fallbackPlans: PricingPlan[] = [];
-
-const initialFaqs: Faq[] = [];
 
 export default function PricingScreen() {
   const [plans, setPlans] = useState<PricingPlan[]>(fallbackPlans);
   const [loading, setLoading] = useState(true);
-  const [faqs, setFaqs] = useState<Faq[]>(initialFaqs);
 
   useEffect(() => {
     getPricingPlans()
@@ -54,7 +50,7 @@ export default function PricingScreen() {
             <Text style={styles.cardDescription}>{plan.description}</Text>
 
             {plan.features.map((feature) => (
-              <Text key={feature} style={styles.featureText}>� {feature}</Text>
+              <Text key={feature} style={styles.featureText}>* {feature}</Text>
             ))}
 
             <Pressable style={[styles.ctaButton, plan.popular && styles.ctaButtonPopular]}>
@@ -64,22 +60,6 @@ export default function PricingScreen() {
         ))}
 
         <Text style={styles.faqTitle}>FAQs</Text>
-        {/* {faqs.map((faq, index) => (
-          <View key={faq?.question} style={styles.faqCard}>
-            <Pressable
-              onPress={() => {
-                setFaqs((prev) =>
-                  prev.map((entry, i) =>
-                    i === index ? { ...entry, open: !entry?.open } : entry
-                  )
-                );
-              }}
-            >
-              <Text style={styles.faqQuestion}>{faq.question}</Text>
-            </Pressable>
-            {faq.open ? <Text style={styles.faqAnswer}>{faq.answer}</Text> : null}
-          </View>
-        ))} */}
       </ScrollView>
     </Screen>
   );
@@ -136,15 +116,4 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: colors.foreground,
   },
-  faqCard: {
-    backgroundColor: colors.background,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.md,
-    padding: 14,
-    marginBottom: 10,
-    gap: 8,
-  },
-  faqQuestion: { color: colors.foreground, fontSize: 15, fontWeight: "700" },
-  faqAnswer: { color: colors.mutedForeground, fontSize: 14, lineHeight: 20 },
 });
