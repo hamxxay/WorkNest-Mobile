@@ -10,6 +10,9 @@ import {
 import { Header } from "../../components/Header";
 import { Screen } from "../../components/Screen";
 import { colors, radii } from "../../theme";
+import { GalleryImage, getGalleryImages } from "../../services/galleryService";
+import { SmartImage } from "../../components/SmartImage";
+import Ionicons from "react-native-vector-icons/Ionicons";
 
 const images = [
   {

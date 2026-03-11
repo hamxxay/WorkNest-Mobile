@@ -12,6 +12,7 @@ import Ionicons from "react-native-vector-icons/Ionicons";
 import HomeScreen from "../screens/App/HomeScreen";
 import BookingScreen from "../screens/App/BookingScreen";
 import PricingScreen from "../screens/App/PricingScreen";
+import GalleryScreen from "../screens/App/GalleryScreen";
 import SignupScreen from "../screens/Auth/SignupScreen";
 import { colors } from "../theme";
 import type {
@@ -91,8 +92,7 @@ function MainTabs() {
         options={{ title: "My Payments" }}
       /> */}
       <Tab.Screen name="Pricing" component={PricingScreen} />
-      {/* <Tab.Screen name="Gallery" component={GalleryScreen} /> */}
-      {/* <Tab.Screen name="Gallery" component={GalleryScreen} /> */}
+      <Tab.Screen name="Gallery" component={GalleryScreen} />
     </Tab.Navigator>
   );
 }

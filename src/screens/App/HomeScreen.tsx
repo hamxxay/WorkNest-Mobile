@@ -242,11 +242,6 @@ export default function HomeScreen() {
   };
 
   const goTo = (route: keyof MainTabParamList) => {
-    const parent = navigation.getParent();
-    if (parent && "navigate" in parent) {
-      parent.navigate(route as never);
-      return;
-    }
     navigation.navigate(route);
   };
 
@@ -437,7 +432,7 @@ export default function HomeScreen() {
             ))}
           </View>
         </View>
-
+{/* 
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Plans for every work style</Text>
@@ -453,7 +448,7 @@ export default function HomeScreen() {
               <Text style={styles.planDescription}>{plan.description}</Text>
             </View>
           ))}
-        </View>
+        </View> */}
       </ScrollView>
 
       <Modal transparent visible={rangePickerOpen} animationType="fade">
