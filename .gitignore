@@ -76,3 +76,5 @@ yarn-error.log
 
 #api
 .env
+.env.local
+.env.*.local
