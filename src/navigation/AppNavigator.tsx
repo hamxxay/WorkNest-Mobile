@@ -11,6 +11,9 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import HomeScreen from "../screens/App/HomeScreen";
 import BookingScreen from "../screens/App/BookingScreen";
+import SpaceDetailScreen from "../screens/App/SpaceDetailScreen";
+import BookingInfoScreen from "../screens/App/BookingInfoScreen";
+import PaymentScreen from "../screens/App/PaymentScreen";
 import PricingScreen from "../screens/App/PricingScreen";
 import GalleryScreen from "../screens/App/GalleryScreen";
 import SignupScreen from "../screens/Auth/SignupScreen";
@@ -203,6 +206,9 @@ function AppStackNavigator() {
     <AppStack.Navigator initialRouteName="MainTabs" screenOptions={{ headerShown: false }}>
       <AppStack.Screen name="MainTabs" component={AppDrawerNavigator} />
       <AppStack.Screen name="AdminPanel" component={AdminPanelScreen} />
+      <AppStack.Screen name="SpaceDetail" component={SpaceDetailScreen} />
+      <AppStack.Screen name="BookingInfo" component={BookingInfoScreen} />
+      <AppStack.Screen name="Payment" component={PaymentScreen} />
     </AppStack.Navigator>
   );
 }

@@ -1,6 +1,7 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -9,13 +10,17 @@ import {
   View,
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
-import { DrawerActions, useNavigation } from "@react-navigation/native";
+import { DrawerActions, useNavigation, useRoute, type CompositeNavigationProp } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
-import type { MainTabParamList } from "../../navigation/types";
+import type { RouteProp } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { AppStackParamList, MainTabParamList } from "../../navigation/types";
 import { Screen } from "../../components/Screen";
 import { colors, radii } from "../../theme";
 import { createBooking, getWorkspaces } from "../../services/workspaceService";
 import { SmartImage } from "../../components/SmartImage";
+import { Picker } from "@react-native-picker/picker";
+import DateTimePicker from "@react-native-community/datetimepicker";
 
 type Workspace = {
   id: number;
@@ -28,6 +33,14 @@ type Workspace = {
   image: string;
   available: boolean;
 };
+
+type RoomType = "Meeting/Conference" | "Shared Space" | "Office";
+
+type SharedSlot = "9 AM - 5 PM" | "6 PM - 3 AM" | "";
+
+type PickerType = "office" | null;
+
+type RangeTarget = "meeting" | "shared" | null;
 
 type CalendarDay = {
   date: Date;
@@ -50,12 +63,36 @@ const MONTH_LABELS = [
   "December",
 ];
 
+type BookingNavigation = CompositeNavigationProp<
+  BottomTabNavigationProp<MainTabParamList>,
+  NativeStackNavigationProp<AppStackParamList>
+>;
+
 export default function BookingScreen() {
-  const navigation = useNavigation<BottomTabNavigationProp<MainTabParamList>>();
+  const navigation = useNavigation<BookingNavigation>();
+  const route = useRoute<RouteProp<MainTabParamList, "Booking">>();
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [workspaceType, setWorkspaceType] = useState<string>("");
+  const initialRoomType = route.params?.initialRoomType;
+  const [quickRoomType, setQuickRoomType] = useState<RoomType>("Meeting/Conference");
+  const [quickMeetingRangeStart, setQuickMeetingRangeStart] = useState<Date | null>(null);
+  const [quickMeetingRangeEnd, setQuickMeetingRangeEnd] = useState<Date | null>(null);
+  const [quickMeetingStartTime, setQuickMeetingStartTime] = useState("09:00");
+  const [quickMeetingHours, setQuickMeetingHours] = useState("1");
+  const [quickSharedRangeStart, setQuickSharedRangeStart] = useState<Date | null>(null);
+  const [quickSharedRangeEnd, setQuickSharedRangeEnd] = useState<Date | null>(null);
+  const [quickSharedSlot, setQuickSharedSlot] = useState<SharedSlot>("");
+  const [quickSharedRepeatWeeks, setQuickSharedRepeatWeeks] = useState("0");
+  const [quickOfficeRangeStart, setQuickOfficeRangeStart] = useState<Date | null>(null);
+  const [quickOfficeRangeEnd, setQuickOfficeRangeEnd] = useState<Date | null>(null);
+  const [quickOfficeChairs, setQuickOfficeChairs] = useState("1");
+  const [quickActivePicker, setQuickActivePicker] = useState<PickerType>(null);
+  const [quickPickerMonth, setQuickPickerMonth] = useState<Date>(new Date());
+  const [quickRangePickerOpen, setQuickRangePickerOpen] = useState(false);
+  const [quickRangeTarget, setQuickRangeTarget] = useState<RangeTarget>(null);
+  const [quickRangeMonth, setQuickRangeMonth] = useState<Date>(startOfMonth(new Date()));
   const [selectedSpace, setSelectedSpace] = useState<Workspace | null>(null);
   const [bookingNotes, setBookingNotes] = useState("");
   const [bookingStartTime, setBookingStartTime] = useState("09:00");
@@ -63,11 +100,16 @@ export default function BookingScreen() {
   const [bookingInProgress, setBookingInProgress] = useState(false);
   const [bookingSuccess, setBookingSuccess] = useState("");
   const [bookingError, setBookingError] = useState("");
+  const [timePickerOpen, setTimePickerOpen] = useState(false);
+  const [timePickerTarget, setTimePickerTarget] = useState<
+    "quickMeeting" | "bookingStart" | "bookingEnd" | null
+  >(null);
+  const [timePickerValue, setTimePickerValue] = useState<Date>(new Date());
 
-  const [rangeStart, setRangeStart] = useState<Date | null>(new Date());
-  const [rangeEnd, setRangeEnd] = useState<Date | null>(new Date());
-  const [rangeMonth, setRangeMonth] = useState<Date>(startOfMonth(new Date()));
-  const [rangePickerOpen, setRangePickerOpen] = useState(false);
+  const [bookingRangeStart, setBookingRangeStart] = useState<Date | null>(new Date());
+  const [bookingRangeEnd, setBookingRangeEnd] = useState<Date | null>(new Date());
+  const [bookingRangeMonth, setBookingRangeMonth] = useState<Date>(startOfMonth(new Date()));
+  const [bookingRangePickerOpen, setBookingRangePickerOpen] = useState(false);
 
   useEffect(() => {
     getWorkspaces()
@@ -78,6 +120,94 @@ export default function BookingScreen() {
         setLoading(false);
       });
   }, []);
+
+  useEffect(() => {
+    if (initialRoomType) {
+      setQuickRoomType(initialRoomType);
+    }
+  }, [initialRoomType]);
+
+  const quickMeetingRangeLabel = getRangeLabel(quickMeetingRangeStart, quickMeetingRangeEnd);
+  const quickSharedRangeLabel = getRangeLabel(quickSharedRangeStart, quickSharedRangeEnd);
+  const quickOfficeMonthValue = getMonthRangeLabel(quickOfficeRangeStart, quickOfficeRangeEnd);
+  const quickOfficeMonths = useMemo(
+    () => getMonthRangeCountLabel(quickOfficeRangeStart, quickOfficeRangeEnd),
+    [quickOfficeRangeStart, quickOfficeRangeEnd],
+  );
+
+  const quickValidation = useMemo(() => {
+    if (quickRoomType === "Meeting/Conference") {
+      const hours = Number(quickMeetingHours);
+      if (!quickMeetingRangeStart || !quickMeetingRangeEnd) {
+        return "Select a date range.";
+      }
+      if (!isValidTime(quickMeetingStartTime)) {
+        return "Select a valid start time (HH:mm).";
+      }
+      if (!Number.isFinite(hours) || hours < 1) {
+        return "Minimum booking is 1 hour.";
+      }
+      return "";
+    }
+
+    if (quickRoomType === "Shared Space") {
+      const repeatWeeks = Number(quickSharedRepeatWeeks);
+      if (!quickSharedRangeStart || !quickSharedRangeEnd) {
+        return "Select a date range.";
+      }
+      if (!quickSharedSlot) {
+        return "Select a time slot.";
+      }
+      if (!Number.isFinite(repeatWeeks) || repeatWeeks < 0 || repeatWeeks > 4) {
+        return "Repeat can be 0 to 4 weeks (up to one month).";
+      }
+      return "";
+    }
+
+    const chairs = Number(quickOfficeChairs);
+    if (!quickOfficeRangeStart || !quickOfficeRangeEnd) {
+      return "Select a month range.";
+    }
+    if (!Number.isFinite(chairs) || chairs < 1 || chairs > 5) {
+      return "Chairs must be between 1 and 5.";
+    }
+    return "";
+  }, [
+    quickRoomType,
+    quickMeetingRangeStart,
+    quickMeetingRangeEnd,
+    quickMeetingStartTime,
+    quickMeetingHours,
+    quickSharedRangeStart,
+    quickSharedRangeEnd,
+    quickSharedSlot,
+    quickSharedRepeatWeeks,
+    quickOfficeRangeStart,
+    quickOfficeRangeEnd,
+    quickOfficeChairs,
+  ]);
+
+  const quickSummary = useMemo(() => {
+    if (quickRoomType === "Meeting/Conference") {
+      return `Meeting ${quickMeetingRangeLabel} at ${quickMeetingStartTime || "-"} for ${quickMeetingHours || "-"} hour(s).`;
+    }
+    if (quickRoomType === "Shared Space") {
+      const repeat = Number(quickSharedRepeatWeeks) > 0 ? `, repeat ${quickSharedRepeatWeeks} week(s)` : "";
+      return `Shared space ${quickSharedRangeLabel}, ${quickSharedSlot || "-"}${repeat}.`;
+    }
+    return `Office ${quickOfficeMonthValue || "-"} for ${quickOfficeMonths || "-"} month(s), ${quickOfficeChairs || "-"} chair(s). Deposit: 1 month.`;
+  }, [
+    quickRoomType,
+    quickMeetingRangeLabel,
+    quickMeetingStartTime,
+    quickMeetingHours,
+    quickSharedRangeLabel,
+    quickSharedSlot,
+    quickSharedRepeatWeeks,
+    quickOfficeMonthValue,
+    quickOfficeMonths,
+    quickOfficeChairs,
+  ]);
 
   const filteredWorkspaces = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
@@ -96,7 +226,107 @@ export default function BookingScreen() {
     });
   }, [searchQuery, workspaceType, workspaces]);
 
-  const calendarDays = useMemo(() => buildCalendarDays(rangeMonth), [rangeMonth]);
+  const quickCalendarDays = useMemo(() => buildCalendarDays(quickRangeMonth), [quickRangeMonth]);
+  const bookingCalendarDays = useMemo(() => buildCalendarDays(bookingRangeMonth), [bookingRangeMonth]);
+
+  const openQuickRangePicker = (target: RangeTarget) => {
+    const baseDate = target === "meeting"
+      ? quickMeetingRangeStart ?? new Date()
+      : quickSharedRangeStart ?? new Date();
+    setQuickRangeTarget(target);
+    setQuickRangeMonth(startOfMonth(baseDate));
+    setQuickRangePickerOpen(true);
+  };
+
+  const openQuickMonthPicker = () => {
+    setQuickActivePicker("office");
+    const baseDate = quickOfficeRangeStart ?? new Date();
+    setQuickPickerMonth(new Date(baseDate.getFullYear(), baseDate.getMonth(), 1));
+  };
+
+  const onSelectQuickRangeDate = (date: Date) => {
+    if (quickRangeTarget === "meeting") {
+      setQuickMeetingRangeStart((prev) => {
+        if (!prev || (prev && quickMeetingRangeEnd)) {
+          setQuickMeetingRangeEnd(null);
+          return date;
+        }
+        if (date < prev) {
+          return date;
+        }
+        setQuickMeetingRangeEnd(date);
+        return prev;
+      });
+    }
+
+    if (quickRangeTarget === "shared") {
+      setQuickSharedRangeStart((prev) => {
+        if (!prev || (prev && quickSharedRangeEnd)) {
+          setQuickSharedRangeEnd(null);
+          return date;
+        }
+        if (date < prev) {
+          return date;
+        }
+        setQuickSharedRangeEnd(date);
+        return prev;
+      });
+    }
+  };
+
+  const closeQuickRangePicker = () => {
+    setQuickRangePickerOpen(false);
+  };
+
+  const onSelectQuickMonth = (monthIndex: number) => {
+    const year = quickPickerMonth.getFullYear();
+    const date = new Date(year, monthIndex, 1);
+    setQuickOfficeRangeStart((prev) => {
+      if (!prev || quickOfficeRangeEnd) {
+        setQuickOfficeRangeEnd(null);
+        return date;
+      }
+      if (date < prev) {
+        return date;
+      }
+      setQuickOfficeRangeEnd(date);
+      setQuickActivePicker(null);
+      return prev;
+    });
+  };
+
+  const moveQuickMonth = (delta: number) => {
+    setQuickPickerMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + delta, 1));
+  };
+
+  const openTimePicker = (target: "quickMeeting" | "bookingStart" | "bookingEnd") => {
+    const currentValue = getTimePickerTargetValue(target, {
+      quickMeetingStartTime,
+      bookingStartTime,
+      bookingEndTime,
+    });
+    setTimePickerValue(timeStringToDate(currentValue));
+    setTimePickerTarget(target);
+    setTimePickerOpen(true);
+  };
+
+  const applyTimePickerValue = () => {
+    if (!timePickerTarget) {
+      setTimePickerOpen(false);
+      return;
+    }
+
+    const nextValue = formatTimeHHmm(timePickerValue);
+    if (timePickerTarget === "quickMeeting") {
+      setQuickMeetingStartTime(nextValue);
+    } else if (timePickerTarget === "bookingStart") {
+      setBookingStartTime(nextValue);
+    } else {
+      setBookingEndTime(nextValue);
+    }
+
+    setTimePickerOpen(false);
+  };
 
   const openBookingModal = (workspace: Workspace) => {
     const today = new Date();
@@ -106,9 +336,9 @@ export default function BookingScreen() {
     setBookingNotes("");
     setBookingStartTime("09:00");
     setBookingEndTime("17:00");
-    setRangeStart(today);
-    setRangeEnd(today);
-    setRangeMonth(startOfMonth(today));
+    setBookingRangeStart(today);
+    setBookingRangeEnd(today);
+    setBookingRangeMonth(startOfMonth(today));
   };
 
   const closeBookingModal = () => {
@@ -116,17 +346,17 @@ export default function BookingScreen() {
     setBookingNotes("");
     setBookingError("");
     setBookingSuccess("");
-    setRangePickerOpen(false);
+    setBookingRangePickerOpen(false);
   };
 
   const submitBooking = async () => {
-    if (!selectedSpace || !rangeStart || !rangeEnd) {
+    if (!selectedSpace || !bookingRangeStart || !bookingRangeEnd) {
       setBookingError("Please select a date range.");
       return;
     }
 
-    const startDateTime = `${formatDate(rangeStart)}T${bookingStartTime}:00`;
-    const endDateTime = `${formatDate(rangeEnd)}T${bookingEndTime}:00`;
+    const startDateTime = `${formatDate(bookingRangeStart)}T${bookingStartTime}:00`;
+    const endDateTime = `${formatDate(bookingRangeEnd)}T${bookingEndTime}:00`;
 
     if (new Date(endDateTime) <= new Date(startDateTime)) {
       setBookingError("End date/time must be after start date/time.");
@@ -156,26 +386,26 @@ export default function BookingScreen() {
     }
   };
 
-  const onSelectRangeDate = (date: Date) => {
-    if (!rangeStart || (rangeStart && rangeEnd)) {
-      setRangeStart(date);
-      setRangeEnd(null);
+  const onSelectBookingRangeDate = (date: Date) => {
+    if (!bookingRangeStart || (bookingRangeStart && bookingRangeEnd)) {
+      setBookingRangeStart(date);
+      setBookingRangeEnd(null);
       return;
     }
 
-    if (rangeStart && !rangeEnd) {
-      if (date < rangeStart) {
-        setRangeStart(date);
+    if (bookingRangeStart && !bookingRangeEnd) {
+      if (date < bookingRangeStart) {
+        setBookingRangeStart(date);
         return;
       }
-      setRangeEnd(date);
+      setBookingRangeEnd(date);
     }
   };
 
-  const dateRangeLabel = rangeStart && rangeEnd
-    ? `${formatDate(rangeStart)}  ${formatDate(rangeEnd)}`
-    : rangeStart
-      ? `${formatDate(rangeStart)}  Select end date`
+  const bookingDateRangeLabel = bookingRangeStart && bookingRangeEnd
+    ? `${formatDate(bookingRangeStart)}  ${formatDate(bookingRangeEnd)}`
+    : bookingRangeStart
+      ? `${formatDate(bookingRangeStart)}  Select end date`
       : "Select date range";
 
   return (
@@ -240,6 +470,115 @@ export default function BookingScreen() {
           <Text style={styles.filterHint}>Filter by name, location, or workspace type.</Text>
         </View>
 
+        <View style={styles.bookingCard}>
+          <Text style={styles.sectionTitle}>Book Now</Text>
+          <View style={styles.typeRow}>
+            {(["Meeting/Conference", "Shared Space", "Office"] as RoomType[]).map((type) => {
+              const active = quickRoomType === type;
+              return (
+                <Pressable
+                  key={type}
+                  style={[styles.typeChip, active && styles.typeChipActive]}
+                  onPress={() => setQuickRoomType(type)}
+                >
+                  <Text style={[styles.typeText, active && styles.typeTextActive]}>{type}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {quickRoomType === "Meeting/Conference" ? (
+            <View style={styles.formBlock}>
+              <Pressable style={styles.rangeField} onPress={() => openQuickRangePicker("meeting")}>
+                <Text style={quickMeetingRangeStart ? styles.rangeText : styles.rangePlaceholder}>
+                  {quickMeetingRangeLabel}
+                </Text>
+                <Ionicons name="calendar-outline" size={16} color={colors.mutedForeground} />
+              </Pressable>
+              <View style={styles.inlineRow}>
+                <TextInput
+                  value={quickMeetingStartTime}
+                  onChangeText={setQuickMeetingStartTime}
+                  placeholder="Start (HH:mm)"
+                  placeholderTextColor={colors.mutedForeground}
+                  style={[styles.input, styles.inlineInput]}
+                />
+                <TextInput
+                  value={quickMeetingHours}
+                  onChangeText={setQuickMeetingHours}
+                  placeholder="Hours"
+                  placeholderTextColor={colors.mutedForeground}
+                  keyboardType="numeric"
+                  style={[styles.input, styles.inlineInput]}
+                />
+              </View>
+              <Text style={styles.helperText}>Minimum 1 hour, same-day booking.</Text>
+            </View>
+          ) : null}
+
+          {quickRoomType === "Shared Space" ? (
+            <View style={styles.formBlock}>
+              <Pressable style={styles.rangeField} onPress={() => openQuickRangePicker("shared")}>
+                <Text style={quickSharedRangeStart ? styles.rangeText : styles.rangePlaceholder}>
+                  {quickSharedRangeLabel}
+                </Text>
+                <Ionicons name="calendar-outline" size={16} color={colors.mutedForeground} />
+              </Pressable>
+              <View style={styles.slotRow}>
+                {(["9 AM - 5 PM", "6 PM - 3 AM"] as SharedSlot[]).map((slot) => {
+                  const active = quickSharedSlot === slot;
+                  return (
+                    <Pressable
+                      key={slot}
+                      style={[styles.slotChip, active && styles.slotChipActive]}
+                      onPress={() => setQuickSharedSlot(slot)}
+                    >
+                      <Text style={[styles.slotText, active && styles.slotTextActive]}>{slot}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          ) : null}
+
+          {quickRoomType === "Office" ? (
+            <View style={styles.formBlock}>
+              <Pressable style={styles.pickerField} onPress={openQuickMonthPicker}>
+                <Text style={quickOfficeMonthValue ? styles.pickerText : styles.pickerPlaceholder}>
+                  {quickOfficeMonthValue || "Select month range"}
+                </Text>
+                <Ionicons name="calendar-outline" size={16} color={colors.mutedForeground} />
+              </Pressable>
+              <View style={styles.inlineRow}>
+                <View style={styles.pickerContainer}>
+                  <Picker
+                    selectedValue={quickOfficeChairs}
+                    onValueChange={(itemValue: string | number) =>
+                      setQuickOfficeChairs(String(itemValue))
+                    }
+                    dropdownIconColor="#666"
+                    style={styles.picker}
+                    mode="dropdown"
+                  >
+                    <Picker.Item label="Select Chairs" value="" color="#999" />
+                    <Picker.Item label="1 Chair" value="1" />
+                    <Picker.Item label="2 Chairs" value="2" />
+                    <Picker.Item label="3 Chairs" value="3" />
+                    <Picker.Item label="4 Chairs" value="4" />
+                    <Picker.Item label="5 Chairs" value="5" />
+                    <Picker.Item label="6 Chairs" value="6" />
+                    <Picker.Item label="7 Chairs" value="7" />
+                  </Picker>
+                </View>
+              </View>
+              <Text style={styles.helperText}>Security deposit: 1 month.</Text>
+            </View>
+          ) : null}
+
+          {quickValidation ? <Text style={styles.errorText}>{quickValidation}</Text> : null}
+          {!quickValidation ? <Text style={styles.summaryText}>{quickSummary}</Text> : null}
+        </View>
+
         <View style={styles.galleryHeader}>
           <Text style={styles.galleryTitle}>Workspace Listings</Text>
           <Text style={styles.gallerySubtitle}>
@@ -253,35 +592,22 @@ export default function BookingScreen() {
         ) : null}
 
         {filteredWorkspaces.map((workspace, index) => (
-          <View
+          <Pressable
             key={`workspace-${String(workspace.id ?? "missing")}-${index}`}
             style={styles.workspaceCard}
+            onPress={() => navigation.navigate("SpaceDetail", { workspace })}
           >
             <SmartImage uri={workspace.image} style={styles.image} />
 
             <View style={styles.cardBody}>
               <Text style={styles.cardTitle}>{workspace.name}</Text>
-              <Text style={styles.metaText}>{workspace.location}</Text>
               <Text style={styles.metaText}>Type: {workspace.type}</Text>
-              <Text style={styles.metaText}>Capacity: {workspace.capacity}</Text>
-              {workspace.amenities.length > 0 ? (
-                <Text style={styles.metaText}>{workspace.amenities.slice(0, 3).join(", ")}</Text>
-              ) : null}
             </View>
 
             <View style={styles.cardFooter}>
               <Text style={styles.priceText}>${workspace.price}/day</Text>
-              <Pressable
-                style={[styles.bookButton, !workspace.available && styles.bookButtonDisabled]}
-                onPress={() => openBookingModal(workspace)}
-                disabled={!workspace.available}
-              >
-                <Text style={styles.bookButtonText}>
-                  {workspace.available ? "Book Now" : "Unavailable"}
-                </Text>
-              </Pressable>
             </View>
-          </View>
+          </Pressable>
         ))}
       </ScrollView>
 
@@ -295,16 +621,20 @@ export default function BookingScreen() {
             {!!bookingSuccess && <Text style={styles.successText}>{bookingSuccess}</Text>}
 
             <Text style={styles.label}>Date Range</Text>
-            <Pressable style={styles.rangeField} onPress={() => setRangePickerOpen(true)}>
-              <Text style={rangeStart ? styles.rangeText : styles.rangePlaceholder}>{dateRangeLabel}</Text>
+            <Pressable style={styles.rangeField} onPress={() => setBookingRangePickerOpen(true)}>
+              <Text style={bookingRangeStart ? styles.rangeText : styles.rangePlaceholder}>{bookingDateRangeLabel}</Text>
               <Ionicons name="calendar-outline" size={16} color={colors.mutedForeground} />
             </Pressable>
 
             <Text style={styles.label}>Start Time</Text>
-            <TextInput style={styles.inputPlain} value={bookingStartTime} onChangeText={setBookingStartTime} placeholder="HH:mm" />
+            <Pressable style={styles.inputPlain} onPress={() => openTimePicker("bookingStart")}>
+              <Text style={styles.timeValue}>{bookingStartTime}</Text>
+            </Pressable>
 
             <Text style={styles.label}>End Time</Text>
-            <TextInput style={styles.inputPlain} value={bookingEndTime} onChangeText={setBookingEndTime} placeholder="HH:mm" />
+            <Pressable style={styles.inputPlain} onPress={() => openTimePicker("bookingEnd")}>
+              <Text style={styles.timeValue}>{bookingEndTime}</Text>
+            </Pressable>
 
             <Text style={styles.label}>Notes</Text>
             <TextInput
@@ -327,27 +657,27 @@ export default function BookingScreen() {
         </View>
       </Modal>
 
-      <Modal transparent visible={rangePickerOpen} animationType="fade">
+      <Modal transparent visible={bookingRangePickerOpen} animationType="fade">
         <View style={styles.pickerOverlay}>
           <View style={styles.pickerCard}>
             <View style={styles.pickerHeader}>
-              <Pressable style={styles.pickerNav} onPress={() => setRangeMonth((prev) => addMonths(prev, -1))}>
+              <Pressable style={styles.pickerNav} onPress={() => setBookingRangeMonth((prev) => addMonths(prev, -1))}>
                 <Ionicons name="chevron-back" size={18} color={colors.foreground} />
               </Pressable>
               <Text style={styles.pickerTitle}>
-                {MONTH_LABELS[rangeMonth.getMonth()]} {rangeMonth.getFullYear()}
+                {MONTH_LABELS[bookingRangeMonth.getMonth()]} {bookingRangeMonth.getFullYear()}
               </Text>
-              <Pressable style={styles.pickerNav} onPress={() => setRangeMonth((prev) => addMonths(prev, 1))}>
+              <Pressable style={styles.pickerNav} onPress={() => setBookingRangeMonth((prev) => addMonths(prev, 1))}>
                 <Ionicons name="chevron-forward" size={18} color={colors.foreground} />
               </Pressable>
             </View>
 
             <View style={styles.calendarGrid}>
-              {calendarDays.map((day, index) => {
-                const isSelectedStart = rangeStart ? isSameDay(day.date, rangeStart) : false;
-                const isSelectedEnd = rangeEnd ? isSameDay(day.date, rangeEnd) : false;
-                const isInRange = rangeStart && rangeEnd
-                  ? day.date > rangeStart && day.date < rangeEnd
+              {bookingCalendarDays.map((day, index) => {
+                const isSelectedStart = bookingRangeStart ? isSameDay(day.date, bookingRangeStart) : false;
+                const isSelectedEnd = bookingRangeEnd ? isSameDay(day.date, bookingRangeEnd) : false;
+                const isInRange = bookingRangeStart && bookingRangeEnd
+                  ? day.date > bookingRangeStart && day.date < bookingRangeEnd
                   : false;
                 return (
                   <Pressable
@@ -358,7 +688,7 @@ export default function BookingScreen() {
                       isInRange && styles.dayCellInRange,
                       (isSelectedStart || isSelectedEnd) && styles.dayCellSelected,
                     ]}
-                    onPress={() => onSelectRangeDate(day.date)}
+                    onPress={() => onSelectBookingRangeDate(day.date)}
                   >
                     <Text
                       style={[
@@ -375,9 +705,147 @@ export default function BookingScreen() {
             </View>
 
             <View style={styles.rangeFooter}>
-              <Text style={styles.rangeFooterText}>{dateRangeLabel}</Text>
-              <Pressable style={styles.pickerDone} onPress={() => setRangePickerOpen(false)}>
+              <Text style={styles.rangeFooterText}>{bookingDateRangeLabel}</Text>
+              <Pressable style={styles.pickerDone} onPress={() => setBookingRangePickerOpen(false)}>
                 <Text style={styles.pickerDoneText}>Done</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal transparent visible={quickRangePickerOpen} animationType="fade">
+        <View style={styles.pickerOverlay}>
+          <View style={styles.pickerCard}>
+            <View style={styles.pickerHeader}>
+              <Pressable style={styles.pickerNav} onPress={() => setQuickRangeMonth((prev) => addMonths(prev, -1))}>
+                <Ionicons name="chevron-back" size={18} color={colors.foreground} />
+              </Pressable>
+              <Text style={styles.pickerTitle}>
+                {MONTH_LABELS[quickRangeMonth.getMonth()]} {quickRangeMonth.getFullYear()}
+              </Text>
+              <Pressable style={styles.pickerNav} onPress={() => setQuickRangeMonth((prev) => addMonths(prev, 1))}>
+                <Ionicons name="chevron-forward" size={18} color={colors.foreground} />
+              </Pressable>
+            </View>
+
+            <View style={styles.calendarGrid}>
+              {quickCalendarDays.map((day, index) => {
+                const rangeStart = quickRangeTarget === "meeting" ? quickMeetingRangeStart : quickSharedRangeStart;
+                const rangeEnd = quickRangeTarget === "meeting" ? quickMeetingRangeEnd : quickSharedRangeEnd;
+                const isSelectedStart = rangeStart ? isSameDay(day.date, rangeStart) : false;
+                const isSelectedEnd = rangeEnd ? isSameDay(day.date, rangeEnd) : false;
+                const isInRange = rangeStart && rangeEnd
+                  ? day.date > rangeStart && day.date < rangeEnd
+                  : false;
+                return (
+                  <Pressable
+                    key={`${day.date.toISOString()}-${index}`}
+                    style={[
+                      styles.dayCell,
+                      !day.isCurrentMonth && styles.dayCellMuted,
+                      isInRange && styles.dayCellInRange,
+                      (isSelectedStart || isSelectedEnd) && styles.dayCellSelected,
+                    ]}
+                    onPress={() => onSelectQuickRangeDate(day.date)}
+                  >
+                    <Text
+                      style={[
+                        styles.dayText,
+                        !day.isCurrentMonth && styles.dayTextMuted,
+                        (isSelectedStart || isSelectedEnd) && styles.dayTextSelected,
+                      ]}
+                    >
+                      {day.date.getDate()}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <View style={styles.rangeFooter}>
+              <Text style={styles.rangeFooterText}>
+                {quickRangeTarget === "meeting" ? quickMeetingRangeLabel : quickSharedRangeLabel}
+              </Text>
+              <Pressable style={styles.pickerDone} onPress={closeQuickRangePicker}>
+                <Text style={styles.pickerDoneText}>Done</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal transparent visible={quickActivePicker !== null} animationType="fade">
+        <View style={styles.pickerOverlay}>
+          <View style={styles.pickerCard}>
+            <View style={styles.pickerHeader}>
+              <Pressable style={styles.pickerNav} onPress={() => moveQuickMonth(-1)}>
+                <Ionicons name="chevron-back" size={18} color={colors.foreground} />
+              </Pressable>
+              <Text style={styles.pickerTitle}>
+                {MONTH_LABELS[quickPickerMonth.getMonth()]} {quickPickerMonth.getFullYear()}
+              </Text>
+              <Pressable style={styles.pickerNav} onPress={() => moveQuickMonth(1)}>
+                <Ionicons name="chevron-forward" size={18} color={colors.foreground} />
+              </Pressable>
+            </View>
+
+            <View style={styles.monthGrid}>
+              {MONTH_LABELS.map((label, index) => {
+                const monthDate = new Date(quickPickerMonth.getFullYear(), index, 1);
+                const isStart = isSameMonth(monthDate, quickOfficeRangeStart);
+                const isEnd = isSameMonth(monthDate, quickOfficeRangeEnd);
+                const isInRange = isMonthInRange(monthDate, quickOfficeRangeStart, quickOfficeRangeEnd);
+                return (
+                  <Pressable
+                    key={label}
+                    style={[
+                      styles.monthCell,
+                      isInRange && styles.monthCellInRange,
+                      (isStart || isEnd) && styles.monthCellSelected,
+                    ]}
+                    onPress={() => onSelectQuickMonth(index)}
+                  >
+                    <Text
+                      style={[
+                        styles.monthText,
+                        (isStart || isEnd) && styles.monthTextSelected,
+                      ]}
+                    >
+                      {label.slice(0, 3)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <Pressable style={styles.pickerDone} onPress={() => setQuickActivePicker(null)}>
+              <Text style={styles.pickerDoneText}>Close</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal transparent visible={timePickerOpen} animationType="fade">
+        <View style={styles.pickerOverlay}>
+          <View style={styles.pickerCard}>
+            <Text style={styles.pickerTitle}>Select time</Text>
+            <DateTimePicker
+              value={timePickerValue}
+              mode="time"
+              display={Platform.OS === "ios" ? "spinner" : "default"}
+              onChange={(_, date) => {
+                if (date) {
+                  setTimePickerValue(date);
+                }
+              }}
+            />
+            <View style={styles.modalActions}>
+              <Pressable style={styles.modalOutline} onPress={() => setTimePickerOpen(false)}>
+                <Text style={styles.modalOutlineText}>Cancel</Text>
+              </Pressable>
+              <Pressable style={styles.modalPrimary} onPress={applyTimePickerValue}>
+                <Text style={styles.modalPrimaryText}>Done</Text>
               </Pressable>
             </View>
           </View>
@@ -392,6 +860,49 @@ function formatDate(value: Date) {
   const month = String(value.getMonth() + 1).padStart(2, "0");
   const day = String(value.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function formatMonth(value: Date) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}`;
+}
+
+function formatTimeHHmm(value: Date) {
+  const h = String(value.getHours()).padStart(2, "0");
+  const m = String(value.getMinutes()).padStart(2, "0");
+  return `${h}:${m}`;
+}
+
+function timeStringToDate(value: string) {
+  const [h, m] = value.split(":").map((part) => Number(part));
+  const date = new Date();
+  date.setHours(h || 0, m || 0, 0, 0);
+  return date;
+}
+
+function getTimePickerTargetValue(
+  target: "quickMeeting" | "bookingStart" | "bookingEnd",
+  values: {
+    quickMeetingStartTime: string;
+    bookingStartTime: string;
+    bookingEndTime: string;
+  },
+) {
+  if (target === "quickMeeting") return values.quickMeetingStartTime;
+  if (target === "bookingStart") return values.bookingStartTime;
+  return values.bookingEndTime;
+}
+
+function formatRangeDate(value: Date) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function isValidTime(value: string) {
+  return /^([01]\\d|2[0-3]):[0-5]\\d$/.test(value);
 }
 
 function buildCalendarDays(baseMonth: Date): CalendarDay[] {
@@ -427,6 +938,49 @@ function isSameDay(a: Date, b: Date) {
     a.getMonth() === b.getMonth() &&
     a.getDate() === b.getDate()
   );
+}
+
+function isSameMonth(a: Date, b: Date | null) {
+  if (!b) return false;
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
+}
+
+function isMonthInRange(month: Date, start: Date | null, end: Date | null) {
+  if (!start || !end) return false;
+  const startKey = start.getFullYear() * 12 + start.getMonth();
+  const endKey = end.getFullYear() * 12 + end.getMonth();
+  const monthKey = month.getFullYear() * 12 + month.getMonth();
+  return monthKey > startKey && monthKey < endKey;
+}
+
+function getRangeLabel(start: Date | null, end: Date | null) {
+  if (start && end) {
+    return `${formatRangeDate(start)} to ${formatRangeDate(end)}`;
+  }
+  if (start) {
+    return `${formatRangeDate(start)} to Select end date`;
+  }
+  return "Select date range";
+}
+
+function getMonthRangeLabel(start: Date | null, end: Date | null) {
+  if (start && end) {
+    return `${formatMonth(start)} to ${formatMonth(end)}`;
+  }
+  if (start) {
+    return `${formatMonth(start)} to Select end month`;
+  }
+  return "";
+}
+
+function getMonthRangeCountLabel(start: Date | null, end: Date | null) {
+  if (!start || !end) {
+    return "";
+  }
+  const months = (end.getFullYear() - start.getFullYear()) * 12
+    + (end.getMonth() - start.getMonth())
+    + 1;
+  return String(Math.max(1, months));
 }
 
 const styles = StyleSheet.create({
@@ -513,6 +1067,109 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 12, color: colors.mutedForeground, fontWeight: "600", textTransform: "capitalize" },
   chipTextActive: { color: colors.background },
   filterHint: { color: colors.mutedForeground, fontSize: 12 },
+  bookingCard: {
+    marginTop: 10,
+    marginBottom: 18,
+    backgroundColor: colors.background,
+    borderRadius: radii.lg,
+    padding: 14,
+    shadowColor: "#1F2A44",
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 2,
+    gap: 10,
+  },
+  sectionTitle: { color: colors.foreground, fontSize: 18, fontWeight: "700" },
+  typeRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  typeChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: colors.muted,
+  },
+  typeChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  typeText: { fontSize: 12, fontWeight: "600", color: colors.mutedForeground },
+  typeTextActive: { color: colors.background },
+  formBlock: { gap: 8 },
+  input: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    backgroundColor: colors.muted,
+    color: colors.foreground,
+  },
+  inlineRow: { flexDirection: "row", gap: 8 },
+  inlineInput: { flex: 1 },
+  timeValue: { color: colors.foreground, fontSize: 13, fontWeight: "600" },
+  pickerContainer: {
+    flex: 1,
+    justifyContent: "center",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.muted,
+    paddingHorizontal: 6,
+    height: 50,
+  },
+  picker: {
+    color: colors.foreground,
+    height: 50,
+    width: "100%",
+  },
+  monthGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  monthCell: {
+    width: "30%",
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: "center",
+    backgroundColor: colors.muted,
+  },
+  monthText: { color: colors.foreground, fontWeight: "700" },
+  monthCellSelected: {
+    backgroundColor: colors.primary,
+  },
+  monthCellInRange: {
+    backgroundColor: "rgba(74, 125, 255, 0.18)",
+  },
+  monthTextSelected: {
+    color: colors.background,
+  },
+  pickerField: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    backgroundColor: colors.muted,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  pickerText: { color: colors.foreground, fontSize: 13, fontWeight: "600" },
+  pickerPlaceholder: { color: colors.mutedForeground, fontSize: 13, fontWeight: "600" },
+  slotRow: { flexDirection: "row", gap: 8 },
+  slotChip: {
+    flex: 1,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: 10,
+    alignItems: "center",
+    backgroundColor: colors.muted,
+  },
+  slotChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  slotText: { fontSize: 12, fontWeight: "700", color: colors.mutedForeground },
+  slotTextActive: { color: colors.background },
+  summaryText: { color: colors.foreground, fontSize: 13, fontWeight: "600" },
   galleryHeader: { marginBottom: 12 },
   galleryTitle: { fontSize: 20, fontWeight: "700", color: colors.foreground },
   gallerySubtitle: { color: colors.mutedForeground, marginTop: 4, fontSize: 14 },
@@ -540,9 +1197,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   priceText: { fontSize: 20, fontWeight: "700", color: colors.foreground },
-  bookButton: { backgroundColor: colors.primary, paddingVertical: 10, paddingHorizontal: 16, borderRadius: radii.md },
-  bookButtonDisabled: { backgroundColor: colors.muted },
-  bookButtonText: { color: colors.background, fontWeight: "700", fontSize: 13 },
   modalOverlay: { flex: 1, backgroundColor: "rgba(15, 23, 42, 0.5)", justifyContent: "flex-end" },
   modalCard: {
     backgroundColor: colors.background,
@@ -661,3 +1315,4 @@ const styles = StyleSheet.create({
   },
   pickerDoneText: { color: colors.background, fontWeight: "700" },
 });
+

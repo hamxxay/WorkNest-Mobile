@@ -2,7 +2,11 @@ import type { NavigatorScreenParams } from "@react-navigation/native";
 
 export type MainTabParamList = {
   Home: undefined;
-  Booking: undefined;
+  Booking:
+    | {
+        initialRoomType?: "Meeting/Conference" | "Shared Space" | "Office";
+      }
+    | undefined;
   MyBookings: undefined;
   MyPayments: undefined;
   Pricing: undefined;
@@ -22,9 +26,45 @@ export type AuthStackParamList = {
   Signup: undefined;
 };
 
+export type WorkspaceSummary = {
+  id: number;
+  name: string;
+  type: "Private Office" | "Co-Working Space" | "Meeting Room" | "Event Space";
+  location: string;
+  capacity: string;
+  price: number;
+  amenities: string[];
+  image: string;
+  available: boolean;
+};
+
 export type AppStackParamList = {
   MainTabs: undefined;
   AdminPanel: undefined;
+  SpaceDetail: { workspace: WorkspaceSummary };
+  BookingInfo: {
+    workspace: WorkspaceSummary;
+    booking: {
+      mode: "shared" | "meeting" | "office";
+      dates: string[];
+      slot: string;
+      month?: string;
+    };
+  };
+  Payment: {
+    workspace: WorkspaceSummary;
+    booking: {
+      mode: "shared" | "meeting" | "office";
+      dates: string[];
+      slot: string;
+      month?: string;
+      guest: {
+        name: string;
+        email: string;
+        phone: string;
+      };
+    };
+  };
 };
 
 export type RootStackParamList = {
