@@ -1,26 +1,18 @@
 import { NativeModules, Platform } from "react-native";
+import { API_BASE } from "@env";
 
 const LOCALHOST_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
-const DEV_API_OVERRIDE = "https://workspace.somee.com/publish/api";
 
 function parseHost(value?: string | null): string | null {
-  if (!value) {
-    return null;
-  }
+  if (!value) return null;
 
   try {
     const hostname = new URL(value).hostname;
-    if (hostname) {
-      return hostname;
-    }
-  } catch {
-    // Fall back to manual parsing for non-standard URL strings.
-  }
+    if (hostname) return hostname;
+  } catch {}
 
   const match = value.match(/\/\/(\[[^\]]+\]|[^/:]+)(?::\d+)?/);
-  if (!match?.[1]) {
-    return null;
-  }
+  if (!match?.[1]) return null;
 
   return match[1].replace(/^\[|\]$/g, "");
 }
@@ -34,27 +26,20 @@ function resolveDevApiHost(host: string): string {
 }
 
 function getMetroHostFromScriptUrl(): string | null {
-  if (!__DEV__) {
-    return null;
-  }
+  if (!__DEV__) return null;
 
   const scriptURL = NativeModules?.SourceCode?.scriptURL as string | undefined;
   const scriptHost = parseHost(scriptURL);
-  if (scriptHost) {
-    return scriptHost;
-  }
+  if (scriptHost) return scriptHost;
 
   const serverHost = NativeModules?.PlatformConstants?.ServerHost as
     | string
     | undefined;
+
   return parseHost(serverHost);
 }
 
 function getDevApiBaseUrl() {
-  if (DEV_API_OVERRIDE.trim().length > 0) {
-    return DEV_API_OVERRIDE;
-  }
-
   const metroHost = getMetroHostFromScriptUrl();
 
   if (metroHost) {
@@ -67,10 +52,13 @@ function getDevApiBaseUrl() {
 }
 
 const DEV_API_BASE_URL = getDevApiBaseUrl();
+const ENV_API_BASE_URL = (API_BASE ?? "").trim();
+const PROD_API_BASE_URL = ENV_API_BASE_URL;
+const FALLBACK_API_BASE_URL = __DEV__ ? DEV_API_BASE_URL : PROD_API_BASE_URL;
 
-const PROD_API_BASE_URL = "https://workspace.somee.com/publish/api";
-
-export const API_BASE_URL = __DEV__ ? DEV_API_BASE_URL : PROD_API_BASE_URL;
+export const API_BASE_URL = ENV_API_BASE_URL.length > 0
+  ? ENV_API_BASE_URL
+  : FALLBACK_API_BASE_URL;
 
 export const API_ENDPOINTS = {
   auth: {

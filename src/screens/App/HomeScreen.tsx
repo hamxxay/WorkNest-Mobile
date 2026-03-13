@@ -17,6 +17,8 @@ import { getPricingPlans, PricingPlan } from "../../services/pricingService";
 import { GalleryImage, getGalleryImages } from "../../services/galleryService";
 import { SmartImage } from "../../components/SmartImage";
 import Ionicons from "react-native-vector-icons/Ionicons";
+import { Picker } from "@react-native-picker/picker";
+import Icon from "react-native-vector-icons/Ionicons";
 
 type RoomType = "Meeting/Conference" | "Shared Space" | "Office";
 
@@ -63,8 +65,8 @@ export default function HomeScreen() {
   const [sharedSlot, setSharedSlot] = useState<SharedSlot>("");
   const [sharedRepeatWeeks, setSharedRepeatWeeks] = useState("0");
 
-  const [officeStartDate, setOfficeStartDate] = useState<Date | null>(null);
-  const [officeMonths, setOfficeMonths] = useState("1");
+  const [officeRangeStart, setOfficeRangeStart] = useState<Date | null>(null);
+  const [officeRangeEnd, setOfficeRangeEnd] = useState<Date | null>(null);
   const [officeChairs, setOfficeChairs] = useState("1");
 
   const [activePicker, setActivePicker] = useState<PickerType>(null);
@@ -90,7 +92,11 @@ export default function HomeScreen() {
 
   const meetingRangeLabel = getRangeLabel(meetingRangeStart, meetingRangeEnd);
   const sharedRangeLabel = getRangeLabel(sharedRangeStart, sharedRangeEnd);
-  const officeMonthValue = officeStartDate ? formatMonth(officeStartDate) : "";
+  const officeMonthValue = getMonthRangeLabel(officeRangeStart, officeRangeEnd);
+  const officeMonths = useMemo(
+    () => getMonthRangeCountLabel(officeRangeStart, officeRangeEnd),
+    [officeRangeStart, officeRangeEnd],
+  );
 
   const validation = useMemo(() => {
     if (roomType === "Meeting/Conference") {
@@ -121,13 +127,9 @@ export default function HomeScreen() {
       return "";
     }
 
-    const months = Number(officeMonths);
     const chairs = Number(officeChairs);
-    if (!officeMonthValue) {
-      return "Select a start month.";
-    }
-    if (!Number.isFinite(months) || months < 1) {
-      return "Office booking must be at least 1 month.";
+    if (!officeRangeStart || !officeRangeEnd) {
+      return "Select a month range.";
     }
     if (!Number.isFinite(chairs) || chairs < 1 || chairs > 5) {
       return "Chairs must be between 1 and 5.";
@@ -143,8 +145,8 @@ export default function HomeScreen() {
     sharedRangeEnd,
     sharedSlot,
     sharedRepeatWeeks,
-    officeMonthValue,
-    officeMonths,
+    officeRangeStart,
+    officeRangeEnd,
     officeChairs,
   ]);
 
@@ -156,7 +158,7 @@ export default function HomeScreen() {
       const repeat = Number(sharedRepeatWeeks) > 0 ? `, repeat ${sharedRepeatWeeks} week(s)` : "";
       return `Shared space ${sharedRangeLabel}, ${sharedSlot || "-"}${repeat}.`;
     }
-    return `Office from ${officeMonthValue || "-"} for ${officeMonths || "-"} month(s), ${officeChairs || "-"} chair(s). Deposit: 1 month.`;
+    return `Office ${officeMonthValue || "-"} for ${officeMonths || "-"} month(s), ${officeChairs || "-"} chair(s). Deposit: 1 month.`;
   }, [
     roomType,
     meetingRangeLabel,
@@ -183,7 +185,7 @@ export default function HomeScreen() {
 
   const openMonthPicker = () => {
     setActivePicker("office");
-    const baseDate = officeStartDate ?? new Date();
+    const baseDate = officeRangeStart ?? new Date();
     setPickerMonth(new Date(baseDate.getFullYear(), baseDate.getMonth(), 1));
   };
 
@@ -224,8 +226,18 @@ export default function HomeScreen() {
   const onSelectMonth = (monthIndex: number) => {
     const year = pickerMonth.getFullYear();
     const date = new Date(year, monthIndex, 1);
-    setOfficeStartDate(date);
-    setActivePicker(null);
+    setOfficeRangeStart((prev) => {
+      if (!prev || officeRangeEnd) {
+        setOfficeRangeEnd(null);
+        return date;
+      }
+      if (date < prev) {
+        return date;
+      }
+      setOfficeRangeEnd(date);
+      setActivePicker(null);
+      return prev;
+    });
   };
 
   const moveMonth = (delta: number) => {
@@ -284,10 +296,10 @@ export default function HomeScreen() {
               <Text style={styles.dropdownText}>Location</Text>
               <Ionicons name="chevron-down" size={16} color={colors.mutedForeground} />
             </Pressable>
-            <Pressable style={styles.dropdown}>
+            {/* <Pressable style={styles.dropdown}>
               <Text style={styles.dropdownText}>Date</Text>
               <Ionicons name="chevron-down" size={16} color={colors.mutedForeground} />
-            </Pressable>
+            </Pressable> */}
             <Pressable style={styles.searchButton} onPress={() => goTo("Booking")}> 
               <Text style={styles.searchButtonText}>Search</Text>
             </Pressable>
@@ -307,7 +319,7 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.bookingCard}>
-          <Text style={styles.sectionTitle}>Booking Inputs</Text>
+          <Text style={styles.sectionTitle}>Book Now</Text>
           <View style={styles.typeRow}>
             {(["Meeting/Conference", "Shared Space", "Office"] as RoomType[]).map((type) => {
               const active = roomType === type;
@@ -374,7 +386,7 @@ export default function HomeScreen() {
                   );
                 })}
               </View>
-              <TextInput
+              {/* <TextInput
                 value={sharedRepeatWeeks}
                 onChangeText={setSharedRepeatWeeks}
                 placeholder="Repeat weeks (0-4)"
@@ -382,7 +394,7 @@ export default function HomeScreen() {
                 keyboardType="numeric"
                 style={styles.input}
               />
-              <Text style={styles.helperText}>Repeats up to one month for the same slot.</Text>
+              <Text style={styles.helperText}>Repeats up to one month for the same slot.</Text> */}
             </View>
           ) : null}
 
@@ -390,27 +402,31 @@ export default function HomeScreen() {
             <View style={styles.formBlock}>
               <Pressable style={styles.pickerField} onPress={openMonthPicker}>
                 <Text style={officeMonthValue ? styles.pickerText : styles.pickerPlaceholder}>
-                  {officeMonthValue || "Select start month"}
+                  {officeMonthValue || "Select month range"}
                 </Text>
                 <Ionicons name="calendar-outline" size={16} color={colors.mutedForeground} />
               </Pressable>
               <View style={styles.inlineRow}>
-                <TextInput
-                  value={officeMonths}
-                  onChangeText={setOfficeMonths}
-                  placeholder="Months"
-                  placeholderTextColor={colors.mutedForeground}
-                  keyboardType="numeric"
-                  style={[styles.input, styles.inlineInput]}
-                />
-                <TextInput
-                  value={officeChairs}
-                  onChangeText={setOfficeChairs}
-                  placeholder="Chairs (1-5)"
-                  placeholderTextColor={colors.mutedForeground}
-                  keyboardType="numeric"
-                  style={[styles.input, styles.inlineInput]}
-                />
+                <View style={styles.pickerContainer}>
+                  <Picker
+                    selectedValue={officeChairs}
+                    onValueChange={(itemValue: string | number) =>
+                      setOfficeChairs(String(itemValue))
+                    }
+                    dropdownIconColor="#666"
+                    style={styles.picker}
+                    mode="dropdown"
+                  >
+                    <Picker.Item label="Select Chairs" value="" color="#999" />
+                    <Picker.Item label="1 Chair" value="1" />
+                    <Picker.Item label="2 Chairs" value="2" />
+                    <Picker.Item label="3 Chairs" value="3" />
+                    <Picker.Item label="4 Chairs" value="4" />
+                    <Picker.Item label="5 Chairs" value="5" />
+                    <Picker.Item label="6 Chairs" value="6" />
+                    <Picker.Item label="7 Chairs" value="7" />
+                  </Picker>
+                </View>
               </View>
               <Text style={styles.helperText}>Security deposit: 1 month.</Text>
             </View>
@@ -432,7 +448,7 @@ export default function HomeScreen() {
             ))}
           </View>
         </View>
-{/* 
+
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Plans for every work style</Text>
@@ -448,7 +464,7 @@ export default function HomeScreen() {
               <Text style={styles.planDescription}>{plan.description}</Text>
             </View>
           ))}
-        </View> */}
+        </View>
       </ScrollView>
 
       <Modal transparent visible={rangePickerOpen} animationType="fade">
@@ -528,15 +544,32 @@ export default function HomeScreen() {
             </View>
 
             <View style={styles.monthGrid}>
-              {MONTH_LABELS.map((label, index) => (
-                <Pressable
-                  key={label}
-                  style={styles.monthCell}
-                  onPress={() => onSelectMonth(index)}
-                >
-                  <Text style={styles.monthText}>{label.slice(0, 3)}</Text>
-                </Pressable>
-              ))}
+              {MONTH_LABELS.map((label, index) => {
+                const monthDate = new Date(pickerMonth.getFullYear(), index, 1);
+                const isStart = isSameMonth(monthDate, officeRangeStart);
+                const isEnd = isSameMonth(monthDate, officeRangeEnd);
+                const isInRange = isMonthInRange(monthDate, officeRangeStart, officeRangeEnd);
+                return (
+                  <Pressable
+                    key={label}
+                    style={[
+                      styles.monthCell,
+                      isInRange && styles.monthCellInRange,
+                      (isStart || isEnd) && styles.monthCellSelected,
+                    ]}
+                    onPress={() => onSelectMonth(index)}
+                  >
+                    <Text
+                      style={[
+                        styles.monthText,
+                        (isStart || isEnd) && styles.monthTextSelected,
+                      ]}
+                    >
+                      {label.slice(0, 3)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </View>
 
             <Pressable style={styles.pickerDone} onPress={() => setActivePicker(null)}>
@@ -594,6 +627,19 @@ function isSameDay(a: Date, b: Date) {
   );
 }
 
+function isSameMonth(a: Date, b: Date | null) {
+  if (!b) return false;
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
+}
+
+function isMonthInRange(month: Date, start: Date | null, end: Date | null) {
+  if (!start || !end) return false;
+  const startKey = start.getFullYear() * 12 + start.getMonth();
+  const endKey = end.getFullYear() * 12 + end.getMonth();
+  const monthKey = month.getFullYear() * 12 + month.getMonth();
+  return monthKey > startKey && monthKey < endKey;
+}
+
 function getRangeLabel(start: Date | null, end: Date | null) {
   if (start && end) {
     return `${formatRangeDate(start)} to ${formatRangeDate(end)}`;
@@ -609,6 +655,26 @@ function formatRangeDate(value: Date) {
   const month = String(value.getMonth() + 1).padStart(2, "0");
   const day = String(value.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function getMonthRangeLabel(start: Date | null, end: Date | null) {
+  if (start && end) {
+    return `${formatMonth(start)} to ${formatMonth(end)}`;
+  }
+  if (start) {
+    return `${formatMonth(start)} to Select end month`;
+  }
+  return "";
+}
+
+function getMonthRangeCountLabel(start: Date | null, end: Date | null) {
+  if (!start || !end) {
+    return "";
+  }
+  const months = (end.getFullYear() - start.getFullYear()) * 12
+    + (end.getMonth() - start.getMonth())
+    + 1;
+  return String(Math.max(1, months));
 }
 
 const styles = StyleSheet.create({
@@ -784,6 +850,21 @@ const styles = StyleSheet.create({
   },
   inlineRow: { flexDirection: "row", gap: 8 },
   inlineInput: { flex: 1 },
+  pickerContainer: {
+    flex: 1,
+    justifyContent: "center",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.muted,
+    paddingHorizontal: 6,
+    height: 50,
+  },
+  picker: {
+    color: colors.foreground,
+    height: 50,
+    width: "100%",
+  },
   helperText: { color: colors.mutedForeground, fontSize: 12 },
   slotRow: { flexDirection: "row", gap: 8 },
   slotChip: {
@@ -795,6 +876,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: colors.muted,
   },
+  
   slotChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   slotText: { fontSize: 12, fontWeight: "700", color: colors.mutedForeground },
   slotTextActive: { color: colors.background },
@@ -855,13 +937,16 @@ const styles = StyleSheet.create({
   calendarGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
+    width: "100%",
   },
   dayCell: {
     width: "14.2857%",
+    maxWidth: "14.2857%",
+    flexGrow: 0,
     aspectRatio: 1,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 8,
+    borderRadius: 9,
   },
   dayCellMuted: {
     opacity: 0.4,
@@ -872,7 +957,15 @@ const styles = StyleSheet.create({
   dayCellSelected: {
     backgroundColor: colors.primary,
   },
-  dayText: { color: colors.foreground, fontWeight: "600" },
+  dayText: {
+    color: colors.foreground,
+    fontWeight: "600",
+    textAlign: "center",
+    fontSize: 14,
+    lineHeight: 20,
+    textAlignVertical: "center",
+    includeFontPadding: false,
+  },
   dayTextMuted: { color: colors.mutedForeground },
   dayTextSelected: { color: colors.background },
   rangeFooter: {
@@ -895,6 +988,15 @@ const styles = StyleSheet.create({
     backgroundColor: colors.muted,
   },
   monthText: { color: colors.foreground, fontWeight: "700" },
+  monthCellSelected: {
+    backgroundColor: colors.primary,
+  },
+  monthCellInRange: {
+    backgroundColor: "rgba(74, 125, 255, 0.18)",
+  },
+  monthTextSelected: {
+    color: colors.background,
+  },
   pickerDone: {
     marginTop: 8,
     alignSelf: "flex-end",
