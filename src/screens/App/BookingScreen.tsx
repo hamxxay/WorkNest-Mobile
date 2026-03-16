@@ -10,7 +10,7 @@ import {
   View,
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
-import { DrawerActions, useNavigation, useRoute, type CompositeNavigationProp } from "@react-navigation/native";
+import { useNavigation, useRoute, type CompositeNavigationProp } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -21,6 +21,7 @@ import { createBooking, getWorkspaces } from "../../services/workspaceService";
 import { SmartImage } from "../../components/SmartImage";
 import { Picker } from "@react-native-picker/picker";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { Header } from "../../components/Header";
 
 type Workspace = {
   id: number;
@@ -411,15 +412,7 @@ export default function BookingScreen() {
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.topBar}>
-          <Text style={styles.logoText}>LOGO</Text>
-          <Pressable
-            style={styles.menuButton}
-            onPress={() => navigation.dispatch(DrawerActions.openDrawer())}
-          >
-            <Ionicons name="menu" size={20} color={colors.foreground} />
-          </Pressable>
-        </View>
+        <Header />
 
         <Text style={styles.pageTitle}>Book Your Workspace</Text>
 
@@ -985,27 +978,6 @@ function getMonthRangeCountLabel(start: Date | null, end: Date | null) {
 
 const styles = StyleSheet.create({
   content: { paddingHorizontal: 18, paddingBottom: 24 },
-  topBar: {
-    marginTop: 4,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  logoText: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: colors.foreground,
-  },
-  menuButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.background,
-  },
   pageTitle: { fontSize: 26, fontWeight: "800", color: colors.foreground, marginTop: 10, marginBottom: 12 },
   filterCard: {
     backgroundColor: colors.background,

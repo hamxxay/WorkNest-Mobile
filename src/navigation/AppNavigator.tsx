@@ -127,21 +127,22 @@ function AppDrawerContent(props: DrawerContentComponentProps) {
 
   return (
     <>
-      <DrawerContentScrollView {...props} contentContainerStyle={styles.drawerContent}>
-        <DrawerItemList {...props} />
-        <DrawerItem
-          label="Log Out"
-          onPress={() => setShowLogoutConfirm(true)}
-          labelStyle={styles.logoutLabel}
-          icon={({ color, size }) => (
-            <Ionicons name="log-out-outline" size={size} color={color} />
-          )}
-        />
-
+      <View style={styles.drawerRoot}>
+        <DrawerContentScrollView {...props} contentContainerStyle={styles.drawerContent}>
+          <DrawerItemList {...props} />
+          <DrawerItem
+            label="Log Out"
+            onPress={() => setShowLogoutConfirm(true)}
+            labelStyle={styles.logoutLabel}
+            icon={({ color, size }) => (
+              <Ionicons name="log-out-outline" size={size} color={color} />
+            )}
+          />
+        </DrawerContentScrollView>
         <View style={styles.versionContainer}>
           <Text style={styles.versionText}>{appVersion ? `v${appVersion}` : ""}</Text>
         </View>
-      </DrawerContentScrollView>
+      </View>
 
       <ConfirmModal
         visible={showLogoutConfirm}
@@ -236,8 +237,11 @@ export function AppNavigator() {
 export default AppNavigator;
 
 const styles = StyleSheet.create({
-  drawerContent: {
+  drawerRoot: {
     flex: 1,
+  },
+  drawerContent: {
+    flexGrow: 1,
   },
   logoutLabel: {
     color: "#dc2626",

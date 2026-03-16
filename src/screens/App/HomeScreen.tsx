@@ -7,7 +7,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { DrawerActions, useNavigation } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import type { MainTabParamList } from "../../navigation/types";
 import { Screen } from "../../components/Screen";
@@ -16,6 +16,7 @@ import { getPricingPlans, PricingPlan } from "../../services/pricingService";
 import { GalleryImage, getGalleryImages } from "../../services/galleryService";
 import { SmartImage } from "../../components/SmartImage";
 import Ionicons from "react-native-vector-icons/Ionicons";
+import { Header } from "../../components/Header";
 
 
 export default function HomeScreen() {
@@ -38,15 +39,6 @@ export default function HomeScreen() {
       });
   }, []);
 
-  const openDrawer = () => {
-    const parent = navigation.getParent();
-    if (parent) {
-      parent.dispatch(DrawerActions.openDrawer());
-      return;
-    }
-    navigation.dispatch(DrawerActions.openDrawer());
-  };
-
   const goTo = (
     route: keyof MainTabParamList,
     params?: MainTabParamList[keyof MainTabParamList],
@@ -57,15 +49,7 @@ export default function HomeScreen() {
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        <View style={styles.topBar}>
-          <Text style={styles.logoText}>LOGO</Text>
-          <Pressable
-            style={styles.menuButton}
-            onPress={openDrawer}
-          >
-            <Ionicons name="menu" size={20} color={colors.foreground} />
-          </Pressable>
-        </View>
+        <Header />
 
         <View style={styles.heroCard}>
           <SmartImage
@@ -154,27 +138,6 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   container: { paddingHorizontal: 18, paddingBottom: 24 },
-  topBar: {
-    marginTop: 4,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  logoText: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: colors.foreground,
-  },
-  menuButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.background,
-  },
   heroCard: {
     marginTop: 12,
     borderRadius: radii.lg,

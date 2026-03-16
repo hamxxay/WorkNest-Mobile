@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, Image } from 'react-native';
 import { DrawerActions, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
@@ -13,7 +13,7 @@ export function Header() {
   return (
     <View style={styles.container}>
       <View style={styles.brand}>
-        <View style={styles.logoMark} />
+        <Image source={require('../../public/Logo.png')} style={styles.logoImage} />
         <Text style={styles.logoText}>WorkNest</Text>
       </View>
       <View style={styles.actions}>
@@ -38,11 +38,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  logoMark: {
+  logoImage: {
     width: 28,
     height: 28,
     borderRadius: radii.sm,
-    backgroundColor: colors.primary,
   },
   logoText: {
     fontSize: 22,
