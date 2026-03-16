@@ -16,7 +16,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { AuthStackParamList, RootStackParamList } from "../../navigation/types";
 import { Screen } from "../../components/Screen";
 import { colors, radii } from "../../theme";
-import { ApiError } from "../../services/api/client";
+import { ApiError } from "../../services/apiClient";
 import { registerUser } from "../../services/authService";
 
 export default function SignupScreen() {

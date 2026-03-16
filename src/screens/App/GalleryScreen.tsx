@@ -14,25 +14,6 @@ import { GalleryImage, getGalleryImages } from "../../services/galleryService";
 import { SmartImage } from "../../components/SmartImage";
 import Ionicons from "react-native-vector-icons/Ionicons";
 
-const images = [
-  {
-    src: "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=800",
-    alt: "Workspace 1",
-  },
-  {
-    src: "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=800",
-    alt: "Workspace 2",
-  },
-  {
-    src: "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=800",
-    alt: "Workspace 3",
-  },
-  {
-    src: "https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=800",
-    alt: "Workspace 4",
-  },
-];
-
 const categories = ["All", "Offices", "Meeting Rooms", "Co-Working", "Lounges"];
 
 export default function GalleryScreen() {

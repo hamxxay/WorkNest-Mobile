@@ -1,18 +1,58 @@
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { useRoute } from "@react-navigation/native";
+import { useRoute, useNavigation } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native";
 import { Screen } from "../../components/Screen";
 import { colors, radii } from "../../theme";
-import type { AppStackParamList } from "../../navigation/types";
+import type { AppStackParamList, RootStackParamList } from "../../navigation/types";
+import { createBooking } from "../../services/workspaceService";
 
 export default function PaymentScreen() {
   const route = useRoute<RouteProp<AppStackParamList, "Payment">>();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { workspace, booking } = route.params;
   const [cardName, setCardName] = useState("");
   const [cardNumber, setCardNumber] = useState("");
   const [cardExpiry, setCardExpiry] = useState("");
   const [cardCvc, setCardCvc] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handlePayment = async () => {
+    if (!cardName.trim() || !cardNumber.trim() || !cardExpiry.trim() || !cardCvc.trim()) {
+      setError("Please fill in all payment fields.");
+      return;
+    }
+
+    setError("");
+    setLoading(true);
+
+    try {
+      // Assuming booking.mode === "office" for monthly, else daily
+      let startDateTime: string;
+      let endDateTime: string;
+      if (booking.mode === "office") {
+        // For office, month is like "January 2024"
+        // Need to parse month to date
+        const monthDate = new Date(booking.month + " 1");
+        startDateTime = `${monthDate.toISOString().split('T')[0]}T09:00:00`;
+        const endMonth = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
+        endDateTime = `${endMonth.toISOString().split('T')[0]}T17:00:00`;
+      } else {
+        startDateTime = `${booking.dates[0]}T${booking.slot.split(' - ')[0]}:00`;
+        endDateTime = `${booking.dates[booking.dates.length - 1]}T${booking.slot.split(' - ')[1]}:00`;
+      }
+
+      await createBooking(workspace.id, startDateTime, endDateTime, `Guest: ${booking.guest.name}, ${booking.guest.email}, ${booking.guest.phone}`);
+      // Navigate to success
+      navigation.navigate("AppStack", { screen: "MyBookings" });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Payment failed.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <Screen>
@@ -86,9 +126,10 @@ export default function PaymentScreen() {
               />
             </View>
           </View>
-          <Pressable style={styles.payButton}>
-            <Text style={styles.payButtonText}>Pay Now</Text>
+          <Pressable style={styles.payButton} onPress={handlePayment} disabled={loading}>
+            <Text style={styles.payButtonText}>{loading ? "Processing..." : "Pay Now"}</Text>
           </Pressable>
+          {!!error && <Text style={styles.errorText}>{error}</Text>}
         </View>
       </ScrollView>
     </Screen>
@@ -149,4 +190,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   payButtonText: { color: colors.background, fontWeight: "800" },
+  errorText: {
+    color: "#dc2626",
+    fontSize: 14,
+    marginTop: 8,
+    textAlign: "center",
+  },
 });

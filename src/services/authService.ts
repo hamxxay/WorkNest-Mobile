@@ -1,7 +1,8 @@
 import { removeToken, saveToken } from "../utils/authStorage";
-import { apiRequest, ApiError } from "./api/client";
+import { apiRequest, ApiError } from "./apiClient";
 import type { ApiResponse, AuthResponse, LoginRequest, RegisterRequest } from "./api/types";
 import type { StoredUser } from "../utils/authStorage";
+import { API_ENDPOINTS } from "../config/api";
 
 export async function logoutUser(): Promise<void> {
   await removeToken();
@@ -9,8 +10,9 @@ export async function logoutUser(): Promise<void> {
 
 export async function hydrateSessionUser(): Promise<StoredUser | null> {
   try {
-    const response = await apiRequest<ApiResponse<AuthResponse>>("/api/Auth/me", {
+    const response = await apiRequest<ApiResponse<AuthResponse>>(API_ENDPOINTS.auth.profile, {
       method: "GET",
+      requiresAuth: true,
     });
 
     if (!response.isSuccessful || !response.data) {
@@ -29,7 +31,7 @@ export async function hydrateSessionUser(): Promise<StoredUser | null> {
 }
 
 export async function loginUser(payload: LoginRequest): Promise<AuthResponse> {
-  const response = await apiRequest<ApiResponse<AuthResponse>>("/api/Auth/login", {
+  const response = await apiRequest<ApiResponse<AuthResponse>>(API_ENDPOINTS.auth.login, {
     method: "POST",
     body: payload,
   });
@@ -46,7 +48,7 @@ export async function loginUser(payload: LoginRequest): Promise<AuthResponse> {
 }
 
 export async function registerUser(payload: RegisterRequest): Promise<AuthResponse> {
-  const response = await apiRequest<ApiResponse<AuthResponse>>("/api/Auth/register", {
+  const response = await apiRequest<ApiResponse<AuthResponse>>(API_ENDPOINTS.auth.signup, {
     method: "POST",
     body: payload,
   });

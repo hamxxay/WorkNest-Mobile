@@ -1,10 +1,8 @@
 import { API_ENDPOINTS } from "../config/api";
 import { apiRequest } from "./apiClient";
 import { resolveMediaUrl } from "../utils/mediaUrl";
-import { PricingPlan } from "./pricingService";
 export type Faq = {};
 
-const fallbackPlan: PricingPlan[] = []
 export type Workspace = {
   id: number;
   name: string;

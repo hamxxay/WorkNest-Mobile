@@ -53,6 +53,13 @@ export default function SpaceDetailScreen() {
   const [selectedMonth, setSelectedMonth] = useState<Date | null>(null);
   const [bookingError, setBookingError] = useState("");
 
+  const setSelectedSlotWithClear = (slot: string) => {
+    setSelectedSlot(slot);
+    if (selectedDates.length > 0) {
+      setBookingError("");
+    }
+  };
+
   const calendarDays = useMemo(() => buildCalendarDays(calendarMonth), [calendarMonth]);
 
   const isShared = workspace.type === "Co-Working Space";
@@ -68,6 +75,9 @@ export default function SpaceDetailScreen() {
         if (!exists) {
           setFocusedDate(key);
         }
+        if (next.length > 0 && selectedSlot) {
+          setBookingError("");
+        }
         return next;
       });
       return;
@@ -76,6 +86,9 @@ export default function SpaceDetailScreen() {
     if (isMeeting) {
       setSelectedDates([key]);
       setFocusedDate(key);
+      if (selectedSlot) {
+        setBookingError("");
+      }
     }
   };
 
@@ -236,7 +249,7 @@ export default function SpaceDetailScreen() {
                     <Pressable
                       key={slot}
                       style={[styles.slotChip, active && styles.slotChipActive]}
-                      onPress={() => setSelectedSlot(slot)}
+                      onPress={() => setSelectedSlotWithClear(slot)}
                     >
                       <Text style={[styles.slotText, active && styles.slotTextActive]}>{slot}</Text>
                     </Pressable>
@@ -259,7 +272,7 @@ export default function SpaceDetailScreen() {
                       <Pressable
                         key={slot}
                         style={[styles.slotChip, active && styles.slotChipActive]}
-                        onPress={() => setSelectedSlot(slot)}
+                        onPress={() => setSelectedSlotWithClear(slot)}
                       >
                         <Text style={[styles.slotText, active && styles.slotTextActive]}>{slot}</Text>
                       </Pressable>
@@ -284,7 +297,10 @@ export default function SpaceDetailScreen() {
                     <Pressable
                       key={label}
                       style={[styles.monthCell, active && styles.monthCellSelected]}
-                      onPress={() => setSelectedMonth(monthDate)}
+                      onPress={() => {
+                        setSelectedMonth(monthDate);
+                        setBookingError("");
+                      }}
                     >
                       <Text style={[styles.monthText, active && styles.monthTextSelected]}>
                         {label.slice(0, 3)}
@@ -297,9 +313,12 @@ export default function SpaceDetailScreen() {
           ) : null}
         </View>
 
+        {bookingError ? <Text style={styles.errorText}>{bookingError}</Text> : null}
+
         <Pressable
-          style={styles.bookNow}
+          style={[styles.bookNow, (isOffice ? !selectedMonth : (!selectedDates.length || !selectedSlot)) && styles.bookNowDisabled]}
           onPress={onBookNow}
+          disabled={isOffice ? !selectedMonth : (!selectedDates.length || !selectedSlot)}
         >
           <Text style={styles.bookNowText}>
             Book Now
@@ -480,6 +499,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: "center",
   },
+  bookNowDisabled: { backgroundColor: colors.muted },
   bookNowText: { color: colors.background, fontWeight: "800", fontSize: 14 },
   errorText: { color: "#dc2626", fontWeight: "600" },
 });

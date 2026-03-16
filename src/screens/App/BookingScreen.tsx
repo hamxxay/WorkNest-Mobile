@@ -10,11 +10,8 @@ import {
   View,
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
-import { useNavigation, useRoute, type CompositeNavigationProp } from "@react-navigation/native";
-import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
-import type { RouteProp } from "@react-navigation/native";
-import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import type { AppStackParamList, MainTabParamList } from "../../navigation/types";
+import { useRoute, type RouteProp } from "@react-navigation/native";
+import type { MainTabParamList } from "../../navigation/types";
 import { Screen } from "../../components/Screen";
 import { colors, radii } from "../../theme";
 import { createBooking, getWorkspaces } from "../../services/workspaceService";
@@ -64,13 +61,7 @@ const MONTH_LABELS = [
   "December",
 ];
 
-type BookingNavigation = CompositeNavigationProp<
-  BottomTabNavigationProp<MainTabParamList>,
-  NativeStackNavigationProp<AppStackParamList>
->;
-
 export default function BookingScreen() {
-  const navigation = useNavigation<BookingNavigation>();
   const route = useRoute<RouteProp<MainTabParamList, "Booking">>();
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [loading, setLoading] = useState(true);
@@ -85,7 +76,6 @@ export default function BookingScreen() {
   const [quickSharedRangeStart, setQuickSharedRangeStart] = useState<Date | null>(null);
   const [quickSharedRangeEnd, setQuickSharedRangeEnd] = useState<Date | null>(null);
   const [quickSharedSlot, setQuickSharedSlot] = useState<SharedSlot>("");
-  const [quickSharedRepeatWeeks, setQuickSharedRepeatWeeks] = useState("0");
   const [quickOfficeRangeStart, setQuickOfficeRangeStart] = useState<Date | null>(null);
   const [quickOfficeRangeEnd, setQuickOfficeRangeEnd] = useState<Date | null>(null);
   const [quickOfficeChairs, setQuickOfficeChairs] = useState("1");
@@ -152,15 +142,11 @@ export default function BookingScreen() {
     }
 
     if (quickRoomType === "Shared Space") {
-      const repeatWeeks = Number(quickSharedRepeatWeeks);
       if (!quickSharedRangeStart || !quickSharedRangeEnd) {
         return "Select a date range.";
       }
       if (!quickSharedSlot) {
         return "Select a time slot.";
-      }
-      if (!Number.isFinite(repeatWeeks) || repeatWeeks < 0 || repeatWeeks > 4) {
-        return "Repeat can be 0 to 4 weeks (up to one month).";
       }
       return "";
     }
@@ -182,7 +168,6 @@ export default function BookingScreen() {
     quickSharedRangeStart,
     quickSharedRangeEnd,
     quickSharedSlot,
-    quickSharedRepeatWeeks,
     quickOfficeRangeStart,
     quickOfficeRangeEnd,
     quickOfficeChairs,
@@ -193,8 +178,7 @@ export default function BookingScreen() {
       return `Meeting ${quickMeetingRangeLabel} at ${quickMeetingStartTime || "-"} for ${quickMeetingHours || "-"} hour(s).`;
     }
     if (quickRoomType === "Shared Space") {
-      const repeat = Number(quickSharedRepeatWeeks) > 0 ? `, repeat ${quickSharedRepeatWeeks} week(s)` : "";
-      return `Shared space ${quickSharedRangeLabel}, ${quickSharedSlot || "-"}${repeat}.`;
+      return `Shared space ${quickSharedRangeLabel}, ${quickSharedSlot || "-"}.`;
     }
     return `Office ${quickOfficeMonthValue || "-"} for ${quickOfficeMonths || "-"} month(s), ${quickOfficeChairs || "-"} chair(s). Deposit: 1 month.`;
   }, [
@@ -204,7 +188,6 @@ export default function BookingScreen() {
     quickMeetingHours,
     quickSharedRangeLabel,
     quickSharedSlot,
-    quickSharedRepeatWeeks,
     quickOfficeMonthValue,
     quickOfficeMonths,
     quickOfficeChairs,
@@ -588,7 +571,7 @@ export default function BookingScreen() {
           <Pressable
             key={`workspace-${String(workspace.id ?? "missing")}-${index}`}
             style={styles.workspaceCard}
-            onPress={() => navigation.navigate("SpaceDetail", { workspace })}
+            onPress={() => openBookingModal(workspace)}
           >
             <SmartImage uri={workspace.image} style={styles.image} />
 

@@ -30,12 +30,26 @@ const menuItems: { key: AdminView; label: string; icon: string }[] = [
 
 export default function AdminPanelScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { clearSession } = useAuth();
+  const { clearSession, isAdmin } = useAuth();
   const [activeView, setActiveView] = useState<AdminView>("dashboard");
+
   const activeItem = useMemo(
     () => menuItems.find((item) => item.key === activeView),
     [activeView]
   );
+
+  if (!isAdmin) {
+    return (
+      <SafeAreaView style={styles.root} edges={["top", "left", "right", "bottom"]}>
+        <View style={styles.centered}>
+          <Text style={styles.permissionText}>You do not have permission to access this page.</Text>
+          <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
+            <Text style={styles.backButtonText}>Go Back</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   const handleLogout = async () => {
     await logoutUser();
@@ -204,5 +218,28 @@ const styles = StyleSheet.create({
   },
   bottomItemTextActive: {
     color: colors.background,
+  },
+  centered: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 20,
+  },
+  permissionText: {
+    color: colors.foreground,
+    fontSize: 16,
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  backButton: {
+    backgroundColor: colors.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: radii.md,
+  },
+  backButtonText: {
+    color: colors.background,
+    fontSize: 16,
+    fontWeight: "700",
   },
 });

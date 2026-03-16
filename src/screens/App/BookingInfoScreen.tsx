@@ -32,6 +32,7 @@ export default function BookingInfoScreen() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [error, setError] = useState("");
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [timePickerOpen, setTimePickerOpen] = useState(false);
   const [datePickerValue, setDatePickerValue] = useState<Date>(new Date());
@@ -66,19 +67,30 @@ export default function BookingInfoScreen() {
   };
 
   const onNext = () => {
+    setError("");
     if (activeStep === "datetime") {
+      if (!selectedDate || !selectedTime) {
+        setError("Please select a date and time.");
+        return;
+      }
       setActiveStep("guest");
       return;
     }
     if (activeStep === "guest") {
+      if (!name.trim() || !email.trim() || !phone.trim()) {
+        setError("Please fill in all guest information fields.");
+        return;
+      }
       navigation.navigate("Payment", {
         workspace,
         booking: {
           ...booking,
+          dates: [selectedDate],
+          slot: selectedTime,
           guest: {
-            name,
-            email,
-            phone,
+            name: name.trim(),
+            email: email.trim(),
+            phone: phone.trim(),
           },
         },
       });
@@ -188,6 +200,8 @@ export default function BookingInfoScreen() {
             style={styles.input}
           />
         </View>
+
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
         <Pressable style={styles.nextButton} onPress={onNext}>
           <Text style={styles.nextButtonText}>Next</Text>
@@ -360,6 +374,7 @@ const styles = StyleSheet.create({
   timeChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   timeChipText: { color: colors.mutedForeground, fontSize: 12, fontWeight: "600" },
   timeChipTextActive: { color: colors.background },
+  errorText: { color: colors.destructive, fontSize: 14, textAlign: "center" },
   nextButton: {
     backgroundColor: colors.primary,
     paddingVertical: 14,

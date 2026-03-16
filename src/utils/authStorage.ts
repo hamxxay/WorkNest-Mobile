@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Keychain from 'react-native-keychain';
 
 const TOKEN_KEY = 'auth_token';
 const REFRESH_TOKEN_KEY = 'auth_refresh_token';
@@ -17,11 +18,15 @@ export type StoredUser = {
 };
 
 export const saveToken = async (token: string) => {
-  await AsyncStorage.setItem(TOKEN_KEY, token);
+  await Keychain.setGenericPassword(TOKEN_KEY, token, { service: TOKEN_KEY });
+  // Clean up legacy AsyncStorage
+  await AsyncStorage.removeItem(TOKEN_KEY);
 };
 
 export const saveRefreshToken = async (token: string) => {
-  await AsyncStorage.setItem(REFRESH_TOKEN_KEY, token);
+  await Keychain.setGenericPassword(REFRESH_TOKEN_KEY, token, { service: REFRESH_TOKEN_KEY });
+  // Clean up legacy AsyncStorage
+  await AsyncStorage.removeItem(REFRESH_TOKEN_KEY);
 };
 
 export const saveUser = async (user: StoredUser) => {
@@ -29,11 +34,41 @@ export const saveUser = async (user: StoredUser) => {
 };
 
 export const getToken = async () => {
-  return AsyncStorage.getItem(TOKEN_KEY);
+  try {
+    const credentials = await Keychain.getGenericPassword({ service: TOKEN_KEY });
+    if (credentials) {
+      return credentials.password;
+    }
+    // Migration: check legacy AsyncStorage
+    const legacy = await AsyncStorage.getItem(TOKEN_KEY);
+    if (legacy) {
+      await saveToken(legacy);
+      await AsyncStorage.removeItem(TOKEN_KEY); // Clean up after migration
+      return legacy;
+    }
+    return null;
+  } catch {
+    return null;
+  }
 };
 
 export const getRefreshToken = async () => {
-  return AsyncStorage.getItem(REFRESH_TOKEN_KEY);
+  try {
+    const credentials = await Keychain.getGenericPassword({ service: REFRESH_TOKEN_KEY });
+    if (credentials) {
+      return credentials.password;
+    }
+    // Migration: check legacy AsyncStorage
+    const legacy = await AsyncStorage.getItem(REFRESH_TOKEN_KEY);
+    if (legacy) {
+      await saveRefreshToken(legacy);
+      await AsyncStorage.removeItem(REFRESH_TOKEN_KEY); // Clean up after migration
+      return legacy;
+    }
+    return null;
+  } catch {
+    return null;
+  }
 };
 
 export const getUser = async (): Promise<StoredUser | null> => {
@@ -50,11 +85,11 @@ export const getUser = async (): Promise<StoredUser | null> => {
 };
 
 export const removeToken = async () => {
-  await AsyncStorage.removeItem(TOKEN_KEY);
+  await Keychain.resetGenericPassword({ service: TOKEN_KEY });
 };
 
 export const removeRefreshToken = async () => {
-  await AsyncStorage.removeItem(REFRESH_TOKEN_KEY);
+  await Keychain.resetGenericPassword({ service: REFRESH_TOKEN_KEY });
 };
 
 export const removeUser = async () => {
