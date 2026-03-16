@@ -36,9 +36,10 @@ import AboutUsScreen from "../screens/App/AboutUsScreen";
 import AdminPanelScreen from "../screens/App/AdminPanelScreen";
 import { logoutUser } from "../services/authService";
 import { useAuth } from "../context/AuthContext";
-import { StyleSheet } from "react-native";
+import { StyleSheet, View, Text } from "react-native";
 import { useState } from "react";
 import { ConfirmModal } from "../components/ConfirmModal";
+import packageLock from "../../package-lock.json";
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const Drawer = createDrawerNavigator<AppDrawerParamList>();
@@ -122,6 +123,8 @@ function AppDrawerContent(props: DrawerContentComponentProps) {
     resetToLogin();
   };
 
+  const appVersion = (packageLock as any)?.version ?? "";
+
   return (
     <>
       <DrawerContentScrollView {...props} contentContainerStyle={styles.drawerContent}>
@@ -134,6 +137,10 @@ function AppDrawerContent(props: DrawerContentComponentProps) {
             <Ionicons name="log-out-outline" size={size} color={color} />
           )}
         />
+
+        <View style={styles.versionContainer}>
+          <Text style={styles.versionText}>{appVersion ? `v${appVersion}` : ""}</Text>
+        </View>
       </DrawerContentScrollView>
 
       <ConfirmModal
@@ -235,5 +242,16 @@ const styles = StyleSheet.create({
   logoutLabel: {
     color: "#dc2626",
     fontWeight: "700",
+  },
+  versionContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  versionText: {
+    color: colors.mutedForeground,
+    fontSize: 12,
+    textAlign: "center",
   },
 });

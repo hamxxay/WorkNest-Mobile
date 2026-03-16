@@ -1,7 +1,7 @@
 import type { ImageSourcePropType } from "react-native";
 
 const registry: Record<string, ImageSourcePropType> = {
-  "images/happy-team.png": require("../../public/images/happy-team.png"),
+  "images/happy-team.jpg": require("../../public/images/happy-team.jpg"),
 
   "images/spaces/board-room.jpg": require("../../public/images/spaces/board-room.jpg"),
   "images/spaces/collaborative.jpg": require("../../public/images/spaces/collaborative.jpg"),
