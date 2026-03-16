@@ -43,7 +43,7 @@ export default function HomeScreen() {
     route: keyof MainTabParamList,
     params?: MainTabParamList[keyof MainTabParamList],
   ) => {
-    navigation.navigate(route as never, params as never);
+    navigation.navigate(route as any, params as any);
   };
 
   return (
@@ -253,6 +253,7 @@ const styles = StyleSheet.create({
   },
   section: { marginTop: 20 },
   sectionHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
+  sectionTitle: { color: colors.foreground, fontWeight: "700", fontSize: 18 },
   galleryGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   galleryCard: {
     width: "48%",

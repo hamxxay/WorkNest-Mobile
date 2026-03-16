@@ -66,7 +66,7 @@ export default function PricingScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 20, paddingBottom: 24 },
+  content: { paddingHorizontal: 20, paddingBottom: 24 },
   hero: {
     backgroundColor: colors.muted,
     borderRadius: radii.lg,

@@ -40,7 +40,7 @@ export default function AdminPanelScreen() {
   const handleLogout = async () => {
     await logoutUser();
     await clearSession();
-    navigation.reset({ index: 0, routes: [{ name: "Login" }] });
+    navigation.reset({ index: 0, routes: [{ name: "AuthStack", params: { screen: "Login" } }] });
   };
 
   return (

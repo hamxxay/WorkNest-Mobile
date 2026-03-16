@@ -36,7 +36,7 @@ import AboutUsScreen from "../screens/App/AboutUsScreen";
 import AdminPanelScreen from "../screens/App/AdminPanelScreen";
 import { logoutUser } from "../services/authService";
 import { useAuth } from "../context/AuthContext";
-import { StyleSheet, View, Text } from "react-native";
+import { StyleSheet, View, Text, Image } from "react-native";
 import { useState } from "react";
 import { ConfirmModal } from "../components/ConfirmModal";
 import packageLock from "../../package-lock.json";
@@ -129,6 +129,14 @@ function AppDrawerContent(props: DrawerContentComponentProps) {
     <>
       <View style={styles.drawerRoot}>
         <DrawerContentScrollView {...props} contentContainerStyle={styles.drawerContent}>
+          <View style={styles.drawerBrand}>
+            <Image
+              source={require("../../public/Logo.png")}
+              style={styles.drawerLogo}
+              resizeMode="contain"
+            />
+            <Text style={styles.drawerBrandText}>WorkNest</Text>
+          </View>
           <DrawerItemList {...props} />
           <DrawerItem
             label="Log Out"
@@ -242,6 +250,23 @@ const styles = StyleSheet.create({
   },
   drawerContent: {
     flexGrow: 1,
+  },
+  drawerBrand: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 20,
+    gap: 10,
+  },
+  drawerLogo: {
+    width: 36,
+    height: 36,
+  },
+  drawerBrandText: {
+    color: colors.foreground,
+    fontSize: 18,
+    fontWeight: "700",
+    letterSpacing: 0.3,
   },
   logoutLabel: {
     color: "#dc2626",
