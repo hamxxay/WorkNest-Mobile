@@ -13,17 +13,23 @@ export async function hydrateSessionUser(): Promise<StoredUser | null> {
     const response = await apiRequest<ApiResponse<AuthResponse>>(API_ENDPOINTS.auth.profile, {
       method: "GET",
       requiresAuth: true,
+      unwrapData: false,
     });
 
-    if (!response.isSuccessful || !response.data) {
+    const payload =
+      response && typeof response === "object" && "isSuccessful" in response
+        ? (response as ApiResponse<AuthResponse>)
+        : { isSuccessful: true, message: null, data: response as AuthResponse };
+
+    if (!payload.isSuccessful || !payload.data) {
       return null;
     }
 
     return {
-      id: response.data.userId || undefined,
-      email: response.data.email || undefined,
-      name: response.data.email || undefined, // assuming name is email or something, adjust as needed
-      roles: response.data.roles || undefined,
+      id: payload.data.userId || undefined,
+      email: payload.data.email || undefined,
+      name: payload.data.email || undefined, // assuming name is email or something, adjust as needed
+      roles: payload.data.roles || undefined,
     };
   } catch {
     return null;
@@ -34,32 +40,44 @@ export async function loginUser(payload: LoginRequest): Promise<AuthResponse> {
   const response = await apiRequest<ApiResponse<AuthResponse>>(API_ENDPOINTS.auth.login, {
     method: "POST",
     body: payload,
+    unwrapData: false,
   });
 
-  if (!response.isSuccessful || !response.data) {
-    throw new ApiError(response.message || "Login failed.", 401);
+  const normalized =
+    response && typeof response === "object" && "isSuccessful" in response
+      ? (response as ApiResponse<AuthResponse>)
+      : { isSuccessful: true, message: null, data: response as AuthResponse };
+
+  if (!normalized.isSuccessful || !normalized.data) {
+    throw new ApiError(normalized.message || "Login failed.", 401);
   }
 
-  if (response.data.token) {
-    await saveToken(response.data.token);
+  if (normalized.data.token) {
+    await saveToken(normalized.data.token);
   }
 
-  return response.data;
+  return normalized.data;
 }
 
 export async function registerUser(payload: RegisterRequest): Promise<AuthResponse> {
   const response = await apiRequest<ApiResponse<AuthResponse>>(API_ENDPOINTS.auth.signup, {
     method: "POST",
     body: payload,
+    unwrapData: false,
   });
 
-  if (!response.isSuccessful || !response.data) {
-    throw new ApiError(response.message || "Registration failed.", 400);
+  const normalized =
+    response && typeof response === "object" && "isSuccessful" in response
+      ? (response as ApiResponse<AuthResponse>)
+      : { isSuccessful: true, message: null, data: response as AuthResponse };
+
+  if (!normalized.isSuccessful || !normalized.data) {
+    throw new ApiError(normalized.message || "Registration failed.", 400);
   }
 
-  if (response.data.token) {
-    await saveToken(response.data.token);
+  if (normalized.data.token) {
+    await saveToken(normalized.data.token);
   }
 
-  return response.data;
+  return normalized.data;
 }

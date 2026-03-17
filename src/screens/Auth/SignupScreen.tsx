@@ -134,6 +134,7 @@ export default function SignupScreen() {
               <Ionicons
                 name="lock-closed-outline"
                 size={18}
+              
                 color={colors.mutedForeground}
               />
               <TextInput
@@ -142,6 +143,9 @@ export default function SignupScreen() {
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
+                autoCapitalize="none"       
+                autoCorrect={false}
+                autoComplete="off"
                 style={styles.input}
               />
               <Pressable onPress={() => setShowPassword((prev) => !prev)}>
@@ -165,6 +169,9 @@ export default function SignupScreen() {
                 placeholderTextColor={colors.mutedForeground}
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="off"
                 secureTextEntry={!showPassword}
                 style={styles.input}
               />

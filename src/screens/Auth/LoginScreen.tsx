@@ -83,6 +83,8 @@ export default function LoginScreen() {
                 onChangeText={setEmail}
                 autoCapitalize="none"
                 keyboardType="email-address"
+                textContentType="emailAddress"
+autoComplete="email"
                 style={styles.input}
               />
             </View>
@@ -98,8 +100,12 @@ export default function LoginScreen() {
                 placeholder="Enter your password"
                 placeholderTextColor={colors.mutedForeground}
                 value={password}
+                textContentType="password"
                 onChangeText={setPassword}
+                autoComplete="off"
+                autoCorrect={false}
                 secureTextEntry={!showPassword}
+                autoCapitalize="none"
                 style={styles.input}
               />
               <Pressable onPress={() => setShowPassword((prev) => !prev)}>
