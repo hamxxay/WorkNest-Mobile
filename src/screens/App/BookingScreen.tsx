@@ -10,8 +10,9 @@ import {
   View,
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
-import { useRoute, type RouteProp } from "@react-navigation/native";
-import type { MainTabParamList } from "../../navigation/types";
+import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { AppStackParamList, MainTabParamList } from "../../navigation/types";
 import { Screen } from "../../components/Screen";
 import { colors, radii } from "../../theme";
 import { createBooking, getWorkspaces } from "../../services/workspaceService";
@@ -62,11 +63,14 @@ const MONTH_LABELS = [
 ];
 
 export default function BookingScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const route = useRoute<RouteProp<MainTabParamList, "Booking">>();
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [workspaceType, setWorkspaceType] = useState<string>("");
+  const [selectedLocation, setSelectedLocation] = useState<string>("");
+  const [availableOnly, setAvailableOnly] = useState(false);
   const initialRoomType = route.params?.initialRoomType;
   const [quickRoomType, setQuickRoomType] = useState<RoomType>("Meeting/Conference");
   const [quickMeetingRangeStart, setQuickMeetingRangeStart] = useState<Date | null>(null);
@@ -193,9 +197,20 @@ export default function BookingScreen() {
     quickOfficeChairs,
   ]);
 
+  const locationOptions = useMemo(() => {
+    return Array.from(
+      new Set(
+        workspaces
+          .map((workspace) => workspace.location.trim())
+          .filter((location) => location.length > 0)
+      )
+    ).sort((a, b) => a.localeCompare(b));
+  }, [workspaces]);
+
   const filteredWorkspaces = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
-    const type = workspaceType.toLowerCase();
+    const type = normalizeFilterValue(workspaceType);
+    const location = selectedLocation.toLowerCase();
 
     return workspaces.filter((workspace) => {
       const matchesQuery =
@@ -204,11 +219,42 @@ export default function BookingScreen() {
         workspace.location.toLowerCase().includes(query);
 
       const matchesType =
-        !type || workspace.type.toLowerCase().includes(type.replace("-", " "));
+        !type || normalizeFilterValue(workspace.type).includes(type);
 
-      return matchesQuery && matchesType;
+      const matchesLocation =
+        !location || workspace.location.toLowerCase() === location;
+
+      const matchesAvailability = !availableOnly || workspace.available;
+
+      return matchesQuery && matchesType && matchesLocation && matchesAvailability;
     });
-  }, [searchQuery, workspaceType, workspaces]);
+  }, [availableOnly, searchQuery, selectedLocation, workspaceType, workspaces]);
+
+  const cycleLocationFilter = () => {
+    if (locationOptions.length === 0) {
+      return;
+    }
+
+    if (!selectedLocation) {
+      setSelectedLocation(locationOptions[0]);
+      return;
+    }
+
+    const currentIndex = locationOptions.findIndex((location) => location === selectedLocation);
+    if (currentIndex === -1 || currentIndex === locationOptions.length - 1) {
+      setSelectedLocation("");
+      return;
+    }
+
+    setSelectedLocation(locationOptions[currentIndex + 1]);
+  };
+
+  const resetFilters = () => {
+    setSearchQuery("");
+    setWorkspaceType("");
+    setSelectedLocation("");
+    setAvailableOnly(false);
+  };
 
   const quickCalendarDays = useMemo(() => buildCalendarDays(quickRangeMonth), [quickRangeMonth]);
   const bookingCalendarDays = useMemo(() => buildCalendarDays(bookingRangeMonth), [bookingRangeMonth]);
@@ -412,16 +458,27 @@ export default function BookingScreen() {
           </View>
 
           <View style={styles.filterRow}>
-            <Pressable style={styles.dropdown}>
-              <Text style={styles.dropdownText}>Location</Text>
+            <Pressable style={styles.dropdown} onPress={cycleLocationFilter}>
+              <Text style={styles.dropdownText}>
+                {selectedLocation || (locationOptions.length ? "All Locations" : "No Locations")}
+              </Text>
               <Ionicons name="chevron-down" size={16} color={colors.mutedForeground} />
             </Pressable>
-            <Pressable style={styles.dropdown}>
-              <Text style={styles.dropdownText}>Date</Text>
-              <Ionicons name="chevron-down" size={16} color={colors.mutedForeground} />
+            <Pressable
+              style={[styles.dropdown, availableOnly && styles.dropdownActive]}
+              onPress={() => setAvailableOnly((current) => !current)}
+            >
+              <Text style={[styles.dropdownText, availableOnly && styles.dropdownTextActive]}>
+                {availableOnly ? "Available Only" : "All Spaces"}
+              </Text>
+              <Ionicons
+                name={availableOnly ? "checkmark-circle" : "ellipse-outline"}
+                size={16}
+                color={availableOnly ? colors.primary : colors.mutedForeground}
+              />
             </Pressable>
-            <Pressable style={styles.searchButton}>
-              <Text style={styles.searchButtonText}>Search</Text>
+            <Pressable style={styles.searchButton} onPress={resetFilters}>
+              <Text style={styles.searchButtonText}>Reset</Text>
             </Pressable>
           </View>
 
@@ -443,117 +500,38 @@ export default function BookingScreen() {
             })}
           </View>
 
-          <Text style={styles.filterHint}>Filter by name, location, or workspace type.</Text>
+          <Text style={styles.filterHint}>
+            Search updates live. Tap `Location` to cycle locations, toggle availability, or reset all filters.
+          </Text>
         </View>
 
-        <View style={styles.bookingCard}>
+        {/* <View style={styles.bookingCard}>
           <Text style={styles.sectionTitle}>Book Now</Text>
           <View style={styles.typeRow}>
             {(["Meeting/Conference", "Shared Space", "Office"] as RoomType[]).map((type) => {
-              const active = quickRoomType === type;
+              const filterValue =
+                type === "Meeting/Conference"
+                  ? "meeting"
+                  : type === "Shared Space"
+                    ? "co-working"
+                    : "private";
+              const active = workspaceType === filterValue;
               return (
                 <Pressable
                   key={type}
                   style={[styles.typeChip, active && styles.typeChipActive]}
-                  onPress={() => setQuickRoomType(type)}
+                  onPress={() => setWorkspaceType((current) => (current === filterValue ? "" : filterValue))}
                 >
                   <Text style={[styles.typeText, active && styles.typeTextActive]}>{type}</Text>
                 </Pressable>
               );
             })}
           </View>
-
-          {quickRoomType === "Meeting/Conference" ? (
-            <View style={styles.formBlock}>
-              <Pressable style={styles.rangeField} onPress={() => openQuickRangePicker("meeting")}>
-                <Text style={quickMeetingRangeStart ? styles.rangeText : styles.rangePlaceholder}>
-                  {quickMeetingRangeLabel}
-                </Text>
-                <Ionicons name="calendar-outline" size={16} color={colors.mutedForeground} />
-              </Pressable>
-              <View style={styles.inlineRow}>
-                <TextInput
-                  value={quickMeetingStartTime}
-                  onChangeText={setQuickMeetingStartTime}
-                  placeholder="Start (HH:mm)"
-                  placeholderTextColor={colors.mutedForeground}
-                  style={[styles.input, styles.inlineInput]}
-                />
-                <TextInput
-                  value={quickMeetingHours}
-                  onChangeText={setQuickMeetingHours}
-                  placeholder="Hours"
-                  placeholderTextColor={colors.mutedForeground}
-                  keyboardType="numeric"
-                  style={[styles.input, styles.inlineInput]}
-                />
-              </View>
-              <Text style={styles.helperText}>Minimum 1 hour, same-day booking.</Text>
-            </View>
-          ) : null}
-
-          {quickRoomType === "Shared Space" ? (
-            <View style={styles.formBlock}>
-              <Pressable style={styles.rangeField} onPress={() => openQuickRangePicker("shared")}>
-                <Text style={quickSharedRangeStart ? styles.rangeText : styles.rangePlaceholder}>
-                  {quickSharedRangeLabel}
-                </Text>
-                <Ionicons name="calendar-outline" size={16} color={colors.mutedForeground} />
-              </Pressable>
-              <View style={styles.slotRow}>
-                {(["9 AM - 5 PM", "6 PM - 3 AM"] as SharedSlot[]).map((slot) => {
-                  const active = quickSharedSlot === slot;
-                  return (
-                    <Pressable
-                      key={slot}
-                      style={[styles.slotChip, active && styles.slotChipActive]}
-                      onPress={() => setQuickSharedSlot(slot)}
-                    >
-                      <Text style={[styles.slotText, active && styles.slotTextActive]}>{slot}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-          ) : null}
-
-          {quickRoomType === "Office" ? (
-            <View style={styles.formBlock}>
-              <Pressable style={styles.pickerField} onPress={openQuickMonthPicker}>
-                <Text style={quickOfficeMonthValue ? styles.pickerText : styles.pickerPlaceholder}>
-                  {quickOfficeMonthValue || "Select month range"}
-                </Text>
-                <Ionicons name="calendar-outline" size={16} color={colors.mutedForeground} />
-              </Pressable>
-              <View style={styles.inlineRow}>
-                <View style={styles.pickerContainer}>
-                  <Picker
-                    selectedValue={quickOfficeChairs}
-                    onValueChange={(itemValue: string | number) =>
-                      setQuickOfficeChairs(String(itemValue))
-                    }
-                    dropdownIconColor="#666"
-                    style={styles.picker}
-                    mode="dropdown"
-                  >
-                    <Picker.Item label="Select Chairs" value="" color="#999" />
-                    <Picker.Item label="1 Chair" value="1" />
-                    <Picker.Item label="2 Chairs" value="2" />
-                    <Picker.Item label="3 Chairs" value="3" />
-                    <Picker.Item label="4 Chairs" value="4" />
-                    <Picker.Item label="5 Chairs" value="5" />
-                    <Picker.Item label="6 Chairs" value="6" />
-                    <Picker.Item label="7 Chairs" value="7" />
-                  </Picker>
-                </View>
-              </View>
-              <Text style={styles.helperText}>Security deposit: 1 month.</Text>
-            </View>
-          ) : null}
-
-          {quickValidation ? <Text style={styles.errorText}>{quickValidation}</Text> : null}
-          {!quickValidation ? <Text style={styles.summaryText}>{quickSummary}</Text> : null}
-        </View>
+          <Text style={styles.helperText}>
+            Filter the list by room type here. Date, time, duration, and month selection now happen
+            inside each space detail screen.
+          </Text>
+        </View> */}
 
         <View style={styles.galleryHeader}>
           <Text style={styles.galleryTitle}>Workspace Listings</Text>
@@ -571,7 +549,7 @@ export default function BookingScreen() {
           <Pressable
             key={`workspace-${String(workspace.id ?? "missing")}-${index}`}
             style={styles.workspaceCard}
-            onPress={() => openBookingModal(workspace)}
+            onPress={() => navigation.navigate("SpaceDetail", { workspace })}
           >
             <SmartImage uri={workspace.image} style={styles.image} />
 
@@ -959,6 +937,10 @@ function getMonthRangeCountLabel(start: Date | null, end: Date | null) {
   return String(Math.max(1, months));
 }
 
+function normalizeFilterValue(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
 const styles = StyleSheet.create({
   content: { paddingHorizontal: 18, paddingBottom: 24 },
   pageTitle: { fontSize: 26, fontWeight: "800", color: colors.foreground, marginTop: 10, marginBottom: 12 },
@@ -999,7 +981,12 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     backgroundColor: colors.background,
   },
+  dropdownActive: {
+    borderColor: colors.primary,
+    backgroundColor: "rgba(74, 125, 255, 0.08)",
+  },
   dropdownText: { color: colors.mutedForeground, fontSize: 12, fontWeight: "700" },
+  dropdownTextActive: { color: colors.foreground },
   searchButton: {
     backgroundColor: colors.accent,
     borderRadius: 12,
@@ -1270,4 +1257,3 @@ const styles = StyleSheet.create({
   },
   pickerDoneText: { color: colors.background, fontWeight: "700" },
 });
-

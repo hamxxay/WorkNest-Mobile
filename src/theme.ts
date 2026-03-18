@@ -7,6 +7,7 @@ export const colors = {
   mutedForeground: "#66748A",
   border: "#DFE7F8",
   accent: "#FFA726",
+  danger: "#dc2626",
 };
 
 export const radii = {

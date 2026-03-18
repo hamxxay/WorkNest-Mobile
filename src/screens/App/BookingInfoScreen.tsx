@@ -25,6 +25,9 @@ export default function BookingInfoScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const route = useRoute<RouteProp<AppStackParamList, "BookingInfo">>();
   const { workspace, booking } = route.params;
+  const isOffice = booking.mode === "office";
+  const isShared = booking.mode === "shared";
+  const isMeeting = booking.mode === "meeting";
 
   const [activeStep, setActiveStep] = useState<StepKey>("datetime");
   const [selectedDate, setSelectedDate] = useState<string>(booking.dates[0] ?? "");
@@ -39,14 +42,24 @@ export default function BookingInfoScreen() {
   const [timePickerValue, setTimePickerValue] = useState<Date>(new Date());
 
   const timeOptions = useMemo(() => {
-    if (booking.mode === "office") {
+    if (isOffice) {
       return [booking.month ? `${booking.month} (Monthly)` : "Monthly"];
     }
-    if (booking.mode === "shared") {
+    if (isShared) {
       return ["09:00 - 17:00", "18:00 - 02:00"];
     }
     return ["09:00 - 11:00", "11:00 - 13:00", "13:00 - 15:00", "15:00 - 17:00"];
-  }, [booking.mode, booking.month]);
+  }, [booking.month, isOffice, isShared]);
+
+  const selectedDatesLabel = useMemo(() => {
+    if (isOffice) {
+      return booking.month ? booking.month : "Monthly";
+    }
+    if (isShared) {
+      return booking.dates.length ? booking.dates.join(", ") : "No dates selected";
+    }
+    return selectedDate || "Select";
+  }, [booking.dates, booking.month, isOffice, isShared, selectedDate]);
 
   const stepLabel = (step: StepKey) => {
     if (step === "datetime") return "Date & Time";
@@ -69,7 +82,15 @@ export default function BookingInfoScreen() {
   const onNext = () => {
     setError("");
     if (activeStep === "datetime") {
-      if (!selectedDate || !selectedTime) {
+      if (isOffice && !booking.month) {
+        setError("Please select a booking month.");
+        return;
+      }
+      if (isShared && (!booking.dates.length || !selectedTime)) {
+        setError("Please confirm your selected dates and time slot.");
+        return;
+      }
+      if (isMeeting && (!selectedDate || !selectedTime)) {
         setError("Please select a date and time.");
         return;
       }
@@ -85,8 +106,9 @@ export default function BookingInfoScreen() {
         workspace,
         booking: {
           ...booking,
-          dates: [selectedDate],
-          slot: selectedTime,
+          dates: isShared ? booking.dates : isOffice ? [] : [selectedDate],
+          slot: isOffice ? "" : selectedTime,
+          month: isOffice ? booking.month : undefined,
           guest: {
             name: name.trim(),
             email: email.trim(),
@@ -130,19 +152,29 @@ export default function BookingInfoScreen() {
 
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Date & Time</Text>
-          <Text style={styles.helperText}>Pre-filled from your selection.</Text>
+          <Text style={styles.helperText}>
+            {isOffice
+              ? "Private office bookings are handled monthly."
+              : isShared
+                ? "Shared space bookings keep the dates you selected on the previous screen."
+                : "Meeting room bookings can be adjusted here."}
+          </Text>
 
-          <Text style={styles.label}>Select Date</Text>
-          <Pressable style={styles.input} onPress={openDatePicker}>
-            <Text style={styles.inputValue}>
-              {selectedDate || (booking.month ? `${booking.month} (Monthly)` : "Select")}
-            </Text>
-          </Pressable>
-
-          <Text style={styles.label}>Select Time</Text>
-          {booking.mode === "office" ? (
+          <Text style={styles.label}>{isOffice ? "Booking Month" : isShared ? "Selected Dates" : "Select Date"}</Text>
+          {isMeeting ? (
+            <Pressable style={styles.input} onPress={openDatePicker}>
+              <Text style={styles.inputValue}>{selectedDatesLabel}</Text>
+            </Pressable>
+          ) : (
             <View style={styles.input}>
-              <Text style={styles.inputValue}>{timeOptions[0]}</Text>
+              <Text style={styles.inputValue}>{selectedDatesLabel}</Text>
+            </View>
+          )}
+
+          {!isOffice ? <Text style={styles.label}>Select Time</Text> : null}
+          {isOffice ? (
+            <View style={styles.input}>
+              <Text style={styles.inputValue}>Month-based booking only</Text>
             </View>
           ) : (
             <>
@@ -162,11 +194,13 @@ export default function BookingInfoScreen() {
                   );
                 })}
               </View>
-              <Pressable style={styles.input} onPress={openTimePicker}>
-                <Text style={styles.inputValue}>
-                  {selectedTime ? `Custom: ${selectedTime}` : "Pick a time"}
-                </Text>
-              </Pressable>
+              {isMeeting ? (
+                <Pressable style={styles.input} onPress={openTimePicker}>
+                  <Text style={styles.inputValue}>
+                    {selectedTime ? `Custom: ${selectedTime}` : "Pick a time"}
+                  </Text>
+                </Pressable>
+              ) : null}
             </>
           )}
         </View>
@@ -208,7 +242,7 @@ export default function BookingInfoScreen() {
         </Pressable>
       </ScrollView>
 
-      <ModalWrapper visible={datePickerOpen} onClose={() => setDatePickerOpen(false)}>
+      <ModalWrapper visible={datePickerOpen && isMeeting} onClose={() => setDatePickerOpen(false)}>
         <DateTimePicker
           value={datePickerValue}
           mode="date"
@@ -225,7 +259,7 @@ export default function BookingInfoScreen() {
         />
       </ModalWrapper>
 
-      <ModalWrapper visible={timePickerOpen} onClose={() => setTimePickerOpen(false)}>
+      <ModalWrapper visible={timePickerOpen && isMeeting} onClose={() => setTimePickerOpen(false)}>
         <DateTimePicker
           value={timePickerValue}
           mode="time"
@@ -374,7 +408,7 @@ const styles = StyleSheet.create({
   timeChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   timeChipText: { color: colors.mutedForeground, fontSize: 12, fontWeight: "600" },
   timeChipTextActive: { color: colors.background },
-  errorText: { color: colors.destructive, fontSize: 14, textAlign: "center" },
+  errorText: { color: colors.danger, fontSize: 14, textAlign: "center" },
   nextButton: {
     backgroundColor: colors.primary,
     paddingVertical: 14,

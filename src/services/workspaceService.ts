@@ -44,6 +44,53 @@ type ApiBooking = {
   bookingStatus?: string;
 };
 
+const DEMO_WORKSPACES: Workspace[] = [
+  {
+    id: -101,
+    name: "Atlas Private Office",
+    type: "Private Office",
+    location: "Demo Floor, Karachi",
+    capacity: "4 people",
+    price: 120,
+    amenities: ["Dedicated desks", "High-speed Wi-Fi", "Lockable storage"],
+    image: "https://images.unsplash.com/photo-1497366754035-f200968a6e72?w=800&h=600&fit=crop",
+    available: true,
+  },
+  {
+    id: -102,
+    name: "Harbor Co-Working Hub",
+    type: "Co-Working Space",
+    location: "Demo Wing, Lahore",
+    capacity: "12 people",
+    price: 35,
+    amenities: ["Open seating", "Coffee bar", "Community lounge"],
+    image: "https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=800&h=600&fit=crop",
+    available: true,
+  },
+  {
+    id: -103,
+    name: "Summit Meeting Room",
+    type: "Meeting Room",
+    location: "Demo Tower, Islamabad",
+    capacity: "8 people",
+    price: 60,
+    amenities: ["Display screen", "Video conferencing", "Whiteboard"],
+    image: "https://images.unsplash.com/photo-1497366216548-37526070297c?w=800&h=600&fit=crop",
+    available: true,
+  },
+  {
+    id: -104,
+    name: "Forum Event Studio",
+    type: "Event Space",
+    location: "Demo Hall, Karachi",
+    capacity: "40 people",
+    price: 180,
+    amenities: ["Stage lighting", "Flexible seating", "PA system"],
+    image: "https://images.unsplash.com/photo-1511578314322-379afb476865?w=800&h=600&fit=crop",
+    available: true,
+  },
+];
+
 function mapWorkspace(item: ApiWorkspace): Workspace {
   const resolvedImageUrl = resolveMediaUrl(item.imageUrl);
   return {
@@ -74,6 +121,12 @@ function normalizeSpaceType(type?: string): Workspace["type"] {
   return "Private Office";
 }
 
+function ensureWorkspaceTypes(items: Workspace[]): Workspace[] {
+  const existingTypes = new Set(items.map((item) => item.type));
+  const missingDemos = DEMO_WORKSPACES.filter((item) => !existingTypes.has(item.type));
+  return [...items, ...missingDemos];
+}
+
 export async function getWorkspaces(): Promise<Workspace[]> {
   const payload = await apiRequest<ApiListResponse<ApiWorkspace>>(
     API_ENDPOINTS.workspaces.list,
@@ -86,7 +139,7 @@ export async function getWorkspaces(): Promise<Workspace[]> {
     ? payload
     : payload.data ?? payload.items ?? payload.workspaces ?? [];
 
-  return items.map(mapWorkspace);
+  return ensureWorkspaceTypes(items.map(mapWorkspace));
 }
 
 export async function createBooking(
