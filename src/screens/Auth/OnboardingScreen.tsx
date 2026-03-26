@@ -1,15 +1,23 @@
 import { useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  ImageBackground,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/types";
 import { Screen } from "../../components/Screen";
 import { colors, radii } from "../../theme";
 import { setOnboardingCompleted } from "../../utils/onboardingStorage";
+import type { ImageSourcePropType } from "react-native";
 
 type Slide = {
   title: string;
   description: string;
+  image: ImageSourcePropType;
 };
 
 const slides: Slide[] = [
@@ -17,16 +25,19 @@ const slides: Slide[] = [
     title: "Find Your Space",
     description:
       "Explore offices, meeting rooms, and co-working spaces that match your work style.",
+    image: require("../../../public/images/spaces/creative-cowork.jpg"),
   },
   {
     title: "Book In Minutes",
     description:
       "Choose your preferred date and time, then confirm your booking in a few taps.",
+    image: require("../../../public/images/spaces/meeting-room.jpg"),
   },
   {
     title: "Manage Easily",
     description:
       "Track bookings, pricing plans, and workspace details from one place.",
+    image: require("../../../public/images/gallery/team-collab.jpg"),
   },
 ];
 
@@ -75,22 +86,34 @@ export default function OnboardingScreen() {
           )}
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.title}>{slide.title}</Text>
-          <Text style={styles.description}>{slide.description}</Text>
+        <ImageBackground
+          source={slide.image}
+          style={styles.card}
+          imageStyle={styles.cardImage}
+        >
+          <View style={styles.cardOverlay}>
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>WorkNest</Text>
+            </View>
 
-          <View style={styles.dotsRow}>
-            {slides.map((_, index) => {
-              const active = index === currentIndex;
-              return (
-                <View
-                  key={`dot-${index}`}
-                  style={[styles.dot, active && styles.dotActive]}
-                />
-              );
-            })}
+            <View style={styles.copyBlock}>
+              <Text style={styles.title}>{slide.title}</Text>
+              <Text style={styles.description}>{slide.description}</Text>
+
+              <View style={styles.dotsRow}>
+                {slides.map((_, index) => {
+                  const active = index === currentIndex;
+                  return (
+                    <View
+                      key={`dot-${index}`}
+                      style={[styles.dot, active && styles.dotActive]}
+                    />
+                  );
+                })}
+              </View>
+            </View>
           </View>
-        </View>
+        </ImageBackground>
 
         <Pressable style={styles.primaryButton} onPress={handleNext}>
           <Text style={styles.primaryButtonText}>
@@ -128,20 +151,45 @@ const styles = StyleSheet.create({
     flex: 1,
     marginTop: 24,
     borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.muted,
+    overflow: "hidden",
+    minHeight: 420,
+  },
+  cardImage: {
+    borderRadius: radii.lg,
+  },
+  cardOverlay: {
+    flex: 1,
+    justifyContent: "space-between",
     padding: 24,
-    justifyContent: "center",
+    backgroundColor: "rgba(20, 30, 53, 0.38)",
+  },
+  badge: {
+    alignSelf: "flex-start",
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: "rgba(245, 248, 255, 0.9)",
+  },
+  badgeText: {
+    color: colors.foreground,
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 0.6,
+  },
+  copyBlock: {
+    marginTop: "auto",
+    borderRadius: radii.md,
+    padding: 18,
+    backgroundColor: "rgba(20, 30, 53, 0.6)",
   },
   title: {
-    color: colors.foreground,
+    color: "#FFFFFF",
     fontSize: 30,
     fontWeight: "800",
   },
   description: {
     marginTop: 14,
-    color: colors.mutedForeground,
+    color: "rgba(255,255,255,0.88)",
     fontSize: 16,
     lineHeight: 24,
   },
@@ -154,11 +202,11 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 999,
-    backgroundColor: colors.border,
+    backgroundColor: "rgba(255,255,255,0.45)",
   },
   dotActive: {
     width: 24,
-    backgroundColor: colors.primary,
+    backgroundColor: "#FFFFFF",
   },
   primaryButton: {
     marginTop: 16,

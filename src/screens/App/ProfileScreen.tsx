@@ -26,7 +26,7 @@ type BookingSummary = {
 
 export default function ProfileScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { clearSession } = useAuth();
+  const { clearSession, user } = useAuth();
   const [summary, setSummary] = useState<BookingSummary>({
     upcoming: 0,
     completed: 0,
@@ -65,6 +65,9 @@ export default function ProfileScreen() {
     [summary]
   );
 
+  const displayName = user?.name?.trim() || "WorkNest Member";
+  const displaySubtitle = user?.email?.trim() || "Signed in with Firebase";
+
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -75,8 +78,8 @@ export default function ProfileScreen() {
             <Ionicons name="person" size={32} color={colors.primary} />
           </View>
           <View>
-            <Text style={styles.name}>Name</Text>
-            <Text style={styles.subText}>Member</Text>
+            <Text style={styles.name}>{displayName}</Text>
+            <Text style={styles.subText}>{displaySubtitle}</Text>
           </View>
           <Pressable style={styles.editButton}>
             <Ionicons name="create-outline" size={16} color={colors.background} />

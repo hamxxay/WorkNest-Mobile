@@ -10,14 +10,13 @@ import {
   View,
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
-import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import type { AppStackParamList, MainTabParamList } from "../../navigation/types";
+import type { AppStackParamList } from "../../navigation/types";
 import { Screen } from "../../components/Screen";
 import { colors, radii } from "../../theme";
 import { createBooking, getWorkspaces } from "../../services/workspaceService";
 import { SmartImage } from "../../components/SmartImage";
-import { Picker } from "@react-native-picker/picker";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Header } from "../../components/Header";
 
@@ -32,10 +31,6 @@ type Workspace = {
   image: string;
   available: boolean;
 };
-
-type RoomType = "Meeting/Conference" | "Shared Space" | "Office";
-
-type SharedSlot = "9 AM - 5 PM" | "6 PM - 3 AM" | "";
 
 type PickerType = "office" | null;
 
@@ -64,29 +59,23 @@ const MONTH_LABELS = [
 
 export default function BookingScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
-  const route = useRoute<RouteProp<MainTabParamList, "Booking">>();
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [workspaceType, setWorkspaceType] = useState<string>("");
   const [selectedLocation, setSelectedLocation] = useState<string>("");
   const [availableOnly, setAvailableOnly] = useState(false);
-  const initialRoomType = route.params?.initialRoomType;
-  const [quickRoomType, setQuickRoomType] = useState<RoomType>("Meeting/Conference");
   const [quickMeetingRangeStart, setQuickMeetingRangeStart] = useState<Date | null>(null);
   const [quickMeetingRangeEnd, setQuickMeetingRangeEnd] = useState<Date | null>(null);
   const [quickMeetingStartTime, setQuickMeetingStartTime] = useState("09:00");
-  const [quickMeetingHours, setQuickMeetingHours] = useState("1");
   const [quickSharedRangeStart, setQuickSharedRangeStart] = useState<Date | null>(null);
   const [quickSharedRangeEnd, setQuickSharedRangeEnd] = useState<Date | null>(null);
-  const [quickSharedSlot, setQuickSharedSlot] = useState<SharedSlot>("");
   const [quickOfficeRangeStart, setQuickOfficeRangeStart] = useState<Date | null>(null);
   const [quickOfficeRangeEnd, setQuickOfficeRangeEnd] = useState<Date | null>(null);
-  const [quickOfficeChairs, setQuickOfficeChairs] = useState("1");
   const [quickActivePicker, setQuickActivePicker] = useState<PickerType>(null);
   const [quickPickerMonth, setQuickPickerMonth] = useState<Date>(new Date());
   const [quickRangePickerOpen, setQuickRangePickerOpen] = useState(false);
-  const [quickRangeTarget, setQuickRangeTarget] = useState<RangeTarget>(null);
+  const [quickRangeTarget, _setQuickRangeTarget] = useState<RangeTarget>(null);
   const [quickRangeMonth, setQuickRangeMonth] = useState<Date>(startOfMonth(new Date()));
   const [selectedSpace, setSelectedSpace] = useState<Workspace | null>(null);
   const [bookingNotes, setBookingNotes] = useState("");
@@ -116,86 +105,8 @@ export default function BookingScreen() {
       });
   }, []);
 
-  useEffect(() => {
-    if (initialRoomType) {
-      setQuickRoomType(initialRoomType);
-    }
-  }, [initialRoomType]);
-
   const quickMeetingRangeLabel = getRangeLabel(quickMeetingRangeStart, quickMeetingRangeEnd);
   const quickSharedRangeLabel = getRangeLabel(quickSharedRangeStart, quickSharedRangeEnd);
-  const quickOfficeMonthValue = getMonthRangeLabel(quickOfficeRangeStart, quickOfficeRangeEnd);
-  const quickOfficeMonths = useMemo(
-    () => getMonthRangeCountLabel(quickOfficeRangeStart, quickOfficeRangeEnd),
-    [quickOfficeRangeStart, quickOfficeRangeEnd],
-  );
-
-  const quickValidation = useMemo(() => {
-    if (quickRoomType === "Meeting/Conference") {
-      const hours = Number(quickMeetingHours);
-      if (!quickMeetingRangeStart || !quickMeetingRangeEnd) {
-        return "Select a date range.";
-      }
-      if (!isValidTime(quickMeetingStartTime)) {
-        return "Select a valid start time (HH:mm).";
-      }
-      if (!Number.isFinite(hours) || hours < 1) {
-        return "Minimum booking is 1 hour.";
-      }
-      return "";
-    }
-
-    if (quickRoomType === "Shared Space") {
-      if (!quickSharedRangeStart || !quickSharedRangeEnd) {
-        return "Select a date range.";
-      }
-      if (!quickSharedSlot) {
-        return "Select a time slot.";
-      }
-      return "";
-    }
-
-    const chairs = Number(quickOfficeChairs);
-    if (!quickOfficeRangeStart || !quickOfficeRangeEnd) {
-      return "Select a month range.";
-    }
-    if (!Number.isFinite(chairs) || chairs < 1 || chairs > 5) {
-      return "Chairs must be between 1 and 5.";
-    }
-    return "";
-  }, [
-    quickRoomType,
-    quickMeetingRangeStart,
-    quickMeetingRangeEnd,
-    quickMeetingStartTime,
-    quickMeetingHours,
-    quickSharedRangeStart,
-    quickSharedRangeEnd,
-    quickSharedSlot,
-    quickOfficeRangeStart,
-    quickOfficeRangeEnd,
-    quickOfficeChairs,
-  ]);
-
-  const quickSummary = useMemo(() => {
-    if (quickRoomType === "Meeting/Conference") {
-      return `Meeting ${quickMeetingRangeLabel} at ${quickMeetingStartTime || "-"} for ${quickMeetingHours || "-"} hour(s).`;
-    }
-    if (quickRoomType === "Shared Space") {
-      return `Shared space ${quickSharedRangeLabel}, ${quickSharedSlot || "-"}.`;
-    }
-    return `Office ${quickOfficeMonthValue || "-"} for ${quickOfficeMonths || "-"} month(s), ${quickOfficeChairs || "-"} chair(s). Deposit: 1 month.`;
-  }, [
-    quickRoomType,
-    quickMeetingRangeLabel,
-    quickMeetingStartTime,
-    quickMeetingHours,
-    quickSharedRangeLabel,
-    quickSharedSlot,
-    quickOfficeMonthValue,
-    quickOfficeMonths,
-    quickOfficeChairs,
-  ]);
 
   const locationOptions = useMemo(() => {
     return Array.from(
@@ -258,21 +169,6 @@ export default function BookingScreen() {
 
   const quickCalendarDays = useMemo(() => buildCalendarDays(quickRangeMonth), [quickRangeMonth]);
   const bookingCalendarDays = useMemo(() => buildCalendarDays(bookingRangeMonth), [bookingRangeMonth]);
-
-  const openQuickRangePicker = (target: RangeTarget) => {
-    const baseDate = target === "meeting"
-      ? quickMeetingRangeStart ?? new Date()
-      : quickSharedRangeStart ?? new Date();
-    setQuickRangeTarget(target);
-    setQuickRangeMonth(startOfMonth(baseDate));
-    setQuickRangePickerOpen(true);
-  };
-
-  const openQuickMonthPicker = () => {
-    setQuickActivePicker("office");
-    const baseDate = quickOfficeRangeStart ?? new Date();
-    setQuickPickerMonth(new Date(baseDate.getFullYear(), baseDate.getMonth(), 1));
-  };
 
   const onSelectQuickRangeDate = (date: Date) => {
     if (quickRangeTarget === "meeting") {
@@ -356,19 +252,6 @@ export default function BookingScreen() {
     }
 
     setTimePickerOpen(false);
-  };
-
-  const openBookingModal = (workspace: Workspace) => {
-    const today = new Date();
-    setSelectedSpace(workspace);
-    setBookingError("");
-    setBookingSuccess("");
-    setBookingNotes("");
-    setBookingStartTime("09:00");
-    setBookingEndTime("17:00");
-    setBookingRangeStart(today);
-    setBookingRangeEnd(today);
-    setBookingRangeMonth(startOfMonth(today));
   };
 
   const closeBookingModal = () => {
@@ -816,12 +699,6 @@ function formatDate(value: Date) {
   return `${year}-${month}-${day}`;
 }
 
-function formatMonth(value: Date) {
-  const year = value.getFullYear();
-  const month = String(value.getMonth() + 1).padStart(2, "0");
-  return `${year}-${month}`;
-}
-
 function formatTimeHHmm(value: Date) {
   const h = String(value.getHours()).padStart(2, "0");
   const m = String(value.getMinutes()).padStart(2, "0");
@@ -853,10 +730,6 @@ function formatRangeDate(value: Date) {
   const month = String(value.getMonth() + 1).padStart(2, "0");
   const day = String(value.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
-}
-
-function isValidTime(value: string) {
-  return /^([01]\\d|2[0-3]):[0-5]\\d$/.test(value);
 }
 
 function buildCalendarDays(baseMonth: Date): CalendarDay[] {
@@ -915,26 +788,6 @@ function getRangeLabel(start: Date | null, end: Date | null) {
     return `${formatRangeDate(start)} to Select end date`;
   }
   return "Select date range";
-}
-
-function getMonthRangeLabel(start: Date | null, end: Date | null) {
-  if (start && end) {
-    return `${formatMonth(start)} to ${formatMonth(end)}`;
-  }
-  if (start) {
-    return `${formatMonth(start)} to Select end month`;
-  }
-  return "";
-}
-
-function getMonthRangeCountLabel(start: Date | null, end: Date | null) {
-  if (!start || !end) {
-    return "";
-  }
-  const months = (end.getFullYear() - start.getFullYear()) * 12
-    + (end.getMonth() - start.getMonth())
-    + 1;
-  return String(Math.max(1, months));
 }
 
 function normalizeFilterValue(value: string) {

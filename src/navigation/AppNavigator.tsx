@@ -47,12 +47,41 @@ const RootStack = createNativeStackNavigator<RootStackParamList>();
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 const AppStack = createNativeStackNavigator<AppStackParamList>();
 
+type IconProps = {
+  color: string;
+  size: number;
+};
+
+function HomeTabIcon({ color, size }: IconProps) {
+  return <Ionicons name="home-outline" color={color} size={size} />;
+}
+
+function BookingTabIcon({ color, size }: IconProps) {
+  return <Ionicons name="calendar-outline" color={color} size={size} />;
+}
+
+function PricingTabIcon({ color, size }: IconProps) {
+  return <Ionicons name="pricetag-outline" color={color} size={size} />;
+}
+
+function GalleryTabIcon({ color, size }: IconProps) {
+  return <Ionicons name="images-outline" color={color} size={size} />;
+}
+
+function LogoutDrawerIcon({ color, size }: IconProps) {
+  return <Ionicons name="log-out-outline" size={size} color={color} />;
+}
+
+function renderAppDrawerContent(props: DrawerContentComponentProps) {
+  return <AppDrawerContent {...props} />;
+}
+
 function MainTabs() {
   const insets = useSafeAreaInsets();
 
   return (
     <Tab.Navigator
-      screenOptions={({ route }) => ({
+      screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.mutedForeground,
@@ -68,23 +97,18 @@ function MainTabs() {
           fontSize: 13,
           fontWeight: "600",
         },
-        tabBarIcon: ({ color, size }) => {
-          const iconByRoute: Record<keyof MainTabParamList, string> = {
-            Home: "home-outline",
-            Booking: "calendar-outline",
-            MyBookings: "receipt-outline",
-            MyPayments: "card-outline",
-            Pricing: "pricetag-outline",
-            Gallery: "images-outline",
-          };
-          const iconName = iconByRoute[route.name];
-
-          return <Ionicons name={iconName} color={color} size={size} />;
-        },
-      })}
+      }}
     >
-      <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="Booking" component={BookingScreen} />
+      <Tab.Screen
+        name="Home"
+        component={HomeScreen}
+        options={{ tabBarIcon: HomeTabIcon }}
+      />
+      <Tab.Screen
+        name="Booking"
+        component={BookingScreen}
+        options={{ tabBarIcon: BookingTabIcon }}
+      />
       {/* <Tab.Screen
         name="MyBookings"
         component={MyBookingsScreen}
@@ -95,8 +119,16 @@ function MainTabs() {
         component={MyPaymentsScreen}
         options={{ title: "My Payments" }}
       /> */}
-      <Tab.Screen name="Pricing" component={PricingScreen} />
-      <Tab.Screen name="Gallery" component={GalleryScreen} />
+      <Tab.Screen
+        name="Pricing"
+        component={PricingScreen}
+        options={{ tabBarIcon: PricingTabIcon }}
+      />
+      <Tab.Screen
+        name="Gallery"
+        component={GalleryScreen}
+        options={{ tabBarIcon: GalleryTabIcon }}
+      />
     </Tab.Navigator>
   );
 }
@@ -142,9 +174,7 @@ function AppDrawerContent(props: DrawerContentComponentProps) {
             label="Log Out"
             onPress={() => setShowLogoutConfirm(true)}
             labelStyle={styles.logoutLabel}
-            icon={({ color, size }) => (
-              <Ionicons name="log-out-outline" size={size} color={color} />
-            )}
+            icon={LogoutDrawerIcon}
           />
         </DrawerContentScrollView>
         <View style={styles.versionContainer}>
@@ -173,7 +203,7 @@ function AppDrawerContent(props: DrawerContentComponentProps) {
 function AppDrawerNavigator() {
   return (
     <Drawer.Navigator
-      drawerContent={(props) => <AppDrawerContent {...props} />}
+      drawerContent={renderAppDrawerContent}
       screenOptions={{
         headerShown: false,
         drawerActiveTintColor: colors.primary,
@@ -274,7 +304,8 @@ const styles = StyleSheet.create({
   },
   versionContainer: {
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 12,
+    paddingBottom: 24,
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },

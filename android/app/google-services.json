@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "722479405081",
+    "project_id": "work-nest-3936a",
+    "storage_bucket": "work-nest-3936a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:722479405081:android:8619533c1fea83970e7288",
+        "android_client_info": {
+          "package_name": "com.worknestmobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAdJyVA50O_wWrorZK6NQnR-d7p_VbEPRY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

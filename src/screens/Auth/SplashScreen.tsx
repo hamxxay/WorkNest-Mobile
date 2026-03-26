@@ -5,8 +5,8 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/types";
 import { Screen } from "../../components/Screen";
 import { colors } from "../../theme";
-import { isAuthenticated } from "../../utils/authStorage";
 import { hasCompletedOnboarding } from "../../utils/onboardingStorage";
+import { hydrateSessionUser } from "../../services/authService";
 
 export default function SplashScreen() {
   const navigation =
@@ -24,7 +24,8 @@ export default function SplashScreen() {
         return;
       }
 
-      const hasSession = await isAuthenticated();
+      const user = await hydrateSessionUser();
+      const hasSession = Boolean(user);
 
       timer = setTimeout(() => {
         if (hasSession) {

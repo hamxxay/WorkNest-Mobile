@@ -18,13 +18,17 @@ export type StoredUser = {
 };
 
 export const saveToken = async (token: string) => {
-  await Keychain.setGenericPassword(TOKEN_KEY, token, { service: TOKEN_KEY });
+  try {
+    await Keychain.setGenericPassword(TOKEN_KEY, token, { service: TOKEN_KEY });
+  } catch {}
   // Clean up legacy AsyncStorage
   await AsyncStorage.removeItem(TOKEN_KEY);
 };
 
 export const saveRefreshToken = async (token: string) => {
-  await Keychain.setGenericPassword(REFRESH_TOKEN_KEY, token, { service: REFRESH_TOKEN_KEY });
+  try {
+    await Keychain.setGenericPassword(REFRESH_TOKEN_KEY, token, { service: REFRESH_TOKEN_KEY });
+  } catch {}
   // Clean up legacy AsyncStorage
   await AsyncStorage.removeItem(REFRESH_TOKEN_KEY);
 };
@@ -85,11 +89,15 @@ export const getUser = async (): Promise<StoredUser | null> => {
 };
 
 export const removeToken = async () => {
-  await Keychain.resetGenericPassword({ service: TOKEN_KEY });
+  try {
+    await Keychain.resetGenericPassword({ service: TOKEN_KEY });
+  } catch {}
 };
 
 export const removeRefreshToken = async () => {
-  await Keychain.resetGenericPassword({ service: REFRESH_TOKEN_KEY });
+  try {
+    await Keychain.resetGenericPassword({ service: REFRESH_TOKEN_KEY });
+  } catch {}
 };
 
 export const removeUser = async () => {
@@ -107,7 +115,11 @@ export const isAuthenticated = async () => {
 };
 
 export const clearAuthStorage = async () => {
-  await AsyncStorage.multiRemove([TOKEN_KEY, REFRESH_TOKEN_KEY, USER_KEY]);
+  await Promise.allSettled([
+    AsyncStorage.multiRemove([TOKEN_KEY, REFRESH_TOKEN_KEY, USER_KEY]),
+    Keychain.resetGenericPassword({ service: TOKEN_KEY }),
+    Keychain.resetGenericPassword({ service: REFRESH_TOKEN_KEY }),
+  ]);
 };
 // export const isAuthenticated = async (): Promise<boolean> => {
 //   const token = await getToken();

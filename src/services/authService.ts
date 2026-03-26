@@ -1,83 +1,341 @@
-import { removeToken, saveToken } from "../utils/authStorage";
-import { apiRequest, ApiError } from "./apiClient";
-import type { ApiResponse, AuthResponse, LoginRequest, RegisterRequest } from "./api/types";
+import {
+  default as auth,
+  FirebaseAuthTypes,
+  GoogleAuthProvider,
+} from "@react-native-firebase/auth";
+import {
+  GoogleSignin,
+  isCancelledResponse,
+  isSuccessResponse,
+} from "@react-native-google-signin/google-signin";
+import { FIREBASE_IOS_CLIENT_ID, FIREBASE_WEB_CLIENT_ID } from "@env";
+import { removeToken, removeUser, saveToken, saveUser } from "../utils/authStorage";
+import { ApiError } from "./apiClient";
+import type { AuthResponse, LoginRequest, RegisterRequest } from "./api/types";
 import type { StoredUser } from "../utils/authStorage";
-import { API_ENDPOINTS } from "../config/api";
+
+let googleSigninConfigured = false;
+
+function getFirebaseAuth() {
+  try {
+    return auth();
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Firebase Auth native module is unavailable.";
+    throw new Error(`Firebase Auth is not ready: ${message}`);
+  }
+}
+
+function maskEmail(email?: string | null): string | null {
+  if (!email) {
+    return null;
+  }
+
+  const [localPart, domain] = email.split("@");
+  if (!localPart || !domain) {
+    return email;
+  }
+
+  const visible = localPart.slice(0, 2);
+  return `${visible}${"*".repeat(Math.max(localPart.length - visible.length, 0))}@${domain}`;
+}
+
+function debugAuth(label: string, details?: Record<string, unknown>) {
+  if (!__DEV__) {
+    return;
+  }
+
+  if (details) {
+    console.log(`[Firebase Auth] ${label}`, details);
+    return;
+  }
+
+  console.log(`[Firebase Auth] ${label}`);
+}
+
+function mapFirebaseUser(user: FirebaseAuthTypes.User): StoredUser {
+  return {
+    id: user.uid,
+    name: user.displayName ?? undefined,
+    email: user.email ?? undefined,
+  };
+}
+
+function mapFirebaseAuthResponse(
+  user: FirebaseAuthTypes.User,
+  idToken: string
+): AuthResponse {
+  return {
+    token: idToken,
+    email: user.email ?? null,
+    userId: user.uid,
+    roles: null,
+  };
+}
+
+function configureGoogleAuth() {
+  if (googleSigninConfigured) {
+    return;
+  }
+
+  if (!FIREBASE_WEB_CLIENT_ID?.trim()) {
+    throw new Error("Missing FIREBASE_WEB_CLIENT_ID. Add it to your environment before using Google login.");
+  }
+
+  try {
+    GoogleSignin.configure({
+      webClientId: FIREBASE_WEB_CLIENT_ID.trim(),
+      iosClientId: FIREBASE_IOS_CLIENT_ID?.trim() || undefined,
+      offlineAccess: false,
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Google Sign-In native module is unavailable.";
+    throw new Error(`Google Sign-In is not ready: ${message}`);
+  }
+
+  googleSigninConfigured = true;
+}
+
+async function persistFirebaseSession(
+  user: FirebaseAuthTypes.User
+): Promise<{ user: StoredUser; idToken: string }> {
+  const firebaseUser = mapFirebaseUser(user);
+  const idToken = await user.getIdToken();
+  debugAuth("persist session", {
+    uid: user.uid,
+    email: maskEmail(user.email),
+    displayName: user.displayName ?? null,
+    tokenLength: idToken.length,
+    idToken: idToken.slice(0, 10) + "..." + idToken.slice(-10), // Log only the beginning and end of the token for debuggings
+  });
+  await saveToken(idToken);
+  await saveUser(firebaseUser);
+  return { user: firebaseUser, idToken };
+}
 
 export async function logoutUser(): Promise<void> {
+  debugAuth("logout start");
+  const tasks: Promise<unknown>[] = [];
+
+  tasks.push(GoogleSignin.signOut());
+
+  try {
+    tasks.push(getFirebaseAuth().signOut());
+  } catch (error) {
+    debugAuth("logout skipped firebase signOut", {
+      message: error instanceof Error ? error.message : "unknown",
+    });
+  }
+
+  await Promise.allSettled(tasks);
   await removeToken();
+  await removeUser();
+  debugAuth("logout complete");
 }
 
 export async function hydrateSessionUser(): Promise<StoredUser | null> {
+  let firebaseUser: FirebaseAuthTypes.User | null = null;
+
   try {
-    const response = await apiRequest<ApiResponse<AuthResponse>>(API_ENDPOINTS.auth.profile, {
-      method: "GET",
-      requiresAuth: true,
-      unwrapData: false,
+    firebaseUser = getFirebaseAuth().currentUser;
+  } catch (error) {
+    debugAuth("hydrate session skipped", {
+      message: error instanceof Error ? error.message : "unknown",
     });
-
-    const payload =
-      response && typeof response === "object" && "isSuccessful" in response
-        ? (response as ApiResponse<AuthResponse>)
-        : { isSuccessful: true, message: null, data: response as AuthResponse };
-
-    if (!payload.isSuccessful || !payload.data) {
-      return null;
-    }
-
-    return {
-      id: payload.data.userId || undefined,
-      email: payload.data.email || undefined,
-      name: payload.data.email || undefined, // assuming name is email or something, adjust as needed
-      roles: payload.data.roles || undefined,
-    };
-  } catch {
     return null;
+  }
+
+  if (!firebaseUser) {
+    debugAuth("hydrate session", { hasUser: false });
+    await removeToken();
+    await removeUser();
+    return null;
+  }
+
+  debugAuth("hydrate session", {
+    hasUser: true,
+    uid: firebaseUser.uid,
+    email: maskEmail(firebaseUser.email),
+  });
+  const session = await persistFirebaseSession(firebaseUser);
+  return session.user;
+}
+
+export function subscribeToAuthChanges(
+  onChange: (user: StoredUser | null) => void
+) {
+  try {
+    return getFirebaseAuth().onIdTokenChanged(async (firebaseUser) => {
+      if (!firebaseUser) {
+        debugAuth("auth state changed", { signedIn: false });
+        await removeToken();
+        await removeUser();
+        onChange(null);
+        return;
+      }
+
+      debugAuth("auth state changed", {
+        signedIn: true,
+        uid: firebaseUser.uid,
+        email: maskEmail(firebaseUser.email),
+      });
+      const session = await persistFirebaseSession(firebaseUser);
+      onChange(session.user);
+    });
+  } catch (error) {
+    debugAuth("subscribe auth changes skipped", {
+      message: error instanceof Error ? error.message : "unknown",
+    });
+    return () => {};
   }
 }
 
 export async function loginUser(payload: LoginRequest): Promise<AuthResponse> {
-  const response = await apiRequest<ApiResponse<AuthResponse>>(API_ENDPOINTS.auth.login, {
-    method: "POST",
-    body: payload,
-    unwrapData: false,
-  });
-
-  const normalized =
-    response && typeof response === "object" && "isSuccessful" in response
-      ? (response as ApiResponse<AuthResponse>)
-      : { isSuccessful: true, message: null, data: response as AuthResponse };
-
-  if (!normalized.isSuccessful || !normalized.data) {
-    throw new ApiError(normalized.message || "Login failed.", 401);
+  try {
+    debugAuth("login request", {
+      email: maskEmail(payload.email.trim()),
+      passwordLength: payload.password.length,
+    });
+    const credential = await getFirebaseAuth().signInWithEmailAndPassword(
+      payload.email.trim(),
+      payload.password
+    );
+    const session = await persistFirebaseSession(credential.user);
+    debugAuth("login success", {
+      uid: credential.user.uid,
+      email: maskEmail(credential.user.email),
+      isAnonymous: credential.user.isAnonymous,
+    });
+    return mapFirebaseAuthResponse(credential.user, session.idToken);
+  } catch (error) {
+    debugAuth("login error", {
+      code:
+        error && typeof error === "object" && "code" in error
+          ? String((error as { code?: unknown }).code)
+          : "unknown",
+    });
+    throw mapFirebaseError(error, "Login failed.");
   }
-
-  if (normalized.data.token) {
-    await saveToken(normalized.data.token);
-  }
-
-  return normalized.data;
 }
 
 export async function registerUser(payload: RegisterRequest): Promise<AuthResponse> {
-  const response = await apiRequest<ApiResponse<AuthResponse>>(API_ENDPOINTS.auth.signup, {
-    method: "POST",
-    body: payload,
-    unwrapData: false,
+  try {
+    debugAuth("register request", {
+      email: maskEmail(payload.email.trim()),
+      passwordLength: payload.password.length,
+      hasFirstName: Boolean(payload.firstName?.trim()),
+      hasLastName: Boolean(payload.lastName?.trim()),
+    });
+    const credential = await getFirebaseAuth().createUserWithEmailAndPassword(
+      payload.email.trim(),
+      payload.password
+    );
+
+    const displayName = [payload.firstName, payload.lastName]
+      .filter((value) => typeof value === "string" && value.trim().length > 0)
+      .join(" ")
+      .trim();
+
+    if (displayName) {
+      await credential.user.updateProfile({ displayName });
+      debugAuth("register profile updated", {
+        uid: credential.user.uid,
+        displayName,
+      });
+    }
+
+    const session = await persistFirebaseSession(credential.user);
+    debugAuth("register success", {
+      uid: credential.user.uid,
+      email: maskEmail(credential.user.email),
+    });
+    return mapFirebaseAuthResponse(credential.user, session.idToken);
+  } catch (error) {
+    debugAuth("register error", {
+      code:
+        error && typeof error === "object" && "code" in error
+          ? String((error as { code?: unknown }).code)
+          : "unknown",
+    });
+    throw mapFirebaseError(error, "Registration failed.");
+  }
+}
+
+export async function signInWithGoogle(): Promise<StoredUser> {
+  configureGoogleAuth();
+  debugAuth("google sign-in start");
+
+  await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+  const signInResult = await GoogleSignin.signIn();
+  if (isCancelledResponse(signInResult)) {
+    debugAuth("google sign-in cancelled");
+    throw new Error("Google sign-in was cancelled.");
+  }
+
+  if (!isSuccessResponse(signInResult)) {
+    debugAuth("google sign-in incomplete");
+    throw new Error("Google sign-in did not complete successfully.");
+  }
+
+  const googleTokens = await GoogleSignin.getTokens();
+  const googleIdToken = signInResult.data.idToken ?? googleTokens.idToken;
+  if (!googleIdToken) {
+    throw new Error("Google Sign-In did not return an ID token.");
+  }
+
+  debugAuth("google credential received", {
+    email: maskEmail(signInResult.data.user.email),
+    idTokenLength: googleIdToken.length,
   });
+  const googleCredential = GoogleAuthProvider.credential(googleIdToken);
+  const credentialResult = await getFirebaseAuth().signInWithCredential(googleCredential);
+  debugAuth("google sign-in success", {
+    uid: credentialResult.user.uid,
+    email: maskEmail(credentialResult.user.email),
+    displayName: credentialResult.user.displayName ?? null,
+  });
+  const session = await persistFirebaseSession(credentialResult.user);
+  return session.user;
+}
 
-  const normalized =
-    response && typeof response === "object" && "isSuccessful" in response
-      ? (response as ApiResponse<AuthResponse>)
-      : { isSuccessful: true, message: null, data: response as AuthResponse };
-
-  if (!normalized.isSuccessful || !normalized.data) {
-    throw new ApiError(normalized.message || "Registration failed.", 400);
+export async function requestPasswordReset(email: string): Promise<void> {
+  try {
+    debugAuth("password reset request", {
+      email: maskEmail(email.trim()),
+    });
+    await getFirebaseAuth().sendPasswordResetEmail(email.trim());
+    debugAuth("password reset sent", {
+      email: maskEmail(email.trim()),
+    });
+  } catch (error) {
+    debugAuth("password reset error", {
+      code:
+        error && typeof error === "object" && "code" in error
+          ? String((error as { code?: unknown }).code)
+          : "unknown",
+    });
+    throw mapFirebaseError(error, "Unable to send password reset email.");
   }
+}
 
-  if (normalized.data.token) {
-    await saveToken(normalized.data.token);
-  }
+function mapFirebaseError(error: unknown, fallbackMessage: string): ApiError {
+  const code =
+    error && typeof error === "object" && "code" in error
+      ? String((error as { code?: unknown }).code)
+      : "";
 
-  return normalized.data;
+  const messageByCode: Record<string, string> = {
+    "auth/email-already-in-use": "That email address is already in use.",
+    "auth/invalid-email": "Enter a valid email address.",
+    "auth/user-not-found": "No account exists for that email address.",
+    "auth/wrong-password": "The email or password is incorrect.",
+    "auth/invalid-credential": "The email or password is incorrect.",
+    "auth/too-many-requests": "Too many attempts. Please try again in a moment.",
+    "auth/weak-password": "Choose a stronger password with at least 6 characters.",
+    "auth/network-request-failed": "Network error. Check your connection and try again.",
+    "auth/missing-email": "Email is required.",
+  };
+
+  return new ApiError(messageByCode[code] ?? fallbackMessage, 400, error);
 }

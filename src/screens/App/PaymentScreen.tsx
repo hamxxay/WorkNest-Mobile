@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useRoute, useNavigation } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
-import type { NativeStackNavigationProp } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Screen } from "../../components/Screen";
 import { colors, radii } from "../../theme";
 import type { AppStackParamList, RootStackParamList } from "../../navigation/types";
@@ -46,7 +46,7 @@ export default function PaymentScreen() {
 
       await createBooking(workspace.id, startDateTime, endDateTime, `Guest: ${booking.guest.name}, ${booking.guest.email}, ${booking.guest.phone}`);
       // Navigate to success
-      navigation.navigate("AppStack", { screen: "MyBookings" });
+      navigation.navigate("AppStack", { screen: "MainTabs" });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Payment failed.");
     } finally {

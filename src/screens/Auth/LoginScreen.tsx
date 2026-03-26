@@ -17,7 +17,11 @@ import type { AuthStackParamList, RootStackParamList } from "../../navigation/ty
 import { Screen } from "../../components/Screen";
 import { colors, radii } from "../../theme";
 import { ApiError } from "../../services/apiClient";
-import { loginUser } from "../../services/authService";
+import {
+  loginUser,
+  requestPasswordReset,
+  signInWithGoogle,
+} from "../../services/authService";
 
 export default function LoginScreen() {
   const navigation =
@@ -26,7 +30,14 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const rootNavigation =
+    navigation.getParent<NativeStackNavigationProp<RootStackParamList>>();
+
+  const routeToApp = () => {
+    rootNavigation?.replace("AppStack", { screen: "MainTabs" });
+  };
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
@@ -38,9 +49,7 @@ export default function LoginScreen() {
       setLoading(true);
       setError(null);
       await loginUser({ email: email.trim(), password });
-      navigation
-        .getParent<NativeStackNavigationProp<RootStackParamList>>()
-        ?.replace("AppStack", { screen: "MainTabs" });
+      routeToApp();
     } catch (err) {
       const message =
         err instanceof ApiError
@@ -49,6 +58,42 @@ export default function LoginScreen() {
       setError(message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    try {
+      setGoogleLoading(true);
+      setError(null);
+      await signInWithGoogle();
+      routeToApp();
+    } catch (err) {
+      const message =
+        err instanceof ApiError || err instanceof Error
+          ? err.message
+          : "Unable to login with Google right now. Please try again.";
+      setError(message);
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email.trim()) {
+      setError("Enter your email address first to reset your password.");
+      return;
+    }
+
+    try {
+      setError(null);
+      await requestPasswordReset(email.trim());
+      setError("Password reset email sent. Check your inbox.");
+    } catch (err) {
+      const message =
+        err instanceof ApiError || err instanceof Error
+          ? err.message
+          : "Unable to send a password reset email right now.";
+      setError(message);
     }
   };
 
@@ -126,7 +171,7 @@ autoComplete="email"
             <Pressable
               style={[styles.primaryButton, loading && styles.primaryButtonDisabled]}
               onPress={handleLogin}
-              disabled={loading}
+              disabled={loading || googleLoading}
             >
               {loading ? (
                 <ActivityIndicator size="small" color={colors.background} />
@@ -136,7 +181,28 @@ autoComplete="email"
             </Pressable>
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-            <Pressable style={styles.linkButton}>
+            <View style={styles.dividerRow}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            <Pressable
+              style={[styles.googleButton, googleLoading && styles.primaryButtonDisabled]}
+              onPress={handleGoogleLogin}
+              disabled={loading || googleLoading}
+            >
+              {googleLoading ? (
+                <ActivityIndicator size="small" color={colors.foreground} />
+              ) : (
+                <>
+                  <Ionicons name="logo-google" size={18} color={colors.foreground} />
+                  <Text style={styles.googleButtonText}>Continue with Google</Text>
+                </>
+              )}
+            </Pressable>
+
+            <Pressable style={styles.linkButton} onPress={handleForgotPassword}>
               <Text style={styles.linkText}>Forgot password?</Text>
             </Pressable>
 
@@ -241,6 +307,39 @@ const styles = StyleSheet.create({
     color: "#dc2626",
     fontSize: 13,
     textAlign: "center",
+  },
+  dividerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 2,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.border,
+  },
+  dividerText: {
+    color: colors.mutedForeground,
+    fontSize: 13,
+    fontWeight: "600",
+    textTransform: "uppercase",
+  },
+  googleButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    paddingVertical: 14,
+    backgroundColor: colors.muted,
+  },
+  googleButtonText: {
+    color: colors.foreground,
+    fontWeight: "700",
+    fontSize: 15,
   },
   linkButton: {
     alignItems: "center",

@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { clearAuthStorage, getUser, type StoredUser } from "../utils/authStorage";
-import { hydrateSessionUser } from "../services/authService";
+import { hydrateSessionUser, subscribeToAuthChanges } from "../services/authService";
 
 type AuthContextValue = {
   user: StoredUser | null;
@@ -64,9 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(cachedUser);
 
     const sessionUser = await hydrateSessionUser();
-    if (sessionUser) {
-      setUser(sessionUser);
-    }
+    setUser(sessionUser);
   }, []);
 
   const clearSession = useCallback(async () => {
@@ -75,13 +73,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    let active = true;
+
     refreshUser()
       .catch(() => {
-        setUser(null);
+        if (active) {
+          setUser(null);
+        }
       })
       .finally(() => {
-        setIsLoadingUser(false);
+        if (active) {
+          setIsLoadingUser(false);
+        }
       });
+
+    const unsubscribe = subscribeToAuthChanges((nextUser) => {
+      if (!active) {
+        return;
+      }
+
+      setUser(nextUser);
+      setIsLoadingUser(false);
+    });
+
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, [refreshUser]);
 
   const value = useMemo<AuthContextValue>(
