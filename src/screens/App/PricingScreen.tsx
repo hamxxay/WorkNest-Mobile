@@ -1,13 +1,14 @@
 ﻿import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Header } from "../../components/Header";
 import { Screen } from "../../components/Screen";
-import { colors, radii } from "../../theme";
+import { radii, useThemeColors, useThemedStyles } from "../../theme";
 import { useEffect, useMemo, useState } from "react";
-import { getPricingPlans, PricingPlan } from "../../services/pricingService";
+import { getPricingPlans, type PricingPlan } from "../../services/pricingService";
 
 const fallbackPlans: PricingPlan[] = [];
 
 export default function PricingScreen() {
+  const styles = useThemedStyles(createStyles);
   const [plans, setPlans] = useState<PricingPlan[]>(fallbackPlans);
   const [loading, setLoading] = useState(true);
 
@@ -65,7 +66,7 @@ export default function PricingScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.create({
   content: { paddingHorizontal: 20, paddingBottom: 24 },
   hero: {
     backgroundColor: colors.muted,

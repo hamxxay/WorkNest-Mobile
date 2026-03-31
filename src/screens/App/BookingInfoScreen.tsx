@@ -16,12 +16,35 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { Screen } from "../../components/Screen";
-import { colors, radii } from "../../theme";
+import { radii, useThemeColors, useThemedStyles } from "../../theme";
 import type { AppStackParamList } from "../../navigation/types";
 
 type StepKey = "datetime" | "guest" | "payment";
+type CalendarDay = {
+  date: Date;
+  isCurrentMonth: boolean;
+};
+
+const MONTH_LABELS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export default function BookingInfoScreen() {
+  const colors = useThemeColors();
+  const styles = useThemedStyles(createStyles);
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const route = useRoute<RouteProp<AppStackParamList, "BookingInfo">>();
   const { workspace, booking } = route.params;
@@ -39,6 +62,7 @@ export default function BookingInfoScreen() {
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [timePickerOpen, setTimePickerOpen] = useState(false);
   const [datePickerValue, setDatePickerValue] = useState<Date>(new Date());
+  const [datePickerMonth, setDatePickerMonth] = useState<Date>(startOfMonth(new Date()));
   const [timePickerValue, setTimePickerValue] = useState<Date>(new Date());
 
   const timeOptions = useMemo(() => {
@@ -70,7 +94,9 @@ export default function BookingInfoScreen() {
     activeStep === step || (step === "payment" && activeStep !== "datetime" && activeStep !== "guest");
 
   const openDatePicker = () => {
-    setDatePickerValue(selectedDate ? parseDate(selectedDate) : new Date());
+    const baseDate = selectedDate ? parseDate(selectedDate) : new Date();
+    setDatePickerValue(baseDate);
+    setDatePickerMonth(startOfMonth(baseDate));
     setDatePickerOpen(true);
   };
 
@@ -242,28 +268,67 @@ export default function BookingInfoScreen() {
         </Pressable>
       </ScrollView>
 
-      <ModalWrapper visible={datePickerOpen && isMeeting} onClose={() => setDatePickerOpen(false)}>
-        <DateTimePicker
-          value={datePickerValue}
-          mode="date"
-          display={Platform.OS === "ios" ? "spinner" : "default"}
-          onChange={(event, date) => {
-            if (Platform.OS !== "ios") {
-              setDatePickerOpen(false);
-            }
-            if (event.type === "set" && date) {
-              setDatePickerValue(date);
-              setSelectedDate(formatDate(date));
-            }
-          }}
-        />
+      <ModalWrapper visible={datePickerOpen && isMeeting} onClose={() => setDatePickerOpen(false)} styles={styles}>
+        <Text style={styles.modalTitle}>Select date</Text>
+        <View style={styles.calendarHeader}>
+          <Pressable style={styles.iconButton} onPress={() => setDatePickerMonth((prev) => addMonths(prev, -1))}>
+            <Ionicons name="chevron-back" size={18} color={colors.foreground} />
+          </Pressable>
+          <Text style={styles.calendarTitle}>
+            {MONTH_LABELS[datePickerMonth.getMonth()]} {datePickerMonth.getFullYear()}
+          </Text>
+          <Pressable style={styles.iconButton} onPress={() => setDatePickerMonth((prev) => addMonths(prev, 1))}>
+            <Ionicons name="chevron-forward" size={18} color={colors.foreground} />
+          </Pressable>
+        </View>
+
+        <View style={styles.weekdayRow}>
+          {WEEKDAY_LABELS.map((label) => (
+            <Text key={`weekday-${label}`} style={styles.weekdayLabel}>
+              {label}
+            </Text>
+          ))}
+        </View>
+
+        <View style={styles.calendarGrid}>
+          {buildCalendarDays(datePickerMonth).map((day) => {
+            const isSelected = isSameDay(day.date, datePickerValue);
+            return (
+              <Pressable
+                key={day.date.toISOString()}
+                style={[
+                  styles.dayCell,
+                  !day.isCurrentMonth && styles.dayCellMuted,
+                  isSelected && styles.dayCellSelected,
+                ]}
+                onPress={() => {
+                  setDatePickerValue(day.date);
+                  setSelectedDate(formatDate(day.date));
+                  setDatePickerOpen(false);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.dayText,
+                    !day.isCurrentMonth && styles.dayTextMuted,
+                    isSelected && styles.dayTextSelected,
+                  ]}
+                >
+                  {day.date.getDate()}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
       </ModalWrapper>
 
-      <ModalWrapper visible={timePickerOpen && isMeeting} onClose={() => setTimePickerOpen(false)}>
+      <ModalWrapper visible={timePickerOpen && isMeeting} onClose={() => setTimePickerOpen(false)} styles={styles}>
+        <Text style={styles.modalTitle}>Select time</Text>
         <DateTimePicker
           value={timePickerValue}
           mode="time"
           display={Platform.OS === "ios" ? "spinner" : "default"}
+          design={Platform.OS === "android" ? "material" : undefined}
           onChange={(event, date) => {
             if (Platform.OS !== "ios") {
               setTimePickerOpen(false);
@@ -279,7 +344,17 @@ export default function BookingInfoScreen() {
   );
 }
 
-function ModalWrapper({ visible, onClose, children }: { visible: boolean; onClose: () => void; children: ReactNode }) {
+function ModalWrapper({
+  visible,
+  onClose,
+  children,
+  styles,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  children: ReactNode;
+  styles: ReturnType<typeof createStyles>;
+}) {
   if (!visible) return null;
   return (
     <Modal transparent visible onRequestClose={onClose} animationType="fade">
@@ -307,6 +382,41 @@ function parseDate(value: string) {
   return new Date(year, month - 1, day);
 }
 
+function buildCalendarDays(baseMonth: Date): CalendarDay[] {
+  const year = baseMonth.getFullYear();
+  const month = baseMonth.getMonth();
+  const firstDayOfMonth = new Date(year, month, 1);
+  const startDay = firstDayOfMonth.getDay();
+  const startDate = new Date(year, month, 1 - startDay);
+  const days: CalendarDay[] = [];
+
+  for (let i = 0; i < 42; i += 1) {
+    const date = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + i);
+    days.push({
+      date,
+      isCurrentMonth: date.getMonth() === month,
+    });
+  }
+
+  return days;
+}
+
+function startOfMonth(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function addMonths(date: Date, delta: number) {
+  return new Date(date.getFullYear(), date.getMonth() + delta, 1);
+}
+
+function isSameDay(a: Date, b: Date) {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
 function extractStartTime(value: string) {
   if (!value) return "";
   return value.split("-")[0]?.trim() ?? "";
@@ -329,7 +439,7 @@ function addHours(value: Date, hours: number) {
   return new Date(value.getTime() + hours * 60 * 60 * 1000);
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.create({
   container: {
     paddingHorizontal: 18,
     paddingBottom: 28,
@@ -431,6 +541,62 @@ const styles = StyleSheet.create({
     borderRadius: radii.lg,
     padding: 16,
     gap: 12,
+  },
+  modalTitle: {
+    color: colors.foreground,
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  calendarHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  calendarTitle: {
+    color: colors.foreground,
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  weekdayRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  weekdayLabel: {
+    flex: 1,
+    textAlign: "center",
+    color: colors.mutedForeground,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  calendarGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  dayCell: {
+    width: "12.8%",
+    aspectRatio: 1,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.muted,
+  },
+  dayCellMuted: {
+    opacity: 0.45,
+  },
+  dayCellSelected: {
+    backgroundColor: colors.primary,
+  },
+  dayText: {
+    color: colors.foreground,
+    fontWeight: "600",
+    transform: [{ translateY: -10 }],
+  },
+  dayTextMuted: {
+    color: colors.mutedForeground,
+  },
+  dayTextSelected: {
+    color: colors.background,
   },
   modalPrimary: {
     alignSelf: "flex-end",

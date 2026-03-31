@@ -79,6 +79,9 @@ export const API_ENDPOINTS = {
   gallery: {
     list: "/gallery",
   },
+  contact: {
+    create: "/contact",
+  },
   payments: {
     my: "/payment/my",
   },

@@ -7,7 +7,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import AdminDashboardScreen from "./AdminDashboardScreen";
 import AdminUsersScreen from "./AdminUsersScreen";
 import AdminManageScreen, { type AdminEntity } from "./AdminManageScreen";
-import { colors, radii } from "../../theme";
+import { radii, useThemeColors, useThemedStyles } from "../../theme";
 import type { RootStackParamList } from "../../navigation/types";
 import { logoutUser } from "../../services/authService";
 import { useAuth } from "../../context/AuthContext";
@@ -29,6 +29,8 @@ const menuItems: { key: AdminView; label: string; icon: string }[] = [
 ];
 
 export default function AdminPanelScreen() {
+  const colors = useThemeColors();
+  const styles = useThemedStyles(createStyles);
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { clearSession, isAdmin } = useAuth();
   const [activeView, setActiveView] = useState<AdminView>("dashboard");
@@ -117,7 +119,7 @@ export default function AdminPanelScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: "#f3f6f9",

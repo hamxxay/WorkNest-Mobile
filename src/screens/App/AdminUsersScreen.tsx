@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Header } from "../../components/Header";
 import { Screen } from "../../components/Screen";
-import { colors, radii } from "../../theme";
+import { radii, useThemeColors, useThemedStyles } from "../../theme";
 import { getUsersPage, type AdminUser } from "../../services/adminService";
 
 const PAGE_SIZE = 20;
@@ -18,6 +18,7 @@ function normalizeRoles(roles: AdminUser["roles"] | string | undefined): string 
 }
 
 export default function AdminUsersScreen({ embedded = false }: { embedded?: boolean }) {
+  const styles = useThemedStyles(createStyles);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -138,7 +139,7 @@ export default function AdminUsersScreen({ embedded = false }: { embedded?: bool
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.create({
   container: { paddingHorizontal: 20, paddingBottom: 28 },
   title: { color: colors.foreground, fontSize: 28, fontWeight: "800", marginBottom: 6 },
   subtitle: { color: colors.mutedForeground, fontSize: 15, marginBottom: 18 },

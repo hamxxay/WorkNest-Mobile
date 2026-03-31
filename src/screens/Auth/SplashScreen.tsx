@@ -4,11 +4,13 @@ import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/types";
 import { Screen } from "../../components/Screen";
-import { colors } from "../../theme";
+import { useThemeColors, useThemedStyles } from "../../theme";
 import { hasCompletedOnboarding } from "../../utils/onboardingStorage";
 import { hydrateSessionUser } from "../../services/authService";
 
 export default function SplashScreen() {
+  const colors = useThemeColors();
+  const styles = useThemedStyles(createStyles);
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
@@ -60,7 +62,7 @@ export default function SplashScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.create({
   container: {
     flex: 1,
     alignItems: "center",

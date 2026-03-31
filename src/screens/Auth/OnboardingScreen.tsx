@@ -20,7 +20,7 @@ import Animated, {
 } from "react-native-reanimated";
 import type { RootStackParamList } from "../../navigation/types";
 import { Screen } from "../../components/Screen";
-import { colors, radii } from "../../theme";
+import { radii, useThemeColors, useThemedStyles } from "../../theme";
 import { setOnboardingCompleted } from "../../utils/onboardingStorage";
 import type { ImageSourcePropType } from "react-native";
 
@@ -126,6 +126,7 @@ function OnboardingSlide({
 const AnimatedFlatList = Animated.createAnimatedComponent(FlatList<Slide>);
 
 export default function OnboardingScreen() {
+  const styles = useThemedStyles(createStyles);
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -267,7 +268,7 @@ export default function OnboardingScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.create({
   container: {
     flex: 1,
     paddingHorizontal: 20,

@@ -5,7 +5,7 @@ import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Header } from "../../components/Header";
 import { Screen } from "../../components/Screen";
-import { colors, radii } from "../../theme";
+import { radii, useThemeColors, useThemedStyles } from "../../theme";
 import { logoutUser } from "../../services/authService";
 import { useAuth } from "../../context/AuthContext";
 import type { RootStackParamList } from "../../navigation/types";
@@ -25,6 +25,8 @@ type BookingSummary = {
 };
 
 export default function ProfileScreen() {
+  const colors = useThemeColors();
+  const styles = useThemedStyles(createStyles);
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { clearSession, user } = useAuth();
   const [summary, setSummary] = useState<BookingSummary>({
@@ -151,7 +153,7 @@ function buildSummary(bookings: BookingItem[]): BookingSummary {
   return { upcoming, completed, cancelled };
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.create({
   content: {
     padding: 20,
     paddingBottom: 24,

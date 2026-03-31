@@ -14,10 +14,11 @@ import BookingScreen from "../screens/App/BookingScreen";
 import SpaceDetailScreen from "../screens/App/SpaceDetailScreen";
 import BookingInfoScreen from "../screens/App/BookingInfoScreen";
 import PaymentScreen from "../screens/App/PaymentScreen";
+import ContactUsScreen from "../screens/App/ContactUsScreen";
 import PricingScreen from "../screens/App/PricingScreen";
 import GalleryScreen from "../screens/App/GalleryScreen";
 import SignupScreen from "../screens/Auth/SignupScreen";
-import { colors } from "../theme";
+import { useThemeColors, useThemedStyles } from "../theme";
 import type {
   AppDrawerParamList,
   AppStackParamList,
@@ -78,6 +79,7 @@ function renderAppDrawerContent(props: DrawerContentComponentProps) {
 
 function MainTabs() {
   const insets = useSafeAreaInsets();
+  const colors = useThemeColors();
 
   return (
     <Tab.Navigator
@@ -135,6 +137,49 @@ function MainTabs() {
 
 function AppDrawerContent(props: DrawerContentComponentProps) {
   const { clearSession } = useAuth();
+  const styles = useThemedStyles((colors) =>
+    StyleSheet.create({
+      drawerRoot: {
+        flex: 1,
+      },
+      drawerContent: {
+        flexGrow: 1,
+      },
+      drawerBrand: {
+        flexDirection: "row",
+        alignItems: "center",
+        paddingHorizontal: 16,
+        paddingVertical: 20,
+        gap: 10,
+      },
+      drawerLogo: {
+        width: 36,
+        height: 36,
+      },
+      drawerBrandText: {
+        color: colors.foreground,
+        fontSize: 18,
+        fontWeight: "700",
+        letterSpacing: 0.3,
+      },
+      logoutLabel: {
+        color: colors.danger,
+        fontWeight: "700",
+      },
+      versionContainer: {
+        paddingHorizontal: 16,
+        paddingTop: 12,
+        paddingBottom: 24,
+        borderTopWidth: 1,
+        borderTopColor: colors.border,
+      },
+      versionText: {
+        color: colors.mutedForeground,
+        fontSize: 12,
+        textAlign: "center",
+      },
+    }),
+  );
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const resetToLogin = () => {
@@ -201,6 +246,7 @@ function AppDrawerContent(props: DrawerContentComponentProps) {
 }
 
 function AppDrawerNavigator() {
+  const colors = useThemeColors();
   return (
     <Drawer.Navigator
       drawerContent={renderAppDrawerContent}
@@ -252,6 +298,7 @@ function AppStackNavigator() {
     <AppStack.Navigator initialRouteName="MainTabs" screenOptions={{ headerShown: false }}>
       <AppStack.Screen name="MainTabs" component={AppDrawerNavigator} />
       <AppStack.Screen name="AdminPanel" component={AdminPanelScreen} />
+      <AppStack.Screen name="ContactUs" component={ContactUsScreen} />
       <AppStack.Screen name="SpaceDetail" component={SpaceDetailScreen} />
       <AppStack.Screen name="BookingInfo" component={BookingInfoScreen} />
       <AppStack.Screen name="Payment" component={PaymentScreen} />
@@ -273,45 +320,3 @@ export function AppNavigator() {
 }
 
 export default AppNavigator;
-
-const styles = StyleSheet.create({
-  drawerRoot: {
-    flex: 1,
-  },
-  drawerContent: {
-    flexGrow: 1,
-  },
-  drawerBrand: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 20,
-    gap: 10,
-  },
-  drawerLogo: {
-    width: 36,
-    height: 36,
-  },
-  drawerBrandText: {
-    color: colors.foreground,
-    fontSize: 18,
-    fontWeight: "700",
-    letterSpacing: 0.3,
-  },
-  logoutLabel: {
-    color: "#dc2626",
-    fontWeight: "700",
-  },
-  versionContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 24,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  versionText: {
-    color: colors.mutedForeground,
-    fontSize: 12,
-    textAlign: "center",
-  },
-});

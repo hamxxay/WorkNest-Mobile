@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { colors, radii } from "../../theme";
+import { radii, useThemeColors, useThemedStyles } from "../../theme";
 import {
   getBookingsPage,
   getContactsPage,
@@ -202,6 +202,7 @@ export default function AdminManageScreen({
   entity: AdminEntity;
   embedded?: boolean;
 }) {
+  const styles = useThemedStyles(createStyles);
   const config = useMemo(() => configs[entity], [entity]);
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -307,7 +308,7 @@ export default function AdminManageScreen({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.create({
   root: { flex: 1 },
   container: { paddingHorizontal: 16, paddingBottom: 24 },
   title: { color: colors.foreground, fontSize: 24, fontWeight: "800", marginTop: 14, marginBottom: 4 },

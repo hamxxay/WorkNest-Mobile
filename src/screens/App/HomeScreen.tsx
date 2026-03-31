@@ -1,5 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
+  Animated,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -7,23 +9,58 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { CompositeNavigationProp, useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
-import type { MainTabParamList } from "../../navigation/types";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { AppStackParamList, MainTabParamList } from "../../navigation/types";
 import { Screen } from "../../components/Screen";
-import { colors, radii } from "../../theme";
+import { radii, useThemeColors, useThemedStyles } from "../../theme";
 import { getPricingPlans, PricingPlan } from "../../services/pricingService";
 import { GalleryImage, getGalleryImages } from "../../services/galleryService";
+import { getWorkspaces } from "../../services/workspaceService";
 import { SmartImage } from "../../components/SmartImage";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { Header } from "../../components/Header";
 
+const HERO_SLIDES = [
+  "https://images.unsplash.com/photo-1497366754035-f200968a6e72?w=1200&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1497366412874-3415097a27e7?w=1200&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=1200&auto=format&fit=crop",
+];
+
+const MONTH_LABELS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
 
 export default function HomeScreen() {
-  const navigation = useNavigation<BottomTabNavigationProp<MainTabParamList>>();
+  const navigation = useNavigation<
+    CompositeNavigationProp<
+      BottomTabNavigationProp<MainTabParamList>,
+      NativeStackNavigationProp<AppStackParamList>
+    >
+  >();
+  const colors = useThemeColors();
+  const styles = useThemedStyles(createStyles);
   const [plans, setPlans] = useState<PricingPlan[]>([]);
   const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
+  const [lightboxImage, setLightboxImage] = useState<GalleryImage | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [locationOptions, setLocationOptions] = useState<string[]>([]);
+  const [selectedLocation, setSelectedLocation] = useState("");
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [datePickerMonth, setDatePickerMonth] = useState(startOfMonth(new Date()));
 
   useEffect(() => {
     getPricingPlans()
@@ -37,28 +74,58 @@ export default function HomeScreen() {
       .catch(() => {
         setGalleryImages([]);
       });
+
+    getWorkspaces()
+      .then((items) => {
+        const nextLocations = Array.from(
+          new Set(
+            items
+              .map((workspace) => workspace.location.trim())
+              .filter((location) => location.length > 0),
+          ),
+        ).sort((a, b) => a.localeCompare(b));
+        setLocationOptions(nextLocations);
+      })
+      .catch(() => {
+        setLocationOptions([]);
+      });
   }, []);
 
-  const goTo = (
-    route: keyof MainTabParamList,
-    params?: MainTabParamList[keyof MainTabParamList],
-  ) => {
-    navigation.navigate(route as any, params as any);
+  const cycleLocation = () => {
+    if (locationOptions.length === 0) {
+      return;
+    }
+
+    if (!selectedLocation) {
+      setSelectedLocation(locationOptions[0]);
+      return;
+    }
+
+    const currentIndex = locationOptions.findIndex((location) => location === selectedLocation);
+    if (currentIndex === -1 || currentIndex === locationOptions.length - 1) {
+      setSelectedLocation("");
+      return;
+    }
+
+    setSelectedLocation(locationOptions[currentIndex + 1]);
   };
+
+  const formattedDate = selectedDate
+    ? selectedDate.toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : "Date";
+
+  const homeCalendarDays = buildCalendarDays(datePickerMonth);
 
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
         <Header />
 
-        <View style={styles.heroCard}>
-          <SmartImage
-            uri="https://images.unsplash.com/photo-1497366754035-f200968a6e72?w=1200&auto=format&fit=crop"
-            style={styles.heroImage}
-          />
-          <View style={styles.heroOverlay} />
-          <Text style={styles.heroTitle}>Find Your Perfect Workspace</Text>
-        </View>
+        <HeroSlideshow />
 
         <View style={styles.searchCard}>
           <View style={styles.searchRow}>
@@ -73,31 +140,48 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.filterRow}>
-            <Pressable style={styles.dropdown}>
-              <Text style={styles.dropdownText}>Location</Text>
+            <Pressable style={styles.dropdown} onPress={cycleLocation}>
+              <Text
+                style={[
+                  styles.dropdownText,
+                  selectedLocation ? styles.dropdownTextActive : undefined,
+                ]}
+                numberOfLines={1}
+              >
+                {selectedLocation || "Location"}
+              </Text>
               <Ionicons name="chevron-down" size={16} color={colors.mutedForeground} />
             </Pressable>
-            {/* <Pressable style={styles.dropdown}>
-              <Text style={styles.dropdownText}>Date</Text>
+            <Pressable style={styles.dropdown} onPress={() => setDatePickerOpen(true)}>
+              <Text
+                style={[
+                  styles.dropdownText,
+                  selectedDate ? styles.dropdownTextActive : undefined,
+                ]}
+                numberOfLines={1}
+              >
+                {formattedDate}
+              </Text>
               <Ionicons name="chevron-down" size={16} color={colors.mutedForeground} />
-            </Pressable> */}
-            <Pressable style={styles.searchButton} onPress={() => goTo("Booking")}>
+            </Pressable>
+            <Pressable
+              style={styles.searchButton}
+              onPress={() =>
+                navigation.navigate("Booking", {
+                  initialLocation: selectedLocation || undefined,
+                })
+              }
+            >
               <Text style={styles.searchButtonText}>Search</Text>
             </Pressable>
           </View>
 
           <View style={styles.actionButtons}>
-            <Pressable style={[styles.actionButton, styles.blueButton]} onPress={() => goTo("Booking")}>
-              <Text style={styles.blueButtonText}>Explore Spaces</Text>
-            </Pressable>
             <Pressable
               style={[styles.actionButton, styles.blueButton]}
-              onPress={() => goTo("Booking", { initialRoomType: "Meeting/Conference" })}
+              onPress={() => navigation.navigate("ContactUs", { source: "tour" })}
             >
-              <Text style={styles.blueButtonText}>Book a Room</Text>
-            </Pressable>
-            <Pressable style={[styles.actionButton, styles.orangeButton]} onPress={() => goTo("Pricing")}>
-              <Text style={styles.orangeButtonText}>View Pricing</Text>
+              <Text style={styles.blueButtonText}>Book a tour</Text>
             </Pressable>
           </View>
         </View>
@@ -108,9 +192,13 @@ export default function HomeScreen() {
           </View>
           <View style={styles.galleryGrid}>
             {galleryImages.map((img, index) => (
-              <View key={`gallery-${String(img.id ?? "missing")}-${index}`} style={styles.galleryCard}>
+              <Pressable
+                key={`gallery-${String(img.id ?? "missing")}-${index}`}
+                style={({ pressed }) => [styles.galleryCard, pressed && styles.galleryCardPressed]}
+                onPress={() => setLightboxImage(img)}
+              >
                 <SmartImage uri={img.src} style={styles.galleryImage} />
-              </View>
+              </Pressable>
             ))}
           </View>
         </View>
@@ -132,11 +220,176 @@ export default function HomeScreen() {
           ))}
         </View>
       </ScrollView>
+
+      <Modal transparent visible={datePickerOpen} animationType="fade" onRequestClose={() => setDatePickerOpen(false)}>
+        <View style={styles.pickerOverlay}>
+          <View style={styles.pickerCard}>
+            <View style={styles.pickerHeader}>
+              <Pressable style={styles.pickerNav} onPress={() => setDatePickerMonth((prev) => addMonths(prev, -1))}>
+                <Ionicons name="chevron-back" size={18} color={colors.foreground} />
+              </Pressable>
+              <Text style={styles.pickerTitle}>
+                {MONTH_LABELS[datePickerMonth.getMonth()]} {datePickerMonth.getFullYear()}
+              </Text>
+              <Pressable style={styles.pickerNav} onPress={() => setDatePickerMonth((prev) => addMonths(prev, 1))}>
+                <Ionicons name="chevron-forward" size={18} color={colors.foreground} />
+              </Pressable>
+            </View>
+
+            <View style={styles.calendarGrid}>
+              {homeCalendarDays.map((day, index) => {
+                const isSelected = selectedDate ? isSameDay(day.date, selectedDate) : false;
+                const isPast = day.date < startOfToday();
+
+                return (
+                  <Pressable
+                    key={`${day.date.toISOString()}-${index}`}
+                    style={[
+                      styles.dayCell,
+                      !day.isCurrentMonth && styles.dayCellMuted,
+                      isSelected && styles.dayCellSelected,
+                    ]}
+                    onPress={() => {
+                      if (isPast) {
+                        return;
+                      }
+                      setSelectedDate(day.date);
+                    }}
+                    disabled={isPast}
+                  >
+                    <Text
+                      style={[
+                        styles.dayText,
+                        (!day.isCurrentMonth || isPast) && styles.dayTextMuted,
+                        isSelected && styles.dayTextSelected,
+                      ]}
+                    >
+                      {day.date.getDate()}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <View style={styles.rangeFooter}>
+              <Text style={styles.rangeFooterText}>{formattedDate === "Date" ? "Select a date" : formattedDate}</Text>
+              <Pressable style={styles.pickerDone} onPress={() => setDatePickerOpen(false)}>
+                <Text style={styles.pickerDoneText}>Done</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={!!lightboxImage} transparent animationType="fade" onRequestClose={() => setLightboxImage(null)}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setLightboxImage(null)}>
+          <Pressable style={styles.modalClose} onPress={() => setLightboxImage(null)}>
+            <Ionicons name="close" color={colors.background} size={22} />
+          </Pressable>
+          {lightboxImage ? (
+            <Pressable style={styles.modalContent} onPress={() => {}}>
+              <SmartImage uri={lightboxImage.src} style={styles.modalImage} resizeMode="cover" />
+              <Text style={styles.modalTitle}>{lightboxImage.title}</Text>
+              {lightboxImage.description ? (
+                <Text style={styles.modalDesc}>{lightboxImage.description}</Text>
+              ) : null}
+            </Pressable>
+          ) : null}
+        </Pressable>
+      </Modal>
     </Screen>
   );
 }
 
-const styles = StyleSheet.create({
+function HeroSlideshow() {
+  const heroFade = useRef(new Animated.Value(1)).current;
+  const styles = useThemedStyles(createStyles);
+  const [activeHeroIndex, setActiveHeroIndex] = useState(0);
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      Animated.sequence([
+        Animated.timing(heroFade, {
+          toValue: 0,
+          duration: 350,
+          useNativeDriver: true,
+        }),
+        Animated.timing(heroFade, {
+          toValue: 1,
+          duration: 350,
+          useNativeDriver: true,
+        }),
+      ]).start();
+
+      setActiveHeroIndex((currentIndex) => (currentIndex + 1) % HERO_SLIDES.length);
+    }, 3500);
+
+    return () => clearInterval(intervalId);
+  }, [heroFade]);
+
+  return (
+    <View style={styles.heroCard}>
+      <Animated.View style={[styles.heroFadeLayer, { opacity: heroFade }]}>
+        <SmartImage uri={HERO_SLIDES[activeHeroIndex]} style={styles.heroImage} />
+      </Animated.View>
+      <Text style={styles.heroTitle}>Find Your Perfect Workspace</Text>
+      <View style={styles.heroDots}>
+        {HERO_SLIDES.map((_, index) => (
+          <View
+            key={`hero-dot-${index}`}
+            style={[
+              styles.heroDot,
+              index === activeHeroIndex ? styles.heroDotActive : undefined,
+            ]}
+          />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function buildCalendarDays(baseMonth: Date) {
+  const year = baseMonth.getFullYear();
+  const month = baseMonth.getMonth();
+  const firstDayOfMonth = new Date(year, month, 1);
+  const startDay = firstDayOfMonth.getDay();
+  const startDate = new Date(year, month, 1 - startDay);
+  const days: { date: Date; isCurrentMonth: boolean }[] = [];
+
+  for (let i = 0; i < 42; i += 1) {
+    const date = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + i);
+    days.push({
+      date,
+      isCurrentMonth: date.getMonth() === month,
+    });
+  }
+
+  return days;
+}
+
+function startOfMonth(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function addMonths(date: Date, delta: number) {
+  return new Date(date.getFullYear(), date.getMonth() + delta, 1);
+}
+
+function isSameDay(a: Date, b: Date) {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+function startOfToday() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return today;
+}
+
+const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.create({
   container: { paddingHorizontal: 18, paddingBottom: 24 },
   heroCard: {
     marginTop: 12,
@@ -151,20 +404,38 @@ const styles = StyleSheet.create({
     minHeight: 170,
     justifyContent: "flex-end",
   },
-  heroImage: {
+  heroFadeLayer: {
     ...StyleSheet.absoluteFillObject,
-    width: "100%",
-    height: "100%",
   },
-  heroOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(15, 23, 42, 0.25)",
+  heroImage: {
+    width: "100%",
+    height: 170,
   },
   heroTitle: {
     color: "#FFFFFF",
     fontSize: 22,
     fontWeight: "800",
     padding: 16,
+    textShadowColor: "rgba(15, 23, 42, 0.45)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 8,
+  },
+  heroDots: {
+    position: "absolute",
+    bottom: 16,
+    right: 16,
+    flexDirection: "row",
+    gap: 6,
+  },
+  heroDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.45)",
+  },
+  heroDotActive: {
+    width: 20,
+    backgroundColor: "#FFFFFF",
   },
   searchCard: {
     marginTop: 12,
@@ -214,6 +485,11 @@ const styles = StyleSheet.create({
     color: colors.mutedForeground,
     fontSize: 12,
     fontWeight: "700",
+    flex: 1,
+    marginRight: 8,
+  },
+  dropdownTextActive: {
+    color: colors.foreground,
   },
   searchButton: {
     backgroundColor: colors.accent,
@@ -238,18 +514,10 @@ const styles = StyleSheet.create({
   blueButton: {
     backgroundColor: colors.primary,
   },
-  orangeButton: {
-    backgroundColor: colors.accent,
-  },
   blueButtonText: {
     color: "#FFFFFF",
     fontSize: 13,
     fontWeight: "700",
-  },
-  orangeButtonText: {
-    color: "#FFFFFF",
-    fontSize: 13,
-    fontWeight: "800",
   },
   section: { marginTop: 20 },
   sectionHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
@@ -262,7 +530,21 @@ const styles = StyleSheet.create({
     backgroundColor: colors.muted,
     height: 100,
   },
+  galleryCardPressed: {
+    transform: [{ scale: 1.05 }],
+  },
   galleryImage: { width: "100%", height: "100%" },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.85)",
+    justifyContent: "center",
+    padding: 20,
+  },
+  modalClose: { position: "absolute", right: 20, top: 48, zIndex: 2 },
+  modalContent: { gap: 10 },
+  modalImage: { width: "100%", height: 280, borderRadius: radii.md },
+  modalTitle: { color: colors.background, fontSize: 20, fontWeight: "700" },
+  modalDesc: { color: "#cbd5e1", fontSize: 14 },
   planCard: {
     backgroundColor: colors.background,
     borderRadius: radii.md,
@@ -281,9 +563,73 @@ const styles = StyleSheet.create({
   planPrice: { color: colors.primary, fontWeight: "800", fontSize: 20, marginTop: 6 },
   planDescription: { color: colors.mutedForeground, fontSize: 14, marginTop: 6 },
   linkText: { color: colors.primary, fontSize: 13, fontWeight: "700" },
+  pickerOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.4)",
+    justifyContent: "center",
+    padding: 20,
+  },
+  pickerCard: {
+    backgroundColor: colors.background,
+    borderRadius: radii.lg,
+    padding: 12,
+  },
+  pickerHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  pickerNav: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.muted,
+  },
+  pickerTitle: { color: colors.foreground, fontWeight: "700", fontSize: 14 },
+  calendarGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
+  dayCell: {
+    width: "14.2857%",
+    aspectRatio: 1,
+    alignItems: "center",
+    alignContent: "center",
+    justifyContent: "center",
+    
+    borderRadius: 8,
+  },
+  dayCellMuted: {
+    opacity: 0.4,
+  },
+  dayCellSelected: {
+    backgroundColor: colors.primary,
+    justifyContent: "space-around", 
+    alignItems: "center",
+    alignContent: "center",
+  },
+  dayText: {
+    color: colors.foreground,
+    fontWeight: "600",
+    transform: [{ translateY: -10 }],
+  },
+  dayTextMuted: { color: colors.mutedForeground },
+  dayTextSelected: { color: "#FFFFFF" },
+  rangeFooter: {
+    marginTop: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  rangeFooterText: { color: colors.mutedForeground, fontWeight: "600", fontSize: 12 },
+  pickerDone: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: colors.primary,
+  },
+  pickerDoneText: { color: "#FFFFFF", fontWeight: "700" },
 });
-
-
-
-
-

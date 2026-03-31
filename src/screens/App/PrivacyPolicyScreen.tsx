@@ -1,9 +1,10 @@
 import { StyleSheet, Text, View } from "react-native";
 import { Header } from "../../components/Header";
 import { Screen } from "../../components/Screen";
-import { colors, radii } from "../../theme";
+import { radii, useThemeColors, useThemedStyles } from "../../theme";
 
 export default function PrivacyPolicyScreen() {
+  const styles = useThemedStyles(createStyles);
   return (
     <Screen>
       <View style={styles.content}>
@@ -20,7 +21,7 @@ export default function PrivacyPolicyScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.create({
   content: {
     flex: 1,
     padding: 20,

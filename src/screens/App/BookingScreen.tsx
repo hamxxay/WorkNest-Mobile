@@ -7,14 +7,16 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useColorScheme,
   View,
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import type { AppStackParamList } from "../../navigation/types";
+import type { AppStackParamList, MainTabParamList } from "../../navigation/types";
 import { Screen } from "../../components/Screen";
-import { colors, radii } from "../../theme";
+import { radii, useThemeColors, useThemedStyles } from "../../theme";
 import { createBooking, getWorkspaces } from "../../services/workspaceService";
 import { SmartImage } from "../../components/SmartImage";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -59,6 +61,10 @@ const MONTH_LABELS = [
 
 export default function BookingScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
+  const colors = useThemeColors();
+  const styles = useThemedStyles(createStyles);
+  const colorScheme = useColorScheme();
+  const route = useRoute<RouteProp<MainTabParamList, "Booking">>();
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -104,6 +110,11 @@ export default function BookingScreen() {
         setLoading(false);
       });
   }, []);
+
+  useEffect(() => {
+    const initialLocation = route.params?.initialLocation?.trim() ?? "";
+    setSelectedLocation(initialLocation);
+  }, [route.params?.initialLocation]);
 
   const quickMeetingRangeLabel = getRangeLabel(quickMeetingRangeStart, quickMeetingRangeEnd);
   const quickSharedRangeLabel = getRangeLabel(quickSharedRangeStart, quickSharedRangeEnd);
@@ -671,6 +682,10 @@ export default function BookingScreen() {
               value={timePickerValue}
               mode="time"
               display={Platform.OS === "ios" ? "spinner" : "default"}
+              design={Platform.OS === "android" ? "material" : undefined}
+              themeVariant={colorScheme === "dark" ? "dark" : "light"}
+              accentColor={colors.primary}
+              textColor={colors.foreground}
               onChange={(_, date) => {
                 if (date) {
                   setTimePickerValue(date);
@@ -794,7 +809,7 @@ function normalizeFilterValue(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.create({
   content: { paddingHorizontal: 18, paddingBottom: 24 },
   pageTitle: { fontSize: 26, fontWeight: "800", color: colors.foreground, marginTop: 10, marginBottom: 12 },
   filterCard: {
@@ -1092,7 +1107,11 @@ const styles = StyleSheet.create({
   dayCellSelected: {
     backgroundColor: colors.primary,
   },
-  dayText: { color: colors.foreground, fontWeight: "600" },
+  dayText: {
+    color: colors.foreground,
+    fontWeight: "600",
+    transform: [{ translateY: -10 }],
+  },
   dayTextMuted: { color: colors.mutedForeground },
   dayTextSelected: { color: colors.background },
   rangeFooter: {

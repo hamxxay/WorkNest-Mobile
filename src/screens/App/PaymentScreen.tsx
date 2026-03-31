@@ -4,11 +4,13 @@ import { useRoute, useNavigation } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Screen } from "../../components/Screen";
-import { colors, radii } from "../../theme";
+import { radii, useThemeColors, useThemedStyles } from "../../theme";
 import type { AppStackParamList, RootStackParamList } from "../../navigation/types";
 import { createBooking } from "../../services/workspaceService";
 
 export default function PaymentScreen() {
+  const colors = useThemeColors();
+  const styles = useThemedStyles(createStyles);
   const route = useRoute<RouteProp<AppStackParamList, "Payment">>();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { workspace, booking } = route.params;
@@ -153,7 +155,7 @@ function formatCvc(value: string) {
   return value.replace(/\D/g, "").slice(0, 4);
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.create({
   container: {
     paddingHorizontal: 18,
     paddingBottom: 24,

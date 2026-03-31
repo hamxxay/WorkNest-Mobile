@@ -2,7 +2,7 @@
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Header } from "../../components/Header";
 import { Screen } from "../../components/Screen";
-import { colors, radii } from "../../theme";
+import { radii, useThemeColors, useThemedStyles } from "../../theme";
 import { cancelBooking, getMyBookings } from "../../services/workspaceService";
 
 type BookingItem = {
@@ -15,6 +15,7 @@ type BookingItem = {
 };
 
 export default function MyBookingsScreen() {
+  const styles = useThemedStyles(createStyles);
   const [bookings, setBookings] = useState<BookingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [cancellingId, setCancellingId] = useState<number | null>(null);
@@ -95,7 +96,7 @@ function formatDate(value?: string) {
   return new Date(value).toLocaleString();
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.create({
   content: { paddingHorizontal: 20, paddingBottom: 24 },
   title: { fontSize: 28, fontWeight: "800", color: colors.foreground, marginBottom: 12 },
   helper: { color: colors.mutedForeground, marginBottom: 12 },
@@ -121,4 +122,3 @@ const styles = StyleSheet.create({
   },
   cancelText: { color: "#dc2626", fontWeight: "700", fontSize: 13 },
 });
-

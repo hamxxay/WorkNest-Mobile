@@ -5,6 +5,7 @@ export type MainTabParamList = {
   Booking:
     | {
         initialRoomType?: "Meeting/Conference" | "Shared Space" | "Office";
+        initialLocation?: string;
       }
     | undefined;
   MyBookings: undefined;
@@ -41,6 +42,11 @@ export type WorkspaceSummary = {
 export type AppStackParamList = {
   MainTabs: undefined;
   AdminPanel: undefined;
+  ContactUs:
+    | {
+        source?: "tour" | "general";
+      }
+    | undefined;
   SpaceDetail: { workspace: WorkspaceSummary };
   BookingInfo: {
     workspace: WorkspaceSummary;

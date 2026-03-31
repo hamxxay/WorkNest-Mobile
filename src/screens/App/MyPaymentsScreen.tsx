@@ -2,10 +2,11 @@
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { Header } from "../../components/Header";
 import { Screen } from "../../components/Screen";
-import { colors, radii } from "../../theme";
+import { radii, useThemedStyles, useThemeColors } from "../../theme";
 import { getMyPayments, type PaymentItem } from "../../services/paymentService";
 
 export default function MyPaymentsScreen() {
+  const styles = useThemedStyles(createStyles);
   const [payments, setPayments] = useState<PaymentItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -72,7 +73,7 @@ function formatDate(value?: string) {
   return new Date(value).toLocaleString();
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.create({
   content: { paddingHorizontal: 20, paddingBottom: 24 },
   title: { fontSize: 28, fontWeight: "800", color: colors.foreground, marginBottom: 12 },
   summaryRow: { flexDirection: "row", gap: 10, marginBottom: 14 },
@@ -99,4 +100,3 @@ const styles = StyleSheet.create({
   cardTitle: { color: colors.foreground, fontSize: 17, fontWeight: "700" },
   meta: { color: colors.mutedForeground, fontSize: 13 },
 });
-

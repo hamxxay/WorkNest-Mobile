@@ -15,11 +15,13 @@ import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { AuthStackParamList, RootStackParamList } from "../../navigation/types";
 import { Screen } from "../../components/Screen";
-import { colors, radii } from "../../theme";
+import { radii, useThemeColors, useThemedStyles } from "../../theme";
 import { ApiError } from "../../services/apiClient";
 import { registerUser } from "../../services/authService";
 
 export default function SignupScreen() {
+  const colors = useThemeColors();
+  const styles = useThemedStyles(createStyles);
   const navigation =
     useNavigation<NativeStackNavigationProp<AuthStackParamList>>();
   const [name, setName] = useState("");
@@ -209,7 +211,7 @@ export default function SignupScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.create({
   flex: {
     flex: 1,
   },

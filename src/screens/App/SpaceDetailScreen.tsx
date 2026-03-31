@@ -15,7 +15,7 @@ import Ionicons from "react-native-vector-icons/Ionicons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Screen } from "../../components/Screen";
 import { SmartImage } from "../../components/SmartImage";
-import { colors, radii } from "../../theme";
+import { radii, useThemeColors, useThemedStyles } from "../../theme";
 import type { AppStackParamList } from "../../navigation/types";
 
 type TabKey = "description" | "amenities" | "reviews";
@@ -81,6 +81,8 @@ export function isSameMonth(date1: Date, date2: Date | null): boolean {
   );
 }
 export default function SpaceDetailScreen() {
+  const colors = useThemeColors();
+  const styles = useThemedStyles(createStyles);
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const route = useRoute<RouteProp<AppStackParamList, "SpaceDetail">>();
   const { workspace } = route.params;
@@ -100,6 +102,7 @@ export default function SpaceDetailScreen() {
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [timePickerOpen, setTimePickerOpen] = useState(false);
   const [datePickerValue, setDatePickerValue] = useState<Date>(new Date());
+  const [datePickerMonth, setDatePickerMonth] = useState<Date>(startOfMonth(new Date()));
   const [timePickerValue, setTimePickerValue] = useState<Date>(new Date());
 
   const setSelectedSlotWithClear = (slot: string) => {
@@ -135,6 +138,7 @@ export default function SpaceDetailScreen() {
         ? parseDate(focusedDate)
         : new Date();
     setDatePickerValue(baseDate);
+    setDatePickerMonth(startOfMonth(baseDate));
     setDatePickerOpen(true);
   };
 
@@ -565,23 +569,59 @@ export default function SpaceDetailScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Select date</Text>
-            <DateTimePicker
-              value={datePickerValue}
-              mode="date"
-              display={Platform.OS === "ios" ? "spinner" : "default"}
-              onChange={(event, date) => {
-                if (Platform.OS !== "ios") {
-                  setDatePickerOpen(false);
-                }
-                if (event.type === "set" && date) {
-                  setDatePickerValue(date);
-                  applyPickedDate(date);
-                }
-              }}
-            />
-            <Pressable style={styles.modalPrimary} onPress={() => setDatePickerOpen(false)}>
-              <Text style={styles.modalPrimaryText}>Done</Text>
-            </Pressable>
+            <View style={styles.calendarCard}>
+              <View style={styles.calendarHeader}>
+                <Pressable style={styles.iconButton} onPress={() => setDatePickerMonth((prev) => addMonths(prev, -1))}>
+                  <Ionicons name="chevron-back" size={18} color={colors.foreground} />
+                </Pressable>
+                <Text style={styles.calendarTitle}>
+                  {MONTH_LABELS[datePickerMonth.getMonth()]} {datePickerMonth.getFullYear()}
+                </Text>
+                <Pressable style={styles.iconButton} onPress={() => setDatePickerMonth((prev) => addMonths(prev, 1))}>
+                  <Ionicons name="chevron-forward" size={18} color={colors.foreground} />
+                </Pressable>
+              </View>
+
+              <View style={styles.weekdayRow}>
+                {WEEKDAY_LABELS.map((label) => (
+                  <Text key={`modal-${label}`} style={styles.weekdayLabel}>
+                    {label}
+                  </Text>
+                ))}
+              </View>
+
+              <View style={styles.calendarGrid}>
+                {buildCalendarDays(datePickerMonth).map((day) => {
+                  const key = formatDate(day.date);
+                  const isSelected = formatDate(datePickerValue) === key;
+                  return (
+                    <Pressable
+                      key={`modal-${key}`}
+                      style={[
+                        styles.dayCell,
+                        !day.isCurrentMonth && styles.dayCellMuted,
+                        isSelected && styles.dayCellSelected,
+                      ]}
+                      onPress={() => {
+                        setDatePickerValue(day.date);
+                        applyPickedDate(day.date);
+                        setDatePickerOpen(false);
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.dayText,
+                          !day.isCurrentMonth && styles.dayTextMuted,
+                          isSelected && styles.dayTextSelected,
+                        ]}
+                      >
+                        {day.date.getDate()}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
           </View>
         </View>
       </Modal>
@@ -595,6 +635,7 @@ export default function SpaceDetailScreen() {
               mode="time"
               minuteInterval={30}
               display={Platform.OS === "ios" ? "spinner" : "default"}
+              design={Platform.OS === "android" ? "material" : undefined}
               onChange={(event, date) => {
                 if (Platform.OS !== "ios") {
                   setTimePickerOpen(false);
@@ -753,7 +794,7 @@ function getRoomType(value: string) {
   return "office" as const;
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.create({
   container: {
     paddingHorizontal: 18,
     paddingBottom: 24,
@@ -834,7 +875,7 @@ const styles = StyleSheet.create({
   pickerValue: { color: colors.foreground, fontWeight: "600" },
   pickerPlaceholder: { color: colors.mutedForeground, fontWeight: "600" },
   calendarCard: {
-    backgroundColor: "#f8fafc",
+    backgroundColor: colors.background,
     borderRadius: radii.lg,
     padding: 14,
     borderWidth: 1,
@@ -851,7 +892,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    backgroundColor: "#e2e8f0",
+    backgroundColor: colors.muted,
   },
   calendarSummaryLabel: {
     color: colors.foreground,
@@ -897,7 +938,14 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(59, 130, 246, 0.14)",
     borderColor: "rgba(59, 130, 246, 0.18)",
   },
-  dayText: { color: colors.foreground, fontWeight: "600" },
+  dayText: {
+    color: colors.foreground,
+    fontWeight: "600",
+    textAlign: "center",
+    textAlignVertical: "center",
+    includeFontPadding: false,
+    transform: [{ translateY: -10 }],
+  },
   dayTextMuted: { color: colors.mutedForeground },
   dayTextSelected: { color: colors.background },
   slotCard: {

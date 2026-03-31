@@ -1,0 +1,7 @@
+<resources>
+    <color name="picker_primary">#6E96FF</color>
+    <color name="picker_on_primary">#FFFFFF</color>
+    <color name="picker_surface">#0F172A</color>
+    <color name="picker_on_surface">#F8FAFC</color>
+    <color name="picker_on_surface_variant">#94A3B8</color>
+</resources>

@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { Header } from "../../components/Header";
 import { Screen } from "../../components/Screen";
-import { colors, radii } from "../../theme";
+import { radii, useThemeColors, useThemedStyles } from "../../theme";
 import { GalleryImage, getGalleryImages } from "../../services/galleryService";
 import { SmartImage } from "../../components/SmartImage";
 import Ionicons from "react-native-vector-icons/Ionicons";
@@ -17,6 +17,7 @@ import Ionicons from "react-native-vector-icons/Ionicons";
 const categories = ["All", "Offices", "Meeting Rooms", "Co-Working", "Lounges"];
 
 export default function GalleryScreen() {
+  const styles = useThemedStyles(createStyles);
   const [images, setImages] = useState<GalleryImage[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState("All");
@@ -90,7 +91,7 @@ export default function GalleryScreen() {
       <Modal visible={!!lightboxImage} transparent animationType="fade" onRequestClose={() => setLightboxImage(null)}>
         <View style={styles.modalBackdrop}>
           <Pressable style={styles.modalClose} onPress={() => setLightboxImage(null)}>
-            <Ionicons name="close" color={colors.background} size={22} />
+            <Ionicons name="close" color="#FFFFFF" size={22} />
           </Pressable>
           {lightboxImage ? (
             <View style={styles.modalContent}>
@@ -107,7 +108,7 @@ export default function GalleryScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.create({
   content: { paddingHorizontal: 20, paddingBottom: 24 },
   hero: {
     backgroundColor: colors.muted,
@@ -128,7 +129,7 @@ const styles = StyleSheet.create({
   },
   filterChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   filterText: { color: colors.mutedForeground, fontSize: 13, fontWeight: "700" },
-  filterTextActive: { color: colors.background },
+  filterTextActive: { color: "#FFFFFF" },
   helper: { color: colors.mutedForeground, marginBottom: 12 },
   grid: { gap: 12 },
   card: {
@@ -147,7 +148,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
-  overlayTitle: { color: colors.background, fontSize: 14, fontWeight: "700" },
+  overlayTitle: { color: "#FFFFFF", fontSize: 14, fontWeight: "700" },
   overlaySub: { color: "#cbd5e1", fontSize: 12, marginTop: 2 },
   modalBackdrop: {
     flex: 1,
@@ -158,6 +159,6 @@ const styles = StyleSheet.create({
   modalClose: { position: "absolute", right: 20, top: 48, zIndex: 2 },
   modalContent: { gap: 10 },
   modalImage: { width: "100%", height: 280, borderRadius: radii.md },
-  modalTitle: { color: colors.background, fontSize: 20, fontWeight: "700" },
+  modalTitle: { color: "#FFFFFF", fontSize: 20, fontWeight: "700" },
   modalDesc: { color: "#cbd5e1", fontSize: 14 },
 });

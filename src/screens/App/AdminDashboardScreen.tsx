@@ -2,7 +2,7 @@
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { Header } from "../../components/Header";
 import { Screen } from "../../components/Screen";
-import { colors, radii } from "../../theme";
+import { radii, useThemeColors, useThemedStyles } from "../../theme";
 import {
   getDashboardSummary,
   getRecentBookings,
@@ -12,6 +12,7 @@ import {
 } from "../../services/adminService";
 
 export default function AdminDashboardScreen({ embedded = false }: { embedded?: boolean }) {
+  const styles = useThemedStyles(createStyles);
   const [loading, setLoading] = useState(true);
   const [statsError, setStatsError] = useState("");
   const [stats, setStats] = useState({
@@ -139,7 +140,7 @@ export default function AdminDashboardScreen({ embedded = false }: { embedded?: 
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.create({
   container: { paddingHorizontal: 20, paddingBottom: 28 },
   title: { color: colors.foreground, fontSize: 28, fontWeight: "800", marginBottom: 6 },
   subtitle: { color: colors.mutedForeground, fontSize: 15, marginBottom: 18 },
