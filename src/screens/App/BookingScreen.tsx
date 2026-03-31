@@ -442,7 +442,7 @@ export default function BookingScreen() {
             </View>
 
             <View style={styles.cardFooter}>
-              <Text style={styles.priceText}>${workspace.price}/day</Text>
+              <Text style={styles.priceText}>PKR {workspace.price}/day</Text>
             </View>
           </Pressable>
         ))}

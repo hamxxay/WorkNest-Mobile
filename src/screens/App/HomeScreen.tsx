@@ -126,7 +126,7 @@ export default function HomeScreen() {
           {plans.map((plan, index) => (
             <View key={`plan-${String(plan.id ?? "missing")}-${plan.name}-${index}`} style={[styles.planCard, plan.popular && styles.popularCard]}>
               <Text style={styles.planName}>{plan.name}</Text>
-              <Text style={styles.planPrice}>${Number(plan.price).toFixed(0)}/mo</Text>
+              <Text style={styles.planPrice}>PKR {Number(plan.price).toFixed(0)}/mo</Text>
               <Text style={styles.planDescription}>{plan.description}</Text>
             </View>
           ))}

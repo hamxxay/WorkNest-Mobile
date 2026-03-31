@@ -40,11 +40,11 @@ export default function MyPaymentsScreen() {
         <View style={styles.summaryRow}>
           <View style={styles.summaryCard}>
             <Text style={styles.summaryLabel}>Total Paid</Text>
-            <Text style={styles.summaryValue}>${totalPaid.toFixed(2)}</Text>
+            <Text style={styles.summaryValue}>PKR {totalPaid.toFixed(2)}</Text>
           </View>
           <View style={styles.summaryCard}>
             <Text style={styles.summaryLabel}>Total Pending</Text>
-            <Text style={styles.summaryValue}>${totalPending.toFixed(2)}</Text>
+            <Text style={styles.summaryValue}>PKR {totalPending.toFixed(2)}</Text>
           </View>
         </View>
 
@@ -56,7 +56,7 @@ export default function MyPaymentsScreen() {
         {payments.map((payment) => (
           <View key={payment.id} style={styles.card}>
             <Text style={styles.cardTitle}>Payment #{payment.id}</Text>
-            <Text style={styles.meta}>Amount: ${Number(payment.amount ?? 0).toFixed(2)}</Text>
+            <Text style={styles.meta}>Amount: PKR {Number(payment.amount ?? 0).toFixed(2)}</Text>
             <Text style={styles.meta}>Method: {payment.paymentMethod ?? "N/A"}</Text>
             <Text style={styles.meta}>Status: {payment.paymentStatus ?? "Unknown"}</Text>
             <Text style={styles.meta}>Date: {formatDate(payment.paidAt)}</Text>

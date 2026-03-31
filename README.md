@@ -141,6 +141,7 @@ Firebase setup:
 - Add `GoogleService-Info.plist` to the Xcode target
 - Enable Google provider in Firebase Authentication
 - Enable Email/Password provider in Firebase Authentication
+- For Android Google Sign-In, add both the debug and release SHA-1/SHA-256 fingerprints to the Firebase Android app, then download the updated `google-services.json`
 - For iOS, add the `REVERSED_CLIENT_ID` from `GoogleService-Info.plist` as a URL scheme in Xcode
 
 ----------------------------------------

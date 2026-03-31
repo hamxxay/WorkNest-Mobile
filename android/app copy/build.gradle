@@ -1,0 +1,79 @@
+apply plugin: "com.android.application"
+apply plugin: "org.jetbrains.kotlin.android"
+apply plugin: "com.facebook.react"
+apply plugin: "com.google.gms.google-services"
+
+import com.android.build.OutputFile
+
+def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
+
+// ------------------- React Native Config -------------------
+project.ext.react = [
+    entryFile: "index.js", // Use = not :
+    bundleAssetName: "index.android.bundle",
+    bundleCommand: "bundle",
+    assetsDir: file("$buildDir/generated/res/react/release"),
+    jsBundleDir: file("$buildDir/generated/assets/react/release"),
+    // hermesCommand: file("$rootDir/../node_modules/react-native/sdks/hermesc/win64-bin/hermesc.exe").absolutePath
+    enableHermes: false
+
+]
+
+react {
+    hermesCommand = "node scripts/hermesc-shim.js"
+    hermesFlags = ["-O"]
+    // This ensures autolinking works
+    autolinkLibrariesWithApp()
+}
+
+// ------------------- Android Build Config -------------------
+android {
+    compileSdk rootProject.ext.compileSdkVersion
+    buildToolsVersion rootProject.ext.buildToolsVersion
+    namespace "com.worknestmobile"
+
+    defaultConfig {
+        applicationId "com.worknestmobile"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 3
+        versionName "0.0.6"
+    }
+
+    signingConfigs {
+        debug {
+            storeFile file('debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+        release {
+            storeFile file('my-release-key.keystore')
+            storePassword 'work1234'
+            keyAlias 'my-key-alias'
+            keyPassword 'work1234'
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled false // set to true if using Proguard
+            proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+        }
+    }
+}
+
+// ------------------- Dependencies -------------------
+dependencies {
+    implementation("com.facebook.react:react-android")
+
+    if (hermesEnabled.toBoolean()) {
+        implementation("com.facebook.react:hermes-android")
+    } else {
+        implementation jscFlavor
+    }
+}

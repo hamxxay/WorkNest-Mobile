@@ -72,7 +72,7 @@ export default function MyBookingsScreen() {
             <Text style={styles.cardTitle}>{booking.spaceName ?? `Booking #${booking.id}`}</Text>
             <Text style={styles.meta}>Start: {formatDate(booking.startDateTime)}</Text>
             <Text style={styles.meta}>End: {formatDate(booking.endDateTime)}</Text>
-            <Text style={styles.meta}>Amount: ${Number(booking.totalAmount ?? 0).toFixed(2)}</Text>
+            <Text style={styles.meta}>Amount: PKR {Number(booking.totalAmount ?? 0).toFixed(2)}</Text>
             <Text style={styles.status}>Status: {booking.bookingStatus ?? "Unknown"}</Text>
             <Pressable
               style={styles.cancelButton}

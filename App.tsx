@@ -1,4 +1,5 @@
-import { StatusBar } from "react-native";
+import { StatusBar, StyleSheet } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Provider } from "react-redux";
 import AppNavigator from "./src/navigation/AppNavigator";
@@ -7,15 +8,23 @@ import { AuthProvider } from "./src/context/AuthContext";
 
 function App() {
   return (
-    <Provider store={store}>
-      <AuthProvider>
-        <SafeAreaProvider>
-          <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
-          <AppNavigator />
-        </SafeAreaProvider>
-      </AuthProvider>
-    </Provider>
+    <GestureHandlerRootView style={styles.root}>
+      <Provider store={store}>
+        <AuthProvider>
+          <SafeAreaProvider>
+            <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+            <AppNavigator />
+          </SafeAreaProvider>
+        </AuthProvider>
+      </Provider>
+    </GestureHandlerRootView>
   );
 }
 
 export default App;
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
+});

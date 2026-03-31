@@ -7,6 +7,7 @@ import {
   GoogleSignin,
   isCancelledResponse,
   isSuccessResponse,
+  statusCodes,
 } from "@react-native-google-signin/google-signin";
 import { FIREBASE_IOS_CLIENT_ID, FIREBASE_WEB_CLIENT_ID } from "@env";
 import { removeToken, removeUser, saveToken, saveUser } from "../utils/authStorage";
@@ -263,40 +264,51 @@ export async function registerUser(payload: RegisterRequest): Promise<AuthRespon
 }
 
 export async function signInWithGoogle(): Promise<StoredUser> {
-  configureGoogleAuth();
-  debugAuth("google sign-in start");
+  try {
+    configureGoogleAuth();
+    debugAuth("google sign-in start");
 
-  await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-  const signInResult = await GoogleSignin.signIn();
-  if (isCancelledResponse(signInResult)) {
-    debugAuth("google sign-in cancelled");
-    throw new Error("Google sign-in was cancelled.");
+    await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+    const signInResult = await GoogleSignin.signIn();
+    if (isCancelledResponse(signInResult)) {
+      debugAuth("google sign-in cancelled");
+      throw new Error("Google sign-in was cancelled.");
+    }
+
+    if (!isSuccessResponse(signInResult)) {
+      debugAuth("google sign-in incomplete");
+      throw new Error("Google sign-in did not complete successfully.");
+    }
+
+    const googleTokens = await GoogleSignin.getTokens();
+    const googleIdToken = signInResult.data.idToken ?? googleTokens.idToken;
+    if (!googleIdToken) {
+      throw new Error("Google Sign-In did not return an ID token.");
+    }
+
+    debugAuth("google credential received", {
+      email: maskEmail(signInResult.data.user.email),
+      idTokenLength: googleIdToken.length,
+    });
+    const googleCredential = GoogleAuthProvider.credential(googleIdToken);
+    const credentialResult = await getFirebaseAuth().signInWithCredential(googleCredential);
+    debugAuth("google sign-in success", {
+      uid: credentialResult.user.uid,
+      email: maskEmail(credentialResult.user.email),
+      displayName: credentialResult.user.displayName ?? null,
+    });
+    const session = await persistFirebaseSession(credentialResult.user);
+    return session.user;
+  } catch (error) {
+    debugAuth("google sign-in error", {
+      code:
+        error && typeof error === "object" && "code" in error
+          ? String((error as { code?: unknown }).code)
+          : "unknown",
+      message: error instanceof Error ? error.message : "unknown",
+    });
+    throw mapGoogleSigninError(error);
   }
-
-  if (!isSuccessResponse(signInResult)) {
-    debugAuth("google sign-in incomplete");
-    throw new Error("Google sign-in did not complete successfully.");
-  }
-
-  const googleTokens = await GoogleSignin.getTokens();
-  const googleIdToken = signInResult.data.idToken ?? googleTokens.idToken;
-  if (!googleIdToken) {
-    throw new Error("Google Sign-In did not return an ID token.");
-  }
-
-  debugAuth("google credential received", {
-    email: maskEmail(signInResult.data.user.email),
-    idTokenLength: googleIdToken.length,
-  });
-  const googleCredential = GoogleAuthProvider.credential(googleIdToken);
-  const credentialResult = await getFirebaseAuth().signInWithCredential(googleCredential);
-  debugAuth("google sign-in success", {
-    uid: credentialResult.user.uid,
-    email: maskEmail(credentialResult.user.email),
-    displayName: credentialResult.user.displayName ?? null,
-  });
-  const session = await persistFirebaseSession(credentialResult.user);
-  return session.user;
 }
 
 export async function requestPasswordReset(email: string): Promise<void> {
@@ -338,4 +350,28 @@ function mapFirebaseError(error: unknown, fallbackMessage: string): ApiError {
   };
 
   return new ApiError(messageByCode[code] ?? fallbackMessage, 400, error);
+}
+
+function mapGoogleSigninError(error: unknown): ApiError {
+  const code =
+    error && typeof error === "object" && "code" in error
+      ? String((error as { code?: unknown }).code)
+      : "";
+
+  const messageByCode: Record<string, string> = {
+    [statusCodes.SIGN_IN_CANCELLED]: "Google sign-in was cancelled.",
+    [statusCodes.IN_PROGRESS]: "Google sign-in is already in progress.",
+    [statusCodes.PLAY_SERVICES_NOT_AVAILABLE]:
+      "Google Play Services is unavailable or needs an update on this device.",
+    "10":
+      "Google sign-in is not configured for this Android build. Add this app's release SHA fingerprint in Firebase, then download the updated google-services.json.",
+    "DEVELOPER_ERROR":
+      "Google sign-in is not configured for this Android build. Add this app's release SHA fingerprint in Firebase, then download the updated google-services.json.",
+  };
+
+  return new ApiError(
+    messageByCode[code] ?? (error instanceof Error ? error.message : "Google sign-in failed."),
+    400,
+    error
+  );
 }

@@ -12,7 +12,28 @@
           "package_name": "com.worknestmobile"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "722479405081-93m64m9bitmj1e0bmll7i3e6ge3emsne.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.worknestmobile",
+            "certificate_hash": "8ca40f5284dd22b1c6222b7f335046605060fce0"
+          }
+        },
+        {
+          "client_id": "722479405081-ku33t7ebktbvpejj6sl87k7khoov4q20.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.worknestmobile",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "722479405081-484054vcflpb8dal5mjmdq0hllvql833.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyAdJyVA50O_wWrorZK6NQnR-d7p_VbEPRY"
@@ -20,7 +41,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "722479405081-484054vcflpb8dal5mjmdq0hllvql833.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

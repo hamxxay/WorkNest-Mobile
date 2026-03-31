@@ -46,7 +46,7 @@ export default function PricingScreen() {
           <View key={plan.id ?? plan.name} style={[styles.card, plan.popular && styles.popularCard]}>
             {plan.popular ? <Text style={styles.popularBadge}>Most Popular</Text> : null}
             <Text style={styles.cardTitle}>{plan.name}</Text>
-            <Text style={styles.cardPrice}>${Number(plan.price).toFixed(0)}/mo</Text>
+            <Text style={styles.cardPrice}>PKR {Number(plan.price).toFixed(0)}/mo</Text>
             <Text style={styles.cardDescription}>{plan.description}</Text>
 
             {plan.features.map((feature) => (
