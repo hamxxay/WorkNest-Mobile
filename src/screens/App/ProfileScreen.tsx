@@ -116,7 +116,7 @@ export default function ProfileScreen() {
         </View>
 
         <Pressable style={styles.logoutButton} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={18} color={colors.background} />
+          <Ionicons name="log-out-outline" size={18} color={colors.foreground} />
           <Text style={styles.logoutText}>Logout</Text>
         </Pressable>
       </ScrollView>
@@ -278,12 +278,14 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    backgroundColor: "#111827",
+    backgroundColor: colors.muted,
+    borderWidth: 1,
+    borderColor: colors.border,
     borderRadius: 14,
     paddingVertical: 12,
   },
   logoutText: {
-    color: colors.background,
+    color: colors.foreground,
     fontWeight: "700",
     fontSize: 14,
   },

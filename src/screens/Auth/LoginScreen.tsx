@@ -15,12 +15,16 @@ import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { AuthStackParamList, RootStackParamList } from "../../navigation/types";
 import { Screen } from "../../components/Screen";
+import { ConfirmModal } from "../../components/ConfirmModal";
 import { radii, useThemeColors, useThemedStyles } from "../../theme";
 import { ApiError } from "../../services/apiClient";
 import {
+  beginGoogleAuth,
+  cancelGoogleAuth,
+  confirmGoogleLogin,
   loginUser,
   requestPasswordReset,
-  signInWithGoogle,
+  type PendingGoogleAuth,
 } from "../../services/authService";
 
 export default function LoginScreen() {
@@ -34,6 +38,7 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pendingGoogleAuth, setPendingGoogleAuth] = useState<PendingGoogleAuth | null>(null);
   const rootNavigation =
     navigation.getParent<NativeStackNavigationProp<RootStackParamList>>();
 
@@ -67,8 +72,8 @@ export default function LoginScreen() {
     try {
       setGoogleLoading(true);
       setError(null);
-      await signInWithGoogle();
-      routeToApp();
+      const pending = await beginGoogleAuth();
+      setPendingGoogleAuth(pending);
     } catch (err) {
       const message =
         err instanceof ApiError || err instanceof Error
@@ -78,6 +83,34 @@ export default function LoginScreen() {
     } finally {
       setGoogleLoading(false);
     }
+  };
+
+  const handleConfirmGoogleLogin = async () => {
+    if (!pendingGoogleAuth) {
+      return;
+    }
+
+    try {
+      setGoogleLoading(true);
+      setError(null);
+      await confirmGoogleLogin(pendingGoogleAuth.idToken);
+      setPendingGoogleAuth(null);
+      routeToApp();
+    } catch (err) {
+      const message =
+        err instanceof ApiError || err instanceof Error
+          ? err.message
+          : "Unable to login with Google right now. Please try again.";
+      setError(message);
+      setPendingGoogleAuth(null);
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  const handleCancelGoogleLogin = () => {
+    setPendingGoogleAuth(null);
+    cancelGoogleAuth().catch(() => {});
   };
 
   const handleForgotPassword = async () => {
@@ -217,6 +250,22 @@ autoComplete="email"
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <ConfirmModal
+        visible={Boolean(pendingGoogleAuth)}
+        title="Continue with Google?"
+        message={
+          pendingGoogleAuth
+            ? `Continue as ${pendingGoogleAuth.name ?? pendingGoogleAuth.email} (${pendingGoogleAuth.email})?`
+            : ""
+        }
+        confirmText="Continue"
+        cancelText="Cancel"
+        onCancel={handleCancelGoogleLogin}
+        onConfirm={() => {
+          handleConfirmGoogleLogin().catch(() => {});
+        }}
+      />
     </Screen>
   );
 }

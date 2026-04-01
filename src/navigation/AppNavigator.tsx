@@ -37,7 +37,7 @@ import AboutUsScreen from "../screens/App/AboutUsScreen";
 import AdminPanelScreen from "../screens/App/AdminPanelScreen";
 import { logoutUser } from "../services/authService";
 import { useAuth } from "../context/AuthContext";
-import { StyleSheet, View, Text, Image } from "react-native";
+import { StyleSheet, View, Text, Image, useColorScheme } from "react-native";
 import { useState } from "react";
 import { ConfirmModal } from "../components/ConfirmModal";
 import packageLock from "../../package-lock.json";
@@ -67,10 +67,6 @@ function PricingTabIcon({ color, size }: IconProps) {
 
 function GalleryTabIcon({ color, size }: IconProps) {
   return <Ionicons name="images-outline" color={color} size={size} />;
-}
-
-function LogoutDrawerIcon({ color, size }: IconProps) {
-  return <Ionicons name="log-out-outline" size={size} color={color} />;
 }
 
 function renderAppDrawerContent(props: DrawerContentComponentProps) {
@@ -137,6 +133,7 @@ function MainTabs() {
 
 function AppDrawerContent(props: DrawerContentComponentProps) {
   const { clearSession } = useAuth();
+  const colors = useThemeColors();
   const styles = useThemedStyles((colors) =>
     StyleSheet.create({
       drawerRoot: {
@@ -219,7 +216,7 @@ function AppDrawerContent(props: DrawerContentComponentProps) {
             label="Log Out"
             onPress={() => setShowLogoutConfirm(true)}
             labelStyle={styles.logoutLabel}
-            icon={LogoutDrawerIcon}
+            icon={({ size }) => <Ionicons name="log-out-outline" size={size} color={colors.danger} />}
           />
         </DrawerContentScrollView>
         <View style={styles.versionContainer}>
@@ -285,8 +282,21 @@ function AppDrawerNavigator() {
 }
 
 function AuthStackNavigator() {
+  const colorScheme = useColorScheme();
+  const isDarkTheme = colorScheme === "dark";
+  const colors = useThemeColors();
+
   return (
-    <AuthStack.Navigator initialRouteName="Login" screenOptions={{ headerShown: false }}>
+    <AuthStack.Navigator
+      initialRouteName="Login"
+      screenOptions={{
+        headerShown: false,
+        statusBarTranslucent: false,
+        statusBarStyle: isDarkTheme ? "light" : "dark",
+        statusBarColor: colors.background,
+        contentStyle: { backgroundColor: colors.background },
+      }}
+    >
       <AuthStack.Screen name="Login" component={LoginScreen} />
       <AuthStack.Screen name="Signup" component={SignupScreen} />
     </AuthStack.Navigator>
@@ -294,8 +304,21 @@ function AuthStackNavigator() {
 }
 
 function AppStackNavigator() {
+  const colorScheme = useColorScheme();
+  const isDarkTheme = colorScheme === "dark";
+  const colors = useThemeColors();
+
   return (
-    <AppStack.Navigator initialRouteName="MainTabs" screenOptions={{ headerShown: false }}>
+    <AppStack.Navigator
+      initialRouteName="MainTabs"
+      screenOptions={{
+        headerShown: false,
+        statusBarTranslucent: false,
+        statusBarStyle: isDarkTheme ? "light" : "dark",
+        statusBarColor: colors.background,
+        contentStyle: { backgroundColor: colors.background },
+      }}
+    >
       <AppStack.Screen name="MainTabs" component={AppDrawerNavigator} />
       <AppStack.Screen name="AdminPanel" component={AdminPanelScreen} />
       <AppStack.Screen name="ContactUs" component={ContactUsScreen} />
@@ -307,9 +330,22 @@ function AppStackNavigator() {
 }
 
 export function AppNavigator() {
+  const colorScheme = useColorScheme();
+  const isDarkTheme = colorScheme === "dark";
+  const colors = useThemeColors();
+
   return (
     <NavigationContainer>
-      <RootStack.Navigator initialRouteName="Splash" screenOptions={{ headerShown: false }}>
+      <RootStack.Navigator
+        initialRouteName="Splash"
+        screenOptions={{
+          headerShown: false,
+          statusBarTranslucent: false,
+          statusBarStyle: isDarkTheme ? "light" : "dark",
+          statusBarColor: colors.background,
+          contentStyle: { backgroundColor: colors.background },
+        }}
+      >
         <RootStack.Screen name="Splash" component={SplashScreen} />
         <RootStack.Screen name="Onboarding" component={OnboardingScreen} />
         <RootStack.Screen name="AuthStack" component={AuthStackNavigator} />

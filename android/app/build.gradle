@@ -15,7 +15,7 @@ project.ext.react = [
     assetsDir: file("$buildDir/generated/res/react/release"),
     jsBundleDir: file("$buildDir/generated/assets/react/release"),
     // hermesCommand: file("$rootDir/../node_modules/react-native/sdks/hermesc/win64-bin/hermesc.exe").absolutePath
-    enableHermes: false
+    enableHermes: true
 
 ]
 

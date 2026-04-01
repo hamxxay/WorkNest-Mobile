@@ -121,6 +121,14 @@ export const clearAuthStorage = async () => {
     Keychain.resetGenericPassword({ service: REFRESH_TOKEN_KEY }),
   ]);
 };
+
+export const clearDeviceCache = async () => {
+  await Promise.allSettled([
+    AsyncStorage.clear(),
+    Keychain.resetGenericPassword({ service: TOKEN_KEY }),
+    Keychain.resetGenericPassword({ service: REFRESH_TOKEN_KEY }),
+  ]);
+};
 // export const isAuthenticated = async (): Promise<boolean> => {
 //   const token = await getToken();
 //   return !!token;

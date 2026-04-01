@@ -56,6 +56,7 @@ type OnboardingSlideProps = {
   index: number;
   slide: Slide;
   scrollX: Animated.SharedValue<number>;
+  styles: ReturnType<typeof createStyles>;
 };
 
 function OnboardingSlide({
@@ -63,6 +64,7 @@ function OnboardingSlide({
   index,
   slide,
   scrollX,
+  styles,
 }: OnboardingSlideProps) {
   const slideAnimatedStyle = useAnimatedStyle(() => {
     const inputRange = [
@@ -206,6 +208,7 @@ export default function OnboardingScreen() {
                 index={index}
                 slide={item}
                 scrollX={scrollX}
+                styles={styles}
               />
             )}
             horizontal
@@ -310,13 +313,13 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
     borderRadius: radii.lg,
     overflow: "hidden",
     minHeight: 420,
-    backgroundColor: "#F4F7FB",
+    backgroundColor: colors.background,
   },
   imageFrame: {
     position: "relative",
     width: "100%",
     aspectRatio: 3 / 2,
-    backgroundColor: "#DCE5F2",
+    backgroundColor: colors.muted,
   },
   cardImage: {
     ...StyleSheet.absoluteFillObject,
@@ -325,7 +328,7 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
   },
   imageShade: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(20, 30, 53, 0.18)",
+    backgroundColor: "rgba(15, 23, 42, 0.24)",
   },
   badge: {
     position: "absolute",
@@ -334,7 +337,7 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: "rgba(245, 248, 255, 0.9)",
+    backgroundColor: colors.background,
   },
   badgeText: {
     color: colors.foreground,
@@ -346,7 +349,7 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
     flex: 1,
     justifyContent: "flex-end",
     padding: 22,
-    backgroundColor: "#F4F7FB",
+    backgroundColor: colors.background,
   },
   title: {
     color: colors.foreground,
@@ -369,7 +372,7 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
     width: 8,
     height: 8,
     borderRadius: 999,
-    backgroundColor: "rgba(20, 30, 53, 0.2)",
+    backgroundColor: colors.border,
   },
   dotActive: {
     width: 24,

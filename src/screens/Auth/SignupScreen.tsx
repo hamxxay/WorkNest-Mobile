@@ -15,9 +15,16 @@ import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { AuthStackParamList, RootStackParamList } from "../../navigation/types";
 import { Screen } from "../../components/Screen";
+import { ConfirmModal } from "../../components/ConfirmModal";
 import { radii, useThemeColors, useThemedStyles } from "../../theme";
 import { ApiError } from "../../services/apiClient";
-import { registerUser } from "../../services/authService";
+import {
+  beginGoogleAuth,
+  cancelGoogleAuth,
+  confirmGoogleSignup,
+  registerUser,
+  type PendingGoogleAuth,
+} from "../../services/authService";
 
 export default function SignupScreen() {
   const colors = useThemeColors();
@@ -30,7 +37,9 @@ export default function SignupScreen() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pendingGoogleAuth, setPendingGoogleAuth] = useState<PendingGoogleAuth | null>(null);
 
   const parseName = (fullName: string): { firstName?: string; lastName?: string } => {
     const normalized = fullName.trim().replace(/\s+/g, " ");
@@ -78,6 +87,53 @@ export default function SignupScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleGoogleSignup = async () => {
+    try {
+      setGoogleLoading(true);
+      setError(null);
+      const pending = await beginGoogleAuth();
+      setPendingGoogleAuth(pending);
+    } catch (err) {
+      const message =
+        err instanceof ApiError || err instanceof Error
+          ? err.message
+          : "Unable to create account with Google right now. Please try again.";
+      setError(message);
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  const handleConfirmGoogleSignup = async () => {
+    if (!pendingGoogleAuth) {
+      return;
+    }
+
+    try {
+      setGoogleLoading(true);
+      setError(null);
+      await confirmGoogleSignup(pendingGoogleAuth.idToken);
+      setPendingGoogleAuth(null);
+      navigation
+        .getParent<NativeStackNavigationProp<RootStackParamList>>()
+        ?.replace("AppStack", { screen: "MainTabs" });
+    } catch (err) {
+      const message =
+        err instanceof ApiError || err instanceof Error
+          ? err.message
+          : "Unable to create account with Google right now. Please try again.";
+      setError(message);
+      setPendingGoogleAuth(null);
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  const handleCancelGoogleSignup = () => {
+    setPendingGoogleAuth(null);
+    cancelGoogleAuth().catch(() => {});
   };
 
   return (
@@ -184,7 +240,7 @@ export default function SignupScreen() {
             <Pressable
               style={[styles.primaryButton, loading && styles.primaryButtonDisabled]}
               onPress={handleSignup}
-              disabled={loading}
+              disabled={loading || googleLoading}
             >
               {loading ? (
                 <ActivityIndicator size="small" color={colors.background} />
@@ -193,6 +249,27 @@ export default function SignupScreen() {
               )}
             </Pressable>
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+            <View style={styles.dividerRow}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            <Pressable
+              style={[styles.googleButton, googleLoading && styles.primaryButtonDisabled]}
+              onPress={handleGoogleSignup}
+              disabled={loading || googleLoading}
+            >
+              {googleLoading ? (
+                <ActivityIndicator size="small" color={colors.foreground} />
+              ) : (
+                <>
+                  <Ionicons name="logo-google" size={18} color={colors.foreground} />
+                  <Text style={styles.googleButtonText}>Sign Up with Google</Text>
+                </>
+              )}
+            </Pressable>
 
             <Pressable
               style={styles.linkButton}
@@ -207,6 +284,22 @@ export default function SignupScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <ConfirmModal
+        visible={Boolean(pendingGoogleAuth)}
+        title="Create account with Google?"
+        message={
+          pendingGoogleAuth
+            ? `Create your WorkNest account as ${pendingGoogleAuth.name ?? pendingGoogleAuth.email} (${pendingGoogleAuth.email})?`
+            : ""
+        }
+        confirmText="Continue"
+        cancelText="Cancel"
+        onCancel={handleCancelGoogleSignup}
+        onConfirm={() => {
+          handleConfirmGoogleSignup().catch(() => {});
+        }}
+      />
     </Screen>
   );
 }
@@ -300,6 +393,39 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
     color: "#dc2626",
     fontSize: 13,
     textAlign: "center",
+  },
+  dividerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 2,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.border,
+  },
+  dividerText: {
+    color: colors.mutedForeground,
+    fontSize: 13,
+    fontWeight: "600",
+    textTransform: "uppercase",
+  },
+  googleButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    paddingVertical: 14,
+    backgroundColor: colors.muted,
+  },
+  googleButtonText: {
+    color: colors.foreground,
+    fontWeight: "700",
+    fontSize: 15,
   },
   helperText: {
     color: colors.mutedForeground,

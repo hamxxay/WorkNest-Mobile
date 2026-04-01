@@ -10,7 +10,7 @@ import {
   statusCodes,
 } from "@react-native-google-signin/google-signin";
 import { FIREBASE_IOS_CLIENT_ID, FIREBASE_WEB_CLIENT_ID } from "@env";
-import { removeToken, removeUser, saveToken, saveUser } from "../utils/authStorage";
+import { clearDeviceCache, removeToken, removeUser, saveToken, saveUser } from "../utils/authStorage";
 import { ApiError } from "./apiClient";
 import type { AuthResponse, LoginRequest, RegisterRequest } from "./api/types";
 import type { StoredUser } from "../utils/authStorage";
@@ -119,6 +119,13 @@ export async function logoutUser(): Promise<void> {
   debugAuth("logout start");
   const tasks: Promise<unknown>[] = [];
 
+  tasks.push(
+    GoogleSignin.revokeAccess().catch((error) => {
+      debugAuth("logout revoke access skipped", {
+        message: error instanceof Error ? error.message : "unknown",
+      });
+    })
+  );
   tasks.push(GoogleSignin.signOut());
 
   try {
@@ -130,8 +137,7 @@ export async function logoutUser(): Promise<void> {
   }
 
   await Promise.allSettled(tasks);
-  await removeToken();
-  await removeUser();
+  await clearDeviceCache();
   debugAuth("logout complete");
 }
 
@@ -263,12 +269,34 @@ export async function registerUser(payload: RegisterRequest): Promise<AuthRespon
   }
 }
 
-export async function signInWithGoogle(): Promise<StoredUser> {
+type GoogleAuthResult = {
+  user: StoredUser;
+  isNewUser: boolean;
+};
+
+export type PendingGoogleAuth = {
+  email: string;
+  name?: string;
+  idToken: string;
+};
+
+export async function beginGoogleAuth(): Promise<PendingGoogleAuth> {
   try {
     configureGoogleAuth();
     debugAuth("google sign-in start");
 
     await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+    const hasCachedGoogleSession = GoogleSignin.hasPreviousSignIn();
+    if (hasCachedGoogleSession) {
+      debugAuth("google cached session found, revoking before sign-in");
+      await GoogleSignin.revokeAccess().catch((revokeError) => {
+        debugAuth("google revoke access skipped", {
+          message: revokeError instanceof Error ? revokeError.message : "unknown",
+        });
+      });
+      await GoogleSignin.signOut();
+    }
+
     const signInResult = await GoogleSignin.signIn();
     if (isCancelledResponse(signInResult)) {
       debugAuth("google sign-in cancelled");
@@ -286,19 +314,16 @@ export async function signInWithGoogle(): Promise<StoredUser> {
       throw new Error("Google Sign-In did not return an ID token.");
     }
 
-    debugAuth("google credential received", {
+    debugAuth("google account selected", {
       email: maskEmail(signInResult.data.user.email),
       idTokenLength: googleIdToken.length,
     });
-    const googleCredential = GoogleAuthProvider.credential(googleIdToken);
-    const credentialResult = await getFirebaseAuth().signInWithCredential(googleCredential);
-    debugAuth("google sign-in success", {
-      uid: credentialResult.user.uid,
-      email: maskEmail(credentialResult.user.email),
-      displayName: credentialResult.user.displayName ?? null,
-    });
-    const session = await persistFirebaseSession(credentialResult.user);
-    return session.user;
+
+    return {
+      email: signInResult.data.user.email,
+      name: signInResult.data.user.name ?? undefined,
+      idToken: googleIdToken,
+    };
   } catch (error) {
     debugAuth("google sign-in error", {
       code:
@@ -309,6 +334,73 @@ export async function signInWithGoogle(): Promise<StoredUser> {
     });
     throw mapGoogleSigninError(error);
   }
+}
+
+async function completeGoogleAuth(idToken: string): Promise<GoogleAuthResult> {
+  const googleCredential = GoogleAuthProvider.credential(idToken);
+  const credentialResult = await getFirebaseAuth().signInWithCredential(googleCredential);
+  debugAuth("google sign-in success", {
+    uid: credentialResult.user.uid,
+    email: maskEmail(credentialResult.user.email),
+    displayName: credentialResult.user.displayName ?? null,
+    isNewUser: credentialResult.additionalUserInfo?.isNewUser ?? false,
+  });
+  const session = await persistFirebaseSession(credentialResult.user);
+  return {
+    user: session.user,
+    isNewUser: credentialResult.additionalUserInfo?.isNewUser ?? false,
+  };
+}
+
+export async function cancelGoogleAuth(): Promise<void> {
+  await Promise.allSettled([
+    GoogleSignin.signOut(),
+    GoogleSignin.revokeAccess(),
+  ]);
+}
+
+export async function signInWithGoogle(): Promise<StoredUser> {
+  const pending = await beginGoogleAuth();
+  const result = await completeGoogleAuth(pending.idToken);
+  return result.user;
+}
+
+export async function signUpWithGoogle(): Promise<StoredUser> {
+  const pending = await beginGoogleAuth();
+  const result = await completeGoogleAuth(pending.idToken);
+
+  if (!result.isNewUser) {
+    await Promise.allSettled([
+      GoogleSignin.signOut(),
+      getFirebaseAuth().signOut(),
+      removeToken(),
+      removeUser(),
+    ]);
+    throw new ApiError("This Google account already exists. Please log in instead.", 400);
+  }
+
+  return result.user;
+}
+
+export async function confirmGoogleLogin(idToken: string): Promise<StoredUser> {
+  const result = await completeGoogleAuth(idToken);
+  return result.user;
+}
+
+export async function confirmGoogleSignup(idToken: string): Promise<StoredUser> {
+  const result = await completeGoogleAuth(idToken);
+
+  if (!result.isNewUser) {
+    await Promise.allSettled([
+      GoogleSignin.signOut(),
+      getFirebaseAuth().signOut(),
+      removeToken(),
+      removeUser(),
+    ]);
+    throw new ApiError("This Google account already exists. Please log in instead.", 400);
+  }
+
+  return result.user;
 }
 
 export async function requestPasswordReset(email: string): Promise<void> {

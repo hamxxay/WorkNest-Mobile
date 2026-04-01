@@ -73,7 +73,7 @@ export default function AdminPanelScreen() {
         </View>
 
         <Pressable style={styles.logoutBtn} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={16} color={colors.background} />
+          <Ionicons name="log-out-outline" size={16} color={colors.foreground} />
           <Text style={styles.logoutText}>Logout</Text>
         </Pressable>
       </View>
@@ -122,7 +122,7 @@ export default function AdminPanelScreen() {
 const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#f3f6f9",
+    backgroundColor: colors.muted,
   },
   topBar: {
     flexDirection: "row",
@@ -146,7 +146,7 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
     paddingHorizontal: 8,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#e8f7f6",
+    backgroundColor: colors.muted,
   },
   topTitle: {
     color: colors.foreground,
@@ -162,13 +162,15 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#0f172a",
+    backgroundColor: colors.muted,
+    borderWidth: 1,
+    borderColor: colors.border,
     borderRadius: radii.md,
     paddingVertical: 8,
     paddingHorizontal: 10,
   },
   logoutText: {
-    color: colors.background,
+    color: colors.foreground,
     fontSize: 12,
     fontWeight: "700",
   },
