@@ -57,8 +57,13 @@ export default function MyPaymentsScreen() {
         {payments.map((payment) => (
           <View key={payment.id} style={styles.card}>
             <Text style={styles.cardTitle}>Payment #{payment.id}</Text>
+            {payment.voucherCode ? <Text style={styles.voucherCode}>Voucher: {payment.voucherCode}</Text> : null}
+            {payment.workspaceName ? <Text style={styles.meta}>Workspace: {payment.workspaceName}</Text> : null}
+            {payment.bookingSummary ? <Text style={styles.meta}>Booking: {payment.bookingSummary}</Text> : null}
             <Text style={styles.meta}>Amount: PKR {Number(payment.amount ?? 0).toFixed(2)}</Text>
             <Text style={styles.meta}>Method: {payment.paymentMethod ?? "N/A"}</Text>
+            {payment.referenceNumber ? <Text style={styles.meta}>Reference: {payment.referenceNumber}</Text> : null}
+            {payment.bankDepositId ? <Text style={styles.meta}>Bank Deposit ID: {payment.bankDepositId}</Text> : null}
             <Text style={styles.meta}>Status: {payment.paymentStatus ?? "Unknown"}</Text>
             <Text style={styles.meta}>Date: {formatDate(payment.paidAt)}</Text>
           </View>
@@ -98,5 +103,6 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
     marginBottom: 12,
   },
   cardTitle: { color: colors.foreground, fontSize: 17, fontWeight: "700" },
+  voucherCode: { color: colors.primary, fontSize: 13, fontWeight: "800" },
   meta: { color: colors.mutedForeground, fontSize: 13 },
 });

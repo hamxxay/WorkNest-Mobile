@@ -11,6 +11,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import HomeScreen from "../screens/App/HomeScreen";
 import BookingScreen from "../screens/App/BookingScreen";
+import MyPaymentsScreen from "../screens/App/MyPaymentsScreen";
 import SpaceDetailScreen from "../screens/App/SpaceDetailScreen";
 import BookingInfoScreen from "../screens/App/BookingInfoScreen";
 import PaymentScreen from "../screens/App/PaymentScreen";
@@ -107,16 +108,14 @@ function MainTabs() {
         component={BookingScreen}
         options={{ tabBarIcon: BookingTabIcon }}
       />
-      {/* <Tab.Screen
-        name="MyBookings"
-        component={MyBookingsScreen}
-        options={{ title: "My Bookings" }}
-      />
       <Tab.Screen
         name="MyPayments"
         component={MyPaymentsScreen}
-        options={{ title: "My Payments" }}
-      /> */}
+        options={{
+          title: "My Payments",
+          tabBarIcon: ({ color, size }) => <Ionicons name="card-outline" color={color} size={size} />,
+        }}
+      />
       <Tab.Screen
         name="Pricing"
         component={PricingScreen}

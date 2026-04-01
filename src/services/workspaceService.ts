@@ -44,6 +44,26 @@ type ApiBooking = {
   bookingStatus?: string;
 };
 
+export type BookingGuestDetails = {
+  name: string;
+  email: string;
+  phone: string;
+};
+
+export type BookingPaymentDetails = {
+  method: string;
+  amount: number;
+  voucherCode?: string;
+  bankDepositId?: string;
+  referenceNumber?: string;
+};
+
+export type BookingCreateDetails = {
+  notes?: string;
+  guest?: BookingGuestDetails;
+  payment?: BookingPaymentDetails;
+};
+
 const DEMO_WORKSPACES: Workspace[] = [
   {
     id: -101,
@@ -146,8 +166,11 @@ export async function createBooking(
   workspaceId: number,
   startDateTime: string,
   endDateTime: string,
-  notes?: string
+  details?: string | BookingCreateDetails
 ) {
+  const payloadDetails: BookingCreateDetails =
+    typeof details === "string" ? { notes: details } : details ?? {};
+
   return apiRequest(API_ENDPOINTS.workspaces.book, {
     method: "POST",
     requiresAuth: true,
@@ -155,7 +178,9 @@ export async function createBooking(
       spaceId: workspaceId,
       startDateTime,
       endDateTime,
-      notes: notes?.trim() ? notes.trim() : null,
+      notes: payloadDetails.notes?.trim() ? payloadDetails.notes.trim() : null,
+      guest: payloadDetails.guest ?? null,
+      payment: payloadDetails.payment ?? null,
     },
   });
 }

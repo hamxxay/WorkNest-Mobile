@@ -40,7 +40,7 @@ export type WorkspaceSummary = {
 };
 
 export type AppStackParamList = {
-  MainTabs: undefined;
+  MainTabs: NavigatorScreenParams<MainTabParamList> | undefined;
   AdminPanel: undefined;
   ContactUs:
     | {
