@@ -22,6 +22,7 @@ import {
   type AdminSpaceType,
   type PaginatedList,
 } from "../../services/adminService";
+import { INPUT_LIMITS, sanitizeSearchInput, sanitizeTextForState } from "../../utils/inputSanitizer";
 
 const PAGE_SIZE = 20;
 
@@ -242,7 +243,12 @@ export default function AdminManageScreen({
   const hasMore = total == null ? items.length >= page * PAGE_SIZE : items.length < total;
 
   const handleSearch = () => {
-    setSearchQuery(searchInput.trim());
+    try {
+      setSearchQuery(sanitizeSearchInput(searchInput));
+      setError("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Invalid search query.");
+    }
   };
 
   const handleLoadMore = () => {
@@ -268,12 +274,15 @@ export default function AdminManageScreen({
         <View style={styles.searchRow}>
           <TextInput
             value={searchInput}
-            onChangeText={setSearchInput}
+            onChangeText={(value) =>
+              setSearchInput(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.search }))
+            }
             placeholder={config.searchPlaceholder}
             placeholderTextColor={colors.mutedForeground}
             autoCapitalize="none"
             style={styles.searchInput}
             returnKeyType="search"
+            maxLength={INPUT_LIMITS.search}
             onSubmitEditing={handleSearch}
           />
           <Pressable onPress={handleSearch} style={styles.searchButton}>

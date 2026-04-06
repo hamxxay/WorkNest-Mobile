@@ -4,6 +4,7 @@ import { Header } from "../../components/Header";
 import { Screen } from "../../components/Screen";
 import { radii, useThemeColors, useThemedStyles } from "../../theme";
 import { getUsersPage, type AdminUser } from "../../services/adminService";
+import { INPUT_LIMITS, sanitizeSearchInput, sanitizeTextForState } from "../../utils/inputSanitizer";
 
 const PAGE_SIZE = 20;
 
@@ -58,7 +59,12 @@ export default function AdminUsersScreen({ embedded = false }: { embedded?: bool
     total == null ? users.length >= page * PAGE_SIZE : users.length < total;
 
   const handleSearch = () => {
-    setSearchQuery(searchInput.trim());
+    try {
+      setSearchQuery(sanitizeSearchInput(searchInput));
+      setError("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Invalid search query.");
+    }
   };
 
   const handleLoadMore = () => {
@@ -88,12 +94,15 @@ export default function AdminUsersScreen({ embedded = false }: { embedded?: bool
       <View style={styles.searchRow}>
         <TextInput
           value={searchInput}
-          onChangeText={setSearchInput}
+          onChangeText={(value) =>
+            setSearchInput(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.search }))
+          }
           placeholder="Search by name or email"
           placeholderTextColor={colors.mutedForeground}
           autoCapitalize="none"
           style={styles.searchInput}
           returnKeyType="search"
+          maxLength={INPUT_LIMITS.search}
           onSubmitEditing={handleSearch}
         />
         <Pressable onPress={handleSearch} style={styles.searchButton}>

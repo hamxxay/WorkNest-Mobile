@@ -26,6 +26,11 @@ import {
   requestPasswordReset,
   type PendingGoogleAuth,
 } from "../../services/authService";
+import {
+  INPUT_LIMITS,
+  sanitizeEmailInput,
+  sanitizeTextForState,
+} from "../../utils/inputSanitizer";
 
 export default function LoginScreen() {
   const colors = useThemeColors();
@@ -47,15 +52,13 @@ export default function LoginScreen() {
   };
 
   const handleLogin = async () => {
-    if (!email.trim() || !password.trim()) {
-      setError("Email and password are required.");
-      return;
-    }
-
     try {
       setLoading(true);
       setError(null);
-      await loginUser({ email: email.trim(), password });
+      await loginUser({
+        email: sanitizeEmailInput(email),
+        password: sanitizeTextForState(password, { maxLength: INPUT_LIMITS.password }),
+      });
       routeToApp();
     } catch (err) {
       const message =
@@ -114,14 +117,9 @@ export default function LoginScreen() {
   };
 
   const handleForgotPassword = async () => {
-    if (!email.trim()) {
-      setError("Enter your email address first to reset your password.");
-      return;
-    }
-
     try {
       setError(null);
-      await requestPasswordReset(email.trim());
+      await requestPasswordReset(sanitizeEmailInput(email));
       setError("Password reset email sent. Check your inbox.");
     } catch (err) {
       const message =
@@ -160,11 +158,14 @@ export default function LoginScreen() {
                 placeholder="you@example.com"
                 placeholderTextColor={colors.mutedForeground}
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={(value) =>
+                  setEmail(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.email }))
+                }
                 autoCapitalize="none"
                 keyboardType="email-address"
                 textContentType="emailAddress"
-autoComplete="email"
+                autoComplete="email"
+                maxLength={INPUT_LIMITS.email}
                 style={styles.input}
               />
             </View>
@@ -181,11 +182,14 @@ autoComplete="email"
                 placeholderTextColor={colors.mutedForeground}
                 value={password}
                 textContentType="password"
-                onChangeText={setPassword}
+                onChangeText={(value) =>
+                  setPassword(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.password }))
+                }
                 autoComplete="off"
                 autoCorrect={false}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
+                maxLength={INPUT_LIMITS.password}
                 style={styles.input}
               />
               <Pressable onPress={() => setShowPassword((prev) => !prev)}>

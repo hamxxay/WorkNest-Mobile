@@ -18,6 +18,13 @@ import Ionicons from "react-native-vector-icons/Ionicons";
 import { Screen } from "../../components/Screen";
 import { radii, useThemeColors, useThemedStyles } from "../../theme";
 import type { AppStackParamList } from "../../navigation/types";
+import {
+  INPUT_LIMITS,
+  sanitizeEmailInput,
+  sanitizeNameInput,
+  sanitizePhoneInput,
+  sanitizeTextForState,
+} from "../../utils/inputSanitizer";
 
 type StepKey = "datetime" | "guest" | "payment";
 type CalendarDay = {
@@ -124,25 +131,26 @@ export default function BookingInfoScreen() {
       return;
     }
     if (activeStep === "guest") {
-      if (!name.trim() || !email.trim() || !phone.trim()) {
-        setError("Please fill in all guest information fields.");
+      try {
+        navigation.navigate("Payment", {
+          workspace,
+          booking: {
+            ...booking,
+            dates: isShared ? booking.dates : isOffice ? [] : [selectedDate],
+            slot: isOffice ? "" : selectedTime,
+            month: isOffice ? booking.month : undefined,
+            guest: {
+              name: sanitizeNameInput(name, "Guest name"),
+              email: sanitizeEmailInput(email),
+              phone: sanitizePhoneInput(phone),
+            },
+          },
+        });
+        return;
+      } catch (guestError) {
+        setError(guestError instanceof Error ? guestError.message : "Please check your guest details.");
         return;
       }
-      navigation.navigate("Payment", {
-        workspace,
-        booking: {
-          ...booking,
-          dates: isShared ? booking.dates : isOffice ? [] : [selectedDate],
-          slot: isOffice ? "" : selectedTime,
-          month: isOffice ? booking.month : undefined,
-          guest: {
-            name: name.trim(),
-            email: email.trim(),
-            phone: phone.trim(),
-          },
-        },
-      });
-      return;
     }
     setActiveStep("payment");
   };
@@ -236,27 +244,36 @@ export default function BookingInfoScreen() {
           <Text style={styles.label}>Name</Text>
           <TextInput
             value={name}
-            onChangeText={setName}
+            onChangeText={(value) =>
+              setName(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.name }))
+            }
             placeholder="Full name"
             placeholderTextColor={colors.mutedForeground}
+            maxLength={INPUT_LIMITS.name}
             style={styles.input}
           />
           <Text style={styles.label}>Email</Text>
           <TextInput
             value={email}
-            onChangeText={setEmail}
+            onChangeText={(value) =>
+              setEmail(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.email }))
+            }
             placeholder="Email address"
             placeholderTextColor={colors.mutedForeground}
             keyboardType="email-address"
+            maxLength={INPUT_LIMITS.email}
             style={styles.input}
           />
           <Text style={styles.label}>Phone</Text>
           <TextInput
             value={phone}
-            onChangeText={setPhone}
+            onChangeText={(value) =>
+              setPhone(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.phone }))
+            }
             placeholder="Phone number"
             placeholderTextColor={colors.mutedForeground}
             keyboardType="phone-pad"
+            maxLength={INPUT_LIMITS.phone}
             style={styles.input}
           />
         </View>

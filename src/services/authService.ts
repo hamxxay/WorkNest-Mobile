@@ -14,6 +14,11 @@ import { clearDeviceCache, removeToken, removeUser, saveToken, saveUser } from "
 import { ApiError } from "./apiClient";
 import type { AuthResponse, LoginRequest, RegisterRequest } from "./api/types";
 import type { StoredUser } from "../utils/authStorage";
+import {
+  sanitizeEmailInput,
+  sanitizeOptionalNameInput,
+  sanitizePasswordInput,
+} from "../utils/inputSanitizer";
 
 let googleSigninConfigured = false;
 
@@ -200,13 +205,15 @@ export function subscribeToAuthChanges(
 
 export async function loginUser(payload: LoginRequest): Promise<AuthResponse> {
   try {
+    const email = sanitizeEmailInput(payload.email);
+    const password = sanitizePasswordInput(payload.password);
     debugAuth("login request", {
-      email: maskEmail(payload.email.trim()),
-      passwordLength: payload.password.length,
+      email: maskEmail(email),
+      passwordLength: password.length,
     });
     const credential = await getFirebaseAuth().signInWithEmailAndPassword(
-      payload.email.trim(),
-      payload.password
+      email,
+      password
     );
     const session = await persistFirebaseSession(credential.user);
     debugAuth("login success", {
@@ -228,18 +235,22 @@ export async function loginUser(payload: LoginRequest): Promise<AuthResponse> {
 
 export async function registerUser(payload: RegisterRequest): Promise<AuthResponse> {
   try {
+    const email = sanitizeEmailInput(payload.email);
+    const password = sanitizePasswordInput(payload.password);
+    const firstName = sanitizeOptionalNameInput(payload.firstName);
+    const lastName = sanitizeOptionalNameInput(payload.lastName);
     debugAuth("register request", {
-      email: maskEmail(payload.email.trim()),
-      passwordLength: payload.password.length,
-      hasFirstName: Boolean(payload.firstName?.trim()),
-      hasLastName: Boolean(payload.lastName?.trim()),
+      email: maskEmail(email),
+      passwordLength: password.length,
+      hasFirstName: Boolean(firstName),
+      hasLastName: Boolean(lastName),
     });
     const credential = await getFirebaseAuth().createUserWithEmailAndPassword(
-      payload.email.trim(),
-      payload.password
+      email,
+      password
     );
 
-    const displayName = [payload.firstName, payload.lastName]
+    const displayName = [firstName, lastName]
       .filter((value) => typeof value === "string" && value.trim().length > 0)
       .join(" ")
       .trim();
@@ -405,12 +416,13 @@ export async function confirmGoogleSignup(idToken: string): Promise<StoredUser> 
 
 export async function requestPasswordReset(email: string): Promise<void> {
   try {
+    const sanitizedEmail = sanitizeEmailInput(email);
     debugAuth("password reset request", {
-      email: maskEmail(email.trim()),
+      email: maskEmail(sanitizedEmail),
     });
-    await getFirebaseAuth().sendPasswordResetEmail(email.trim());
+    await getFirebaseAuth().sendPasswordResetEmail(sanitizedEmail);
     debugAuth("password reset sent", {
-      email: maskEmail(email.trim()),
+      email: maskEmail(sanitizedEmail),
     });
   } catch (error) {
     debugAuth("password reset error", {

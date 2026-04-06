@@ -19,9 +19,16 @@ import Ionicons from "react-native-vector-icons/Ionicons";
 import { Screen } from "../../components/Screen";
 import { radii, useThemeColors, useThemedStyles } from "../../theme";
 import type { AppStackParamList } from "../../navigation/types";
-import { createContact, type ContactResponse } from "../../services/contactService";
+import { createContact } from "../../services/contactService";
 import { ApiError } from "../../services/apiClient";
-import { isValidEmail } from "../../utils/validation";
+import {
+  INPUT_LIMITS,
+  sanitizeEmailInput,
+  sanitizeMessageInput,
+  sanitizeNameInput,
+  sanitizePhoneInput,
+  sanitizeTextForState,
+} from "../../utils/inputSanitizer";
 
 const WHATSAPP_NUMBER = "923160577702";
 
@@ -37,7 +44,6 @@ export default function ContactUsScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [responsePayload, setResponsePayload] = useState<ContactResponse | null>(null);
 
   const introTitle = route.params?.source === "tour" ? "Book a Tour" : "Contact Us";
   const introText = useMemo(
@@ -54,31 +60,16 @@ export default function ContactUsScreen() {
   }, [fullName]);
 
   const handleSubmit = async () => {
-    if (!fullName.trim() || !email.trim() || !phone.trim() || !message.trim()) {
-      setError("Please fill in all fields.");
-      setSuccess(null);
-      return;
-    }
-
-    if (!isValidEmail(email)) {
-      setError("Please enter a valid email address.");
-      setSuccess(null);
-      return;
-    }
-
     try {
       setSubmitting(true);
       setError(null);
       setSuccess(null);
-      setResponsePayload(null);
-      const response = await createContact({
-        fullName,
-        email,
-        phone,
-        message,
+      await createContact({
+        fullName: sanitizeNameInput(fullName, "Full name"),
+        email: sanitizeEmailInput(email),
+        phone: sanitizePhoneInput(phone),
+        message: sanitizeMessageInput(message),
       });
-      setResponsePayload(response);
-      // console.log("Contact create response:", response);
       setSuccess("Your message has been sent. We will contact you soon.");
       setFullName("");
       setEmail("");
@@ -145,9 +136,12 @@ export default function ContactUsScreen() {
               <Ionicons name="person-outline" size={18} color={colors.mutedForeground} />
               <TextInput
                 value={fullName}
-                onChangeText={setFullName}
+                onChangeText={(value) =>
+                  setFullName(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.name }))
+                }
                 placeholder="Enter your name"
                 placeholderTextColor={colors.mutedForeground}
+                maxLength={INPUT_LIMITS.name}
                 style={styles.input}
               />
             </View>
@@ -157,11 +151,14 @@ export default function ContactUsScreen() {
               <Ionicons name="mail-outline" size={18} color={colors.mutedForeground} />
               <TextInput
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={(value) =>
+                  setEmail(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.email }))
+                }
                 placeholder="you@example.com"
                 placeholderTextColor={colors.mutedForeground}
                 keyboardType="email-address"
                 autoCapitalize="none"
+                maxLength={INPUT_LIMITS.email}
                 style={styles.input}
               />
             </View>
@@ -171,10 +168,13 @@ export default function ContactUsScreen() {
               <Ionicons name="call-outline" size={18} color={colors.mutedForeground} />
               <TextInput
                 value={phone}
-                onChangeText={setPhone}
+                onChangeText={(value) =>
+                  setPhone(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.phone }))
+                }
                 placeholder="Enter your phone number"
                 placeholderTextColor={colors.mutedForeground}
                 keyboardType="phone-pad"
+                maxLength={INPUT_LIMITS.phone}
                 style={styles.input}
               />
             </View>
@@ -184,11 +184,19 @@ export default function ContactUsScreen() {
               <Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.mutedForeground} />
               <TextInput
                 value={message}
-                onChangeText={setMessage}
+                onChangeText={(value) =>
+                  setMessage(
+                    sanitizeTextForState(value, {
+                      maxLength: INPUT_LIMITS.message,
+                      multiline: true,
+                    })
+                  )
+                }
                 placeholder="Tell us your preferred date, team size, or any special requirements"
                 placeholderTextColor={colors.mutedForeground}
                 multiline
                 textAlignVertical="top"
+                maxLength={INPUT_LIMITS.message}
                 style={[styles.input, styles.messageInput]}
               />
             </View>

@@ -1,5 +1,11 @@
 import { API_ENDPOINTS } from "../config/api";
 import { apiRequest } from "./apiClient";
+import {
+  sanitizeEmailInput,
+  sanitizeMessageInput,
+  sanitizeNameInput,
+  sanitizePhoneInput,
+} from "../utils/inputSanitizer";
 
 type ApiResponse<T> = {
   isSuccessful?: boolean;
@@ -38,15 +44,19 @@ function ensureSuccess<T>(response: ApiResponse<T>, fallbackMessage: string): T 
 }
 
 export async function createContact(payload: ContactRequest) {
+  const fullName = sanitizeNameInput(payload.fullName, "Full name");
+  const email = sanitizeEmailInput(payload.email);
+  const phone = sanitizePhoneInput(payload.phone);
+  const message = sanitizeMessageInput(payload.message);
   const response = await apiRequest<ApiResponse<ContactResponse>>(API_ENDPOINTS.contact.create, {
     method: "POST",
     requiresAuth: true,
     unwrapData: false,
     body: {
-      fullName: payload.fullName.trim(),
-      email: payload.email.trim(),
-      phone: payload.phone.trim(),
-      message: payload.message.trim(),
+      fullName,
+      email,
+      phone,
+      message,
     },
   });
 

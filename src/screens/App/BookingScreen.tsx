@@ -21,6 +21,7 @@ import { createBooking, getWorkspaces } from "../../services/workspaceService";
 import { SmartImage } from "../../components/SmartImage";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Header } from "../../components/Header";
+import { INPUT_LIMITS, sanitizeNotesInput, sanitizeSearchInput, sanitizeTextForState } from "../../utils/inputSanitizer";
 
 type Workspace = {
   id: number;
@@ -130,7 +131,7 @@ export default function BookingScreen() {
   }, [workspaces]);
 
   const filteredWorkspaces = useMemo(() => {
-    const query = searchQuery.toLowerCase().trim();
+    const query = sanitizeSearchInput(searchQuery).toLowerCase();
     const type = normalizeFilterValue(workspaceType);
     const location = selectedLocation.toLowerCase();
 
@@ -295,7 +296,7 @@ export default function BookingScreen() {
         selectedSpace.id,
         startDateTime,
         endDateTime,
-        bookingNotes
+        sanitizeNotesInput(bookingNotes)
       );
       setBookingSuccess("Booking created successfully!");
       setTimeout(() => {
@@ -346,7 +347,10 @@ export default function BookingScreen() {
               placeholder="Search for a coworking space"
               placeholderTextColor={colors.mutedForeground}
               value={searchQuery}
-              onChangeText={setSearchQuery}
+              onChangeText={(value) =>
+                setSearchQuery(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.search }))
+              }
+              maxLength={INPUT_LIMITS.search}
               style={styles.searchInput}
             />
           </View>
@@ -488,9 +492,17 @@ export default function BookingScreen() {
             <TextInput
               style={[styles.inputPlain, styles.notesInput]}
               value={bookingNotes}
-              onChangeText={setBookingNotes}
+              onChangeText={(value) =>
+                setBookingNotes(
+                  sanitizeTextForState(value, {
+                    maxLength: INPUT_LIMITS.notes,
+                    multiline: true,
+                  })
+                )
+              }
               placeholder="Any special requirements..."
               multiline
+              maxLength={INPUT_LIMITS.notes}
             />
 
             <View style={styles.modalActions}>

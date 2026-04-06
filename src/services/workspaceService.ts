@@ -1,6 +1,14 @@
 import { API_ENDPOINTS } from "../config/api";
 import { apiRequest } from "./apiClient";
 import { resolveMediaUrl } from "../utils/mediaUrl";
+import {
+  sanitizeEmailInput,
+  sanitizeNameInput,
+  sanitizeNotesInput,
+  sanitizePhoneInput,
+  sanitizeTextForState,
+  INPUT_LIMITS,
+} from "../utils/inputSanitizer";
 export type Faq = {};
 
 export type Workspace = {
@@ -170,6 +178,41 @@ export async function createBooking(
 ) {
   const payloadDetails: BookingCreateDetails =
     typeof details === "string" ? { notes: details } : details ?? {};
+  const notes = payloadDetails.notes ? sanitizeNotesInput(payloadDetails.notes) : null;
+  const guest = payloadDetails.guest
+    ? {
+        name: sanitizeNameInput(payloadDetails.guest.name, "Guest name"),
+        email: sanitizeEmailInput(payloadDetails.guest.email),
+        phone: sanitizePhoneInput(payloadDetails.guest.phone),
+      }
+    : null;
+  const payment = payloadDetails.payment
+    ? {
+        method: sanitizeTextForState(payloadDetails.payment.method, {
+          maxLength: INPUT_LIMITS.name,
+          collapse: true,
+        }),
+        amount: payloadDetails.payment.amount,
+        voucherCode: payloadDetails.payment.voucherCode
+          ? sanitizeTextForState(payloadDetails.payment.voucherCode, {
+              maxLength: 40,
+              collapse: true,
+            })
+          : undefined,
+        bankDepositId: payloadDetails.payment.bankDepositId
+          ? sanitizeTextForState(payloadDetails.payment.bankDepositId, {
+              maxLength: 40,
+              collapse: true,
+            })
+          : undefined,
+        referenceNumber: payloadDetails.payment.referenceNumber
+          ? sanitizeTextForState(payloadDetails.payment.referenceNumber, {
+              maxLength: 64,
+              collapse: true,
+            })
+          : undefined,
+      }
+    : null;
 
   return apiRequest(API_ENDPOINTS.workspaces.book, {
     method: "POST",
@@ -178,9 +221,9 @@ export async function createBooking(
       spaceId: workspaceId,
       startDateTime,
       endDateTime,
-      notes: payloadDetails.notes?.trim() ? payloadDetails.notes.trim() : null,
-      guest: payloadDetails.guest ?? null,
-      payment: payloadDetails.payment ?? null,
+      notes,
+      guest,
+      payment,
     },
   });
 }

@@ -8,6 +8,18 @@ import { radii, useThemeColors, useThemedStyles } from "../../theme";
 import type { AppStackParamList } from "../../navigation/types";
 import { createBooking } from "../../services/workspaceService";
 import { createLocalPaymentVoucher, type PaymentItem } from "../../services/paymentService";
+import {
+  INPUT_LIMITS,
+  sanitizeAccountNumberInput,
+  sanitizeCardCvvInput,
+  sanitizeCardExpiryInput,
+  sanitizeCardHolderName,
+  sanitizeCardNumberInput,
+  sanitizeNameInput,
+  sanitizePhoneInput,
+  sanitizeTextForState,
+  sanitizeTransferReferenceInput,
+} from "../../utils/inputSanitizer";
 
 type PaymentMethod =
   | "quick-pay"
@@ -78,28 +90,9 @@ export default function PaymentScreen() {
   };
 
   const handlePayment = async () => {
-    const validationError = getPaymentValidationError(paymentMethod, {
-      accountName,
-      accountNumber,
-      transferReference,
-      cardHolderName,
-      cardNumber,
-      cardExpiry,
-      cardCvv,
-    });
-    if (validationError) {
-      setError(validationError);
-      setDetailsModalMethod(paymentMethod);
-      return;
-    }
-
-    setError("");
-    setLoading(true);
-
+    let sanitizedValues;
     try {
-      const voucherCode = generateVoucherCode(workspace.id);
-      const bankDepositId = generateBankDepositId(workspace.id);
-      const paymentDetails = getPaymentPayload(paymentMethod, {
+      sanitizedValues = sanitizePaymentValues(paymentMethod, {
         accountName,
         accountNumber,
         transferReference,
@@ -108,14 +101,38 @@ export default function PaymentScreen() {
         cardExpiry,
         cardCvv,
       });
+    } catch (inputError) {
+      setError(inputError instanceof Error ? inputError.message : "Invalid payment details.");
+      setDetailsModalMethod(paymentMethod);
+      return;
+    }
+
+    const validationError = getPaymentValidationError(paymentMethod, sanitizedValues);
+    if (validationError) {
+      setError(validationError);
+      setDetailsModalMethod(paymentMethod);
+      return;
+    }
+
+    setAccountName(sanitizedValues.accountName);
+    setAccountNumber(sanitizedValues.accountNumber);
+    setTransferReference(sanitizedValues.transferReference);
+    setCardHolderName(sanitizedValues.cardHolderName);
+    setCardNumber(sanitizedValues.cardNumber);
+    setCardExpiry(sanitizedValues.cardExpiry);
+    setCardCvv(sanitizedValues.cardCvv);
+    setError("");
+    setLoading(true);
+
+    try {
+      const voucherCode = generateVoucherCode(workspace.id);
+      const bankDepositId = generateBankDepositId(workspace.id);
+      const paymentDetails = getPaymentPayload(paymentMethod, sanitizedValues);
       const referenceNumber = paymentDetails.referenceNumber;
 
-      // Assuming booking.mode === "office" for monthly, else daily
       let startDateTime: string;
       let endDateTime: string;
       if (booking.mode === "office") {
-        // For office, month is like "January 2024"
-        // Need to parse month to date
         const monthDate = new Date(booking.month + " 1");
         startDateTime = `${monthDate.toISOString().split('T')[0]}T09:00:00`;
         const endMonth = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
@@ -128,9 +145,9 @@ export default function PaymentScreen() {
       await createBooking(workspace.id, startDateTime, endDateTime, {
         notes: `Payment via ${getPaymentMethodLabel(paymentMethod)}`,
         guest: {
-          name: booking.guest.name,
+          name: sanitizeNameInput(booking.guest.name, "Guest name"),
           email: booking.guest.email,
-          phone: booking.guest.phone,
+          phone: sanitizePhoneInput(booking.guest.phone),
         },
         payment: {
           method: getPaymentMethodLabel(paymentMethod),
@@ -295,19 +312,25 @@ export default function PaymentScreen() {
                 <Text style={styles.label}>Card Holder Name</Text>
                 <TextInput
                   value={cardHolderName}
-                  onChangeText={setCardHolderName}
+                  onChangeText={(value) =>
+                    setCardHolderName(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.cardHolderName }))
+                  }
                   placeholder="Full name on card"
                   placeholderTextColor={colors.mutedForeground}
+                  maxLength={INPUT_LIMITS.cardHolderName}
                   style={styles.input}
                 />
 
                 <Text style={styles.label}>Card Number</Text>
                 <TextInput
                   value={cardNumber}
-                  onChangeText={setCardNumber}
+                  onChangeText={(value) =>
+                    setCardNumber(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.cardNumber }))
+                  }
                   placeholder="4111 1111 1111 1111"
                   placeholderTextColor={colors.mutedForeground}
                   keyboardType="number-pad"
+                  maxLength={INPUT_LIMITS.cardNumber}
                   style={styles.input}
                 />
 
@@ -316,9 +339,12 @@ export default function PaymentScreen() {
                     <Text style={styles.label}>Expiry Date</Text>
                     <TextInput
                       value={cardExpiry}
-                      onChangeText={setCardExpiry}
+                      onChangeText={(value) =>
+                        setCardExpiry(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.cardExpiry }))
+                      }
                       placeholder="MM/YY"
                       placeholderTextColor={colors.mutedForeground}
+                      maxLength={INPUT_LIMITS.cardExpiry}
                       style={styles.input}
                     />
                   </View>
@@ -326,11 +352,14 @@ export default function PaymentScreen() {
                     <Text style={styles.label}>CVV</Text>
                     <TextInput
                       value={cardCvv}
-                      onChangeText={setCardCvv}
+                      onChangeText={(value) =>
+                        setCardCvv(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.cardCvv }))
+                      }
                       placeholder="123"
                       placeholderTextColor={colors.mutedForeground}
                       keyboardType="number-pad"
                       secureTextEntry
+                      maxLength={INPUT_LIMITS.cardCvv}
                       style={styles.input}
                     />
                   </View>
@@ -343,19 +372,25 @@ export default function PaymentScreen() {
                 <Text style={styles.label}>Payer Name</Text>
                 <TextInput
                   value={accountName}
-                  onChangeText={setAccountName}
+                  onChangeText={(value) =>
+                    setAccountName(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.name }))
+                  }
                   placeholder="Full name"
                   placeholderTextColor={colors.mutedForeground}
+                  maxLength={INPUT_LIMITS.name}
                   style={styles.input}
                 />
 
                 <Text style={styles.label}>Wallet / Phone Number</Text>
                 <TextInput
                   value={accountNumber}
-                  onChangeText={setAccountNumber}
+                  onChangeText={(value) =>
+                    setAccountNumber(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.accountNumber }))
+                  }
                   placeholder="03xx xxxxxxx"
                   placeholderTextColor={colors.mutedForeground}
                   keyboardType="phone-pad"
+                  maxLength={INPUT_LIMITS.accountNumber}
                   style={styles.input}
                 />
               </>
@@ -366,27 +401,36 @@ export default function PaymentScreen() {
                 <Text style={styles.label}>Account Holder Name</Text>
                 <TextInput
                   value={accountName}
-                  onChangeText={setAccountName}
+                  onChangeText={(value) =>
+                    setAccountName(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.name }))
+                  }
                   placeholder="Full name"
                   placeholderTextColor={colors.mutedForeground}
+                  maxLength={INPUT_LIMITS.name}
                   style={styles.input}
                 />
 
                 <Text style={styles.label}>Bank Account / IBAN</Text>
                 <TextInput
                   value={accountNumber}
-                  onChangeText={setAccountNumber}
+                  onChangeText={(value) =>
+                    setAccountNumber(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.accountNumber }))
+                  }
                   placeholder="PK00 WORK 0000 1234 5678"
                   placeholderTextColor={colors.mutedForeground}
+                  maxLength={INPUT_LIMITS.accountNumber}
                   style={styles.input}
                 />
 
                 <Text style={styles.label}>Transfer Reference</Text>
                 <TextInput
                   value={transferReference}
-                  onChangeText={setTransferReference}
+                  onChangeText={(value) =>
+                    setTransferReference(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.transferReference }))
+                  }
                   placeholder="TRX-123456"
                   placeholderTextColor={colors.mutedForeground}
+                  maxLength={INPUT_LIMITS.transferReference}
                   style={styles.input}
                 />
               </>
@@ -397,9 +441,12 @@ export default function PaymentScreen() {
                 <Text style={styles.label}>Payer Name</Text>
                 <TextInput
                   value={accountName}
-                  onChangeText={setAccountName}
+                  onChangeText={(value) =>
+                    setAccountName(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.name }))
+                  }
                   placeholder="Full name"
                   placeholderTextColor={colors.mutedForeground}
+                  maxLength={INPUT_LIMITS.name}
                   style={styles.input}
                 />
                 <Text style={styles.infoHint}>
@@ -457,6 +504,61 @@ function getPaymentMethodDescription(method: PaymentMethod) {
       return "Enter the payer name and wallet or phone number.";
     default:
       return "Enter your payment details.";
+  }
+}
+
+function sanitizePaymentValues(
+  method: PaymentMethod,
+  values: {
+    accountName: string;
+    accountNumber: string;
+    transferReference: string;
+    cardHolderName: string;
+    cardNumber: string;
+    cardExpiry: string;
+    cardCvv: string;
+  }
+) {
+  const nextValues = {
+    accountName: values.accountName,
+    accountNumber: values.accountNumber,
+    transferReference: values.transferReference,
+    cardHolderName: values.cardHolderName,
+    cardNumber: values.cardNumber,
+    cardExpiry: values.cardExpiry,
+    cardCvv: values.cardCvv,
+  };
+
+  switch (method) {
+    case "credit-debit-card":
+      return {
+        ...nextValues,
+        cardHolderName: sanitizeCardHolderName(values.cardHolderName),
+        cardNumber: sanitizeCardNumberInput(values.cardNumber),
+        cardExpiry: sanitizeCardExpiryInput(values.cardExpiry),
+        cardCvv: sanitizeCardCvvInput(values.cardCvv),
+      };
+    case "bank-transfer":
+      return {
+        ...nextValues,
+        accountName: sanitizeNameInput(values.accountName, "Account holder name"),
+        accountNumber: sanitizeAccountNumberInput(values.accountNumber, "Bank account / IBAN"),
+        transferReference: sanitizeTransferReferenceInput(values.transferReference),
+      };
+    case "cash-counter":
+      return {
+        ...nextValues,
+        accountName: sanitizeNameInput(values.accountName, "Payer name"),
+      };
+    case "easypaisa":
+    case "quick-pay":
+      return {
+        ...nextValues,
+        accountName: sanitizeNameInput(values.accountName, "Payer name"),
+        accountNumber: sanitizePhoneInput(values.accountNumber, "Wallet / phone number"),
+      };
+    default:
+      return nextValues;
   }
 }
 

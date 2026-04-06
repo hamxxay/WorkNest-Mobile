@@ -21,6 +21,7 @@ import { getWorkspaces } from "../../services/workspaceService";
 import { SmartImage } from "../../components/SmartImage";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { Header } from "../../components/Header";
+import { INPUT_LIMITS, sanitizeTextForState } from "../../utils/inputSanitizer";
 
 const HERO_SLIDES = [
   "https://images.unsplash.com/photo-1497366754035-f200968a6e72?w=1200&auto=format&fit=crop",
@@ -132,9 +133,12 @@ export default function HomeScreen() {
             <Ionicons name="search" size={18} color={colors.mutedForeground} />
             <TextInput
               value={searchQuery}
-              onChangeText={setSearchQuery}
+              onChangeText={(value) =>
+                setSearchQuery(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.search }))
+              }
               placeholder="Search for a coworking space"
               placeholderTextColor={colors.mutedForeground}
+              maxLength={INPUT_LIMITS.search}
               style={styles.searchInput}
             />
           </View>

@@ -1,5 +1,6 @@
 import { API_ENDPOINTS } from "../config/api";
 import { ApiError, apiRequest } from "./apiClient";
+import { sanitizeSearchInput } from "../utils/inputSanitizer";
 
 type ApiResponse<T> = {
   isSuccessful?: boolean;
@@ -140,13 +141,14 @@ export type AdminGallery = {
 function buildQuery({ page, limit, search }: ListQuery = {}): string {
   const params = new URLSearchParams();
   if (page != null) {
-    params.set("page", String(page));
+    params.set("page", String(Math.max(1, Math.floor(page))));
   }
   if (limit != null) {
-    params.set("limit", String(limit));
+    params.set("limit", String(Math.min(Math.max(1, Math.floor(limit)), 100)));
   }
-  if (search && search.trim().length > 0) {
-    params.set("search", search.trim());
+  const sanitizedSearch = search ? sanitizeSearchInput(search) : "";
+  if (sanitizedSearch.length > 0) {
+    params.set("search", sanitizedSearch);
   }
   const query = params.toString();
   return query ? `?${query}` : "";

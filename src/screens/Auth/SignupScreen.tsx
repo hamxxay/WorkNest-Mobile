@@ -25,6 +25,11 @@ import {
   registerUser,
   type PendingGoogleAuth,
 } from "../../services/authService";
+import {
+  INPUT_LIMITS,
+  sanitizeEmailInput,
+  sanitizeTextForState,
+} from "../../utils/inputSanitizer";
 
 export default function SignupScreen() {
   const colors = useThemeColors();
@@ -54,11 +59,6 @@ export default function SignupScreen() {
   };
 
   const handleSignup = async () => {
-    if (!email.trim() || !password.trim()) {
-      setError("Email and password are required.");
-      return;
-    }
-
     if (password !== confirmPassword) {
       setError("Passwords do not match.");
       return;
@@ -69,8 +69,8 @@ export default function SignupScreen() {
       setError(null);
       const { firstName, lastName } = parseName(name);
       await registerUser({
-        email: email.trim(),
-        password,
+        email: sanitizeEmailInput(email),
+        password: sanitizeTextForState(password, { maxLength: INPUT_LIMITS.password }),
         firstName,
         lastName,
       });
@@ -168,7 +168,10 @@ export default function SignupScreen() {
                 placeholder="Jane Doe"
                 placeholderTextColor={colors.mutedForeground}
                 value={name}
-                onChangeText={setName}
+                onChangeText={(value) =>
+                  setName(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.name }))
+                }
+                maxLength={INPUT_LIMITS.name}
                 style={styles.input}
               />
             </View>
@@ -180,9 +183,12 @@ export default function SignupScreen() {
                 placeholder="you@example.com"
                 placeholderTextColor={colors.mutedForeground}
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={(value) =>
+                  setEmail(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.email }))
+                }
                 autoCapitalize="none"
                 keyboardType="email-address"
+                maxLength={INPUT_LIMITS.email}
                 style={styles.input}
               />
             </View>
@@ -199,11 +205,14 @@ export default function SignupScreen() {
                 placeholder="Create a password"
                 placeholderTextColor={colors.mutedForeground}
                 value={password}
-                onChangeText={setPassword}
+                onChangeText={(value) =>
+                  setPassword(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.password }))
+                }
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"       
                 autoCorrect={false}
                 autoComplete="off"
+                maxLength={INPUT_LIMITS.password}
                 style={styles.input}
               />
               <Pressable onPress={() => setShowPassword((prev) => !prev)}>
@@ -226,11 +235,14 @@ export default function SignupScreen() {
                 placeholder="Re-enter password"
                 placeholderTextColor={colors.mutedForeground}
                 value={confirmPassword}
-                onChangeText={setConfirmPassword}
+                onChangeText={(value) =>
+                  setConfirmPassword(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.password }))
+                }
                 autoCapitalize="none"
                 autoCorrect={false}
                 autoComplete="off"
                 secureTextEntry={!showPassword}
+                maxLength={INPUT_LIMITS.password}
                 style={styles.input}
               />
             </View>
