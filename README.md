@@ -135,13 +135,28 @@ Set environment:
 API_BASE=<your-backend-url>
 FIREBASE_WEB_CLIENT_ID=<firebase-web-client-id>
 FIREBASE_IOS_CLIENT_ID=<optional-ios-client-id>
+ANDROID_FIREBASE_PROJECT_NUMBER=<firebase-project-number>
+ANDROID_FIREBASE_PROJECT_ID=<firebase-project-id>
+ANDROID_FIREBASE_STORAGE_BUCKET=<firebase-storage-bucket>
+ANDROID_FIREBASE_MOBILE_SDK_APP_ID=<android-mobile-sdk-app-id>
+ANDROID_FIREBASE_PACKAGE_NAME=com.worknestmobile
+ANDROID_FIREBASE_API_KEY=<android-firebase-api-key>
+ANDROID_FIREBASE_ANDROID_CLIENT_ID_DEBUG=<debug-android-oauth-client-id>
+ANDROID_FIREBASE_ANDROID_CLIENT_ID_RELEASE=<release-android-oauth-client-id>
+ANDROID_FIREBASE_DEBUG_CERT_HASH=<debug-sha1>
+ANDROID_FIREBASE_RELEASE_CERT_HASH=<release-sha1>
+ANDROID_UPLOAD_STORE_FILE=<release-keystore-file>
+ANDROID_UPLOAD_KEY_ALIAS=<release-key-alias>
+ANDROID_UPLOAD_STORE_PASSWORD=<release-keystore-password>
+ANDROID_UPLOAD_KEY_PASSWORD=<release-key-password>
 
 Firebase setup:
-- Add `google-services.json` to `android/app/`
-- Add `GoogleService-Info.plist` to the Xcode target
+- Run `npm run sync:config` to generate local native config files from `.env`
+- Do not commit `android/app/google-services.json`, `android/keystore.properties`, or `GoogleService-Info.plist`
+- Add `GoogleService-Info.plist` locally to the Xcode target
 - Enable Google provider in Firebase Authentication
 - Enable Email/Password provider in Firebase Authentication
-- For Android Google Sign-In, add both the debug and release SHA-1/SHA-256 fingerprints to the Firebase Android app, then download the updated `google-services.json`
+- For Android Google Sign-In, add both the debug and release SHA-1/SHA-256 fingerprints to the Firebase Android app, then update the matching Android Firebase values in `.env`
 - For iOS, add the `REVERSED_CLIENT_ID` from `GoogleService-Info.plist` as a URL scheme in Xcode
 
 ----------------------------------------
@@ -160,6 +175,7 @@ npm run ios
 - Admin is read-only
 - Some data may be mocked
 - Feature flags may be unused
+- Firebase client configuration is build-injected from `.env`, but mobile client config is still discoverable in a shipped app; true secrets must stay on the server
 
 ----------------------------------------
 

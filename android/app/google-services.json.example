@@ -1,0 +1,55 @@
+{
+  "project_info": {
+    "project_number": "your-project-number",
+    "project_id": "your-project-id",
+    "storage_bucket": "your-project.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "your-mobile-sdk-app-id",
+        "android_client_info": {
+          "package_name": "com.worknestmobile"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "your-debug-android-client-id.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.worknestmobile",
+            "certificate_hash": "your-debug-cert-sha1"
+          }
+        },
+        {
+          "client_id": "your-release-android-client-id.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.worknestmobile",
+            "certificate_hash": "your-release-cert-sha1"
+          }
+        },
+        {
+          "client_id": "your-web-client-id.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "your-android-firebase-api-key"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "your-web-client-id.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

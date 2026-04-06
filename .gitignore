@@ -36,6 +36,8 @@ local.properties
 .kotlin/
 android/keystore.properties
 android/app copy/
+android/app/google-services.json
+ios/**/GoogleService-Info.plist
 
 # node.js
 #
