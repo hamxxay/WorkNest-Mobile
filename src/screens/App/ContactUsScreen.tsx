@@ -19,7 +19,7 @@ import Ionicons from "react-native-vector-icons/Ionicons";
 import { Screen } from "../../components/Screen";
 import { radii, useThemeColors, useThemedStyles } from "../../theme";
 import type { AppStackParamList } from "../../navigation/types";
-import { createContact } from "../../services/contactService";
+import { createContact, type ContactResponse } from "../../services/contactService";
 import { ApiError } from "../../services/apiClient";
 import { isValidEmail } from "../../utils/validation";
 
@@ -37,6 +37,7 @@ export default function ContactUsScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [responsePayload, setResponsePayload] = useState<ContactResponse | null>(null);
 
   const introTitle = route.params?.source === "tour" ? "Book a Tour" : "Contact Us";
   const introText = useMemo(
@@ -69,12 +70,15 @@ export default function ContactUsScreen() {
       setSubmitting(true);
       setError(null);
       setSuccess(null);
-      await createContact({
+      setResponsePayload(null);
+      const response = await createContact({
         fullName,
         email,
         phone,
         message,
       });
+      setResponsePayload(response);
+      // console.log("Contact create response:", response);
       setSuccess("Your message has been sent. We will contact you soon.");
       setFullName("");
       setEmail("");
@@ -330,6 +334,26 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
     fontSize: 13,
     textAlign: "center",
     marginTop: 4,
+  },
+  responseCard: {
+    marginTop: 4,
+    backgroundColor: colors.muted,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    padding: 12,
+    gap: 6,
+  },
+  responseTitle: {
+    color: colors.foreground,
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  responseText: {
+    color: colors.mutedForeground,
+    fontSize: 12,
+    lineHeight: 18,
+    fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }),
   },
   primaryButton: {
     marginTop: 8,

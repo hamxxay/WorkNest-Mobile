@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { ConfirmModal } from "../../components/ConfirmModal";
 import { Header } from "../../components/Header";
 import { Screen } from "../../components/Screen";
 import { radii, useThemeColors, useThemedStyles } from "../../theme";
@@ -29,6 +30,7 @@ export default function ProfileScreen() {
   const styles = useThemedStyles(createStyles);
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { clearSession, user } = useAuth();
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [summary, setSummary] = useState<BookingSummary>({
     upcoming: 0,
     completed: 0,
@@ -36,6 +38,7 @@ export default function ProfileScreen() {
   });
 
   const handleLogout = async () => {
+    setShowLogoutConfirm(false);
     await logoutUser();
     await clearSession();
     navigation.reset({ index: 0, routes: [{ name: "AuthStack", params: { screen: "Login" } }] });
@@ -115,11 +118,25 @@ export default function ProfileScreen() {
           </Pressable>
         </View>
 
-        <Pressable style={styles.logoutButton} onPress={handleLogout}>
+        <Pressable style={styles.logoutButton} onPress={() => setShowLogoutConfirm(true)}>
           <Ionicons name="log-out-outline" size={18} color={colors.foreground} />
           <Text style={styles.logoutText}>Logout</Text>
         </Pressable>
       </ScrollView>
+
+      <ConfirmModal
+        visible={showLogoutConfirm}
+        title="Confirm Logout"
+        message="Are you sure you want to log out?"
+        confirmText="Log Out"
+        cancelText="Cancel"
+        onCancel={() => setShowLogoutConfirm(false)}
+        onConfirm={() => {
+          handleLogout().catch(() => {
+            setShowLogoutConfirm(false);
+          });
+        }}
+      />
     </Screen>
   );
 }

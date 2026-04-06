@@ -14,6 +14,17 @@ export type ContactRequest = {
   message: string;
 };
 
+export type ContactResponse = {
+  id?: number | string;
+  fullName?: string;
+  email?: string;
+  phone?: string;
+  message?: string;
+  status?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 function ensureSuccess<T>(response: ApiResponse<T>, fallbackMessage: string): T {
   if (response?.isSuccessful && response.data !== undefined) {
     return response.data;
@@ -27,7 +38,7 @@ function ensureSuccess<T>(response: ApiResponse<T>, fallbackMessage: string): T 
 }
 
 export async function createContact(payload: ContactRequest) {
-  const response = await apiRequest<ApiResponse<unknown>>(API_ENDPOINTS.contact.create, {
+  const response = await apiRequest<ApiResponse<ContactResponse>>(API_ENDPOINTS.contact.create, {
     method: "POST",
     requiresAuth: true,
     unwrapData: false,

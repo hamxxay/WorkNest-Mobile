@@ -38,8 +38,8 @@ import AboutUsScreen from "../screens/App/AboutUsScreen";
 import AdminPanelScreen from "../screens/App/AdminPanelScreen";
 import { logoutUser } from "../services/authService";
 import { useAuth } from "../context/AuthContext";
-import { StyleSheet, View, Text, Image, useColorScheme } from "react-native";
-import { useState } from "react";
+import { StyleSheet, View, Text, Image, useColorScheme, StatusBar } from "react-native";
+import { useState, useEffect } from "react";
 import { ConfirmModal } from "../components/ConfirmModal";
 import packageLock from "../../package-lock.json";
 
@@ -116,15 +116,16 @@ function MainTabs() {
           tabBarIcon: ({ color, size }) => <Ionicons name="card-outline" color={color} size={size} />,
         }}
       />
-      <Tab.Screen
-        name="Pricing"
-        component={PricingScreen}
-        options={{ tabBarIcon: PricingTabIcon }}
-      />
+      
       <Tab.Screen
         name="Gallery"
         component={GalleryScreen}
         options={{ tabBarIcon: GalleryTabIcon }}
+      />
+      <Tab.Screen
+        name="Pricing"
+        component={PricingScreen}
+        options={{ tabBarIcon: PricingTabIcon }}
       />
     </Tab.Navigator>
   );
@@ -285,6 +286,10 @@ function AuthStackNavigator() {
   const isDarkTheme = colorScheme === "dark";
   const colors = useThemeColors();
 
+  useEffect(() => {
+    StatusBar.setBackgroundColor(colors.background);
+  }, [colors.background]);
+
   return (
     <AuthStack.Navigator
       initialRouteName="Login"
@@ -292,7 +297,6 @@ function AuthStackNavigator() {
         headerShown: false,
         statusBarTranslucent: false,
         statusBarStyle: isDarkTheme ? "light" : "dark",
-        statusBarColor: colors.background,
         contentStyle: { backgroundColor: colors.background },
       }}
     >
@@ -307,6 +311,10 @@ function AppStackNavigator() {
   const isDarkTheme = colorScheme === "dark";
   const colors = useThemeColors();
 
+  useEffect(() => {
+    StatusBar.setBackgroundColor(colors.background);
+  }, [colors.background]);
+
   return (
     <AppStack.Navigator
       initialRouteName="MainTabs"
@@ -314,7 +322,6 @@ function AppStackNavigator() {
         headerShown: false,
         statusBarTranslucent: false,
         statusBarStyle: isDarkTheme ? "light" : "dark",
-        statusBarColor: colors.background,
         contentStyle: { backgroundColor: colors.background },
       }}
     >
@@ -333,6 +340,10 @@ export function AppNavigator() {
   const isDarkTheme = colorScheme === "dark";
   const colors = useThemeColors();
 
+  useEffect(() => {
+    StatusBar.setBackgroundColor(colors.background);
+  }, [colors.background]);
+
   return (
     <NavigationContainer>
       <RootStack.Navigator
@@ -341,7 +352,6 @@ export function AppNavigator() {
           headerShown: false,
           statusBarTranslucent: false,
           statusBarStyle: isDarkTheme ? "light" : "dark",
-          statusBarColor: colors.background,
           contentStyle: { backgroundColor: colors.background },
         }}
       >
