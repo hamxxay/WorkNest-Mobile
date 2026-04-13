@@ -10,7 +10,7 @@ import {
   statusCodes,
 } from "@react-native-google-signin/google-signin";
 import { FIREBASE_IOS_CLIENT_ID, FIREBASE_WEB_CLIENT_ID } from "@env";
-import { clearDeviceCache, removeToken, removeUser, saveToken, saveUser } from "../utils/authStorage";
+import { clearAuthStorage, removeToken, removeUser, saveToken, saveUser } from "../utils/authStorage";
 import { ApiError } from "./apiClient";
 import type { AuthResponse, LoginRequest, RegisterRequest } from "./api/types";
 import type { StoredUser } from "../utils/authStorage";
@@ -142,7 +142,7 @@ export async function logoutUser(): Promise<void> {
   }
 
   await Promise.allSettled(tasks);
-  await clearDeviceCache();
+  await clearAuthStorage();
   debugAuth("logout complete");
 }
 

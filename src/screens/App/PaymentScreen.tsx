@@ -1,5 +1,15 @@
 import { useMemo, useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { useRoute, useNavigation } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -296,184 +306,197 @@ export default function PaymentScreen() {
         visible={detailsModalMethod !== null}
         onRequestClose={() => setDetailsModalMethod(null)}
       >
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>
-              {detailsModalMethod ? getPaymentMethodLabel(detailsModalMethod) : "Payment Details"}
-            </Text>
-            <Text style={styles.modalMessage}>
-              {detailsModalMethod
-                ? getPaymentMethodDescription(detailsModalMethod)
-                : "Enter your payment details."}
-            </Text>
+        <KeyboardAvoidingView
+          style={styles.modalRoot}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          // behavior={Platform.OS == "android" ? "padding" :"height"}
+        >
+          <View style={styles.modalBackdrop}>
+            <ScrollView
+              style={styles.modalScrollView}
+              contentContainerStyle={styles.modalScrollContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={styles.modalCard}>
+                <Text style={styles.modalTitle}>
+                  {detailsModalMethod ? getPaymentMethodLabel(detailsModalMethod) : "Payment Details"}
+                </Text>
+                <Text style={styles.modalMessage}>
+                  {detailsModalMethod
+                    ? getPaymentMethodDescription(detailsModalMethod)
+                    : "Enter your payment details."}
+                </Text>
 
-            {detailsModalMethod === "credit-debit-card" ? (
-              <>
-                <Text style={styles.label}>Card Holder Name</Text>
-                <TextInput
-                  value={cardHolderName}
-                  onChangeText={(value) =>
-                    setCardHolderName(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.cardHolderName }))
-                  }
-                  placeholder="Full name on card"
-                  placeholderTextColor={colors.mutedForeground}
-                  maxLength={INPUT_LIMITS.cardHolderName}
-                  style={styles.input}
-                />
-
-                <Text style={styles.label}>Card Number</Text>
-                <TextInput
-                  value={cardNumber}
-                  onChangeText={(value) =>
-                    setCardNumber(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.cardNumber }))
-                  }
-                  placeholder="4111 1111 1111 1111"
-                  placeholderTextColor={colors.mutedForeground}
-                  keyboardType="number-pad"
-                  maxLength={INPUT_LIMITS.cardNumber}
-                  style={styles.input}
-                />
-
-                <View style={styles.row}>
-                  <View style={styles.rowItem}>
-                    <Text style={styles.label}>Expiry Date</Text>
+                {detailsModalMethod === "credit-debit-card" ? (
+                  <>
+                    <Text style={styles.label}>Card Holder Name</Text>
                     <TextInput
-                      value={cardExpiry}
+                      value={cardHolderName}
                       onChangeText={(value) =>
-                        setCardExpiry(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.cardExpiry }))
+                        setCardHolderName(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.cardHolderName }))
                       }
-                      placeholder="MM/YY"
+                      placeholder="Full name on card"
                       placeholderTextColor={colors.mutedForeground}
-                      maxLength={INPUT_LIMITS.cardExpiry}
+                      maxLength={INPUT_LIMITS.cardHolderName}
                       style={styles.input}
                     />
-                  </View>
-                  <View style={styles.rowItem}>
-                    <Text style={styles.label}>CVV</Text>
+
+                    <Text style={styles.label}>Card Number</Text>
                     <TextInput
-                      value={cardCvv}
+                      value={cardNumber}
                       onChangeText={(value) =>
-                        setCardCvv(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.cardCvv }))
+                        setCardNumber(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.cardNumber }))
                       }
-                      placeholder="123"
+                      placeholder="4111 1111 1111 1111"
                       placeholderTextColor={colors.mutedForeground}
                       keyboardType="number-pad"
-                      secureTextEntry
-                      maxLength={INPUT_LIMITS.cardCvv}
+                      maxLength={INPUT_LIMITS.cardNumber}
                       style={styles.input}
                     />
-                  </View>
+
+                    <View style={styles.row}>
+                      <View style={styles.rowItem}>
+                        <Text style={styles.label}>Expiry Date</Text>
+                        <TextInput
+                          value={cardExpiry}
+                          onChangeText={(value) =>
+                            setCardExpiry(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.cardExpiry }))
+                          }
+                          placeholder="MM/YY"
+                          placeholderTextColor={colors.mutedForeground}
+                          maxLength={INPUT_LIMITS.cardExpiry}
+                          style={styles.input}
+                        />
+                      </View>
+                      <View style={styles.rowItem}>
+                        <Text style={styles.label}>CVV</Text>
+                        <TextInput
+                          value={cardCvv}
+                          onChangeText={(value) =>
+                            setCardCvv(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.cardCvv }))
+                          }
+                          placeholder="123"
+                          placeholderTextColor={colors.mutedForeground}
+                          keyboardType="number-pad"
+                          secureTextEntry
+                          maxLength={INPUT_LIMITS.cardCvv}
+                          style={styles.input}
+                        />
+                      </View>
+                    </View>
+                  </>
+                ) : null}
+
+                {detailsModalMethod === "easypaisa" || detailsModalMethod === "quick-pay" ? (
+                  <>
+                    <Text style={styles.label}>Payer Name</Text>
+                    <TextInput
+                      value={accountName}
+                      onChangeText={(value) =>
+                        setAccountName(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.name }))
+                      }
+                      placeholder="Full name"
+                      placeholderTextColor={colors.mutedForeground}
+                      maxLength={INPUT_LIMITS.name}
+                      style={styles.input}
+                    />
+
+                    <Text style={styles.label}>Wallet / Phone Number</Text>
+                    <TextInput
+                      value={accountNumber}
+                      onChangeText={(value) =>
+                        setAccountNumber(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.accountNumber }))
+                      }
+                      placeholder="03xx xxxxxxx"
+                      placeholderTextColor={colors.mutedForeground}
+                      keyboardType="phone-pad"
+                      maxLength={INPUT_LIMITS.accountNumber}
+                      style={styles.input}
+                    />
+                  </>
+                ) : null}
+
+                {detailsModalMethod === "bank-transfer" ? (
+                  <>
+                    <Text style={styles.label}>Account Holder Name</Text>
+                    <TextInput
+                      value={accountName}
+                      onChangeText={(value) =>
+                        setAccountName(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.name }))
+                      }
+                      placeholder="Full name"
+                      placeholderTextColor={colors.mutedForeground}
+                      maxLength={INPUT_LIMITS.name}
+                      style={styles.input}
+                    />
+
+                    <Text style={styles.label}>Bank Account / IBAN</Text>
+                    <TextInput
+                      value={accountNumber}
+                      onChangeText={(value) =>
+                        setAccountNumber(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.accountNumber }))
+                      }
+                      placeholder="PK00 WORK 0000 1234 5678"
+                      placeholderTextColor={colors.mutedForeground}
+                      maxLength={INPUT_LIMITS.accountNumber}
+                      style={styles.input}
+                    />
+
+                    <Text style={styles.label}>Transfer Reference</Text>
+                    <TextInput
+                      value={transferReference}
+                      onChangeText={(value) =>
+                        setTransferReference(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.transferReference }))
+                      }
+                      placeholder="TRX-123456"
+                      placeholderTextColor={colors.mutedForeground}
+                      maxLength={INPUT_LIMITS.transferReference}
+                      style={styles.input}
+                    />
+                  </>
+                ) : null}
+
+                {detailsModalMethod === "cash-counter" ? (
+                  <>
+                    <Text style={styles.label}>Payer Name</Text>
+                    <TextInput
+                      value={accountName}
+                      onChangeText={(value) =>
+                        setAccountName(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.name }))
+                      }
+                      placeholder="Full name"
+                      placeholderTextColor={colors.mutedForeground}
+                      maxLength={INPUT_LIMITS.name}
+                      style={styles.input}
+                    />
+                    <Text style={styles.infoHint}>
+                      Your counter reference will be generated automatically after confirmation.
+                    </Text>
+                  </>
+                ) : null}
+
+                <View style={styles.modalActions}>
+                  <Pressable
+                    style={[styles.modalButton, styles.modalCancelButton]}
+                    onPress={() => setDetailsModalMethod(null)}
+                  >
+                    <Text style={styles.modalCancelText}>Cancel</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.modalButton, styles.modalPrimaryButton]}
+                    onPress={() => {
+                      setError("");
+                      setDetailsModalMethod(null);
+                    }}
+                  >
+                    <Text style={styles.modalPrimaryText}>Save Details</Text>
+                  </Pressable>
                 </View>
-              </>
-            ) : null}
-
-            {detailsModalMethod === "easypaisa" || detailsModalMethod === "quick-pay" ? (
-              <>
-                <Text style={styles.label}>Payer Name</Text>
-                <TextInput
-                  value={accountName}
-                  onChangeText={(value) =>
-                    setAccountName(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.name }))
-                  }
-                  placeholder="Full name"
-                  placeholderTextColor={colors.mutedForeground}
-                  maxLength={INPUT_LIMITS.name}
-                  style={styles.input}
-                />
-
-                <Text style={styles.label}>Wallet / Phone Number</Text>
-                <TextInput
-                  value={accountNumber}
-                  onChangeText={(value) =>
-                    setAccountNumber(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.accountNumber }))
-                  }
-                  placeholder="03xx xxxxxxx"
-                  placeholderTextColor={colors.mutedForeground}
-                  keyboardType="phone-pad"
-                  maxLength={INPUT_LIMITS.accountNumber}
-                  style={styles.input}
-                />
-              </>
-            ) : null}
-
-            {detailsModalMethod === "bank-transfer" ? (
-              <>
-                <Text style={styles.label}>Account Holder Name</Text>
-                <TextInput
-                  value={accountName}
-                  onChangeText={(value) =>
-                    setAccountName(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.name }))
-                  }
-                  placeholder="Full name"
-                  placeholderTextColor={colors.mutedForeground}
-                  maxLength={INPUT_LIMITS.name}
-                  style={styles.input}
-                />
-
-                <Text style={styles.label}>Bank Account / IBAN</Text>
-                <TextInput
-                  value={accountNumber}
-                  onChangeText={(value) =>
-                    setAccountNumber(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.accountNumber }))
-                  }
-                  placeholder="PK00 WORK 0000 1234 5678"
-                  placeholderTextColor={colors.mutedForeground}
-                  maxLength={INPUT_LIMITS.accountNumber}
-                  style={styles.input}
-                />
-
-                <Text style={styles.label}>Transfer Reference</Text>
-                <TextInput
-                  value={transferReference}
-                  onChangeText={(value) =>
-                    setTransferReference(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.transferReference }))
-                  }
-                  placeholder="TRX-123456"
-                  placeholderTextColor={colors.mutedForeground}
-                  maxLength={INPUT_LIMITS.transferReference}
-                  style={styles.input}
-                />
-              </>
-            ) : null}
-
-            {detailsModalMethod === "cash-counter" ? (
-              <>
-                <Text style={styles.label}>Payer Name</Text>
-                <TextInput
-                  value={accountName}
-                  onChangeText={(value) =>
-                    setAccountName(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.name }))
-                  }
-                  placeholder="Full name"
-                  placeholderTextColor={colors.mutedForeground}
-                  maxLength={INPUT_LIMITS.name}
-                  style={styles.input}
-                />
-                <Text style={styles.infoHint}>
-                  Your counter reference will be generated automatically after confirmation.
-                </Text>
-              </>
-            ) : null}
-
-            <View style={styles.modalActions}>
-              <Pressable
-                style={[styles.modalButton, styles.modalCancelButton]}
-                onPress={() => setDetailsModalMethod(null)}
-              >
-                <Text style={styles.modalCancelText}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.modalButton, styles.modalPrimaryButton]}
-                onPress={() => {
-                  setError("");
-                  setDetailsModalMethod(null);
-                }}
-              >
-                <Text style={styles.modalPrimaryText}>Save Details</Text>
-              </Pressable>
-            </View>
+              </View>
+            </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </Screen>
   );
@@ -782,12 +805,22 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
     marginTop: 8,
     textAlign: "center",
   },
+  modalRoot: {
+    flex: 1,
+  },
   modalBackdrop: {
     flex: 1,
     backgroundColor: "rgba(15, 23, 42, 0.35)",
     alignItems: "center",
     justifyContent: "center",
     padding: 24,
+  },
+  modalScrollView: {
+    width: "100%",
+  },
+  modalScrollContent: {
+    flexGrow: 1,
+    justifyContent: "center",
   },
   modalCard: {
     width: "100%",

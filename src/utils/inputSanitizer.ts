@@ -9,7 +9,7 @@ import {
 const MULTI_SPACE_REGEX = /\s+/g;
 
 export const INPUT_LIMITS = {
-  email: 254,
+  email: 254, 
   password: 128,
   name: 80,
   phone: 20,
