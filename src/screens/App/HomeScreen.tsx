@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   Modal,
@@ -57,8 +57,8 @@ export default function HomeScreen() {
   const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
   const [lightboxImage, setLightboxImage] = useState<GalleryImage | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [locationOptions, setLocationOptions] = useState<string[]>([]);
-  const [selectedLocation, setSelectedLocation] = useState("");
+  const [searchOptions, setSearchOptions] = useState<string[]>([]);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [datePickerMonth, setDatePickerMonth] = useState(startOfMonth(new Date()));
@@ -78,38 +78,31 @@ export default function HomeScreen() {
 
     getWorkspaces()
       .then((items) => {
-        const nextLocations = Array.from(
+        const nextSearchOptions = Array.from(
           new Set(
-            items
-              .map((workspace) => workspace.location.trim())
-              .filter((location) => location.length > 0),
+            items.flatMap((workspace) => [
+              workspace.name.trim(),
+              workspace.location.trim(),
+              workspace.type.trim(),
+            ]).filter((value) => value.length > 0),
           ),
         ).sort((a, b) => a.localeCompare(b));
-        setLocationOptions(nextLocations);
+        setSearchOptions(nextSearchOptions);
       })
       .catch(() => {
-        setLocationOptions([]);
+        setSearchOptions([]);
       });
   }, []);
 
-  const cycleLocation = () => {
-    if (locationOptions.length === 0) {
-      return;
-    }
+  const visibleSearchOptions = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    const filteredOptions =
+      query.length === 0
+        ? searchOptions
+        : searchOptions.filter((option) => option.toLowerCase().includes(query));
 
-    if (!selectedLocation) {
-      setSelectedLocation(locationOptions[0]);
-      return;
-    }
-
-    const currentIndex = locationOptions.findIndex((location) => location === selectedLocation);
-    if (currentIndex === -1 || currentIndex === locationOptions.length - 1) {
-      setSelectedLocation("");
-      return;
-    }
-
-    setSelectedLocation(locationOptions[currentIndex + 1]);
-  };
+    return filteredOptions.slice(0, 8);
+  }, [searchOptions, searchQuery]);
 
   const formattedDate = selectedDate
     ? selectedDate.toLocaleDateString(undefined, {
@@ -136,6 +129,8 @@ export default function HomeScreen() {
               onChangeText={(value) =>
                 setSearchQuery(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.search }))
               }
+              onFocus={() => setIsSearchFocused(true)}
+              onBlur={() => setTimeout(() => setIsSearchFocused(false), 120)}
               placeholder="Search for a coworking space"
               placeholderTextColor={colors.mutedForeground}
               maxLength={INPUT_LIMITS.search}
@@ -143,7 +138,28 @@ export default function HomeScreen() {
             />
           </View>
 
-          <View style={styles.filterRow}>
+          {isSearchFocused && visibleSearchOptions.length > 0 ? (
+            <View style={styles.searchSuggestions}>
+              {visibleSearchOptions.map((option) => (
+                <Pressable
+                  key={option}
+                  style={({ pressed }) => [
+                    styles.searchSuggestionItem,
+                    pressed && styles.searchSuggestionItemPressed,
+                  ]}
+                  onPress={() => {
+                    setSearchQuery(option);
+                    setIsSearchFocused(false);
+                  }}
+                >
+                  <Ionicons name="search-outline" size={16} color={colors.mutedForeground} />
+                  <Text style={styles.searchSuggestionText}>{option}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+
+          {/* <View style={styles.filterRow}>
             <Pressable style={styles.dropdown} onPress={cycleLocation}>
               <Text
                 style={[
@@ -178,16 +194,8 @@ export default function HomeScreen() {
             >
               <Text style={styles.searchButtonText}>Search</Text>
             </Pressable>
-          </View>
+          </View> */}
 
-          <View style={styles.actionButtons}>
-            <Pressable
-              style={[styles.actionButton, styles.blueButton]}
-              onPress={() => navigation.navigate("ContactUs", { source: "tour" })}
-            >
-              <Text style={styles.blueButtonText}>Book a tour</Text>
-            </Pressable>
-          </View>
         </View>
 
         <View style={styles.section}>
@@ -222,6 +230,18 @@ export default function HomeScreen() {
               <Text style={styles.planDescription}>{plan.description}</Text>
             </View>
           ))}
+        
+         <View style={styles.actionButtons}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Want to see the space in person?</Text>
+          </View>
+            <Pressable
+              style={[styles.actionButton, styles.blueButton]}
+              onPress={() => navigation.navigate("ContactUs", { source: "tour" })}
+            >
+              <Text style={styles.blueButtonText}>Book a tour</Text>
+            </Pressable>
+          </View>
         </View>
       </ScrollView>
 
@@ -300,6 +320,7 @@ export default function HomeScreen() {
             </Pressable>
           ) : null}
         </Pressable>
+
       </Modal>
     </Screen>
   );
@@ -465,6 +486,30 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
     backgroundColor: colors.muted,
   },
   searchInput: {
+    flex: 1,
+    color: colors.foreground,
+    fontSize: 14,
+  },
+  searchSuggestions: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+    overflow: "hidden",
+  },
+  searchSuggestionItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  searchSuggestionItemPressed: {
+    backgroundColor: colors.muted,
+  },
+  searchSuggestionText: {
     flex: 1,
     color: colors.foreground,
     fontSize: 14,

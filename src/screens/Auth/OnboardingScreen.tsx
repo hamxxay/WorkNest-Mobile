@@ -17,6 +17,7 @@ import Animated, {
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
+  type SharedValue,
 } from "react-native-reanimated";
 import type { RootStackParamList } from "../../navigation/types";
 import { Screen } from "../../components/Screen";
@@ -55,7 +56,7 @@ type OnboardingSlideProps = {
   cardWidth: number;
   index: number;
   slide: Slide;
-  scrollX: Animated.SharedValue<number>;
+  scrollX: SharedValue<number>;
   styles: ReturnType<typeof createStyles>;
 };
 

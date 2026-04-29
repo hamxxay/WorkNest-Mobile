@@ -203,6 +203,7 @@ export default function AdminManageScreen({
   entity: AdminEntity;
   embedded?: boolean;
 }) {
+  const colors = useThemeColors();
   const styles = useThemedStyles(createStyles);
   const config = useMemo(() => configs[entity], [entity]);
   const [items, setItems] = useState<any[]>([]);

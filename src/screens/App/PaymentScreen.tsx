@@ -46,6 +46,19 @@ const PAYMENT_METHODS: { key: PaymentMethod; label: string; helper: string }[] =
   { key: "bank-transfer", label: "Bank Transfer", helper: "Transfer to the WorkNest bank account" },
 ];
 
+function formatDate(value?: string) {
+  if (!value) {
+    return "-";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleString();
+}
+
 export default function PaymentScreen() {
   const colors = useThemeColors();
   const styles = useThemedStyles(createStyles);

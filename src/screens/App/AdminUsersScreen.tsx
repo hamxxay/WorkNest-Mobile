@@ -19,6 +19,7 @@ function normalizeRoles(roles: AdminUser["roles"] | string | undefined): string 
 }
 
 export default function AdminUsersScreen({ embedded = false }: { embedded?: boolean }) {
+  const colors = useThemeColors();
   const styles = useThemedStyles(createStyles);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
