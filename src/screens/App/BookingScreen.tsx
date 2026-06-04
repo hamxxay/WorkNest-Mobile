@@ -17,7 +17,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { AppStackParamList, MainTabParamList } from "../../navigation/types";
 import { Screen } from "../../components/Screen";
 import { radii, useThemeColors, useThemedStyles } from "../../theme";
-import { createBooking, getWorkspaces } from "../../services/workspaceService";
+import { createBooking, getWorkspaces, getLocations } from "../../services/workspaceService";
 import { SmartImage } from "../../components/SmartImage";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Header } from "../../components/Header";
@@ -67,6 +67,7 @@ export default function BookingScreen() {
   const colorScheme = useColorScheme();
   const route = useRoute<RouteProp<MainTabParamList, "Booking">>();
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [dbLocations, setDbLocations] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [workspaceType, setWorkspaceType] = useState<string>("");
@@ -103,9 +104,13 @@ export default function BookingScreen() {
   const [bookingRangePickerOpen, setBookingRangePickerOpen] = useState(false);
 
   useEffect(() => {
-    getWorkspaces()
-      .then((items) => {
-        setWorkspaces(items);
+    Promise.all([getWorkspaces(), getLocations()])
+      .then(([wsItems, locItems]) => {
+        setWorkspaces(wsItems);
+        setDbLocations(locItems.map((loc) => loc.name));
+      })
+      .catch((err) => {
+        console.warn("Failed to load workspaces or locations:", err);
       })
       .finally(() => {
         setLoading(false);
@@ -121,6 +126,9 @@ export default function BookingScreen() {
   const quickSharedRangeLabel = getRangeLabel(quickSharedRangeStart, quickSharedRangeEnd);
 
   const locationOptions = useMemo(() => {
+    if (dbLocations.length > 0) {
+      return dbLocations;
+    }
     return Array.from(
       new Set(
         workspaces
@@ -128,7 +136,7 @@ export default function BookingScreen() {
           .filter((location) => location.length > 0)
       )
     ).sort((a, b) => a.localeCompare(b));
-  }, [workspaces]);
+  }, [workspaces, dbLocations]);
 
   const filteredWorkspaces = useMemo(() => {
     const query = sanitizeSearchInput(searchQuery).toLowerCase();

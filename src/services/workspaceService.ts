@@ -11,6 +11,15 @@ import {
 } from "../utils/inputSanitizer";
 export type Faq = {};
 
+export type ApiLocation = {
+  id: number;
+  idGuid: string;
+  name: string;
+  city?: string;
+  address?: string;
+  status?: number;
+};
+
 export type Workspace = {
   id: number;
   name: string;
@@ -193,4 +202,17 @@ export async function cancelBooking(bookingId: number) {
     method: "PATCH",
     requiresAuth: true,
   });
+}
+
+export async function getLocations(): Promise<ApiLocation[]> {
+  const payload = await apiRequest<ApiListResponse<ApiLocation>>(
+    API_ENDPOINTS.locations.list,
+    {
+      requiresAuth: true,
+    }
+  );
+
+  return Array.isArray(payload)
+    ? payload
+    : payload.data ?? payload.items ?? [];
 }

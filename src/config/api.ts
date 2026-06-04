@@ -85,6 +85,9 @@ export const API_ENDPOINTS = {
   payments: {
     my: "/payment/my",
   },
+  locations: {
+    list: "/location",
+  },
   admin: {
     dashboardSummary: "/dashboard/summary",
     recentBookings: (limit: number) => `/booking/recent?limit=${limit}`,
