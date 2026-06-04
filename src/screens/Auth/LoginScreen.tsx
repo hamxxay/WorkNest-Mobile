@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   ActivityIndicator,
+  Dimensions,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -17,7 +18,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { AuthStackParamList, RootStackParamList } from "../../navigation/types";
 import { Screen } from "../../components/Screen";
 import { ConfirmModal } from "../../components/ConfirmModal";
-import { radii, useThemeColors, useThemedStyles } from "../../theme";
+import { useThemeColors, useThemedStyles } from "../../theme";
 import { ApiError } from "../../services/apiClient";
 import {
   beginGoogleAuth,
@@ -32,6 +33,8 @@ import {
   sanitizeEmailInput,
   sanitizeTextForState,
 } from "../../utils/inputSanitizer";
+
+const { width: SW } = Dimensions.get("window");
 
 export default function LoginScreen() {
   const colors = useThemeColors();
@@ -133,6 +136,8 @@ export default function LoginScreen() {
 
   return (
     <Screen>
+      <View style={styles.bgDecor1} />
+      <View style={styles.bgDecor2} />
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -144,6 +149,7 @@ export default function LoginScreen() {
         >
           <View style={styles.brandBlock}>
             <View style={styles.logoWell}>
+              <View style={styles.logoGlow} />
               <Image
                 source={require("../../../public/Logo.png")}
                 style={styles.logo}
@@ -151,11 +157,11 @@ export default function LoginScreen() {
               />
             </View>
             <Text style={styles.brandTitle}>WorkNest</Text>
-            <Text style={styles.brandSubtitle}>Welcome back</Text>
+            <Text style={styles.brandSubtitle}>Welcome back 👋</Text>
           </View>
 
           <View style={styles.card}>
-            <Text style={styles.title}>Log In</Text>
+            <Text style={styles.title}>Sign In</Text>
             <Text style={styles.subtitle}>
               Access your bookings and workspace history.
             </Text>
@@ -209,12 +215,6 @@ export default function LoginScreen() {
               </Pressable>
             </View>
 
-            {/* {!!error && (
-              <View style={styles.errorBlock}>
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
-            )} */}
-
             <Pressable
               style={[styles.primaryButton, loading && styles.primaryButtonDisabled]}
               onPress={handleLogin}
@@ -223,14 +223,14 @@ export default function LoginScreen() {
               {loading ? (
                 <ActivityIndicator size="small" color={colors.white} />
               ) : (
-                <Text style={styles.primaryButtonText}>Log In</Text>
+                <Text style={styles.primaryButtonText}>Sign In</Text>
               )}
             </Pressable>
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
             <View style={styles.dividerRow}>
               <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>or</Text>
+              <Text style={styles.dividerText}>or continue with</Text>
               <View style={styles.dividerLine} />
             </View>
 
@@ -243,22 +243,24 @@ export default function LoginScreen() {
                 <ActivityIndicator size="small" color={colors.foreground} />
               ) : (
                 <>
-                  <Ionicons name="logo-google" size={18} color={colors.foreground} />
+                  <Ionicons name="logo-google" size={18} color="#EA4335" />
                   <Text style={styles.googleButtonText}>Continue with Google</Text>
                 </>
               )}
             </Pressable>
 
-            <Pressable style={styles.linkButton} onPress={handleForgotPassword}>
-              <Text style={styles.linkText}>Forgot password?</Text>
-            </Pressable>
-
-            <Pressable
-              style={styles.linkButton}
-              onPress={() => navigation.navigate("Signup")}
-            >
-              <Text style={styles.linkText}>Create an account</Text>
-            </Pressable>
+            <View style={styles.footerLinks}>
+              <Pressable style={styles.linkButton} onPress={handleForgotPassword}>
+                <Text style={styles.linkText}>Forgot password?</Text>
+              </Pressable>
+              <Text style={styles.footerDivider}>·</Text>
+              <Pressable
+                style={styles.linkButton}
+                onPress={() => navigation.navigate("Signup")}
+              >
+                <Text style={styles.linkText}>Create account</Text>
+              </Pressable>
+            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -283,153 +285,197 @@ export default function LoginScreen() {
 }
 
 const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.create({
-  flex: {
-    flex: 1,
+  flex: { flex: 1 },
+  bgDecor1: {
+    position: "absolute",
+    width: SW * 1.2,
+    height: SW * 1.2,
+    borderRadius: SW * 0.6,
+    backgroundColor: colors.primaryMuted,
+    top: -SW * 0.65,
+    right: -SW * 0.25,
+    opacity: 0.55,
+  },
+  bgDecor2: {
+    position: "absolute",
+    width: SW * 0.7,
+    height: SW * 0.7,
+    borderRadius: SW * 0.35,
+    backgroundColor: colors.secondary,
+    bottom: -SW * 0.2,
+    left: -SW * 0.2,
+    opacity: 0.06,
   },
   content: {
-    padding: 20,
-    paddingTop: 30,
-    paddingBottom: 40,
+    flexGrow: 1,
+    padding: 24,
+    paddingTop: 44,
+    paddingBottom: 48,
   },
   brandBlock: {
-    marginBottom: 24,
     alignItems: "center",
-    gap: 4,
+    marginBottom: 36,
+    gap: 8,
   },
   logoWell: {
-    width: 72,
-    height: 72,
-    borderRadius: 20,
-    backgroundColor: colors.card,
+    width: 80,
+    height: 80,
+    borderRadius: 26,
+    backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 14,
-    shadowColor: colors.shadow,
-    shadowOpacity: 0.1,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 5,
+    marginBottom: 18,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.4,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 10,
   },
-  logo: {
-    width: 44,
-    height: 44,
+  logoGlow: {
+    position: "absolute",
+    width: "100%",
+    height: "100%",
+    borderRadius: 26,
+    backgroundColor: colors.secondary,
+    opacity: 0.3,
   },
+  logo: { width: 48, height: 48 },
   brandTitle: {
     fontSize: 32,
     fontWeight: "800",
-    letterSpacing: 0.4,
+    letterSpacing: -1,
     color: colors.foreground,
   },
   brandSubtitle: {
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 15,
+    fontWeight: "500",
     color: colors.mutedForeground,
   },
   card: {
     backgroundColor: colors.card,
-    borderRadius: radii.lg,
+    borderRadius: 28,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: 20,
-    gap: 14,
-    shadowColor: "#0f172a",
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 2,
+    padding: 26,
+    gap: 16,
+    shadowColor: colors.shadow,
+    shadowOpacity: 0.1,
+    shadowRadius: 28,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 6,
   },
   title: {
     fontSize: 28,
     fontWeight: "800",
     color: colors.foreground,
+    letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 14,
     color: colors.mutedForeground,
-    marginTop: -4,
-    marginBottom: 6,
+    marginTop: -8,
+    lineHeight: 21,
   },
   label: {
     color: colors.foreground,
-    fontWeight: "600",
-    fontSize: 15,
+    fontWeight: "700",
+    fontSize: 13,
+    letterSpacing: 0.3,
+    marginBottom: -8,
   },
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.border,
-    borderRadius: radii.md,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    gap: 8,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    gap: 10,
     backgroundColor: colors.muted,
   },
   input: {
     flex: 1,
     color: colors.foreground,
-    fontSize: 16,
+    fontSize: 15,
   },
   primaryButton: {
-    marginTop: 10,
     backgroundColor: colors.primary,
-    borderRadius: radii.md,
-    paddingVertical: 14,
+    borderRadius: 14,
+    paddingVertical: 16,
     alignItems: "center",
+    shadowColor: colors.primary,
+    shadowOpacity: 0.38,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
   },
-  primaryButtonDisabled: {
-    opacity: 0.65,
-  },
+  primaryButtonDisabled: { opacity: 0.6 },
   primaryButtonText: {
     color: colors.white,
     fontWeight: "700",
     fontSize: 16,
+    letterSpacing: 0.2,
   },
   errorText: {
-    color: "#dc2626",
+    color: colors.danger,
     fontSize: 13,
     textAlign: "center",
+    backgroundColor: colors.dangerMuted,
+    borderRadius: 10,
+    paddingVertical: 9,
+    paddingHorizontal: 14,
   },
   dividerRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    marginTop: 2,
   },
   dividerLine: {
     flex: 1,
-    height: 1,
+    height: StyleSheet.hairlineWidth,
     backgroundColor: colors.border,
   },
   dividerText: {
     color: colors.mutedForeground,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "600",
-    textTransform: "uppercase",
+    letterSpacing: 0.3,
   },
   googleButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
-    borderWidth: 1,
+    gap: 10,
+    borderWidth: 1.5,
     borderColor: colors.border,
-    borderRadius: radii.md,
+    borderRadius: 14,
     paddingVertical: 14,
-    backgroundColor: colors.muted,
+    backgroundColor: colors.card,
   },
   googleButtonText: {
     color: colors.foreground,
     fontWeight: "700",
     fontSize: 15,
   },
-  linkButton: {
+  footerLinks: {
+    flexDirection: "row",
     alignItems: "center",
-    marginTop: 2,
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 4,
+  },
+  footerDivider: {
+    color: colors.border,
+    fontSize: 18,
+    fontWeight: "300",
+  },
+  linkButton: {
+    paddingVertical: 2,
   },
   linkText: {
-    color: colors.secondary,
-    fontWeight: "600",
+    color: colors.primary,
+    fontWeight: "700",
     fontSize: 14,
   },
 });

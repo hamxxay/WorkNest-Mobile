@@ -3,49 +3,49 @@ import { useColorScheme } from "react-native";
 
 const lightColors = {
   // Surfaces
-  background: "#EFF3FA", // page background — soft cool tint so white cards lift off it
-  card: "#FFFFFF", // elevated surfaces (cards, sheets, inputs)
+  background: "#F0F4FF",
+  card: "#FFFFFF",
   // Text
-  foreground: "#101828",
-  mutedForeground: "#5A6B85",
+  foreground: "#0A1628",
+  mutedForeground: "#4E637F",
   // Brand
-  primary: "#2F54EB",
-  secondary: "#1D39C4",
-  primaryMuted: "#E7ECFE", // tinted brand fill for chips / icon wells
+  primary: "#4F46E5",
+  secondary: "#7C3AED",
+  primaryMuted: "#EDE9FE",
   // Neutrals
-  muted: "#EEF2FB",
-  border: "#E4E9F2",
+  muted: "#EEF2FF",
+  border: "#DDE3F5",
   // Accents
-  accent: "#F5A524",
-  accentMuted: "#FFF3DC",
+  accent: "#F97316",
+  accentMuted: "#FFF0E6",
   // Status
-  success: "#1FA971",
-  successMuted: "#E6F6EF",
-  danger: "#E5484D",
-  dangerMuted: "#FCEBEC",
+  success: "#059669",
+  successMuted: "#D1FAE5",
+  danger: "#DC2626",
+  dangerMuted: "#FEE2E2",
   // Utility
-  overlay: "rgba(16, 24, 40, 0.55)",
-  shadow: "#0B1B3A",
+  overlay: "rgba(10, 22, 40, 0.55)",
+  shadow: "#1E1B4B",
   white: "#FFFFFF",
 };
 
 const darkColors: typeof lightColors = {
-  background: "#0B1220",
-  card: "#151E32",
-  foreground: "#F8FAFC",
-  mutedForeground: "#9AA8C2",
-  primary: "#5B7BFF",
-  secondary: "#93B0FF",
-  primaryMuted: "#1C2747",
-  muted: "#1C2740",
-  border: "#27324A",
-  accent: "#FFB74D",
-  accentMuted: "#3A2E15",
+  background: "#060B18",
+  card: "#0F1829",
+  foreground: "#EEF2FF",
+  mutedForeground: "#7A8BAA",
+  primary: "#818CF8",
+  secondary: "#A78BFA",
+  primaryMuted: "#1E1B4B",
+  muted: "#111827",
+  border: "#1E2D45",
+  accent: "#FB923C",
+  accentMuted: "#431407",
   success: "#34D399",
-  successMuted: "#123026",
+  successMuted: "#064E3B",
   danger: "#F87171",
-  dangerMuted: "#3A1D1F",
-  overlay: "rgba(0, 0, 0, 0.6)",
+  dangerMuted: "#450A0A",
+  overlay: "rgba(0, 0, 0, 0.7)",
   shadow: "#000000",
   white: "#FFFFFF",
 };
@@ -91,24 +91,24 @@ export const spacing = {
  */
 export const shadows = {
   sm: {
-    shadowColor: "#0B1B3A",
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
+    shadowColor: "#0D1526",
+    shadowOpacity: 0.07,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
   },
   md: {
-    shadowColor: "#0B1B3A",
-    shadowOpacity: 0.1,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 5,
+    shadowColor: "#0D1526",
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 6,
   },
   lg: {
-    shadowColor: "#0B1B3A",
-    shadowOpacity: 0.14,
-    shadowRadius: 28,
-    shadowOffset: { width: 0, height: 16 },
-    elevation: 10,
+    shadowColor: "#0D1526",
+    shadowOpacity: 0.18,
+    shadowRadius: 32,
+    shadowOffset: { width: 0, height: 20 },
+    elevation: 12,
   },
 } as const;
