@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   KeyboardAvoidingView,
   Modal,
@@ -77,6 +77,23 @@ export default function PaymentScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [voucher, setVoucher] = useState<PaymentItem | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("beforeRemove", (e) => {
+      if (!voucher) {
+        // If booking is not complete, let them go back normally
+        return;
+      }
+
+      // Prevent default behavior of leaving the screen
+      e.preventDefault();
+
+      // Navigate to Home
+      navigation.navigate("MainTabs", { screen: "Home" });
+    });
+
+    return unsubscribe;
+  }, [navigation, voucher]);
 
   const bookingAmount = useMemo(() => {
     if (booking.mode === "office") {
