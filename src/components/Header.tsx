@@ -71,17 +71,18 @@ export function Header() {
 
   return (
     <View style={styles.container}>
+      <Pressable onPress={openDrawer} style={styles.menuButton}>
+        <Ionicons name="menu" size={20} color={colors.foreground} />
+      </Pressable>
+      
       <View style={styles.brand}>
         <View style={styles.logoWell}>
           <Image source={require('../../public/Logo.png')} style={styles.logoImage} resizeMode="contain" />
         </View>
         <Text style={styles.logoText}>WorkNest</Text>
       </View>
-      <View style={styles.actions}>
-        <Pressable onPress={openDrawer} style={styles.menuButton}>
-          <Ionicons name="menu" size={20} color={colors.foreground} />
-        </Pressable>
-      </View>
+      
+      <View style={{ width: 40 }} />
     </View>
   );
 }
