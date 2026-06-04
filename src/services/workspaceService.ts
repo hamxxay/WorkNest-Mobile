@@ -112,18 +112,25 @@ function normalizeSpaceType(type?: string): Workspace["type"] {
 }
 
 export async function getWorkspaces(): Promise<Workspace[]> {
-  const payload = await apiRequest<ApiListResponse<ApiWorkspace>>(
-    API_ENDPOINTS.workspaces.list,
-    {
-      requiresAuth: true,
-    }
-  );
+  try {
+    const payload = await apiRequest<ApiListResponse<ApiWorkspace>>(
+      API_ENDPOINTS.workspaces.list,
+      {
+        requiresAuth: true,
+      }
+    );
 
-  const items = Array.isArray(payload)
-    ? payload
-    : payload.data ?? payload.items ?? payload.workspaces ?? [];
+    if (!payload) return [];
 
-  return items.map(mapWorkspace);
+    const items = Array.isArray(payload)
+      ? payload
+      : payload.data ?? payload.items ?? payload.workspaces ?? [];
+
+    return items.map(mapWorkspace);
+  } catch (err) {
+    console.error("Error fetching workspaces:", err);
+    return [];
+  }
 }
 
 export async function createBooking(
@@ -205,14 +212,21 @@ export async function cancelBooking(bookingId: number) {
 }
 
 export async function getLocations(): Promise<ApiLocation[]> {
-  const payload = await apiRequest<ApiListResponse<ApiLocation>>(
-    API_ENDPOINTS.locations.list,
-    {
-      requiresAuth: true,
-    }
-  );
+  try {
+    const payload = await apiRequest<ApiListResponse<ApiLocation>>(
+      API_ENDPOINTS.locations.list,
+      {
+        requiresAuth: true,
+      }
+    );
 
-  return Array.isArray(payload)
-    ? payload
-    : payload.data ?? payload.items ?? [];
+    if (!payload) return [];
+
+    return Array.isArray(payload)
+      ? payload
+      : payload.data ?? payload.items ?? [];
+  } catch (err) {
+    console.error("Error fetching locations:", err);
+    return [];
+  }
 }

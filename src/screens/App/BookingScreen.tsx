@@ -104,17 +104,35 @@ export default function BookingScreen() {
   const [bookingRangePickerOpen, setBookingRangePickerOpen] = useState(false);
 
   useEffect(() => {
-    Promise.all([getWorkspaces(), getLocations()])
-      .then(([wsItems, locItems]) => {
-        setWorkspaces(wsItems);
-        setDbLocations(locItems.map((loc) => loc.name));
+    setLoading(true);
+    
+    const workspacesPromise = getWorkspaces()
+      .then((items) => {
+        if (Array.isArray(items)) {
+          setWorkspaces(items);
+        } else {
+          console.warn("getWorkspaces did not return an array:", items);
+        }
       })
       .catch((err) => {
-        console.warn("Failed to load workspaces or locations:", err);
-      })
-      .finally(() => {
-        setLoading(false);
+        console.warn("Failed to load workspaces:", err);
       });
+
+    const locationsPromise = getLocations()
+      .then((items) => {
+        if (Array.isArray(items)) {
+          setDbLocations(items.map((loc) => loc?.name).filter(Boolean));
+        } else {
+          console.warn("getLocations did not return an array:", items);
+        }
+      })
+      .catch((err) => {
+        console.warn("Failed to load locations:", err);
+      });
+
+    Promise.allSettled([workspacesPromise, locationsPromise]).finally(() => {
+      setLoading(false);
+    });
   }, []);
 
   useEffect(() => {
