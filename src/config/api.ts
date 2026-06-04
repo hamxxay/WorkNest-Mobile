@@ -1,0 +1,94 @@
+import { NativeModules, Platform } from "react-native";
+import { API_BASE } from "@env";
+
+const LOCALHOST_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
+
+function parseHost(value?: string | null): string | null {
+  if (!value) return null;
+
+  try {
+    const hostname = new URL(value).hostname;
+    if (hostname) return hostname;
+  } catch {}
+
+  const match = value.match(/\/\/(\[[^\]]+\]|[^/:]+)(?::\d+)?/);
+  if (!match?.[1]) return null;
+
+  return match[1].replace(/^\[|\]$/g, "");
+}
+
+function resolveDevApiHost(host: string): string {
+  if (Platform.OS === "android" && LOCALHOST_HOSTS.has(host)) {
+    return "10.0.2.2";
+  }
+
+  return host;
+}
+
+function getMetroHostFromScriptUrl(): string | null {
+  if (!__DEV__) return null;
+
+  const scriptURL = NativeModules?.SourceCode?.scriptURL as string | undefined;
+  const scriptHost = parseHost(scriptURL);
+  if (scriptHost) return scriptHost;
+
+  const serverHost = NativeModules?.PlatformConstants?.ServerHost as
+    | string
+    | undefined;
+
+  return parseHost(serverHost);
+}
+
+function getDevApiBaseUrl() {
+  const metroHost = getMetroHostFromScriptUrl();
+
+  if (metroHost) {
+    return `http://${resolveDevApiHost(metroHost)}:3000/api`;
+  }
+
+  return Platform.OS === "android"
+    ? "http://10.0.2.2:3000/api"
+    : "http://localhost:3000/api";
+}
+
+const DEV_API_BASE_URL = getDevApiBaseUrl();
+const ENV_API_BASE_URL = (API_BASE ?? "").trim();
+const PROD_API_BASE_URL = ENV_API_BASE_URL;
+const FALLBACK_API_BASE_URL = __DEV__ ? DEV_API_BASE_URL : PROD_API_BASE_URL;
+
+export const API_BASE_URL = ENV_API_BASE_URL.length > 0
+  ? ENV_API_BASE_URL
+  : FALLBACK_API_BASE_URL;
+
+export const API_ENDPOINTS = {
+  auth: {
+    login: "/auth/login",
+    signup: "/auth/register",
+    profile: "/auth/me",
+    logout: "/auth/logout",
+  },
+  workspaces: {
+    list: "/space",
+    book: "/booking",
+    myBookings: "/booking/my",
+    cancelBooking: (id: number) => `/booking/${id}/cancel`,
+  },
+  pricing: {
+    list: "/pricingplan",
+  },
+  gallery: {
+    list: "/gallery",
+  },
+  contact: {
+    create: "/contact",
+  },
+  payments: {
+    my: "/payment/my",
+  },
+  admin: {
+    dashboardSummary: "/dashboard/summary",
+    recentBookings: (limit: number) => `/booking/recent?limit=${limit}`,
+    recentContacts: (limit: number) => `/contact/recent?limit=${limit}`,
+    users: "/user",
+  },
+} as const;

@@ -1,0 +1,137 @@
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Header } from "../../components/Header";
+import { Screen } from "../../components/Screen";
+import { radii, useThemeColors, useThemedStyles } from "../../theme";
+import { useEffect, useMemo, useState } from "react";
+import { getPricingPlans, type PricingPlan } from "../../services/pricingService";
+import Ionicons from "react-native-vector-icons/Ionicons";
+
+const fallbackPlans: PricingPlan[] = [];
+
+export default function PricingScreen() {
+  const colors = useThemeColors();
+  const styles = useThemedStyles(createStyles);
+  const [plans, setPlans] = useState<PricingPlan[]>(fallbackPlans);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getPricingPlans()
+      .then((items) => {
+        if (items.length > 0) {
+          setPlans(items);
+        }
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, []);
+
+  const sortedPlans = useMemo(
+    () => [...plans].sort((a, b) => Number(a.price) - Number(b.price)),
+    [plans]
+  );
+
+  return (
+    <Screen>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <Header />
+
+        <View style={styles.hero}>
+          <Text style={styles.title}>Simple, Transparent Pricing</Text>
+          <Text style={styles.subtitle}>
+            Choose the plan that fits your team and scale anytime.
+          </Text>
+        </View>
+
+        {loading ? <Text style={styles.helper}>Loading plans...</Text> : null}
+
+        {sortedPlans.map((plan) => (
+          <View key={plan.id ?? plan.name} style={[styles.card, plan.popular && styles.popularCard]}>
+            {plan.popular ? <Text style={styles.popularBadge}>Most Popular</Text> : null}
+            <Text style={styles.cardTitle}>{plan.name}</Text>
+            <Text style={styles.cardPrice}>PKR {Number(plan.price).toFixed(0)}/mo</Text>
+            <Text style={styles.cardDescription}>{plan.description}</Text>
+
+            <View style={styles.featuresList}>
+              {plan.features.map((feature) => (
+                <View key={feature} style={styles.featureRow}>
+                  <Ionicons name="checkmark-circle" size={16} color={colors.primary} />
+                  <Text style={styles.featureText}>{feature}</Text>
+                </View>
+              ))}
+            </View>
+
+            <Pressable style={[styles.ctaButton, plan.popular && styles.ctaButtonPopular]}>
+              <Text style={styles.ctaText}>{plan.cta ?? "Get Started"}</Text>
+            </Pressable>
+          </View>
+        ))}
+
+        <Text style={styles.faqTitle}>FAQs</Text>
+      </ScrollView>
+    </Screen>
+  );
+}
+
+const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.create({
+  content: { paddingHorizontal: 20, paddingBottom: 24 },
+  hero: {
+    backgroundColor: colors.primaryMuted,
+    borderRadius: radii.lg,
+    padding: 22,
+    marginBottom: 18,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  title: { fontSize: 26, fontWeight: "800", letterSpacing: 0.2, color: colors.foreground },
+  subtitle: { marginTop: 8, fontSize: 15, lineHeight: 21, color: colors.mutedForeground },
+  helper: { color: colors.mutedForeground, marginBottom: 10 },
+  card: {
+    backgroundColor: colors.card,
+    borderRadius: radii.md,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 16,
+    gap: 8,
+    shadowColor: "#0B1B3A",
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
+  },
+  popularCard: { borderColor: colors.primary, borderWidth: 2 },
+  popularBadge: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: colors.primary,
+    color: colors.white,
+    fontSize: 12,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  cardTitle: { fontSize: 20, fontWeight: "800", color: colors.foreground },
+  cardPrice: { fontSize: 28, fontWeight: "800", color: colors.primary, marginVertical: 4 },
+  cardDescription: { color: colors.mutedForeground, fontSize: 14, marginBottom: 10 },
+  featuresList: { gap: 8, marginVertical: 10 },
+  featureRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  featureText: { color: colors.foreground, fontSize: 14, fontWeight: "500" },
+  ctaButton: {
+    marginTop: 12,
+    borderRadius: radii.md,
+    backgroundColor: colors.foreground,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  ctaButtonPopular: { backgroundColor: colors.primary },
+  ctaText: { color: colors.white, fontWeight: "800", fontSize: 14 },
+  faqTitle: {
+    marginTop: 12,
+    marginBottom: 8,
+    fontSize: 20,
+    fontWeight: "700",
+    color: colors.foreground,
+  },
+});
