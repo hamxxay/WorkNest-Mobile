@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
   Modal,
@@ -25,6 +25,7 @@ import {
   sanitizePhoneInput,
   sanitizeTextForState,
 } from "../../utils/inputSanitizer";
+import { useAuth } from "../../context/AuthContext";
 
 type StepKey = "datetime" | "guest" | "payment";
 type CalendarDay = {
@@ -55,6 +56,7 @@ export default function BookingInfoScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const route = useRoute<RouteProp<AppStackParamList, "BookingInfo">>();
   const { workspace, booking } = route.params;
+  const { user } = useAuth();
   const isOffice = booking.mode === "office";
   const isShared = booking.mode === "shared";
   const isMeeting = booking.mode === "meeting";
@@ -71,6 +73,16 @@ export default function BookingInfoScreen() {
   const [datePickerValue, setDatePickerValue] = useState<Date>(new Date());
   const [datePickerMonth, setDatePickerMonth] = useState<Date>(startOfMonth(new Date()));
   const [timePickerValue, setTimePickerValue] = useState<Date>(new Date());
+  const [isPrepopulated, setIsPrepopulated] = useState(false);
+
+  useEffect(() => {
+    if (user && !isPrepopulated) {
+      if (user.name) setName(user.name);
+      if (user.email) setEmail(user.email);
+      if (user.phoneNumber) setPhone(user.phoneNumber);
+      setIsPrepopulated(true);
+    }
+  }, [user, isPrepopulated]);
 
   const timeOptions = useMemo(() => {
     if (isOffice) {

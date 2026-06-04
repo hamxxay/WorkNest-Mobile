@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -29,6 +29,7 @@ import {
   sanitizePhoneInput,
   sanitizeTextForState,
 } from "../../utils/inputSanitizer";
+import { useAuth } from "../../context/AuthContext";
 
 const WHATSAPP_NUMBER = "923160577702";
 
@@ -37,6 +38,7 @@ export default function ContactUsScreen() {
   const colors = useThemeColors();
   const styles = useThemedStyles(createStyles);
   const route = useRoute<RouteProp<AppStackParamList, "ContactUs">>();
+  const { user } = useAuth();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -44,6 +46,16 @@ export default function ContactUsScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [isPrepopulated, setIsPrepopulated] = useState(false);
+
+  useEffect(() => {
+    if (user && !isPrepopulated) {
+      if (user.name) setFullName(user.name);
+      if (user.email) setEmail(user.email);
+      if (user.phoneNumber) setPhone(user.phoneNumber);
+      setIsPrepopulated(true);
+    }
+  }, [user, isPrepopulated]);
 
   const introTitle = route.params?.source === "tour" ? "Book a Tour" : "Contact Us";
   const introText = useMemo(

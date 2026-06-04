@@ -9,6 +9,7 @@ export type StoredUser = {
   id?: string | number;
   name?: string;
   email?: string;
+  phoneNumber?: string;
   role?: string;
   roles?: string[] | string;
   userType?: string;
