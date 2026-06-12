@@ -4,18 +4,52 @@ import { Header } from "../../components/Header";
 import { Screen } from "../../components/Screen";
 import { radii, useThemedStyles, useThemeColors } from "../../theme";
 import { getMyPayments, type PaymentItem } from "../../services/paymentService";
+import { getMyBookings, type BookingItem } from "../../services/workspaceService";
 
 export default function MyPaymentsScreen() {
   const styles = useThemedStyles(createStyles);
   const [payments, setPayments] = useState<PaymentItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [bookings, setBookings] = useState<BookingItem[]>([]);
+  const [loadingPayments, setLoadingPayments] = useState(true);
+  const [loadingBookings, setLoadingBookings] = useState(true);
 
   useEffect(() => {
+    let active = true;
+
     getMyPayments()
-      .then((items) => setPayments(items))
-      .catch(() => setPayments([]))
-      .finally(() => setLoading(false));
+      .then((items) => {
+        if (!active) return;
+        setPayments(items);
+      })
+      .catch(() => {
+        if (!active) return;
+        setPayments([]);
+      })
+      .finally(() => {
+        if (!active) return;
+        setLoadingPayments(false);
+      });
+
+    getMyBookings()
+      .then((items) => {
+        if (!active) return;
+        setBookings(items as BookingItem[]);
+      })
+      .catch(() => {
+        if (!active) return;
+        setBookings([]);
+      })
+      .finally(() => {
+        if (!active) return;
+        setLoadingBookings(false);
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
+
+  const loading = loadingPayments || loadingBookings;
 
   const totalPaid = useMemo(
     () =>
@@ -49,8 +83,27 @@ export default function MyPaymentsScreen() {
           </View>
         </View>
 
-        {loading ? <Text style={styles.helper}>Loading payments...</Text> : null}
-        {!loading && payments.length === 0 ? (
+        <Text style={styles.sectionTitle}>Booking History</Text>
+        {loadingBookings && !bookings.length ? (
+          <Text style={styles.helper}>Loading booking history...</Text>
+        ) : null}
+        {!loadingBookings && bookings.length === 0 ? (
+          <Text style={styles.helper}>No booking history found.</Text>
+        ) : null}
+
+        {bookings.map((booking) => (
+          <View key={String(booking.id)} style={styles.card}>
+            <Text style={styles.cardTitle}>{booking.spaceName ?? `Booking #${booking.id}`}</Text>
+            <Text style={styles.meta}>Start: {formatDate(booking.startDateTime)}</Text>
+            <Text style={styles.meta}>End: {formatDate(booking.endDateTime)}</Text>
+            <Text style={styles.meta}>Amount: PKR {Number(booking.totalAmount ?? 0).toFixed(2)}</Text>
+            <Text style={styles.meta}>Status: {booking.bookingStatus ?? "Unknown"}</Text>
+          </View>
+        ))}
+
+        <Text style={styles.sectionTitle}>Payments</Text>
+        {loadingPayments && !payments.length ? <Text style={styles.helper}>Loading payments...</Text> : null}
+        {!loadingPayments && payments.length === 0 ? (
           <Text style={styles.helper}>No payments found.</Text>
         ) : null}
 

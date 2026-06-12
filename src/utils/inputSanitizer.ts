@@ -13,7 +13,7 @@ export const INPUT_LIMITS = {
   password: 128,
   name: 80,
   phone: 20,
-  message: 1000,
+  message: 100,
   notes: 300,
   search: 80,
   cardHolderName: 80,

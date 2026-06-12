@@ -46,11 +46,11 @@ export async function getMyPayments(): Promise<PaymentItem[]> {
   let remotePayments: PaymentItem[] = [];
 
   try {
-    const payload = await apiRequest<PaymentResponse>(API_ENDPOINTS.payments.my, {
+    const payload = await apiRequest<PaymentItem[]>(API_ENDPOINTS.payments.my, {
       requiresAuth: true,
     });
 
-    remotePayments = Array.isArray(payload) ? payload : payload.data ?? payload.items ?? [];
+    remotePayments = Array.isArray(payload) ? payload : [];
   } catch {
     remotePayments = [];
   }

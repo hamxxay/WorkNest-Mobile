@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, ActivityIndicator } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useIsFocused } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ConfirmModal } from "../../components/ConfirmModal";
 import { Header } from "../../components/Header";
@@ -75,6 +75,8 @@ export default function ProfileScreen() {
     navigation.reset({ index: 0, routes: [{ name: "AuthStack", params: { screen: "Login" } }] });
   };
 
+  const isFocused = useIsFocused();
+
   useEffect(() => {
     let active = true;
     getMyBookings()
@@ -90,7 +92,7 @@ export default function ProfileScreen() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [isFocused]);
 
   const summaryItems = useMemo(
     () => [

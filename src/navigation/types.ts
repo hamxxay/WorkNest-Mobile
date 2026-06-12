@@ -29,6 +29,7 @@ export type AuthStackParamList = {
 
 export type WorkspaceSummary = {
   id: number;
+  idGuid?: string;
   name: string;
   type: "Private Office" | "Co-Working Space" | "Meeting Room" | "Event Space";
   location: string;

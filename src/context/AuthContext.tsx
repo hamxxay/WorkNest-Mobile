@@ -35,20 +35,27 @@ function hasAdminRole(user: StoredUser | null): boolean {
   }
 
   const roleCandidate = user.role ?? user.userType ?? (user.userRole as string | undefined);
-  if (typeof roleCandidate === "string" && roleCandidate.toLowerCase() === "admin") {
+  if (
+    typeof roleCandidate === "string" &&
+    (roleCandidate.toLowerCase() === "admin" ||
+      roleCandidate.toLowerCase() === "super_admin")
+  ) {
     return true;
   }
 
   if (typeof user.roles === "string") {
-    return user.roles
+    const roleList = user.roles
       .split(",")
-      .map((value) => value.trim().toLowerCase())
-      .includes("admin");
+      .map((value) => value.trim().toLowerCase());
+    return roleList.includes("admin") || roleList.includes("super_admin");
   }
 
   if (Array.isArray(user.roles)) {
     return user.roles.some(
-      (role) => typeof role === "string" && role.toLowerCase() === "admin"
+      (role) =>
+        typeof role === "string" &&
+        (role.toLowerCase() === "admin" ||
+          role.toLowerCase() === "super_admin")
     );
   }
 

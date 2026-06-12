@@ -6,19 +6,20 @@ import { radii, useThemeColors, useThemedStyles } from "../../theme";
 import { cancelBooking, getMyBookings } from "../../services/workspaceService";
 
 type BookingItem = {
-  id: number;
+  id: number | string;
+  idGuid?: string;
   spaceName?: string;
   startDateTime?: string;
   endDateTime?: string;
-  totalAmount?: number;
-  bookingStatus?: string;
+  totalAmount?: number | null;
+  bookingStatus?: string | null;
 };
 
 export default function MyBookingsScreen() {
   const styles = useThemedStyles(createStyles);
   const [bookings, setBookings] = useState<BookingItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [cancellingId, setCancellingId] = useState<number | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
 
   const loadBookings = async () => {
     setLoading(true);
@@ -36,16 +37,17 @@ export default function MyBookingsScreen() {
     loadBookings();
   }, []);
 
-  const handleCancel = (id: number) => {
+  const handleCancel = (booking: BookingItem) => {
+    const cancelId = booking.idGuid || booking.id;
     Alert.alert("Cancel booking", "Are you sure you want to cancel this booking?", [
       { text: "No", style: "cancel" },
       {
         text: "Yes",
         style: "destructive",
         onPress: async () => {
-          setCancellingId(id);
+          setCancellingId(String(cancelId));
           try {
-            await cancelBooking(id);
+            await cancelBooking(cancelId);
             await loadBookings();
           } catch {
             Alert.alert("Error", "Failed to cancel booking.");
@@ -69,7 +71,7 @@ export default function MyBookingsScreen() {
         ) : null}
 
         {bookings.map((booking) => (
-          <View key={booking.id} style={styles.card}>
+          <View key={String(booking.id)} style={styles.card}>
             <Text style={styles.cardTitle}>{booking.spaceName ?? `Booking #${booking.id}`}</Text>
             <Text style={styles.meta}>Start: {formatDate(booking.startDateTime)}</Text>
             <Text style={styles.meta}>End: {formatDate(booking.endDateTime)}</Text>
@@ -77,11 +79,11 @@ export default function MyBookingsScreen() {
             <Text style={styles.status}>Status: {booking.bookingStatus ?? "Unknown"}</Text>
             <Pressable
               style={styles.cancelButton}
-              onPress={() => handleCancel(booking.id)}
-              disabled={cancellingId === booking.id}
+              onPress={() => handleCancel(booking)}
+              disabled={cancellingId === String(booking.idGuid || booking.id)}
             >
               <Text style={styles.cancelText}>
-                {cancellingId === booking.id ? "Cancelling..." : "Cancel Booking"}
+                {cancellingId === String(booking.idGuid || booking.id) ? "Cancelling..." : "Cancel Booking"}
               </Text>
             </Pressable>
           </View>

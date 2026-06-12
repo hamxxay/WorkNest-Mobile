@@ -43,12 +43,12 @@ function getDevApiBaseUrl() {
   const metroHost = getMetroHostFromScriptUrl();
 
   if (metroHost) {
-    return `http://${resolveDevApiHost(metroHost)}:3000/api`;
+    return `http://${resolveDevApiHost(metroHost)}:8000/api`;
   }
 
   return Platform.OS === "android"
-    ? "http://10.0.2.2:3000/api"
-    : "http://localhost:3000/api";
+    ? "http://10.0.2.2:8000/api"
+    : "http://localhost:8000/api";
 }
 
 const DEV_API_BASE_URL = getDevApiBaseUrl();
@@ -71,7 +71,7 @@ export const API_ENDPOINTS = {
     list: "/space",
     book: "/booking",
     myBookings: "/booking/my",
-    cancelBooking: (id: number) => `/booking/${id}/cancel`,
+    cancelBooking: (id: number | string) => `/booking/${id}/cancel`,
   },
   pricing: {
     list: "/pricingplan",

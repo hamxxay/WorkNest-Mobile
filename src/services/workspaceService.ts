@@ -38,27 +38,38 @@ type ApiListResponse<T> =
       data?: T[];
       items?: T[];
       workspaces?: T[];
+      total?: number;
     };
 
+function extractList<T>(payload: ApiListResponse<T> | null | undefined): T[] {
+  if (!payload) return [];
+  if (Array.isArray(payload)) return payload;
+  return payload.data ?? payload.items ?? payload.workspaces ?? [];
+}
+
 type ApiWorkspace = {
-  id: number;
+  id?: number | string;
+  numericId?: number;
+  idGuid?: string;
   name?: string;
   locationName?: string;
   spaceTypeName?: string;
-  capacity?: number | string;
-  amenities?: string;
-  pricePerDay?: number;
-  status?: string;
-  imageUrl?: string;
+  capacity?: number | string | null;
+  amenities?: string | null;
+  pricePerDay?: number | null;
+  status?: string | number | null;
+  spaceStatus?: string | null;
+  imageUrl?: string | null;
 };
 
 type ApiBooking = {
-  id: number;
+  id?: number | string;
+  idGuid?: string;
   spaceName?: string;
   startDateTime?: string;
   endDateTime?: string;
-  totalAmount?: number;
-  bookingStatus?: string;
+  totalAmount?: number | null;
+  bookingStatus?: string | null;
 };
 
 export type BookingGuestDetails = {
@@ -82,9 +93,13 @@ export type BookingCreateDetails = {
 };
 
 function mapWorkspace(item: ApiWorkspace): Workspace {
-  const resolvedImageUrl = resolveMediaUrl(item.imageUrl);
+  const resolvedImageUrl = resolveMediaUrl(item.imageUrl ?? undefined);
+  const rawStatus = item.spaceStatus ?? item.status;
+  const available = rawStatus == null
+    ? true
+    : String(rawStatus).toLowerCase() === "available" || rawStatus === 1;
   return {
-    id: item.id,
+    id: Number(item.numericId ?? item.id ?? 0),
     name: item.name ?? "Workspace",
     type: normalizeSpaceType(item.spaceTypeName),
     location: item.locationName ?? "Unknown location",
@@ -99,7 +114,7 @@ function mapWorkspace(item: ApiWorkspace): Workspace {
     image:
       resolvedImageUrl ||
       "https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=800&h=600&fit=crop",
-    available: (item.status ?? "available").toLowerCase() !== "inactive",
+    available,
   };
 }
 
@@ -122,9 +137,7 @@ export async function getWorkspaces(): Promise<Workspace[]> {
 
     if (!payload) return [];
 
-    const items = Array.isArray(payload)
-      ? payload
-      : payload.data ?? payload.items ?? payload.workspaces ?? [];
+    const items = extractList(payload);
 
     return items.map(mapWorkspace);
   } catch (err) {
@@ -192,19 +205,18 @@ export async function createBooking(
 }
 
 export async function getMyBookings() {
-  const payload = await apiRequest<ApiListResponse<ApiBooking>>(
-    API_ENDPOINTS.workspaces.myBookings,
-    {
-      requiresAuth: true,
-    }
-  );
-
-  return Array.isArray(payload)
-    ? payload
-    : payload.data ?? payload.items ?? payload.workspaces ?? [];
+  try {
+    const payload = await apiRequest<ApiListResponse<ApiBooking>>(
+      API_ENDPOINTS.workspaces.myBookings,
+      { requiresAuth: true }
+    );
+    return extractList(payload);
+  } catch {
+    return [];
+  }
 }
 
-export async function cancelBooking(bookingId: number) {
+export async function cancelBooking(bookingId: number | string) {
   return apiRequest(API_ENDPOINTS.workspaces.cancelBooking(bookingId), {
     method: "PATCH",
     requiresAuth: true,
@@ -222,9 +234,7 @@ export async function getLocations(): Promise<ApiLocation[]> {
 
     if (!payload) return [];
 
-    return Array.isArray(payload)
-      ? payload
-      : payload.data ?? payload.items ?? [];
+    return extractList(payload);
   } catch (err) {
     console.error("Error fetching locations:", err);
     return [];

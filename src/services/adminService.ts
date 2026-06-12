@@ -155,7 +155,10 @@ function buildQuery({ page, limit, search }: ListQuery = {}): string {
 }
 
 function ensureSuccess<T>(response: ApiResponse<T>, fallbackMessage: string): T {
-  if (response?.isSuccessful && response.data !== undefined) {
+  if (response?.isSuccessful === false) {
+    throw new Error(response?.message || fallbackMessage);
+  }
+  if (response && response.data !== undefined) {
     return response.data;
   }
   throw new Error(response?.message || fallbackMessage);

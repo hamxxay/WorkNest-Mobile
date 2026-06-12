@@ -78,7 +78,7 @@ export async function syncUserWithBackend(user: StoredUser): Promise<void> {
       firstName = parts[0] || "";
       lastName = parts.slice(1).join(" ") || "";
     }
-    
+
     await apiRequest("/auth/sync", {
       method: "POST",
       body: {
@@ -157,6 +157,52 @@ function configureGoogleAuth() {
   googleSigninConfigured = true;
 }
 
+type AuthListener = (user: StoredUser | null) => void;
+const authListeners = new Set<AuthListener>();
+
+function notifyAuthListeners(user: StoredUser | null) {
+  for (const listener of authListeners) {
+    try {
+      listener(user);
+    } catch (err) {
+      console.warn("Error in auth listener:", err);
+    }
+  }
+}
+
+export async function triggerBackgroundSync(currentUser: StoredUser) {
+  if (!currentUser.email) return;
+  try {
+    // 1. Synchronize user profile with backend database
+    await syncUserWithBackend(currentUser);
+    // 2. Fetch profile from database to get correct role
+    const profile = await apiRequest<{
+      id: string | null;
+      email: string;
+      name: string;
+      phone: string;
+      role: string;
+    }>("/auth/me", {
+      requiresAuth: true,
+    });
+    if (profile) {
+      const activeUser = await getUser();
+      if (activeUser && activeUser.email === currentUser.email) {
+        const updatedUser: StoredUser = {
+          ...activeUser,
+          id: profile.id ?? activeUser.id,
+          name: profile.name || activeUser.name,
+          role: profile.role || "general",
+        };
+        await saveUser(updatedUser);
+        notifyAuthListeners(updatedUser);
+      }
+    }
+  } catch (err) {
+    console.warn("[Background Sync] Failed:", err);
+  }
+}
+
 async function persistFirebaseSession(
   user: FirebaseAuthTypes.User,
   displayNameOverride?: string
@@ -174,14 +220,16 @@ async function persistFirebaseSession(
     idToken: idToken.slice(0, 10) + "..." + idToken.slice(-10), // Log only the beginning and end of the token for debuggings
   });
   await saveToken(idToken);
-  await saveUser(firebaseUser);
 
-  // Synchronize user profile with backend database
-  syncUserWithBackend(firebaseUser).catch((err) => {
-    console.warn("Failed to sync user session to database:", err);
-  });
+  const existing = await getUser();
+  const mergedUser: StoredUser = {
+    ...existing,
+    ...firebaseUser,
+    role: existing?.role ?? firebaseUser.role, // preserve existing role if we already have it
+  };
+  await saveUser(mergedUser);
 
-  return { user: firebaseUser, idToken };
+  return { user: mergedUser, idToken };
 }
 
 export async function logoutUser(): Promise<void> {
@@ -235,19 +283,28 @@ export async function hydrateSessionUser(): Promise<StoredUser | null> {
     email: maskEmail(firebaseUser.email),
   });
   const session = await persistFirebaseSession(firebaseUser);
+
+  // Non-blocking trigger of sync/fetch profile
+  triggerBackgroundSync(session.user).catch((err) => {
+    console.warn("hydrateSessionUser background sync triggered error:", err);
+  });
+
   return session.user;
 }
 
 export function subscribeToAuthChanges(
   onChange: (user: StoredUser | null) => void
 ) {
+  authListeners.add(onChange);
+
+  let firebaseUnsubscribe = () => { };
   try {
-    return getFirebaseAuth().onIdTokenChanged(async (firebaseUser) => {
+    firebaseUnsubscribe = getFirebaseAuth().onIdTokenChanged(async (firebaseUser) => {
       if (!firebaseUser) {
         debugAuth("auth state changed", { signedIn: false });
         await removeToken();
         await removeUser();
-        onChange(null);
+        notifyAuthListeners(null);
         return;
       }
 
@@ -257,14 +314,23 @@ export function subscribeToAuthChanges(
         email: maskEmail(firebaseUser.email),
       });
       const session = await persistFirebaseSession(firebaseUser);
-      onChange(session.user);
+      notifyAuthListeners(session.user);
+
+      // Non-blocking trigger of sync/fetch profile
+      triggerBackgroundSync(session.user).catch((err) => {
+        console.warn("subscribeToAuthChanges background sync triggered error:", err);
+      });
     });
   } catch (error) {
     debugAuth("subscribe auth changes skipped", {
       message: error instanceof Error ? error.message : "unknown",
     });
-    return () => {};
   }
+
+  return () => {
+    authListeners.delete(onChange);
+    firebaseUnsubscribe();
+  };
 }
 
 export async function loginUser(payload: LoginRequest): Promise<AuthResponse> {
