@@ -43,12 +43,12 @@ function getDevApiBaseUrl() {
   const metroHost = getMetroHostFromScriptUrl();
 
   if (metroHost) {
-    return `http://${resolveDevApiHost(metroHost)}:8000/api`;
+    return `https://${resolveDevApiHost(metroHost)}:8000/api`;
   }
 
   return Platform.OS === "android"
     ? "http://10.0.2.2:8000/api"
-    : "http://localhost:8000/api";
+    : "https://work-nest-api-s.vercel.app/api";
 }
 
 const DEV_API_BASE_URL = getDevApiBaseUrl();
