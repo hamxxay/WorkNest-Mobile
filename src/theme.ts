@@ -3,21 +3,21 @@ import { useColorScheme } from "react-native";
 
 const lightColors = {
   // Surfaces
-  background: "#F0F4FF",
+  background: "#F0FAF9",
   card: "#FFFFFF",
   // Text
   foreground: "#0A1628",
   mutedForeground: "#4E637F",
   // Brand
-  primary: "#4F46E5",
-  secondary: "#7C3AED",
-  primaryMuted: "#EDE9FE",
+  primary: "#0d9488",
+  secondary: "#0f766e",
+  primaryMuted: "rgba(13, 148, 136, 0.08)",
   // Neutrals
-  muted: "#EEF2FF",
-  border: "#DDE3F5",
+  muted: "#F0FAF9",
+  border: "#99F6E4",
   // Accents
-  accent: "#F97316",
-  accentMuted: "#FFF0E6",
+  accent: "#115e59",
+  accentMuted: "rgba(13, 148, 136, 0.16)",
   // Status
   success: "#059669",
   successMuted: "#D1FAE5",
@@ -25,22 +25,22 @@ const lightColors = {
   dangerMuted: "#FEE2E2",
   // Utility
   overlay: "rgba(10, 22, 40, 0.55)",
-  shadow: "#1E1B4B",
+  shadow: "#0d9488",
   white: "#FFFFFF",
 };
 
 const darkColors: typeof lightColors = {
-  background: "#060B18",
-  card: "#0F1829",
-  foreground: "#EEF2FF",
-  mutedForeground: "#7A8BAA",
-  primary: "#818CF8",
-  secondary: "#A78BFA",
-  primaryMuted: "#1E1B4B",
-  muted: "#111827",
-  border: "#1E2D45",
-  accent: "#FB923C",
-  accentMuted: "#431407",
+  background: "#021a18",
+  card: "#0a2420",
+  foreground: "#F0FAF9",
+  mutedForeground: "#5eead4",
+  primary: "#0d9488",
+  secondary: "#5eead4",
+  primaryMuted: "rgba(13, 148, 136, 0.16)",
+  muted: "#0a2420",
+  border: "#115e59",
+  accent: "#5eead4",
+  accentMuted: "rgba(13, 148, 136, 0.16)",
   success: "#34D399",
   successMuted: "#064E3B",
   danger: "#F87171",

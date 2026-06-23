@@ -66,10 +66,17 @@ type ApiBooking = {
   id?: number | string;
   idGuid?: string;
   spaceName?: string;
+  spaceId?: number | string;
   startDateTime?: string;
   endDateTime?: string;
   totalAmount?: number | null;
+  paidAmount?: number | null;
+  pricePerDay?: number | null;
   bookingStatus?: string | null;
+  paymentStatus?: string | null;
+  notes?: string | null;
+  spaceImageUrl?: string | null;
+  locationName?: string | null;
 };
 
 export type BookingGuestDetails = {
@@ -214,6 +221,19 @@ export async function getMyBookings() {
   } catch {
     return [];
   }
+}
+
+export async function updateBooking(
+  bookingId: number | string,
+  startDateTime: string,
+  endDateTime: string,
+  notes?: string
+) {
+  return apiRequest(API_ENDPOINTS.workspaces.updateBooking(bookingId), {
+    method: "PUT",
+    requiresAuth: true,
+    body: { startDateTime, endDateTime, notes: notes ?? null },
+  });
 }
 
 export async function cancelBooking(bookingId: number | string) {

@@ -54,11 +54,21 @@ android {
             keyPassword 'android'
         }
         release {
-            if (keystorePropertiesFile.exists()) {
+            if (keystorePropertiesFile.exists() &&
+                keystoreProperties["MYAPP_UPLOAD_STORE_FILE"] &&
+                keystoreProperties["MYAPP_UPLOAD_STORE_PASSWORD"] &&
+                keystoreProperties["MYAPP_UPLOAD_KEY_ALIAS"] &&
+                keystoreProperties["MYAPP_UPLOAD_KEY_PASSWORD"]) {
                 storeFile file(keystoreProperties["MYAPP_UPLOAD_STORE_FILE"])
                 storePassword keystoreProperties["MYAPP_UPLOAD_STORE_PASSWORD"]
                 keyAlias keystoreProperties["MYAPP_UPLOAD_KEY_ALIAS"]
                 keyPassword keystoreProperties["MYAPP_UPLOAD_KEY_PASSWORD"]
+            } else {
+                // Fallback to debug signing when keystore.properties is missing
+                storeFile file('debug.keystore')
+                storePassword 'android'
+                keyAlias 'androiddebugkey'
+                keyPassword 'android'
             }
         }
     }

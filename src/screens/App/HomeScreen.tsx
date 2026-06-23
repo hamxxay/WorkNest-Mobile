@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
+  Dimensions,
   Modal,
   Pressable,
   ScrollView,
@@ -23,10 +24,40 @@ import Ionicons from "react-native-vector-icons/Ionicons";
 import { Header } from "../../components/Header";
 import { INPUT_LIMITS, sanitizeTextForState } from "../../utils/inputSanitizer";
 
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+
 const HERO_SLIDES = [
-  "https://images.unsplash.com/photo-1497366754035-f200968a6e72?w=1200&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1497366412874-3415097a27e7?w=1200&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=1200&auto=format&fit=crop",
+  {
+    uri: "https://images.unsplash.com/photo-1497366754035-f200968a6e72?w=1400&auto=format&fit=crop",
+    tag: "MODERN OFFICE",
+    headline: "Where Great\nWork Begins",
+    sub: "Private desks & shared spaces",
+    accent: "#0d9488",
+    tableUri: "https://images.unsplash.com/photo-1554295405-abb8fd54f153?w=800&auto=format&fit=crop",
+  },
+  {
+    uri: "https://images.unsplash.com/photo-1497366412874-3415097a27e7?w=1400&auto=format&fit=crop",
+    tag: "MEETING ROOMS",
+    headline: "Built for Bold\nDecisions",
+    sub: "Fully equipped boardrooms",
+    accent: "#0f766e",
+    tableUri: "https://images.unsplash.com/photo-1600508774634-4e11d34730e2?w=800&auto=format&fit=crop",
+  },
+  {
+    uri: "https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=1400&auto=format&fit=crop",
+    tag: "CREATIVE COWORK",
+    headline: "Inspire Your\nBest Work",
+    sub: "Open coworking & lounges",
+    accent: "#115e59",
+    tableUri: "https://images.unsplash.com/photo-1593642632559-0c6d3fc62b89?w=800&auto=format&fit=crop",
+  },
+];
+
+const QUICK_ACTIONS = [
+  { icon: "calendar-outline", label: "Book Now", screen: "Booking" as const },
+  { icon: "pricetag-outline", label: "Pricing", screen: "Pricing" as const },
+  { icon: "images-outline", label: "Gallery", screen: "Gallery" as const },
+  { icon: "mail-outline", label: "Contact", screen: "ContactUs" as const },
 ];
 
 const MONTH_LABELS = [
@@ -121,23 +152,36 @@ export default function HomeScreen() {
 
         <HeroSlideshow />
 
+        {/* ── Search bar ── */}
         <View style={styles.searchCard}>
           <View style={styles.searchRow}>
-            <Ionicons name="search" size={18} color={colors.mutedForeground} />
+            <Ionicons name="search" size={18} color={colors.primary} />
             <TextInput
               value={searchQuery}
               onChangeText={(value) =>
                 setSearchQuery(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.search }))
               }
               onFocus={() => setIsSearchFocused(true)}
-              onBlur={() => setTimeout(() => setIsSearchFocused(false), 120)}
-              placeholder="Search for a coworking space"
+              onBlur={() => setTimeout(() => setIsSearchFocused(false), 150)}
+              onSubmitEditing={() => {
+                if (searchQuery.trim().length > 0) {
+                  navigation.navigate("Booking", { initialSearch: searchQuery.trim() });
+                }
+              }}
+              placeholder="Search spaces, locations…"
               placeholderTextColor={colors.mutedForeground}
               maxLength={INPUT_LIMITS.search}
+              returnKeyType="search"
               style={styles.searchInput}
             />
+            {searchQuery.length > 0 && (
+              <Pressable onPress={() => setSearchQuery("")} hitSlop={8}>
+                <Ionicons name="close-circle" size={18} color={colors.mutedForeground} />
+              </Pressable>
+            )}
           </View>
 
+          {/* Suggestions dropdown */}
           {isSearchFocused && visibleSearchOptions.length > 0 ? (
             <View style={styles.searchSuggestions}>
               {visibleSearchOptions.map((option) => (
@@ -150,52 +194,51 @@ export default function HomeScreen() {
                   onPress={() => {
                     setSearchQuery(option);
                     setIsSearchFocused(false);
+                    navigation.navigate("Booking", { initialSearch: option });
                   }}
                 >
-                  <Ionicons name="search-outline" size={16} color={colors.mutedForeground} />
+                  <Ionicons name="location-outline" size={15} color={colors.primary} />
                   <Text style={styles.searchSuggestionText}>{option}</Text>
+                  <Ionicons name="arrow-forward-outline" size={13} color={colors.mutedForeground} />
                 </Pressable>
               ))}
             </View>
           ) : null}
 
-          {/* <View style={styles.filterRow}>
-            <Pressable style={styles.dropdown} onPress={cycleLocation}>
-              <Text
-                style={[
-                  styles.dropdownText,
-                  selectedLocation ? styles.dropdownTextActive : undefined,
-                ]}
-                numberOfLines={1}
-              >
-                {selectedLocation || "Location"}
-              </Text>
-              <Ionicons name="chevron-down" size={16} color={colors.mutedForeground} />
-            </Pressable>
-            <Pressable style={styles.dropdown} onPress={() => setDatePickerOpen(true)}>
-              <Text
-                style={[
-                  styles.dropdownText,
-                  selectedDate ? styles.dropdownTextActive : undefined,
-                ]}
-                numberOfLines={1}
-              >
-                {formattedDate}
-              </Text>
-              <Ionicons name="chevron-down" size={16} color={colors.mutedForeground} />
-            </Pressable>
+          {/* Search button — only shown when there is a query */}
+          {searchQuery.trim().length > 0 && !isSearchFocused && (
             <Pressable
-              style={styles.searchButton}
+              style={styles.searchSubmitBtn}
               onPress={() =>
-                navigation.navigate("Booking", {
-                  initialLocation: selectedLocation || undefined,
-                })
+                navigation.navigate("Booking", { initialSearch: searchQuery.trim() })
               }
             >
-              <Text style={styles.searchButtonText}>Search</Text>
+              <Ionicons name="search" size={15} color="#fff" />
+              <Text style={styles.searchSubmitText}>Search "{searchQuery.trim()}"</Text>
             </Pressable>
-          </View> */}
+          )}
+        </View>
 
+        {/* ── Quick actions ── */}
+        <View style={styles.quickActions}>
+          {QUICK_ACTIONS.map((action) => (
+            <Pressable
+              key={action.label}
+              style={({ pressed }) => [styles.quickAction, pressed && styles.quickActionPressed]}
+              onPress={() => {
+                if (action.screen === "ContactUs") {
+                  navigation.navigate("ContactUs", { source: "home" });
+                } else {
+                  navigation.navigate(action.screen as any);
+                }
+              }}
+            >
+              <View style={styles.quickActionIcon}>
+                <Ionicons name={action.icon as any} size={22} color={colors.primary} />
+              </View>
+              <Text style={styles.quickActionLabel}>{action.label}</Text>
+            </Pressable>
+          ))}
         </View>
 
         <View style={styles.section}>
@@ -337,51 +380,298 @@ export default function HomeScreen() {
 }
 
 function HeroSlideshow() {
-  const heroFade = useRef(new Animated.Value(1)).current;
-  const styles = useThemedStyles(createStyles);
-  const [activeHeroIndex, setActiveHeroIndex] = useState(0);
+  const colors = useThemeColors();
+  const [activeIndex, setActiveIndex] = useState(0);
 
+  // Background crossfade
+  const bgOpacity = useRef(new Animated.Value(1)).current;
+  // Foreground card float animation (looping)
+  const floatAnim = useRef(new Animated.Value(0)).current;
+  // Tag + headline slide-up on change
+  const textY = useRef(new Animated.Value(0)).current;
+  const textOpacity = useRef(new Animated.Value(1)).current;
+  // Table card scale pulse
+  const tableScale = useRef(new Animated.Value(1)).current;
+
+  const slide = HERO_SLIDES[activeIndex];
+  const nextIndex = (activeIndex + 1) % HERO_SLIDES.length;
+
+  // Looping float
   useEffect(() => {
-    const intervalId = setInterval(() => {
+    Animated.loop(
       Animated.sequence([
-        Animated.timing(heroFade, {
-          toValue: 0,
-          duration: 350,
-          useNativeDriver: true,
-        }),
-        Animated.timing(heroFade, {
-          toValue: 1,
-          duration: 350,
-          useNativeDriver: true,
-        }),
+        Animated.timing(floatAnim, { toValue: -8, duration: 2000, useNativeDriver: true }),
+        Animated.timing(floatAnim, { toValue: 0, duration: 2000, useNativeDriver: true }),
+      ])
+    ).start();
+  }, [floatAnim]);
+
+  // Auto-advance
+  useEffect(() => {
+    const id = setInterval(() => advanceTo((activeIndex + 1) % HERO_SLIDES.length), 4200);
+    return () => clearInterval(id);
+  }, [activeIndex]);
+
+  function advanceTo(idx: number) {
+    // 1. fade text out + slide up
+    Animated.parallel([
+      Animated.timing(textOpacity, { toValue: 0, duration: 220, useNativeDriver: true }),
+      Animated.timing(textY, { toValue: -14, duration: 220, useNativeDriver: true }),
+    ]).start(() => {
+      // 2. crossfade bg
+      Animated.sequence([
+        Animated.timing(bgOpacity, { toValue: 0, duration: 300, useNativeDriver: true }),
+        Animated.timing(bgOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
       ]).start();
+      // 3. table pop
+      Animated.sequence([
+        Animated.timing(tableScale, { toValue: 0.92, duration: 180, useNativeDriver: true }),
+        Animated.spring(tableScale, { toValue: 1, friction: 5, useNativeDriver: true }),
+      ]).start();
+      // 4. swap slide + fade text in
+      setActiveIndex(idx);
+      textY.setValue(14);
+      Animated.parallel([
+        Animated.timing(textOpacity, { toValue: 1, duration: 340, useNativeDriver: true }),
+        Animated.timing(textY, { toValue: 0, duration: 340, useNativeDriver: true }),
+      ]).start();
+    });
+  }
 
-      setActiveHeroIndex((currentIndex) => (currentIndex + 1) % HERO_SLIDES.length);
-    }, 3500);
-
-    return () => clearInterval(intervalId);
-  }, [heroFade]);
+  const HERO_H = 310;
+  const TABLE_W = SCREEN_WIDTH * 0.52;
+  const TABLE_H = TABLE_W * 0.72;
 
   return (
-    <View style={styles.heroCard}>
-      <Animated.View style={[styles.heroFadeLayer, { opacity: heroFade }]}>
-        <SmartImage uri={HERO_SLIDES[activeHeroIndex]} style={styles.heroImage} />
-      </Animated.View>
-      <View style={styles.heroScrim} pointerEvents="none" />
-      <View style={styles.heroContent} pointerEvents="none">
-        <Text style={styles.heroEyebrow}>WORKNEST</Text>
-        <Text style={styles.heroTitle}>Find Your Perfect Workspace</Text>
-        <Text style={styles.heroSubtitle}>Offices, meeting rooms & coworking — booked in seconds.</Text>
-      </View>
-      <View style={styles.heroDots}>
-        {HERO_SLIDES.map((_, index) => (
-          <View
-            key={`hero-dot-${index}`}
-            style={[
-              styles.heroDot,
-              index === activeHeroIndex ? styles.heroDotActive : undefined,
-            ]}
+    <View style={{ marginTop: 10, marginHorizontal: 18 }}>
+      {/* ── Main card ── */}
+      <View
+        style={{
+          height: HERO_H,
+          borderRadius: 28,
+          overflow: "hidden",
+          backgroundColor: "#0a2420",
+          shadowColor: slide.accent,
+          shadowOpacity: 0.38,
+          shadowRadius: 32,
+          shadowOffset: { width: 0, height: 16 },
+          elevation: 18,
+        }}
+      >
+        {/* BG image crossfade — next layer always underneath */}
+        <SmartImage
+          uri={HERO_SLIDES[nextIndex].uri}
+          style={StyleSheet.absoluteFillObject as any}
+          resizeMode="cover"
+        />
+        <Animated.View style={[StyleSheet.absoluteFillObject, { opacity: bgOpacity }]}>
+          <SmartImage
+            uri={slide.uri}
+            style={StyleSheet.absoluteFillObject as any}
+            resizeMode="cover"
           />
+        </Animated.View>
+
+        {/* Deep scrim — left side lighter to let text breathe */}
+        <View
+          style={[
+            StyleSheet.absoluteFillObject,
+            {
+              backgroundColor: "transparent",
+              // multi-stop feel via nested views
+            },
+          ]}
+          pointerEvents="none"
+        />
+        <View
+          style={[
+            StyleSheet.absoluteFillObject,
+            { backgroundColor: "rgba(4,24,20,0.62)" },
+          ]}
+          pointerEvents="none"
+        />
+
+        {/* ── Floating table card (right side) ── */}
+        <Animated.View
+          style={{
+            position: "absolute",
+            right: 14,
+            bottom: 18,
+            width: TABLE_W,
+            height: TABLE_H,
+            borderRadius: 20,
+            overflow: "hidden",
+            transform: [{ translateY: floatAnim }, { scale: tableScale }],
+            shadowColor: "#000",
+            shadowOpacity: 0.45,
+            shadowRadius: 20,
+            shadowOffset: { width: -4, height: 10 },
+            elevation: 16,
+          }}
+        >
+          <SmartImage uri={slide.tableUri} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+          {/* soft inner glow border */}
+          <View
+            style={[
+              StyleSheet.absoluteFillObject,
+              {
+                borderRadius: 20,
+                borderWidth: 1.5,
+                borderColor: "rgba(94,234,212,0.25)",
+              },
+            ]}
+            pointerEvents="none"
+          />
+          {/* bottom label chip */}
+          <View
+            style={{
+              position: "absolute",
+              bottom: 8,
+              left: 8,
+              right: 8,
+              backgroundColor: "rgba(10,36,32,0.82)",
+              borderRadius: 10,
+              paddingHorizontal: 8,
+              paddingVertical: 5,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 5,
+            }}
+          >
+            <View
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: 3,
+                backgroundColor: "#5eead4",
+              }}
+            />
+            <Text style={{ color: "#fff", fontSize: 10, fontWeight: "700", letterSpacing: 0.4 }}>
+              {slide.tag}
+            </Text>
+          </View>
+        </Animated.View>
+
+        {/* ── Text content (left side) ── */}
+        <Animated.View
+          style={{
+            position: "absolute",
+            left: 20,
+            top: 0,
+            bottom: 0,
+            width: SCREEN_WIDTH * 0.46,
+            justifyContent: "center",
+            gap: 8,
+            opacity: textOpacity,
+            transform: [{ translateY: textY }],
+          }}
+          pointerEvents="none"
+        >
+          {/* tag pill */}
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 5,
+              backgroundColor: "rgba(13,148,136,0.25)",
+              borderWidth: 1,
+              borderColor: "rgba(94,234,212,0.4)",
+              borderRadius: 999,
+              alignSelf: "flex-start",
+              paddingHorizontal: 9,
+              paddingVertical: 4,
+            }}
+          >
+            <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: "#5eead4" }} />
+            <Text style={{ color: "#5eead4", fontSize: 9, fontWeight: "800", letterSpacing: 1.4 }}>
+              WORKNEST
+            </Text>
+          </View>
+
+          {/* headline */}
+          <Text
+            style={{
+              color: "#FFFFFF",
+              fontSize: 26,
+              fontWeight: "800",
+              lineHeight: 31,
+              letterSpacing: -0.6,
+              textShadowColor: "rgba(0,0,0,0.5)",
+              textShadowOffset: { width: 0, height: 2 },
+              textShadowRadius: 10,
+            }}
+          >
+            {slide.headline}
+          </Text>
+
+          {/* sub */}
+          <Text
+            style={{
+              color: "rgba(255,255,255,0.72)",
+              fontSize: 11,
+              fontWeight: "500",
+              lineHeight: 16,
+            }}
+          >
+            {slide.sub}
+          </Text>
+
+          {/* mini stats row */}
+          <View style={{ flexDirection: "row", gap: 8, marginTop: 4 }}>
+            {[
+              { n: "50+", l: "Spaces" },
+              { n: "24/7", l: "Access" },
+            ].map((s) => (
+              <View
+                key={s.l}
+                style={{
+                  backgroundColor: "rgba(13,148,136,0.22)",
+                  borderRadius: 10,
+                  paddingHorizontal: 9,
+                  paddingVertical: 5,
+                  alignItems: "center",
+                  borderWidth: 1,
+                  borderColor: "rgba(94,234,212,0.2)",
+                }}
+              >
+                <Text style={{ color: "#5eead4", fontSize: 13, fontWeight: "800" }}>{s.n}</Text>
+                <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 9, fontWeight: "600" }}>{s.l}</Text>
+              </View>
+            ))}
+          </View>
+        </Animated.View>
+
+        {/* ── Slide counter (top-right) ── */}
+        <View
+          style={{
+            position: "absolute",
+            top: 14,
+            right: 16,
+            backgroundColor: "rgba(10,36,32,0.7)",
+            borderRadius: 999,
+            paddingHorizontal: 10,
+            paddingVertical: 4,
+          }}
+        >
+          <Text style={{ color: "rgba(255,255,255,0.85)", fontSize: 11, fontWeight: "700" }}>
+            {activeIndex + 1} / {HERO_SLIDES.length}
+          </Text>
+        </View>
+      </View>
+
+      {/* ── Animated progress dots ── */}
+      <View style={{ flexDirection: "row", justifyContent: "center", gap: 6, marginTop: 14 }}>
+        {HERO_SLIDES.map((_, i) => (
+          <Pressable key={i} onPress={() => advanceTo(i)}>
+            <View
+              style={{
+                height: 4,
+                width: i === activeIndex ? 28 : 8,
+                borderRadius: 999,
+                backgroundColor: i === activeIndex ? colors.primary : colors.border,
+              }}
+            />
+          </Pressable>
         ))}
       </View>
     </View>
@@ -430,85 +720,20 @@ function startOfToday() {
 }
 
 const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.create({
-  container: { paddingHorizontal: 18, paddingBottom: 24 },
-  heroCard: {
-    marginTop: 12,
-    borderRadius: 24,
-    overflow: "hidden",
-    backgroundColor: colors.card,
-    shadowColor: colors.primary,
-    shadowOpacity: 0.2,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 8,
-    minHeight: 210,
-    justifyContent: "flex-end",
-  },
-  heroFadeLayer: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  heroImage: {
-    width: "100%",
-    height: 210,
-  },
-  heroScrim: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(8, 15, 35, 0.5)",
-  },
-  heroContent: {
-    padding: 18,
-    paddingBottom: 22,
-  },
-  heroEyebrow: {
-    color: "rgba(255,255,255,0.85)",
-    fontSize: 11,
-    fontWeight: "800",
-    letterSpacing: 2,
-    marginBottom: 6,
-  },
-  heroTitle: {
-    color: "#FFFFFF",
-    fontSize: 26,
-    fontWeight: "800",
-    letterSpacing: -0.3,
-    textShadowColor: "rgba(8, 15, 35, 0.5)",
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 12,
-  },
-  heroSubtitle: {
-    color: "rgba(255,255,255,0.9)",
-    fontSize: 13,
-    fontWeight: "500",
-    marginTop: 6,
-    maxWidth: "90%",
-  },
-  heroDots: {
-    position: "absolute",
-    top: 16,
-    right: 16,
-    flexDirection: "row",
-    gap: 6,
-  },
-  heroDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.45)",
-  },
-  heroDotActive: {
-    width: 20,
-    backgroundColor: "#FFFFFF",
-  },
+  container: { paddingBottom: 24 },
+
+  // ── Search ──
   searchCard: {
-    marginTop: 12,
+    marginTop: 16,
+    marginHorizontal: 18,
     backgroundColor: colors.card,
     borderRadius: radii.lg,
     padding: 12,
-    shadowColor: "#1F2A44",
+    shadowColor: colors.primary,
     shadowOpacity: 0.08,
-    shadowRadius: 10,
+    shadowRadius: 12,
     shadowOffset: { width: 0, height: 5 },
-    elevation: 2,
+    elevation: 3,
     gap: 10,
   },
   searchRow: {
@@ -516,11 +741,11 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
     alignItems: "center",
     gap: 8,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    backgroundColor: colors.muted,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: colors.primaryMuted,
   },
   searchInput: {
     flex: 1,
@@ -543,54 +768,61 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
-  searchSuggestionItemPressed: {
-    backgroundColor: colors.muted,
-  },
-  searchSuggestionText: {
-    flex: 1,
-    color: colors.foreground,
-    fontSize: 14,
-  },
-  filterRow: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  dropdown: {
-    flex: 1,
+  searchSuggestionItemPressed: { backgroundColor: colors.primaryMuted },
+  searchSuggestionText: { flex: 1, color: colors.foreground, fontSize: 14 },
+  searchSubmitBtn: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: 10,
-    paddingVertical: 10,
-    backgroundColor: colors.card,
-  },
-  dropdownText: {
-    color: colors.mutedForeground,
-    fontSize: 12,
-    fontWeight: "700",
-    flex: 1,
-    marginRight: 8,
-  },
-  dropdownTextActive: {
-    color: colors.foreground,
-  },
-  searchButton: {
-    backgroundColor: colors.accent,
+    gap: 7,
+    backgroundColor: colors.primary,
     borderRadius: 12,
     paddingHorizontal: 14,
-    alignItems: "center",
+    paddingVertical: 10,
     justifyContent: "center",
   },
-  searchButtonText: {
-    color: "#FFFFFF",
+  searchSubmitText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 13,
+    flexShrink: 1,
+  },
+  // ── Quick actions ──
+  quickActions: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 16,
+    marginHorizontal: 18,
+  },
+  quickAction: {
+    alignItems: "center",
+    gap: 6,
+    flex: 1,
+  },
+  quickActionPressed: { opacity: 0.7 },
+  quickActionIcon: {
+    width: 54,
+    height: 54,
+    borderRadius: 16,
+    backgroundColor: colors.primaryMuted,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+  },
+  quickActionLabel: {
+    color: colors.foreground,
     fontSize: 12,
-    fontWeight: "800",
+    fontWeight: "700",
+    textAlign: "center",
   },
   actionButtons: {
     gap: 8,
+    marginHorizontal: 18,
   },
   actionButton: {
     borderRadius: 12,
@@ -605,7 +837,7 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
     fontSize: 13,
     fontWeight: "700",
   },
-  section: { marginTop: 20 },
+  section: { marginTop: 20, marginHorizontal: 18 },
   sectionHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
   sectionTitle: { color: colors.foreground, fontWeight: "800", fontSize: 19, letterSpacing: -0.3 },
   galleryGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },

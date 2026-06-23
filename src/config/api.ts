@@ -72,6 +72,7 @@ export const API_ENDPOINTS = {
     book: "/booking",
     myBookings: "/booking/my",
     cancelBooking: (id: number | string) => `/booking/${id}/cancel`,
+    updateBooking: (id: number | string) => `/booking/${id}`,
   },
   pricing: {
     list: "/pricingplan",

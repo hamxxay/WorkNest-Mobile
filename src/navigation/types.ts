@@ -6,6 +6,7 @@ export type MainTabParamList = {
     | {
         initialRoomType?: "Meeting/Conference" | "Shared Space" | "Office";
         initialLocation?: string;
+        initialSearch?: string;
       }
     | undefined;
   MyBookings: undefined;

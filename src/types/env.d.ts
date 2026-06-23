@@ -1,5 +1,6 @@
 declare module "@env" {
-  export const API_BASE: string;
-  export const FIREBASE_WEB_CLIENT_ID: string;
-  export const FIREBASE_IOS_CLIENT_ID: string;
+  export const API_BASE: "https://work-nest-api-s.vercel.app/api" | "http://localhost:8000/api";
+  export const FIREBASE_WEB_CLIENT_ID: "722479405081-484054vcflpb8dal5mjmdq0hllvql833.apps.googleusercontent.com";
+  export const FIREBASE_IOS_CLIENT_ID: "your-ios-client-id.apps.googleusercontent.com";
 }
+

@@ -137,8 +137,12 @@ export default function BookingScreen() {
 
   useEffect(() => {
     const initialLocation = route.params?.initialLocation?.trim() ?? "";
+    const initialSearch = route.params?.initialSearch?.trim() ?? "";
     setSelectedLocation(initialLocation);
-  }, [route.params?.initialLocation]);
+    if (initialSearch) {
+      setSearchQuery(initialSearch);
+    }
+  }, [route.params?.initialLocation, route.params?.initialSearch]);
 
   const quickMeetingRangeLabel = getRangeLabel(quickMeetingRangeStart, quickMeetingRangeEnd);
   const quickSharedRangeLabel = getRangeLabel(quickSharedRangeStart, quickSharedRangeEnd);
@@ -384,24 +388,32 @@ export default function BookingScreen() {
 
   return (
     <Screen>
+      <Header />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Header />
+        
 
         <Text style={styles.pageTitle}>Book Your Workspace</Text>
 
         <View style={styles.filterCard}>
           <View style={styles.searchRow}>
-            <Ionicons name="search" size={18} color={colors.mutedForeground} />
+            <Ionicons name="search" size={18} color={colors.primary} />
             <TextInput
-              placeholder="Search for a coworking space"
+              placeholder="Search spaces, locations, types…"
               placeholderTextColor={colors.mutedForeground}
               value={searchQuery}
               onChangeText={(value) =>
                 setSearchQuery(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.search }))
               }
               maxLength={INPUT_LIMITS.search}
+              returnKeyType="search"
+              clearButtonMode="while-editing"
               style={styles.searchInput}
             />
+            {searchQuery.length > 0 && (
+              <Pressable onPress={() => setSearchQuery("")} hitSlop={8}>
+                <Ionicons name="close-circle" size={18} color={colors.mutedForeground} />
+              </Pressable>
+            )}
           </View>
 
           <View style={styles.filterRow}>
@@ -487,9 +499,27 @@ export default function BookingScreen() {
           </Text>
         </View>
 
-        {loading ? <Text style={styles.helperText}>Loading workspaces...</Text> : null}
+        {loading ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="hourglass-outline" size={36} color={colors.mutedForeground} />
+            <Text style={styles.emptyStateText}>Loading workspaces…</Text>
+          </View>
+        ) : null}
         {!loading && filteredWorkspaces.length === 0 ? (
-          <Text style={styles.helperText}>No workspaces found. Try adjusting filters.</Text>
+          <View style={styles.emptyState}>
+            <Ionicons name="search-outline" size={36} color={colors.mutedForeground} />
+            <Text style={styles.emptyStateTitle}>No results found</Text>
+            <Text style={styles.emptyStateText}>
+              {searchQuery.trim().length > 0
+                ? `No spaces match "${searchQuery.trim()}"`
+                : "Try adjusting your filters"}
+            </Text>
+            {(searchQuery.length > 0 || workspaceType || selectedLocation || availableOnly) && (
+              <Pressable style={styles.emptyStateReset} onPress={resetFilters}>
+                <Text style={styles.emptyStateResetText}>Clear filters</Text>
+              </Pressable>
+            )}
+          </View>
         ) : null}
 
         {filteredWorkspaces.map((workspace, index) => (
@@ -912,7 +942,7 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
   },
   dropdownActive: {
     borderColor: colors.primary,
-    backgroundColor: "rgba(74, 125, 255, 0.08)",
+    backgroundColor: colors.primaryMuted,
   },
   dropdownText: { color: colors.mutedForeground, fontSize: 12, fontWeight: "700" },
   dropdownTextActive: { color: colors.foreground },
@@ -1009,7 +1039,7 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
     backgroundColor: colors.primary,
   },
   monthCellInRange: {
-    backgroundColor: "rgba(74, 125, 255, 0.18)",
+    backgroundColor: colors.accentMuted,
   },
   monthTextSelected: {
     color: colors.white,
@@ -1045,6 +1075,34 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
   galleryTitle: { fontSize: 20, fontWeight: "700", color: colors.foreground },
   gallerySubtitle: { color: colors.mutedForeground, marginTop: 4, fontSize: 14 },
   helperText: { color: colors.mutedForeground, marginBottom: 12 },
+  emptyState: {
+    alignItems: "center",
+    paddingVertical: 40,
+    gap: 8,
+  },
+  emptyStateTitle: {
+    color: colors.foreground,
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  emptyStateText: {
+    color: colors.mutedForeground,
+    fontSize: 14,
+    textAlign: "center",
+    paddingHorizontal: 24,
+  },
+  emptyStateReset: {
+    marginTop: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 9,
+    borderRadius: 999,
+    backgroundColor: colors.primary,
+  },
+  emptyStateResetText: {
+    color: colors.white,
+    fontWeight: "700",
+    fontSize: 13,
+  },
   workspaceCard: {
     borderRadius: radii.lg,
     marginBottom: 16,
@@ -1163,7 +1221,7 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
     opacity: 0.4,
   },
   dayCellInRange: {
-    backgroundColor: "rgba(74, 125, 255, 0.15)",
+    backgroundColor: colors.accentMuted,
   },
   dayCellSelected: {
     backgroundColor: colors.primary,

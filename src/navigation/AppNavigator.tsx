@@ -165,7 +165,7 @@ function AppDrawerContent(props: DrawerContentComponentProps) {
         paddingTop: 12,
         paddingBottom: 18,
         marginBottom: 8,
-        gap: 12,
+        // gap: 12,
         borderBottomWidth: StyleSheet.hairlineWidth,
         borderBottomColor: colors.border,
       },
@@ -238,18 +238,20 @@ function AppDrawerContent(props: DrawerContentComponentProps) {
       <View style={styles.drawerRoot}>
         <DrawerContentScrollView {...props} contentContainerStyle={styles.drawerContent}>
           <View style={styles.drawerBrand}>
-            <View style={styles.drawerLogoWell}>
+           
               <Image
-                source={require("../../public/Logo.png")}
+                source={require("../../public/Logo1.png")}
                 style={styles.drawerLogo}
                 resizeMode="contain"
               />
-            </View>
-            <View>
-              <Text style={styles.drawerBrandText}>WorkNest</Text>
-              <Text style={styles.drawerBrandTagline}>Workspace booking</Text>
-            </View>
+              <Text style={styles.drawerBrandText}>orkNest</Text>
+            
+            
           </View>
+          <View>
+              
+              <Text style={styles.drawerBrandTagline}></Text>
+            </View>
           <DrawerItemList {...props} />
           <DrawerItem
             label="Log Out"
@@ -259,7 +261,7 @@ function AppDrawerContent(props: DrawerContentComponentProps) {
           />
         </DrawerContentScrollView>
         <View style={styles.versionContainer}>
-          <Text style={styles.versionText}>{appVersion ? `v${appVersion}` : ""}</Text>
+          <Text style={styles.versionText}>{appVersion ? `V ${appVersion}` : ""}</Text>
         </View>
       </View>
 
