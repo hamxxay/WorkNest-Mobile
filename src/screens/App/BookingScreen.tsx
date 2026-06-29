@@ -7,7 +7,6 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  useColorScheme,
   View,
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
@@ -64,7 +63,6 @@ export default function BookingScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const colors = useThemeColors();
   const styles = useThemedStyles(createStyles);
-  const colorScheme = useColorScheme();
   const route = useRoute<RouteProp<MainTabParamList, "Booking">>();
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [dbLocations, setDbLocations] = useState<string[]>([]);
@@ -525,18 +523,48 @@ export default function BookingScreen() {
         {filteredWorkspaces.map((workspace, index) => (
           <Pressable
             key={`workspace-${String(workspace.id ?? "missing")}-${index}`}
-            style={styles.workspaceCard}
+            style={({ pressed }) => [styles.workspaceCard, pressed && { opacity: 0.94, transform: [{ scale: 0.99 }] }]}
             onPress={() => navigation.navigate("SpaceDetail", { workspace })}
           >
             <SmartImage uri={workspace.image} style={styles.image} />
+            {/* Availability badge */}
+            <View style={[styles.wsBadge, workspace.available ? styles.wsBadgeAvail : styles.wsBadgeOccupied]}>
+              <View style={[styles.wsDot, { backgroundColor: workspace.available ? "#10b981" : "#ef4444" }]} />
+              <Text style={[styles.wsBadgeText, { color: workspace.available ? "#10b981" : "#ef4444" }]}>
+                {workspace.available ? "Available" : "Occupied"}
+              </Text>
+            </View>
 
             <View style={styles.cardBody}>
-              <Text style={styles.cardTitle}>{workspace.name}</Text>
-              <Text style={styles.metaText}>Type: {workspace.type}</Text>
+              <View style={styles.cardTitleRow}>
+                <Text style={styles.cardTitle} numberOfLines={1}>{workspace.name}</Text>
+                <View style={styles.typeTag}>
+                  <Text style={styles.typeTagText} numberOfLines={1}>{workspace.type}</Text>
+                </View>
+              </View>
+              <View style={styles.cardMetaRow}>
+                <Ionicons name="location-outline" size={13} color={colors.mutedForeground} />
+                <Text style={styles.metaText} numberOfLines={1}>{workspace.location}</Text>
+                <Ionicons name="people-outline" size={13} color={colors.mutedForeground} />
+                <Text style={styles.metaText}>{workspace.capacity}</Text>
+              </View>
+              {workspace.amenities?.length > 0 && (
+                <View style={styles.amenityRow}>
+                  {workspace.amenities.slice(0, 3).map((a: string) => (
+                    <View key={a} style={styles.amenityChip}>
+                      <Text style={styles.amenityChipText}>{a}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
             </View>
 
             <View style={styles.cardFooter}>
-              <Text style={styles.priceText}>PKR {workspace.price}/day</Text>
+              <Text style={styles.priceText}>PKR {workspace.price}<Text style={styles.priceSuffix}>/day</Text></Text>
+              <View style={styles.bookBtn}>
+                <Text style={styles.bookBtnText}>View</Text>
+                <Ionicons name="arrow-forward" size={13} color={colors.white} />
+              </View>
             </View>
           </Pressable>
         ))}
@@ -774,7 +802,6 @@ export default function BookingScreen() {
               mode="time"
               display={Platform.OS === "ios" ? "spinner" : "default"}
               design={Platform.OS === "android" ? "material" : undefined}
-              themeVariant={colorScheme === "dark" ? "dark" : "light"}
               accentColor={colors.primary}
               textColor={colors.foreground}
               onChange={(_, date) => {
@@ -1104,28 +1131,80 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
     fontSize: 13,
   },
   workspaceCard: {
-    borderRadius: radii.lg,
-    marginBottom: 16,
+    borderRadius: radii.xl,
+    marginBottom: 18,
     overflow: "hidden",
     backgroundColor: colors.card,
-    shadowColor: "#1F2A44",
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 2,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.09,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 7 },
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  image: { width: "100%", height: 180 },
-  cardBody: { padding: 14, gap: 6 },
-  cardTitle: { fontSize: 18, fontWeight: "700", color: colors.foreground },
-  metaText: { color: colors.mutedForeground, fontSize: 14 },
+  image: { width: "100%", height: 190 },
+  wsBadge: {
+    position: "absolute",
+    top: 14,
+    right: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+  },
+  wsBadgeAvail: { backgroundColor: "rgba(16,185,129,0.15)", borderWidth: 1, borderColor: "rgba(16,185,129,0.3)" },
+  wsBadgeOccupied: { backgroundColor: "rgba(239,68,68,0.12)", borderWidth: 1, borderColor: "rgba(239,68,68,0.25)" },
+  wsDot: { width: 6, height: 6, borderRadius: 3 },
+  wsBadgeText: { fontSize: 11, fontWeight: "700" },
+  cardBody: { padding: 14, gap: 8 },
+  cardTitleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  cardTitle: { fontSize: 17, fontWeight: "800", color: colors.foreground, flex: 1, letterSpacing: -0.2 },
+  typeTag: {
+    backgroundColor: colors.primaryMuted,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    flexShrink: 0,
+  },
+  typeTagText: { fontSize: 10, fontWeight: "700", color: colors.primary, letterSpacing: 0.3 },
+  cardMetaRow: { flexDirection: "row", alignItems: "center", gap: 5 },
+  metaText: { color: colors.mutedForeground, fontSize: 12, fontWeight: "500" },
+  amenityRow: { flexDirection: "row", gap: 6, flexWrap: "wrap" },
+  amenityChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: colors.muted,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  amenityChipText: { fontSize: 10, color: colors.mutedForeground, fontWeight: "600" },
   cardFooter: {
     paddingHorizontal: 14,
     paddingBottom: 14,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+    paddingTop: 12,
+    marginTop: 4,
   },
-  priceText: { fontSize: 20, fontWeight: "700", color: colors.foreground },
+  priceText: { fontSize: 20, fontWeight: "800", color: colors.foreground },
+  priceSuffix: { fontSize: 13, fontWeight: "500", color: colors.mutedForeground },
+  bookBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  bookBtnText: { color: colors.white, fontSize: 13, fontWeight: "700" },
   modalOverlay: { flex: 1, backgroundColor: "rgba(15, 23, 42, 0.5)", justifyContent: "flex-end" },
   modalCard: {
     backgroundColor: colors.card,

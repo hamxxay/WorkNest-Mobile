@@ -38,7 +38,7 @@ import AboutUsScreen from "../screens/App/AboutUsScreen";
 import AdminPanelScreen from "../screens/App/AdminPanelScreen";
 import { logoutUser } from "../services/authService";
 import { useAuth } from "../context/AuthContext";
-import { StyleSheet, View, Text, Image, useColorScheme, StatusBar } from "react-native";
+import { StyleSheet, View, Text, Image, StatusBar } from "react-native";
 import { useState, useEffect } from "react";
 import { ConfirmModal } from "../components/ConfirmModal";
 import packageLock from "../../package-lock.json";
@@ -98,18 +98,16 @@ function MainTabs() {
           paddingTop: 8,
           paddingBottom: Math.max(insets.bottom, 10),
           shadowColor: colors.primary,
-          shadowOpacity: 0.12,
-          shadowRadius: 24,
-          shadowOffset: { width: 0, height: -4 },
-          elevation: 16,
+          shadowOpacity: 0.15,
+          shadowRadius: 28,
+          shadowOffset: { width: 0, height: -6 },
+          elevation: 20,
         },
-        tabBarItemStyle: {
-          paddingTop: 4,
-        },
+        tabBarItemStyle: { paddingTop: 4 },
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: "700",
-          letterSpacing: 0.1,
+          letterSpacing: 0.2,
           marginTop: 2,
         },
       }}
@@ -353,8 +351,6 @@ function AppDrawerNavigator() {
 }
 
 function AuthStackNavigator() {
-  const colorScheme = useColorScheme();
-  const isDarkTheme = colorScheme === "dark";
   const colors = useThemeColors();
 
   useEffect(() => {
@@ -367,7 +363,7 @@ function AuthStackNavigator() {
       screenOptions={{
         headerShown: false,
         statusBarTranslucent: false,
-        statusBarStyle: isDarkTheme ? "light" : "dark",
+        statusBarStyle: "dark",
         contentStyle: { backgroundColor: colors.background },
       }}
     >
@@ -378,8 +374,6 @@ function AuthStackNavigator() {
 }
 
 function AppStackNavigator() {
-  const colorScheme = useColorScheme();
-  const isDarkTheme = colorScheme === "dark";
   const colors = useThemeColors();
 
   useEffect(() => {
@@ -392,7 +386,7 @@ function AppStackNavigator() {
       screenOptions={{
         headerShown: false,
         statusBarTranslucent: false,
-        statusBarStyle: isDarkTheme ? "light" : "dark",
+        statusBarStyle: "dark",
         contentStyle: { backgroundColor: colors.background },
       }}
     >
@@ -407,8 +401,6 @@ function AppStackNavigator() {
 }
 
 export function AppNavigator() {
-  const colorScheme = useColorScheme();
-  const isDarkTheme = colorScheme === "dark";
   const colors = useThemeColors();
 
   useEffect(() => {
@@ -422,7 +414,7 @@ export function AppNavigator() {
         screenOptions={{
           headerShown: false,
           statusBarTranslucent: false,
-          statusBarStyle: isDarkTheme ? "light" : "dark",
+          statusBarStyle: "dark",
           contentStyle: { backgroundColor: colors.background },
         }}
       >

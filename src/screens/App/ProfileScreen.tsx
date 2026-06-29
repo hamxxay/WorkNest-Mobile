@@ -111,49 +111,82 @@ export default function ProfileScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Header />
 
-        <View style={styles.profileCard}>
-          <View style={styles.avatar}>
-            <Ionicons name="person" size={32} color={colors.primary} />
+        {/* Hero profile card */}
+        <View style={styles.heroCard}>
+          <View style={styles.heroBg} />
+          <View style={styles.avatarWrap}>
+            <View style={styles.avatar}>
+              <Ionicons name="person" size={34} color={colors.white} />
+            </View>
+            <View style={styles.onlineDot} />
           </View>
-          <View style={{ flex: 1, marginRight: 8 }}>
-            <Text style={styles.name} numberOfLines={1}>{displayName}</Text>
-            <Text style={styles.subText} numberOfLines={1}>{displaySubtitle}</Text>
-            {user?.phoneNumber ? (
+          <Text style={styles.name} numberOfLines={1}>{displayName}</Text>
+          <Text style={styles.subText} numberOfLines={1}>{displaySubtitle}</Text>
+          {user?.phoneNumber ? (
+            <View style={styles.phoneRow}>
+              <Ionicons name="call-outline" size={13} color={colors.mutedForeground} />
               <Text style={styles.phoneText} numberOfLines={1}>{user.phoneNumber as string}</Text>
-            ) : null}
-          </View>
+            </View>
+          ) : null}
           <Pressable style={styles.editButton} onPress={handleOpenEdit}>
-            <Ionicons name="create-outline" size={16} color={colors.white} />
+            <Ionicons name="create-outline" size={15} color={colors.white} />
             <Text style={styles.editText}>Edit Profile</Text>
           </Pressable>
         </View>
 
-        <View style={styles.summaryCard}>
-          <Text style={styles.sectionTitle}>Booking Summary</Text>
-          <View style={styles.summaryRow}>
-            {summaryItems.map((item) => (
-              <View key={item.label} style={styles.summaryItem}>
-                <Text style={styles.summaryLabel}>{item.label}</Text>
-                <Text style={styles.summaryValue}>{item.value}</Text>
-              </View>
-            ))}
-          </View>
+        {/* Booking stats */}
+        <View style={styles.statsRow}>
+          {summaryItems.map((item, i) => (
+            <View key={item.label} style={[styles.statCard, i === 1 && styles.statCardMiddle]}>
+              <Text style={[styles.statValue, i === 1 && styles.statValueAccent]}>{item.value}</Text>
+              <Text style={styles.statLabel}>{item.label}</Text>
+            </View>
+          ))}
         </View>
 
+        {/* Membership card */}
         <View style={styles.membershipCard}>
-          <Text style={styles.sectionTitle}>Membership</Text>
-          <View style={styles.membershipRow}>
-            <Ionicons name="ribbon-outline" size={18} color={colors.primary} />
+          <View style={styles.membershipLeft}>
+            <View style={styles.membershipIconWell}>
+              <Ionicons name="ribbon" size={20} color="#F59E0B" />
+            </View>
             <View>
               <Text style={styles.membershipTitle}>WorkNest Plus</Text>
-              <Text style={styles.subText}>Renews May 2026</Text>
+              <Text style={styles.membershipSub}>Renews May 2026</Text>
             </View>
           </View>
-          <Pressable style={styles.membershipButton}>
-            <Text style={styles.membershipButtonText}>Manage Membership</Text>
+          <Pressable style={styles.manageBtn}>
+            <Text style={styles.manageBtnText}>Manage</Text>
           </Pressable>
         </View>
 
+        {/* Settings menu */}
+        <View style={styles.menuCard}>
+          {[
+            { icon: "person-outline" as const, label: "Edit Profile", onPress: handleOpenEdit },
+            { icon: "time-outline" as const, label: "Booking History", onPress: () => {} },
+            { icon: "shield-checkmark-outline" as const, label: "Privacy Policy", onPress: () => {} },
+            { icon: "information-circle-outline" as const, label: "About WorkNest", onPress: () => {} },
+          ].map((item, idx, arr) => (
+            <Pressable
+              key={item.label}
+              style={({ pressed }) => [
+                styles.menuItem,
+                idx < arr.length - 1 && styles.menuItemBorder,
+                pressed && { backgroundColor: colors.primaryMuted },
+              ]}
+              onPress={item.onPress}
+            >
+              <View style={styles.menuIconWell}>
+                <Ionicons name={item.icon} size={18} color={colors.primary} />
+              </View>
+              <Text style={styles.menuLabel}>{item.label}</Text>
+              <Ionicons name="chevron-forward" size={16} color={colors.mutedForeground} />
+            </Pressable>
+          ))}
+        </View>
+
+        {/* Logout */}
         <Pressable style={styles.logoutButton} onPress={() => setShowLogoutConfirm(true)}>
           <Ionicons name="log-out-outline" size={18} color={colors.danger} />
           <Text style={styles.logoutText}>Logout</Text>
@@ -266,165 +299,234 @@ function buildSummary(bookings: BookingItem[]): BookingSummary {
 
 const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.create({
   content: {
-    padding: 20,
-    paddingBottom: 32,
-    gap: 16,
-  },
-  profileCard: {
-    flexDirection: "row",
-    alignItems: "center",
+    paddingBottom: 36,
     gap: 14,
+  },
+  // Hero card
+  heroCard: {
+    marginHorizontal: 18,
+    marginTop: 14,
     backgroundColor: colors.card,
-    borderRadius: radii.lg,
-    padding: 16,
+    borderRadius: radii.xl,
     borderWidth: 1,
     borderColor: colors.border,
-    shadowColor: colors.shadow,
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 3,
+    alignItems: "center",
+    paddingBottom: 22,
+    overflow: "hidden",
+    shadowColor: colors.primary,
+    shadowOpacity: 0.1,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 4,
+  },
+  heroBg: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 90,
+    backgroundColor: colors.primary,
+    opacity: 0.15,
+  },
+  avatarWrap: {
+    marginTop: 28,
+    position: "relative",
+    marginBottom: 12,
   },
   avatar: {
-    width: 58,
-    height: 58,
-    borderRadius: 18,
-    backgroundColor: colors.primaryMuted,
+    width: 80,
+    height: 80,
+    borderRadius: 26,
+    backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 2,
-    borderColor: colors.primary,
+    borderWidth: 3,
+    borderColor: colors.card,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.35,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
+  },
+  onlineDot: {
+    position: "absolute",
+    bottom: 4,
+    right: 4,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: "#10b981",
+    borderWidth: 2.5,
+    borderColor: colors.card,
   },
   name: {
     color: colors.foreground,
-    fontSize: 17,
+    fontSize: 20,
     fontWeight: "800",
-    letterSpacing: -0.3,
+    letterSpacing: -0.4,
   },
   subText: {
     color: colors.mutedForeground,
-    fontSize: 12,
+    fontSize: 13,
     marginTop: 3,
   },
-  editButton: {
-    marginLeft: "auto",
+  phoneRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    backgroundColor: colors.primaryMuted,
-    borderRadius: radii.sm,
-    paddingVertical: 7,
-    paddingHorizontal: 11,
-    borderWidth: 1,
-    borderColor: colors.primary,
+    marginTop: 5,
+  },
+  phoneText: {
+    color: colors.mutedForeground,
+    fontSize: 13,
+  },
+  editButton: {
+    marginTop: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: colors.primary,
+    borderRadius: radii.md,
+    paddingVertical: 9,
+    paddingHorizontal: 20,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
   },
   editText: {
-    color: colors.primary,
+    color: colors.white,
     fontWeight: "700",
-    fontSize: 12,
+    fontSize: 13,
   },
-  summaryCard: {
+  // Stats
+  statsRow: {
+    flexDirection: "row",
+    marginHorizontal: 18,
     backgroundColor: colors.card,
-    borderRadius: radii.lg,
-    padding: 16,
+    borderRadius: radii.xl,
     borderWidth: 1,
     borderColor: colors.border,
-    shadowColor: colors.shadow,
+    overflow: "hidden",
+    shadowColor: colors.primary,
     shadowOpacity: 0.06,
     shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 5 },
     elevation: 2,
   },
-  sectionTitle: {
-    color: colors.foreground,
-    fontSize: 15,
-    fontWeight: "700",
-    marginBottom: 14,
-    letterSpacing: -0.2,
-  },
-  summaryRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  summaryItem: {
-    alignItems: "center",
+  statCard: {
     flex: 1,
-    gap: 6,
+    alignItems: "center",
+    paddingVertical: 18,
+    gap: 4,
+    borderRightWidth: 1,
+    borderRightColor: colors.border,
   },
-  summaryLabel: {
+  statCardMiddle: {
+    backgroundColor: colors.primaryMuted,
+  },
+  statValue: {
+    color: colors.foreground,
+    fontSize: 28,
+    fontWeight: "800",
+    letterSpacing: -0.5,
+  },
+  statValueAccent: { color: colors.primary },
+  statLabel: {
     color: colors.mutedForeground,
     fontSize: 11,
     fontWeight: "600",
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
-  summaryValue: {
-    color: colors.primary,
-    fontSize: 26,
-    fontWeight: "800",
-  },
+  // Membership
   membershipCard: {
+    marginHorizontal: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     backgroundColor: colors.card,
-    borderRadius: radii.lg,
+    borderRadius: radii.xl,
     padding: 16,
     borderWidth: 1,
     borderColor: colors.border,
-    shadowColor: colors.shadow,
+    shadowColor: colors.primary,
     shadowOpacity: 0.06,
     shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 5 },
     elevation: 2,
   },
-  membershipRow: {
+  membershipLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
+  membershipIconWell: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: "rgba(245,158,11,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(245,158,11,0.25)",
+  },
+  membershipTitle: { color: colors.foreground, fontSize: 15, fontWeight: "800" },
+  membershipSub: { color: colors.mutedForeground, fontSize: 12, marginTop: 2 },
+  manageBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: radii.md,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    backgroundColor: colors.primaryMuted,
+  },
+  manageBtnText: { color: colors.primary, fontSize: 12, fontWeight: "700" },
+  // Settings menu
+  menuCard: {
+    marginHorizontal: 18,
+    backgroundColor: colors.card,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: "hidden",
+    shadowColor: colors.primary,
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 2,
+  },
+  menuItem: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    marginBottom: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 15,
   },
-  membershipTitle: {
-    color: colors.foreground,
-    fontSize: 15,
-    fontWeight: "700",
+  menuItemBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  menuIconWell: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: colors.primaryMuted,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  membershipButton: {
-    alignSelf: "flex-start",
-    borderRadius: radii.sm,
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-  },
-  membershipButtonText: {
-    color: colors.primary,
-    fontSize: 13,
-    fontWeight: "700",
-  },
+  menuLabel: { flex: 1, color: colors.foreground, fontSize: 14, fontWeight: "600" },
+  // Logout
   logoutButton: {
+    marginHorizontal: 18,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
     backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.md,
-    paddingVertical: 14,
-    shadowColor: colors.shadow,
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 1,
+    borderWidth: 1.5,
+    borderColor: "rgba(239,68,68,0.3)",
+    borderRadius: radii.xl,
+    paddingVertical: 15,
   },
-  logoutText: {
-    color: colors.danger,
-    fontWeight: "700",
-    fontSize: 14,
-  },
-  phoneText: {
-    color: colors.mutedForeground,
-    fontSize: 12,
-    marginTop: 2,
-  },
+  logoutText: { color: colors.danger, fontWeight: "700", fontSize: 15 },
+  // Modal
   modalOverlay: {
     flex: 1,
     backgroundColor: colors.overlay,
@@ -500,11 +602,7 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
     borderWidth: 1,
     borderColor: colors.border,
   },
-  cancelBtnText: {
-    color: colors.foreground,
-    fontWeight: "700",
-    fontSize: 14,
-  },
+  cancelBtnText: { color: colors.foreground, fontWeight: "700", fontSize: 14 },
   saveBtn: {
     backgroundColor: colors.primary,
     shadowColor: colors.primary,
@@ -513,9 +611,16 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
     shadowOffset: { width: 0, height: 4 },
     elevation: 3,
   },
-  saveBtnText: {
-    color: colors.white,
-    fontWeight: "700",
-    fontSize: 14,
-  },
+  saveBtnText: { color: colors.white, fontWeight: "700", fontSize: 14 },
+  // kept for TS compat
+  sectionTitle: { color: colors.foreground, fontSize: 15, fontWeight: "700" },
+  profileCard: { display: "none" },
+  summaryCard: { display: "none" },
+  summaryRow: { display: "none" },
+  summaryItem: { display: "none" },
+  summaryLabel: { display: "none" },
+  summaryValue: { display: "none" },
+  membershipRow: { display: "none" },
+  membershipButton: { display: "none" },
+  membershipButtonText: { display: "none" },
 });

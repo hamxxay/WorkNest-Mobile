@@ -275,18 +275,51 @@ export default function SpaceDetailScreen() {
       date1.getDate() === date2.getDate()
     );
   }
+  const isReadyToBook = isOffice
+    ? !!(selectedMonth && selectedMonthEnd)
+    : !!(selectedDates.length && selectedSlot);
+
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        <View style={styles.headerRow}>
-          <Pressable style={styles.iconButton} onPress={() => navigation.goBack()}>
-            <Ionicons name="chevron-back" size={20} color={colors.foreground} />
+        {/* Full-width hero with overlaid back button */}
+        <View style={styles.heroWrap}>
+          <SmartImage uri={workspace.image} style={styles.heroImage} resizeMode="cover" />
+          <View style={styles.heroScrim} pointerEvents="none" />
+          <Pressable style={styles.backBtn} onPress={() => navigation.goBack()}>
+            <Ionicons name="chevron-back" size={20} color="#fff" />
           </Pressable>
-          <Text style={styles.headerTitle}>{workspace.name}</Text>
-          <View style={styles.iconButton} />
+          <View style={[styles.heroBadge, workspace.available ? styles.heroBadgeAvail : styles.heroBadgeOccupied]}>
+            <View style={[styles.heroDot, { backgroundColor: workspace.available ? "#10b981" : "#ef4444" }]} />
+            <Text style={[styles.heroBadgeText, { color: workspace.available ? "#10b981" : "#ef4444" }]}>
+              {workspace.available ? "Available" : "Occupied"}
+            </Text>
+          </View>
+          <View style={styles.heroTitleWrap} pointerEvents="none">
+            <Text style={styles.heroTitle} numberOfLines={2}>{workspace.name}</Text>
+            <View style={styles.heroMeta}>
+              <Ionicons name="location-outline" size={13} color="rgba(255,255,255,0.8)" />
+              <Text style={styles.heroMetaText}>{workspace.location}</Text>
+            </View>
+          </View>
         </View>
 
-        <SmartImage uri={workspace.image} style={styles.heroImage} />
+        {/* Info strip */}
+        <View style={styles.infoStrip}>
+          {[
+            { icon: "people-outline" as const, label: "Capacity", value: workspace.capacity },
+            { icon: "pricetag-outline" as const, label: "Per Day", value: `PKR ${workspace.price}` },
+            { icon: "business-outline" as const, label: "Type", value: workspace.type.replace(" Space", "") },
+          ].map((item, idx) => (
+            <View key={item.label} style={[styles.infoItem, idx === 2 && { borderRightWidth: 0 }]}>
+              <View style={styles.infoIconWell}>
+                <Ionicons name={item.icon} size={16} color={colors.primary} />
+              </View>
+              <Text style={styles.infoValue} numberOfLines={1}>{item.value}</Text>
+              <Text style={styles.infoLabel}>{item.label}</Text>
+            </View>
+          ))}
+        </View>
 
         <View style={styles.tabs}>
           {(["description", "amenities", "reviews"] as TabKey[]).map((tab) => {
@@ -298,7 +331,7 @@ export default function SpaceDetailScreen() {
                 onPress={() => setActiveTab(tab)}
               >
                 <Text style={[styles.tabText, active && styles.tabTextActive]}>
-                  {tab}
+                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
                 </Text>
               </Pressable>
             );
@@ -306,27 +339,51 @@ export default function SpaceDetailScreen() {
         </View>
 
         {activeTab === "description" ? (
-          <Text style={styles.bodyText}>
-            {workspace.name} is a modern workspace located in {workspace.location}. It offers
-            flexible seating, reliable internet, and a calm atmosphere tailored for focused work.
-          </Text>
+          <View style={styles.descCard}>
+            <Text style={styles.bodyText}>
+              {workspace.name} is a modern workspace located in {workspace.location}. It offers
+              flexible seating, reliable internet, and a calm atmosphere tailored for focused work.
+            </Text>
+          </View>
         ) : null}
 
         {activeTab === "amenities" ? (
-          <View style={styles.list}>
+          <View style={styles.amenitiesGrid}>
             {workspace.amenities.length > 0
-              ? workspace.amenities.map((item) => (
-                <Text key={item} style={styles.bodyText}>- {item}</Text>
+              ? workspace.amenities.map((item: string) => (
+                <View key={item} style={styles.amenityChip}>
+                  <Ionicons name="checkmark-circle" size={14} color={colors.primary} />
+                  <Text style={styles.amenityChipText}>{item}</Text>
+                </View>
               ))
               : <Text style={styles.bodyText}>Amenities information coming soon.</Text>}
           </View>
         ) : null}
 
         {activeTab === "reviews" ? (
-          <View style={styles.list}>
-            <Text style={styles.bodyText}>“Quiet and productive atmosphere.”</Text>
-            <Text style={styles.bodyText}>“Great location and helpful staff.”</Text>
-            <Text style={styles.bodyText}>“Loved the amenities and seating options.”</Text>
+          <View style={styles.reviewList}>
+            {[
+              { name: "Sarah K.", text: "Quiet and productive atmosphere. Love it!", stars: 5 },
+              { name: "Ahmed R.", text: "Great location and very helpful staff.", stars: 5 },
+              { name: "Priya M.", text: "Loved the amenities and seating options.", stars: 4 },
+            ].map((r) => (
+              <View key={r.name} style={styles.reviewCard}>
+                <View style={styles.reviewHeader}>
+                  <View style={styles.reviewAvatar}>
+                    <Text style={styles.reviewAvatarText}>{r.name[0]}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.reviewName}>{r.name}</Text>
+                    <View style={styles.starsRow}>
+                      {Array.from({ length: r.stars }).map((_, i) => (
+                        <Ionicons key={i} name="star" size={11} color="#F59E0B" />
+                      ))}
+                    </View>
+                  </View>
+                </View>
+                <Text style={styles.reviewText}>{r.text}</Text>
+              </View>
+            ))}
           </View>
         ) : null}
 
@@ -572,18 +629,32 @@ export default function SpaceDetailScreen() {
           ) : null}
         </View>
 
-        {bookingError ? <Text style={styles.errorText}>{bookingError}</Text> : null}
+        {bookingError ? (
+          <View style={styles.errorBanner}>
+            <Ionicons name="alert-circle-outline" size={16} color="#ef4444" />
+            <Text style={styles.errorText}>{bookingError}</Text>
+          </View>
+        ) : null}
 
-        <Pressable
-          style={[styles.bookNow, (isOffice ? (!selectedMonth || !selectedMonthEnd) : (!selectedDates.length || !selectedSlot)) && styles.bookNowDisabled]}
-          onPress={onBookNow}
-          disabled={isOffice ? (!selectedMonth || !selectedMonthEnd) : (!selectedDates.length || !selectedSlot)}
-        >
-          <Text style={styles.bookNowText}>
-            Book Now
-          </Text>
-        </Pressable>
+        {/* spacer so content isn't hidden behind fixed CTA */}
+        <View style={{ height: 88 }} />
       </ScrollView>
+
+      {/* Fixed bottom CTA */}
+      <View style={styles.ctaBar}>
+        <View style={styles.ctaPriceBlock}>
+          <Text style={styles.ctaPrice}>PKR {workspace.price}</Text>
+          <Text style={styles.ctaPriceSub}>{isOffice ? "/month" : "/day"}</Text>
+        </View>
+        <Pressable
+          style={[styles.ctaBtn, !isReadyToBook && styles.ctaBtnDisabled]}
+          onPress={onBookNow}
+          disabled={!isReadyToBook}
+        >
+          <Ionicons name="calendar-outline" size={18} color="#fff" />
+          <Text style={styles.ctaBtnText}>Book Now</Text>
+        </Pressable>
+      </View>
 
       <Modal transparent visible={datePickerOpen} onRequestClose={() => setDatePickerOpen(false)} animationType="fade">
         <View style={styles.modalOverlay}>
@@ -816,55 +887,178 @@ function getRoomType(value: string) {
 
 const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.create({
   container: {
-    paddingHorizontal: 18,
     paddingBottom: 24,
     gap: 14,
   },
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 4,
-  },
-  headerTitle: {
-    flex: 1,
-    textAlign: "center",
-    fontSize: 18,
-    fontWeight: "800",
-    color: colors.foreground,
+  // Hero
+  heroWrap: {
+    position: "relative",
+    height: 280,
   },
   heroImage: {
     width: "100%",
-    height: 220,
-    borderRadius: radii.lg,
+    height: 280,
     backgroundColor: colors.muted,
   },
-  iconButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
+  heroScrim: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.38)",
+  },
+  backBtn: {
+    position: "absolute",
+    top: 16,
+    left: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 13,
+    backgroundColor: "rgba(0,0,0,0.45)",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.muted,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
   },
+  heroBadge: {
+    position: "absolute",
+    top: 16,
+    right: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  heroBadgeAvail: { backgroundColor: "rgba(16,185,129,0.18)", borderColor: "rgba(16,185,129,0.4)" },
+  heroBadgeOccupied: { backgroundColor: "rgba(239,68,68,0.15)", borderColor: "rgba(239,68,68,0.35)" },
+  heroDot: { width: 7, height: 7, borderRadius: 4 },
+  heroBadgeText: { fontSize: 12, fontWeight: "700" },
+  heroTitleWrap: {
+    position: "absolute",
+    bottom: 18,
+    left: 18,
+    right: 18,
+    gap: 5,
+  },
+  heroTitle: {
+    color: "#fff",
+    fontSize: 24,
+    fontWeight: "800",
+    letterSpacing: -0.5,
+    textShadowColor: "rgba(0,0,0,0.5)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 8,
+  },
+  heroMeta: { flexDirection: "row", alignItems: "center", gap: 4 },
+  heroMetaText: { color: "rgba(255,255,255,0.82)", fontSize: 13, fontWeight: "500" },
+  // Info strip
+  infoStrip: {
+    flexDirection: "row",
+    marginHorizontal: 18,
+    backgroundColor: colors.card,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: "hidden",
+    shadowColor: colors.primary,
+    shadowOpacity: 0.07,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
+  },
+  infoItem: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 14,
+    gap: 5,
+    borderRightWidth: 1,
+    borderRightColor: colors.border,
+  },
+  infoIconWell: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    backgroundColor: colors.primaryMuted,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  infoValue: { color: colors.foreground, fontSize: 13, fontWeight: "800", letterSpacing: -0.2 },
+  infoLabel: { color: colors.mutedForeground, fontSize: 10, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 },
+  // Tabs
   tabs: {
     flexDirection: "row",
     gap: 8,
+    paddingHorizontal: 18,
   },
   tabChip: {
-    paddingVertical: 8,
-    paddingHorizontal: 14,
+    paddingVertical: 9,
+    paddingHorizontal: 16,
     borderRadius: 999,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.border,
     backgroundColor: colors.muted,
   },
   tabChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  tabText: { color: colors.mutedForeground, fontWeight: "700", textTransform: "capitalize" },
+  tabText: { color: colors.mutedForeground, fontWeight: "700", fontSize: 13 },
   tabTextActive: { color: colors.white },
-  bodyText: { color: colors.mutedForeground, fontSize: 14, lineHeight: 20 },
-  list: { gap: 6 },
-  section: { gap: 12 },
+  // Tab content
+  descCard: {
+    marginHorizontal: 18,
+    backgroundColor: colors.card,
+    borderRadius: radii.lg,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  bodyText: { color: colors.mutedForeground, fontSize: 14, lineHeight: 22 },
+  amenitiesGrid: {
+    marginHorizontal: 18,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  amenityChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: colors.primaryMuted,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  amenityChipText: { color: colors.foreground, fontSize: 13, fontWeight: "600" },
+  reviewList: { marginHorizontal: 18, gap: 12 },
+  reviewCard: {
+    backgroundColor: colors.card,
+    borderRadius: radii.lg,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 8,
+  },
+  reviewHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
+  reviewAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: colors.primaryMuted,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+  },
+  reviewAvatarText: { color: colors.primary, fontSize: 15, fontWeight: "800" },
+  reviewName: { color: colors.foreground, fontSize: 14, fontWeight: "700" },
+  starsRow: { flexDirection: "row", gap: 2, marginTop: 2 },
+  reviewText: { color: colors.mutedForeground, fontSize: 13, lineHeight: 20 },
+  // Section / availability
+  section: { gap: 12, paddingHorizontal: 18 },
   sectionTitle: { color: colors.foreground, fontSize: 18, fontWeight: "700" },
   sectionHint: { color: colors.mutedForeground, fontSize: 13 },
   pickerActionRow: { gap: 10 },
@@ -872,7 +1066,7 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
   modeChip: {
     flex: 1,
     borderRadius: 999,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.border,
     paddingVertical: 10,
     alignItems: "center",
@@ -882,48 +1076,43 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
   modeChipText: { color: colors.mutedForeground, fontWeight: "700", fontSize: 12 },
   modeChipTextActive: { color: colors.white },
   pickerField: {
-    borderRadius: 12,
-    borderWidth: 1,
+    borderRadius: 14,
+    borderWidth: 1.5,
     borderColor: colors.border,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
     backgroundColor: colors.card,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
-  pickerValue: { color: colors.foreground, fontWeight: "600" },
-  pickerPlaceholder: { color: colors.mutedForeground, fontWeight: "600" },
+  pickerValue: { color: colors.foreground, fontWeight: "700", fontSize: 13 },
+  pickerPlaceholder: { color: colors.mutedForeground, fontWeight: "600", fontSize: 13 },
   calendarCard: {
     backgroundColor: colors.card,
-    borderRadius: radii.lg,
+    borderRadius: radii.xl,
     padding: 14,
     borderWidth: 1,
     borderColor: colors.border,
     gap: 10,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 2,
   },
-  calendarHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  calendarTitle: { color: colors.foreground, fontWeight: "700" },
+  calendarHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  calendarTitle: { color: colors.foreground, fontWeight: "800", fontSize: 15 },
   calendarSummary: {
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    backgroundColor: colors.muted,
+    backgroundColor: colors.primaryMuted,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  calendarSummaryLabel: {
-    color: colors.foreground,
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  weekdayRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingHorizontal: 2,
-  },
+  calendarSummaryLabel: { color: colors.primary, fontSize: 12, fontWeight: "700" },
+  weekdayRow: { flexDirection: "row", justifyContent: "space-between" },
   weekdayLabel: {
     width: "14.2857%",
     textAlign: "center",
@@ -943,20 +1132,17 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
     borderColor: "transparent",
   },
   dayCellMuted: { opacity: 0.4 },
-  dayCellSelected: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
+  dayCellSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
   dayCellMeeting: {
     shadowColor: colors.primary,
-    shadowOpacity: 0.18,
+    shadowOpacity: 0.2,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 3 },
     elevation: 2,
   },
   dayCellInRange: {
-    backgroundColor: "rgba(59, 130, 246, 0.14)",
-    borderColor: "rgba(59, 130, 246, 0.18)",
+    backgroundColor: colors.primaryMuted,
+    borderColor: colors.border,
   },
   dayText: {
     color: colors.foreground,
@@ -970,85 +1156,122 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
   dayTextSelected: { color: colors.white },
   slotCard: {
     backgroundColor: colors.card,
-    borderRadius: radii.lg,
-    padding: 12,
+    borderRadius: radii.xl,
+    padding: 14,
     borderWidth: 1,
     borderColor: colors.border,
-    gap: 8,
+    gap: 10,
   },
-  slotRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  slotRow: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   slotChip: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    borderWidth: 1,
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    borderWidth: 1.5,
     borderColor: colors.border,
     backgroundColor: colors.muted,
+    alignItems: "center",
   },
   slotChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  slotText: { color: colors.mutedForeground, fontWeight: "700", fontSize: 12 },
+  slotText: { color: colors.mutedForeground, fontWeight: "700", fontSize: 13 },
   slotTextActive: { color: colors.white },
   monthCard: {
     backgroundColor: colors.card,
-    borderRadius: radii.lg,
-    padding: 12,
+    borderRadius: radii.xl,
+    padding: 14,
     borderWidth: 1,
     borderColor: colors.border,
-    gap: 8,
+    gap: 10,
   },
-  monthHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
+  monthHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   monthYearButton: {
     width: 36,
     height: 36,
-    borderRadius: 10,
+    borderRadius: 11,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.muted,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  monthYearText: {
-    color: colors.foreground,
-    fontSize: 16,
-    fontWeight: "800",
-  },
-  monthGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
+  monthYearText: { color: colors.foreground, fontSize: 17, fontWeight: "800" },
+  monthGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   monthCell: {
     width: "30%",
-    borderRadius: 10,
-    paddingVertical: 10,
+    borderRadius: 12,
+    paddingVertical: 12,
     alignItems: "center",
     backgroundColor: colors.muted,
-  },
-  monthCellInRange: {
-    backgroundColor: "rgba(59, 130, 246, 0.14)",
-    borderColor: "rgba(59, 130, 246, 0.18)",
     borderWidth: 1,
+    borderColor: "transparent",
   },
-  monthCellSelected: { backgroundColor: colors.primary },
+  monthCellInRange: { backgroundColor: colors.primaryMuted, borderColor: colors.border },
+  monthCellSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
   monthText: { color: colors.foreground, fontWeight: "700" },
   monthTextSelected: { color: colors.white },
-  bookNow: {
-    marginTop: 8,
-    backgroundColor: colors.primary,
-    paddingVertical: 14,
-    borderRadius: 14,
+  // Error
+  errorBanner: {
+    marginHorizontal: 18,
+    flexDirection: "row",
     alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(239,68,68,0.08)",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(239,68,68,0.25)",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
-  bookNowDisabled: { backgroundColor: colors.muted },
-  bookNowText: { color: colors.white, fontWeight: "800", fontSize: 14 },
-  errorText: { color: "#dc2626", fontWeight: "600" },
+  errorText: { color: "#ef4444", fontWeight: "600", fontSize: 13, flex: 1 },
+  // Fixed CTA bar
+  ctaBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    backgroundColor: colors.card,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: -4 },
+    elevation: 12,
+  },
+  ctaPriceBlock: { gap: 2 },
+  ctaPrice: { color: colors.foreground, fontSize: 22, fontWeight: "800", letterSpacing: -0.5 },
+  ctaPriceSub: { color: colors.mutedForeground, fontSize: 12, fontWeight: "600" },
+  ctaBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: colors.primary,
+    borderRadius: radii.lg,
+    paddingHorizontal: 28,
+    paddingVertical: 15,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.35,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
+  },
+  ctaBtnDisabled: { backgroundColor: colors.muted, shadowOpacity: 0 },
+  ctaBtnText: { color: colors.white, fontSize: 16, fontWeight: "800", letterSpacing: -0.2 },
+  // icon btn
+  iconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.muted,
+  },
+  // Modal
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.5)",
+    backgroundColor: "rgba(15, 23, 42, 0.55)",
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
@@ -1056,19 +1279,28 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
   modalCard: {
     width: "100%",
     backgroundColor: colors.card,
-    borderRadius: radii.lg,
-    padding: 16,
+    borderRadius: radii.xl,
+    padding: 18,
     gap: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  modalTitle: { color: colors.foreground, fontSize: 18, fontWeight: "700" },
+  modalTitle: { color: colors.foreground, fontSize: 18, fontWeight: "800" },
   modalPrimary: {
     alignSelf: "flex-end",
     backgroundColor: colors.primary,
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    borderRadius: 12,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
   },
   modalPrimaryText: { color: colors.white, fontWeight: "700" },
+  // legacy (kept for bookNow disabled state fallback)
+  bookNow: { display: "none" },
+  bookNowDisabled: { display: "none" },
+  bookNowText: {},
+  list: { gap: 6 },
+  headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  headerTitle: { flex: 1, textAlign: "center", fontSize: 18, fontWeight: "800", color: colors.foreground },
 });
 function getRangeLabel(sharedRangeStart: Date | null, sharedRangeEnd: Date | null) {
   if (!sharedRangeStart) return "";

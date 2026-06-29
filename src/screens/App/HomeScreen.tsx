@@ -9,7 +9,6 @@ import {
   Text,
   TextInput,
   View,
-  useColorScheme,
 } from "react-native";
 import { CompositeNavigationProp, useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
@@ -55,11 +54,13 @@ const HERO_SLIDES = [
 ];
 
 const QUICK_ACTIONS = [
-  { icon: "calendar-outline", label: "Book Now", screen: "Booking" as const },
-  { icon: "pricetag-outline", label: "Pricing", screen: "Pricing" as const },
-  { icon: "images-outline", label: "Gallery", screen: "Gallery" as const },
-  { icon: "mail-outline", label: "Contact", screen: "ContactUs" as const },
+  { icon: "laptop-outline", label: "Hot Desk", screen: "Booking" as const, color: "#0d9488" },
+  { icon: "briefcase-outline", label: "Office", screen: "Booking" as const, color: "#0f766e" },
+  { icon: "people-outline", label: "Meeting", screen: "Booking" as const, color: "#F59E0B" },
+  { icon: "star-outline", label: "Amenities", screen: "Booking" as const, color: "#6366f1" },
 ];
+
+const CATEGORIES = ["All", "Co-Working", "Private Office", "Meeting Room", "Event Space"];
 
 const MONTH_LABELS = [
   "January",
@@ -89,52 +90,55 @@ export default function HomeScreen() {
   const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
   const [lightboxImage, setLightboxImage] = useState<GalleryImage | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchOptions, setSearchOptions] = useState<string[]>([]);
+  const [workspaces, setWorkspaces] = useState<any[]>([]);
+  const [activeCategory, setActiveCategory] = useState("All");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [datePickerMonth, setDatePickerMonth] = useState(startOfMonth(new Date()));
 
+  const [searchOptions, setSearchOptions] = useState<string[]>([]);
+
   useEffect(() => {
     getPricingPlans()
       .then((items) => setPlans(items.slice(0, 3)))
-      .catch(() => {
-        setPlans([]);
-      });
+      .catch(() => setPlans([]));
 
     getGalleryImages()
       .then((items) => setGalleryImages(items.slice(0, 4)))
-      .catch(() => {
-        setGalleryImages([]);
-      });
+      .catch(() => setGalleryImages([]));
 
     getWorkspaces()
       .then((items) => {
-        const nextSearchOptions = Array.from(
+        setWorkspaces(items.slice(0, 6));
+        const opts = Array.from(
           new Set(
-            items.flatMap((workspace) => [
-              workspace.name.trim(),
-              workspace.location.trim(),
-              workspace.type.trim(),
-            ]).filter((value) => value.length > 0),
+            items.flatMap((w: any) => [w.name.trim(), w.location.trim(), w.type.trim()])
+              .filter((v: string) => v.length > 0),
           ),
-        ).sort((a, b) => a.localeCompare(b));
-        setSearchOptions(nextSearchOptions);
+        ).sort((a: string, b: string) => a.localeCompare(b));
+        setSearchOptions(opts);
       })
       .catch(() => {
+        setWorkspaces([]);
         setSearchOptions([]);
       });
   }, []);
 
   const visibleSearchOptions = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    const filteredOptions =
-      query.length === 0
-        ? searchOptions
-        : searchOptions.filter((option) => option.toLowerCase().includes(query));
-
-    return filteredOptions.slice(0, 8);
+    const filtered = query.length === 0
+      ? searchOptions
+      : searchOptions.filter((o) => o.toLowerCase().includes(query));
+    return filtered.slice(0, 8);
   }, [searchOptions, searchQuery]);
+
+  const featuredWorkspaces = useMemo(() => {
+    if (activeCategory === "All") return workspaces;
+    return workspaces.filter((w: any) =>
+      w.type?.toLowerCase().replace(/[^a-z ]/g, "").includes(activeCategory.toLowerCase().replace(/[^a-z ]/g, ""))
+    );
+  }, [workspaces, activeCategory]);
 
   const formattedDate = selectedDate
     ? selectedDate.toLocaleDateString(undefined, {
@@ -182,7 +186,6 @@ export default function HomeScreen() {
             )}
           </View>
 
-          {/* Suggestions dropdown */}
           {isSearchFocused && visibleSearchOptions.length > 0 ? (
             <View style={styles.searchSuggestions}>
               {visibleSearchOptions.map((option) => (
@@ -206,13 +209,10 @@ export default function HomeScreen() {
             </View>
           ) : null}
 
-          {/* Search button — only shown when there is a query */}
           {searchQuery.trim().length > 0 && !isSearchFocused && (
             <Pressable
               style={styles.searchSubmitBtn}
-              onPress={() =>
-                navigation.navigate("Booking", { initialSearch: searchQuery.trim() })
-              }
+              onPress={() => navigation.navigate("Booking", { initialSearch: searchQuery.trim() })}
             >
               <Ionicons name="search" size={15} color="#fff" />
               <Text style={styles.searchSubmitText}>Search "{searchQuery.trim()}"</Text>
@@ -226,22 +226,80 @@ export default function HomeScreen() {
             <Pressable
               key={action.label}
               style={({ pressed }) => [styles.quickAction, pressed && styles.quickActionPressed]}
-              onPress={() => {
-                if (action.screen === "ContactUs") {
-                  navigation.navigate("ContactUs", { source: "home" });
-                } else {
-                  navigation.navigate(action.screen as any);
-                }
-              }}
+              onPress={() => navigation.navigate(action.screen as any)}
             >
-              <View style={styles.quickActionIcon}>
-                <Ionicons name={action.icon as any} size={22} color={colors.primary} />
+              <View style={[styles.quickActionIcon, { backgroundColor: action.color + "18", borderColor: action.color + "40" }]}>
+                <Ionicons name={action.icon as any} size={22} color={action.color} />
               </View>
               <Text style={styles.quickActionLabel}>{action.label}</Text>
             </Pressable>
           ))}
         </View>
 
+        {/* ── Featured workspaces ── */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Featured Spaces</Text>
+            <Pressable onPress={() => navigation.navigate("Booking")}>
+              <Text style={styles.linkText}>View All</Text>
+            </Pressable>
+          </View>
+
+          {/* Category filter pills */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll} contentContainerStyle={styles.categoryContent}>
+            {CATEGORIES.map((cat) => (
+              <Pressable
+                key={cat}
+                onPress={() => setActiveCategory(cat)}
+                style={[styles.categoryChip, activeCategory === cat && styles.categoryChipActive]}
+              >
+                <Text style={[styles.categoryChipText, activeCategory === cat && styles.categoryChipTextActive]}>{cat}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+
+          {/* Workspace cards horizontal scroll */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.featuredScroll}>
+            {featuredWorkspaces.length === 0 ? (
+              <View style={styles.featuredEmpty}>
+                <Text style={styles.featuredEmptyText}>No spaces in this category</Text>
+              </View>
+            ) : (
+              featuredWorkspaces.map((ws: any, idx: number) => (
+                <Pressable
+                  key={`${String(ws.id)}-${idx}`}
+                  style={({ pressed }) => [styles.featuredCard, pressed && { opacity: 0.92, transform: [{ scale: 0.98 }] }]}
+                  onPress={() => navigation.navigate("SpaceDetail", { workspace: ws })}
+                >
+                  <SmartImage uri={ws.image} style={styles.featuredImage} resizeMode="cover" />
+                  {/* Availability badge */}
+                  <View style={[styles.availBadge, ws.available ? styles.availBadgeGreen : styles.availBadgeRed]}>
+                    <View style={[styles.availDot, { backgroundColor: ws.available ? "#10b981" : "#ef4444" }]} />
+                    <Text style={[styles.availText, { color: ws.available ? "#10b981" : "#ef4444" }]}>
+                      {ws.available ? "Available" : "Occupied"}
+                    </Text>
+                  </View>
+                  <View style={styles.featuredBody}>
+                    <Text style={styles.featuredName} numberOfLines={1}>{ws.name}</Text>
+                    <View style={styles.featuredMeta}>
+                      <Ionicons name="location-outline" size={12} color={colors.mutedForeground} />
+                      <Text style={styles.featuredMetaText} numberOfLines={1}>{ws.location}</Text>
+                    </View>
+                    <View style={styles.featuredFooter}>
+                      <View style={styles.featuredCapacity}>
+                        <Ionicons name="people-outline" size={12} color={colors.primary} />
+                        <Text style={styles.featuredCapacityText}>{ws.capacity}</Text>
+                      </View>
+                      <Text style={styles.featuredPrice}>PKR {ws.price}/day</Text>
+                    </View>
+                  </View>
+                </Pressable>
+              ))
+            )}
+          </ScrollView>
+        </View>
+
+        {/* ── Gallery ── */}
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Gallery Preview</Text>
@@ -259,11 +317,12 @@ export default function HomeScreen() {
           </View>
         </View>
 
+        {/* ── Plans ── */}
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Plans for every work style</Text>
             <Pressable onPress={() => navigation.navigate("Pricing")}>
-              <Text style={styles.linkText}>See All Plans</Text>
+              <Text style={styles.linkText}>See All</Text>
             </Pressable>
           </View>
 
@@ -273,7 +332,6 @@ export default function HomeScreen() {
               <Text style={styles.planName}>{plan.name}</Text>
               <Text style={styles.planPrice}>PKR {Number(plan.price).toFixed(0)}/mo</Text>
               <Text style={styles.planDescription}>{plan.description}</Text>
-              
               <View style={styles.featuresList}>
                 {plan.features.slice(0, 3).map((feature) => (
                   <View key={feature} style={styles.featureRow}>
@@ -284,11 +342,11 @@ export default function HomeScreen() {
               </View>
             </View>
           ))}
-        
-         <View style={styles.actionButtons}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Want to see the space in person?</Text>
-          </View>
+
+          <View style={styles.actionButtons}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>Want to see the space in person?</Text>
+            </View>
             <Pressable
               style={[styles.actionButton, styles.blueButton]}
               onPress={() => navigation.navigate("ContactUs", { source: "tour" })}
@@ -313,42 +371,24 @@ export default function HomeScreen() {
                 <Ionicons name="chevron-forward" size={18} color={colors.foreground} />
               </Pressable>
             </View>
-
             <View style={styles.calendarGrid}>
               {homeCalendarDays.map((day, index) => {
                 const isSelected = selectedDate ? isSameDay(day.date, selectedDate) : false;
                 const isPast = day.date < startOfToday();
-
                 return (
                   <Pressable
                     key={`${day.date.toISOString()}-${index}`}
-                    style={[
-                      styles.dayCell,
-                      !day.isCurrentMonth && styles.dayCellMuted,
-                      isSelected && styles.dayCellSelected,
-                    ]}
-                    onPress={() => {
-                      if (isPast) {
-                        return;
-                      }
-                      setSelectedDate(day.date);
-                    }}
+                    style={[styles.dayCell, !day.isCurrentMonth && styles.dayCellMuted, isSelected && styles.dayCellSelected]}
+                    onPress={() => { if (!isPast) setSelectedDate(day.date); }}
                     disabled={isPast}
                   >
-                    <Text
-                      style={[
-                        styles.dayText,
-                        (!day.isCurrentMonth || isPast) && styles.dayTextMuted,
-                        isSelected && styles.dayTextSelected,
-                      ]}
-                    >
+                    <Text style={[styles.dayText, (!day.isCurrentMonth || isPast) && styles.dayTextMuted, isSelected && styles.dayTextSelected]}>
                       {day.date.getDate()}
                     </Text>
                   </Pressable>
                 );
               })}
             </View>
-
             <View style={styles.rangeFooter}>
               <Text style={styles.rangeFooterText}>{formattedDate === "Date" ? "Select a date" : formattedDate}</Text>
               <Pressable style={styles.pickerDone} onPress={() => setDatePickerOpen(false)}>
@@ -374,7 +414,6 @@ export default function HomeScreen() {
             </Pressable>
           ) : null}
         </Pressable>
-
       </Modal>
     </Screen>
   );
@@ -382,8 +421,6 @@ export default function HomeScreen() {
 
 function HeroSlideshow() {
   const colors = useThemeColors();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
   const [activeIndex, setActiveIndex] = useState(0);
 
   // Background crossfade
@@ -453,7 +490,7 @@ function HeroSlideshow() {
           height: HERO_H,
           borderRadius: 28,
           overflow: "hidden",
-          backgroundColor: isDark ? "#0a2420" : colors.primary,
+          backgroundColor: colors.primary,
           shadowColor: slide.accent,
           shadowOpacity: 0.38,
           shadowRadius: 32,
@@ -489,7 +526,7 @@ function HeroSlideshow() {
         <View
           style={[
             StyleSheet.absoluteFillObject,
-            { backgroundColor: isDark ? "rgba(4,24,20,0.62)" : "rgba(0,0,0,0.32)" },
+            { backgroundColor: "rgba(0,0,0,0.32)" },
           ]}
           pointerEvents="none"
         />
@@ -532,7 +569,7 @@ function HeroSlideshow() {
               bottom: 8,
               left: 8,
               right: 8,
-              backgroundColor: isDark ? "rgba(10,36,32,0.82)" : "rgba(0,0,0,0.65)",
+              backgroundColor: "rgba(0,0,0,0.65)",
               borderRadius: 10,
               paddingHorizontal: 8,
               paddingVertical: 5,
@@ -576,9 +613,9 @@ function HeroSlideshow() {
               flexDirection: "row",
               alignItems: "center",
               gap: 5,
-              backgroundColor: isDark ? "rgba(13,148,136,0.25)" : "rgba(255,255,255,0.2)",
+              backgroundColor: "rgba(255,255,255,0.2)",
               borderWidth: 1,
-              borderColor: isDark ? "rgba(94,234,212,0.4)" : "rgba(255,255,255,0.5)",
+              borderColor: "rgba(255,255,255,0.5)",
               borderRadius: 999,
               alignSelf: "flex-start",
               paddingHorizontal: 9,
@@ -586,7 +623,7 @@ function HeroSlideshow() {
             }}
           >
             <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: "#5eead4" }} />
-            <Text style={{ color: isDark ? "#5eead4" : "#ffffff", fontSize: 9, fontWeight: "800", letterSpacing: 1.4 }}>
+            <Text style={{ color: "#ffffff", fontSize: 9, fontWeight: "800", letterSpacing: 1.4 }}>
               WORKNEST
             </Text>
           </View>
@@ -628,16 +665,16 @@ function HeroSlideshow() {
               <View
                 key={s.l}
                 style={{
-                  backgroundColor: isDark ? "rgba(13,148,136,0.22)" : "rgba(255,255,255,0.18)",
+                  backgroundColor: "rgba(255,255,255,0.18)",
                   borderRadius: 10,
                   paddingHorizontal: 9,
                   paddingVertical: 5,
                   alignItems: "center",
                   borderWidth: 1,
-                  borderColor: isDark ? "rgba(94,234,212,0.2)" : "rgba(255,255,255,0.3)",
+                  borderColor: "rgba(255,255,255,0.3)",
                 }}
               >
-                <Text style={{ color: isDark ? "#5eead4" : "#ffffff", fontSize: 13, fontWeight: "800" }}>{s.n}</Text>
+                <Text style={{ color: "#ffffff", fontSize: 13, fontWeight: "800" }}>{s.n}</Text>
                 <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 9, fontWeight: "600" }}>{s.l}</Text>
               </View>
             ))}
@@ -793,24 +830,22 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
   quickActions: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 16,
+    marginTop: 20,
     marginHorizontal: 18,
   },
   quickAction: {
     alignItems: "center",
-    gap: 6,
+    gap: 7,
     flex: 1,
   },
   quickActionPressed: { opacity: 0.7 },
   quickActionIcon: {
-    width: 54,
-    height: 54,
-    borderRadius: 16,
-    backgroundColor: colors.primaryMuted,
+    width: 56,
+    height: 56,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1.5,
-    borderColor: colors.border,
     shadowColor: colors.primary,
     shadowOpacity: 0.1,
     shadowRadius: 8,
@@ -819,10 +854,76 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
   },
   quickActionLabel: {
     color: colors.foreground,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
     textAlign: "center",
+    letterSpacing: 0.1,
   },
+  // ── Featured cards ──
+  categoryScroll: { marginBottom: 14 },
+  categoryContent: { gap: 8, paddingRight: 4 },
+  categoryChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+  },
+  categoryChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  categoryChipText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.mutedForeground,
+  },
+  categoryChipTextActive: { color: colors.white },
+  featuredScroll: { gap: 14, paddingRight: 4 },
+  featuredCard: {
+    width: SCREEN_WIDTH * 0.62,
+    borderRadius: 22,
+    backgroundColor: colors.card,
+    overflow: "hidden",
+    shadowColor: colors.primary,
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  featuredImage: {
+    width: "100%",
+    height: 150,
+    backgroundColor: colors.muted,
+  },
+  availBadge: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+  },
+  availBadgeGreen: { backgroundColor: "rgba(16,185,129,0.15)", borderWidth: 1, borderColor: "rgba(16,185,129,0.3)" },
+  availBadgeRed: { backgroundColor: "rgba(239,68,68,0.12)", borderWidth: 1, borderColor: "rgba(239,68,68,0.25)" },
+  availDot: { width: 6, height: 6, borderRadius: 3 },
+  availText: { fontSize: 11, fontWeight: "700" },
+  featuredBody: { padding: 14, gap: 6 },
+  featuredName: { color: colors.foreground, fontSize: 15, fontWeight: "800", letterSpacing: -0.2 },
+  featuredMeta: { flexDirection: "row", alignItems: "center", gap: 4 },
+  featuredMetaText: { color: colors.mutedForeground, fontSize: 12, flex: 1 },
+  featuredFooter: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 4 },
+  featuredCapacity: { flexDirection: "row", alignItems: "center", gap: 4 },
+  featuredCapacityText: { color: colors.primary, fontSize: 12, fontWeight: "700" },
+  featuredPrice: { color: colors.foreground, fontSize: 13, fontWeight: "800" },
+  featuredEmpty: { paddingVertical: 32, paddingHorizontal: 24, alignItems: "center" },
+  featuredEmptyText: { color: colors.mutedForeground, fontSize: 14 },
   actionButtons: {
     gap: 8,
     marginHorizontal: 18,

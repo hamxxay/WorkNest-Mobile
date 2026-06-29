@@ -1,7 +1,6 @@
 import { useMemo } from "react";
-import { useColorScheme } from "react-native";
 
-const lightColors = {
+export const colors = {
   // Surfaces
   background: "#F0FAF9",
   card: "#FFFFFF",
@@ -29,43 +28,18 @@ const lightColors = {
   white: "#FFFFFF",
 };
 
-const darkColors: typeof lightColors = {
-  background: "#021a18",
-  card: "#0a2420",
-  foreground: "#F0FAF9",
-  mutedForeground: "#5eead4",
-  primary: "#0d9488",
-  secondary: "#5eead4",
-  primaryMuted: "rgba(13, 148, 136, 0.16)",
-  muted: "#0a2420",
-  border: "#115e59",
-  accent: "#5eead4",
-  accentMuted: "rgba(13, 148, 136, 0.16)",
-  success: "#34D399",
-  successMuted: "#064E3B",
-  danger: "#F87171",
-  dangerMuted: "#450A0A",
-  overlay: "rgba(0, 0, 0, 0.7)",
-  shadow: "#000000",
-  white: "#FFFFFF",
-};
+export type AppColors = typeof colors;
 
-export type AppColors = typeof lightColors;
-
-export const colors = lightColors;
-
-export function getThemeColors(colorScheme?: string | null): AppColors {
-  return colorScheme === "dark" ? darkColors : lightColors;
+export function getThemeColors(_colorScheme?: string | null): AppColors {
+  return colors;
 }
 
 export function useThemeColors(): AppColors {
-  const colorScheme = useColorScheme();
-  return useMemo(() => getThemeColors(colorScheme), [colorScheme]);
+  return useMemo(() => colors, []);
 }
 
 export function useThemedStyles<T>(factory: (colors: AppColors) => T): T {
-  const themeColors = useThemeColors();
-  return useMemo(() => factory(themeColors), [factory, themeColors]);
+  return useMemo(() => factory(colors), [factory]);
 }
 
 export const radii = {
@@ -85,10 +59,6 @@ export const spacing = {
   xxl: 32,
 };
 
-/**
- * Consistent elevation presets. Spread into a style to give a surface depth
- * that reads the same across the app instead of ad-hoc shadow values.
- */
 export const shadows = {
   sm: {
     shadowColor: "#0D1526",
