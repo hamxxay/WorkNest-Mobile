@@ -381,6 +381,7 @@ export default function HomeScreen() {
 
 function HeroSlideshow() {
   const colors = useThemeColors();
+  const isDark = colors.background === "#021a18" || colors.background.startsWith("#0");
   const [activeIndex, setActiveIndex] = useState(0);
 
   // Background crossfade
@@ -450,7 +451,7 @@ function HeroSlideshow() {
           height: HERO_H,
           borderRadius: 28,
           overflow: "hidden",
-          backgroundColor: "#0a2420",
+          backgroundColor: isDark ? "#0a2420" : colors.primary,
           shadowColor: slide.accent,
           shadowOpacity: 0.38,
           shadowRadius: 32,
@@ -486,7 +487,7 @@ function HeroSlideshow() {
         <View
           style={[
             StyleSheet.absoluteFillObject,
-            { backgroundColor: "rgba(4,24,20,0.62)" },
+            { backgroundColor: isDark ? "rgba(4,24,20,0.62)" : "rgba(0,0,0,0.32)" },
           ]}
           pointerEvents="none"
         />
@@ -529,7 +530,7 @@ function HeroSlideshow() {
               bottom: 8,
               left: 8,
               right: 8,
-              backgroundColor: "rgba(10,36,32,0.82)",
+              backgroundColor: isDark ? "rgba(10,36,32,0.82)" : "rgba(0,0,0,0.65)",
               borderRadius: 10,
               paddingHorizontal: 8,
               paddingVertical: 5,
@@ -573,9 +574,9 @@ function HeroSlideshow() {
               flexDirection: "row",
               alignItems: "center",
               gap: 5,
-              backgroundColor: "rgba(13,148,136,0.25)",
+              backgroundColor: isDark ? "rgba(13,148,136,0.25)" : "rgba(255,255,255,0.2)",
               borderWidth: 1,
-              borderColor: "rgba(94,234,212,0.4)",
+              borderColor: isDark ? "rgba(94,234,212,0.4)" : "rgba(255,255,255,0.5)",
               borderRadius: 999,
               alignSelf: "flex-start",
               paddingHorizontal: 9,
@@ -583,7 +584,7 @@ function HeroSlideshow() {
             }}
           >
             <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: "#5eead4" }} />
-            <Text style={{ color: "#5eead4", fontSize: 9, fontWeight: "800", letterSpacing: 1.4 }}>
+            <Text style={{ color: isDark ? "#5eead4" : "#ffffff", fontSize: 9, fontWeight: "800", letterSpacing: 1.4 }}>
               WORKNEST
             </Text>
           </View>
@@ -625,16 +626,16 @@ function HeroSlideshow() {
               <View
                 key={s.l}
                 style={{
-                  backgroundColor: "rgba(13,148,136,0.22)",
+                  backgroundColor: isDark ? "rgba(13,148,136,0.22)" : "rgba(255,255,255,0.18)",
                   borderRadius: 10,
                   paddingHorizontal: 9,
                   paddingVertical: 5,
                   alignItems: "center",
                   borderWidth: 1,
-                  borderColor: "rgba(94,234,212,0.2)",
+                  borderColor: isDark ? "rgba(94,234,212,0.2)" : "rgba(255,255,255,0.3)",
                 }}
               >
-                <Text style={{ color: "#5eead4", fontSize: 13, fontWeight: "800" }}>{s.n}</Text>
+                <Text style={{ color: isDark ? "#5eead4" : "#ffffff", fontSize: 13, fontWeight: "800" }}>{s.n}</Text>
                 <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 9, fontWeight: "600" }}>{s.l}</Text>
               </View>
             ))}
