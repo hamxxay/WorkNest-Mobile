@@ -39,6 +39,10 @@ export function Header() {
   const isHome = route.name === 'Home';
   const firstName = user?.name?.split(' ')[0] ?? 'there';
 
+  const openDrawer = () => {
+    navigation.dispatch(DrawerActions.openDrawer());
+  };
+
   return (
     <View style={[styles.container, { borderBottomColor: colors.border, backgroundColor: colors.background }]}>
       <View style={styles.brandSection}>
@@ -71,7 +75,7 @@ export function Header() {
       <View style={styles.rightActions}>
         <Pressable
           hitSlop={8}
-          onPress={() => navigation.dispatch(DrawerActions.openDrawer())}
+          onPress={openDrawer}
           style={[styles.menuBtn, { borderColor: colors.border, backgroundColor: colors.card }]}
         >
           <Ionicons name="menu-outline" size={22} color={colors.foreground} />

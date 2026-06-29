@@ -25,7 +25,8 @@ export type Workspace = {
   name: string;
   type: "Private Office" | "Co-Working Space" | "Meeting Room" | "Event Space";
   location: string;
-  capacity: string;
+  availableCount: number;
+  totalCount: number;
   price: number;
   amenities: string[];
   image: string;
@@ -99,21 +100,20 @@ export type BookingCreateDetails = {
   payment?: BookingPaymentDetails;
 };
 
-function mapWorkspace(item: ApiWorkspace): Workspace {
+function isAvailable(item: ApiWorkspace): boolean {
+  const raw = item.spaceStatus ?? item.status;
+  return raw == null ? true : String(raw).toLowerCase() === "available" || raw === 1;
+}
+
+function mapWorkspace(item: ApiWorkspace, availableCount: number, totalCount: number): Workspace {
   const resolvedImageUrl = resolveMediaUrl(item.imageUrl ?? undefined);
-  const rawStatus = item.spaceStatus ?? item.status;
-  const available = rawStatus == null
-    ? true
-    : String(rawStatus).toLowerCase() === "available" || rawStatus === 1;
   return {
     id: Number(item.numericId ?? item.id ?? 0),
     name: item.name ?? "Workspace",
     type: normalizeSpaceType(item.spaceTypeName),
     location: item.locationName ?? "Unknown location",
-    capacity:
-      typeof item.capacity === "number"
-        ? `${item.capacity} people`
-        : item.capacity || "N/A",
+    availableCount,
+    totalCount,
     price: Number(item.pricePerDay ?? 0),
     amenities: item.amenities
       ? item.amenities.split(",").map((part) => part.trim()).filter(Boolean)
@@ -121,7 +121,7 @@ function mapWorkspace(item: ApiWorkspace): Workspace {
     image:
       resolvedImageUrl ||
       "https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=800&h=600&fit=crop",
-    available,
+    available: isAvailable(item),
   };
 }
 
@@ -137,16 +137,34 @@ export async function getWorkspaces(): Promise<Workspace[]> {
   try {
     const payload = await apiRequest<ApiListResponse<ApiWorkspace>>(
       API_ENDPOINTS.workspaces.list,
-      {
-        requiresAuth: true,
-      }
+      { requiresAuth: true }
     );
 
     if (!payload) return [];
 
     const items = extractList(payload);
 
-    return items.map(mapWorkspace);
+    // Pre-compute available/total counts per location+type group (same as FE reference)
+    const counts = new Map<string, { avail: number; total: number }>();
+    for (const item of items) {
+      const key = `${item.locationName ?? ""}||${normalizeSpaceType(item.spaceTypeName)}`;
+      const entry = counts.get(key) ?? { avail: 0, total: 0 };
+      entry.total += 1;
+      if (isAvailable(item)) entry.avail += 1;
+      counts.set(key, entry);
+    }
+
+    // Deduplicate to one representative per group, carrying counts
+    const seen = new Set<string>();
+    const result: Workspace[] = [];
+    for (const item of items) {
+      const key = `${item.locationName ?? ""}||${normalizeSpaceType(item.spaceTypeName)}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const { avail, total } = counts.get(key)!;
+      result.push(mapWorkspace(item, avail, total));
+    }
+    return result;
   } catch (err) {
     console.error("Error fetching workspaces:", err);
     return [];

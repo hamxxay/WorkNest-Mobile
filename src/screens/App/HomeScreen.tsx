@@ -221,20 +221,7 @@ export default function HomeScreen() {
         </View>
 
         {/* ── Quick actions ── */}
-        <View style={styles.quickActions}>
-          {QUICK_ACTIONS.map((action) => (
-            <Pressable
-              key={action.label}
-              style={({ pressed }) => [styles.quickAction, pressed && styles.quickActionPressed]}
-              onPress={() => navigation.navigate(action.screen as any)}
-            >
-              <View style={[styles.quickActionIcon, { backgroundColor: action.color + "18", borderColor: action.color + "40" }]}>
-                <Ionicons name={action.icon as any} size={22} color={action.color} />
-              </View>
-              <Text style={styles.quickActionLabel}>{action.label}</Text>
-            </Pressable>
-          ))}
-        </View>
+        
 
         {/* ── Featured workspaces ── */}
         <View style={styles.section}>
@@ -288,7 +275,7 @@ export default function HomeScreen() {
                     <View style={styles.featuredFooter}>
                       <View style={styles.featuredCapacity}>
                         <Ionicons name="people-outline" size={12} color={colors.primary} />
-                        <Text style={styles.featuredCapacityText}>{ws.capacity}</Text>
+                        <Text style={styles.featuredCapacityText}>{ws.availableCount}/{ws.totalCount} available</Text>
                       </View>
                       <Text style={styles.featuredPrice}>PKR {ws.price}/day</Text>
                     </View>

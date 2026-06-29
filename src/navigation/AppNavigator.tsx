@@ -285,12 +285,14 @@ function AppDrawerNavigator() {
   const colors = useThemeColors();
   return (
     <Drawer.Navigator
+      id="DrawerNav"
       drawerContent={renderAppDrawerContent}
       screenOptions={{
         headerShown: false,
         drawerActiveTintColor: colors.primary,
         drawerInactiveTintColor: colors.mutedForeground,
         drawerActiveBackgroundColor: colors.primaryMuted,
+        drawerPosition: "right",
         drawerStyle: {
           backgroundColor: colors.card,
           width: 290,

@@ -546,7 +546,7 @@ export default function BookingScreen() {
                 <Ionicons name="location-outline" size={13} color={colors.mutedForeground} />
                 <Text style={styles.metaText} numberOfLines={1}>{workspace.location}</Text>
                 <Ionicons name="people-outline" size={13} color={colors.mutedForeground} />
-                <Text style={styles.metaText}>{workspace.capacity}</Text>
+                <Text style={styles.metaText}>{workspace.availableCount}/{workspace.totalCount} available</Text>
               </View>
               {workspace.amenities?.length > 0 && (
                 <View style={styles.amenityRow}>
