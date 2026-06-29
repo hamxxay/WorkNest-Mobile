@@ -9,6 +9,7 @@ import {
   Text,
   TextInput,
   View,
+  useColorScheme,
 } from "react-native";
 import { CompositeNavigationProp, useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
@@ -381,7 +382,8 @@ export default function HomeScreen() {
 
 function HeroSlideshow() {
   const colors = useThemeColors();
-  const isDark = colors.background === "#021a18" || colors.background.startsWith("#0");
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === "dark";
   const [activeIndex, setActiveIndex] = useState(0);
 
   // Background crossfade
