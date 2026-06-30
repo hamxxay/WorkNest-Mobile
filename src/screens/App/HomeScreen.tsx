@@ -5,18 +5,32 @@ import {
   Modal,
   Pressable,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
+import Animated2, {
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+  interpolate,
+  Extrapolation,
+} from "react-native-reanimated";
+import {
+  Gesture,
+  GestureDetector,
+  GestureHandlerRootView,
+} from "react-native-gesture-handler";
 import { CompositeNavigationProp, useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { AppStackParamList, MainTabParamList } from "../../navigation/types";
 import { Screen } from "../../components/Screen";
 import { radii, useThemeColors, useThemedStyles } from "../../theme";
-import { getPricingPlans, PricingPlan } from "../../services/pricingService";
 import { GalleryImage, getGalleryImages } from "../../services/galleryService";
 import { getWorkspaces } from "../../services/workspaceService";
 import { SmartImage } from "../../components/SmartImage";
@@ -62,6 +76,36 @@ const QUICK_ACTIONS = [
 
 const CATEGORIES = ["All", "Co-Working", "Private Office", "Meeting Room", "Event Space"];
 
+const STATIC_SPACES = [
+  {
+    id: "ws-01",
+    number: "01",
+    name: "Private Office",
+    description: "A dedicated office suite for focused work or small teams.",
+    icon: "business-outline",
+    features: ["Secure keycard access", "Premium desk & chair", "High-speed internet", "Daily cleaning"],
+    popular: false,
+  },
+  {
+    id: "ws-02",
+    number: "02",
+    name: "Hot Desk",
+    description: "Flexible desk access for remote workers and freelancers.",
+    icon: "laptop-outline",
+    features: ["Flexible hours", "Community lounge", "Printer & scanner", "Locker storage"],
+    popular: true,
+  },
+  {
+    id: "ws-03",
+    number: "03",
+    name: "Meeting Room",
+    description: "Fully equipped rooms for presentations and team sessions.",
+    icon: "people-outline",
+    features: ["AV & display setup", "Whiteboard & supplies", "Up to 10 people", "Catering available"],
+    popular: false,
+  },
+];
+
 const MONTH_LABELS = [
   "January",
   "February",
@@ -86,9 +130,8 @@ export default function HomeScreen() {
   >();
   const colors = useThemeColors();
   const styles = useThemedStyles(createStyles);
-  const [plans, setPlans] = useState<PricingPlan[]>([]);
   const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
-  const [lightboxImage, setLightboxImage] = useState<GalleryImage | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [workspaces, setWorkspaces] = useState<any[]>([]);
   const [activeCategory, setActiveCategory] = useState("All");
@@ -100,10 +143,6 @@ export default function HomeScreen() {
   const [searchOptions, setSearchOptions] = useState<string[]>([]);
 
   useEffect(() => {
-    getPricingPlans()
-      .then((items) => setPlans(items.slice(0, 3)))
-      .catch(() => setPlans([]));
-
     getGalleryImages()
       .then((items) => setGalleryImages(items.slice(0, 4)))
       .catch(() => setGalleryImages([]));
@@ -158,7 +197,7 @@ export default function HomeScreen() {
         <HeroSlideshow />
 
         {/* ── Search bar ── */}
-        <View style={styles.searchCard}>
+        {/* <View style={styles.searchCard}>
           <View style={styles.searchRow}>
             <Ionicons name="search" size={18} color={colors.primary} />
             <TextInput
@@ -218,7 +257,7 @@ export default function HomeScreen() {
               <Text style={styles.searchSubmitText}>Search "{searchQuery.trim()}"</Text>
             </Pressable>
           )}
-        </View>
+        </View> */}
 
         {/* ── Quick actions ── */}
         
@@ -290,57 +329,105 @@ export default function HomeScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Gallery Preview</Text>
+            <Pressable onPress={() => navigation.navigate("Gallery")}>
+              <Text style={styles.linkText}>See All</Text>
+            </Pressable>
           </View>
           <View style={styles.galleryGrid}>
             {galleryImages.map((img, index) => (
               <Pressable
                 key={`gallery-${String(img.id ?? "missing")}-${index}`}
                 style={({ pressed }) => [styles.galleryCard, pressed && styles.galleryCardPressed]}
-                onPress={() => setLightboxImage(img)}
+                onPress={() => setLightboxIndex(index)}
               >
                 <SmartImage uri={img.src} style={styles.galleryImage} />
+                <View style={styles.galleryCardOverlay} pointerEvents="none" />
+                <View style={styles.galleryZoomIcon} pointerEvents="none">
+                  <Ionicons name="expand-outline" size={14} color="rgba(255,255,255,0.8)" />
+                </View>
               </Pressable>
             ))}
           </View>
         </View>
 
-        {/* ── Plans ── */}
+        {/* ── Our Spaces ── */}
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Plans for every work style</Text>
+            <Text style={styles.sectionTitle}>Our premium spaces</Text>
             <Pressable onPress={() => navigation.navigate("Pricing")}>
               <Text style={styles.linkText}>See All</Text>
             </Pressable>
           </View>
 
-          {plans.map((plan, index) => (
-            <View key={`plan-${String(plan.id ?? "missing")}-${plan.name}-${index}`} style={[styles.planCard, plan.popular && styles.popularCard]}>
-              {plan.popular ? <Text style={styles.popularBadge}>Most Popular</Text> : null}
-              <Text style={styles.planName}>{plan.name}</Text>
-              <Text style={styles.planPrice}>PKR {Number(plan.price).toFixed(0)}/mo</Text>
-              <Text style={styles.planDescription}>{plan.description}</Text>
+          {STATIC_SPACES.map((space) => (
+            <View
+              key={space.id}
+              style={[styles.spaceCard, space.popular && styles.spaceCardPopular]}
+            >
+              <View style={styles.spaceCardHeader}>
+                <View style={styles.spaceNumberBadge}>
+                  <Text style={styles.spaceNumber}>{space.number}</Text>
+                </View>
+                {space.popular && (
+                  <View style={styles.popularPill}>
+                    <View style={styles.popularPillDot} />
+                    <Text style={styles.popularPillText}>Most Popular</Text>
+                  </View>
+                )}
+              </View>
+
+              <View style={styles.spaceTitleRow}>
+                <View style={[styles.spaceIconWell, space.popular && styles.spaceIconWellPopular]}>
+                  <Ionicons
+                    name={space.icon as any}
+                    size={22}
+                    color={space.popular ? "#fff" : colors.primary}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.spaceName}>{space.name}</Text>
+                  <Text style={styles.spaceDesc}>{space.description}</Text>
+                </View>
+              </View>
+
+              <View style={styles.spaceDivider} />
+
               <View style={styles.featuresList}>
-                {plan.features.slice(0, 3).map((feature) => (
-                  <View key={feature} style={styles.featureRow}>
+                {space.features.map((f) => (
+                  <View key={f} style={styles.featureRow}>
                     <Ionicons name="checkmark-circle" size={14} color={colors.primary} />
-                    <Text style={styles.featureText}>{feature}</Text>
+                    <Text style={styles.featureText}>{f}</Text>
                   </View>
                 ))}
               </View>
+
+              <Pressable
+                style={({ pressed }) => [
+                  styles.spaceBtn,
+                  space.popular && styles.spaceBtnPopular,
+                  pressed && styles.spaceBtnPressed,
+                ]}
+                onPress={() => navigation.navigate("Booking", { initialSearch: space.name })}
+              >
+                <Ionicons
+                  name="calendar-outline"
+                  size={15}
+                  color={space.popular ? "#fff" : colors.primary}
+                />
+                <Text style={[styles.spaceBtnText, space.popular && styles.spaceBtnTextPopular]}>
+                  Book Now
+                </Text>
+              </Pressable>
             </View>
           ))}
 
-          <View style={styles.actionButtons}>
-            <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionTitle}>Want to see the space in person?</Text>
-            </View>
-            <Pressable
-              style={[styles.actionButton, styles.blueButton]}
-              onPress={() => navigation.navigate("ContactUs", { source: "tour" })}
-            >
-              <Text style={styles.blueButtonText}>Book a tour</Text>
-            </Pressable>
-          </View>
+          <Pressable
+            style={styles.tourBtn}
+            onPress={() => navigation.navigate("ContactUs", { source: "tour" })}
+          >
+            <Ionicons name="navigate-outline" size={16} color="#fff" />
+            <Text style={styles.tourBtnText}>Book a Tour</Text>
+          </Pressable>
         </View>
       </ScrollView>
 
@@ -386,25 +473,249 @@ export default function HomeScreen() {
         </View>
       </Modal>
 
-      <Modal visible={!!lightboxImage} transparent animationType="fade" onRequestClose={() => setLightboxImage(null)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setLightboxImage(null)}>
-          <Pressable style={styles.modalClose} onPress={() => setLightboxImage(null)}>
-            <Ionicons name="close" color={colors.white} size={22} />
-          </Pressable>
-          {lightboxImage ? (
-            <Pressable style={styles.modalContent} onPress={() => {}}>
-              <SmartImage uri={lightboxImage.src} style={styles.modalImage} resizeMode="cover" />
-              <Text style={styles.modalTitle}>{lightboxImage.title}</Text>
-              {lightboxImage.description ? (
-                <Text style={styles.modalDesc}>{lightboxImage.description}</Text>
-              ) : null}
-            </Pressable>
-          ) : null}
-        </Pressable>
+      {/* ── Full-screen lightbox ── */}
+      <Modal
+        visible={lightboxIndex !== null}
+        transparent
+        animationType="none"
+        statusBarTranslucent
+        onRequestClose={() => setLightboxIndex(null)}
+      >
+        <StatusBar hidden />
+        {lightboxIndex !== null && (
+          <HomeLightbox
+            images={galleryImages}
+            startIndex={lightboxIndex}
+            onClose={() => setLightboxIndex(null)}
+          />
+        )}
       </Modal>
     </Screen>
   );
 }
+
+// ── Inline lightbox (same as GalleryScreen) ──
+const LB_SPRING = { damping: 22, stiffness: 280, mass: 0.8 };
+
+function HomeLightbox({
+  images,
+  startIndex,
+  onClose,
+}: {
+  images: GalleryImage[];
+  startIndex: number;
+  onClose: () => void;
+}) {
+  const colors = useThemeColors();
+  const [index, setIndex] = useState(startIndex);
+  const image = images[index];
+
+  const backdropOpacity = useSharedValue(0);
+  const cardScale = useSharedValue(0.82);
+  const cardOpacity = useSharedValue(0);
+  const scale = useSharedValue(1);
+  const savedScale = useSharedValue(1);
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+  const savedX = useSharedValue(0);
+  const savedY = useSharedValue(0);
+  const swipeX = useSharedValue(0);
+  const navOpacity = useSharedValue(1);
+
+  function resetZoom() {
+    "worklet";
+    scale.value = withSpring(1, LB_SPRING);
+    translateX.value = withSpring(0, LB_SPRING);
+    translateY.value = withSpring(0, LB_SPRING);
+    savedScale.value = 1;
+    savedX.value = 0;
+    savedY.value = 0;
+  }
+
+  useEffect(() => {
+    backdropOpacity.value = withTiming(1, { duration: 260 });
+    cardScale.value = withSpring(1, LB_SPRING);
+    cardOpacity.value = withTiming(1, { duration: 220 });
+  }, []);
+
+  useEffect(() => { resetZoom(); }, [index]);
+
+  function navigateTo(next: number) {
+    swipeX.value = withTiming(0, { duration: 0 });
+    setIndex(next);
+  }
+
+  function handleClose() {
+    backdropOpacity.value = withTiming(0, { duration: 200 });
+    cardScale.value = withTiming(0.84, { duration: 200 });
+    cardOpacity.value = withTiming(0, { duration: 200 }, () => runOnJS(onClose)());
+  }
+
+  const pinch = Gesture.Pinch()
+    .onUpdate((e) => {
+      scale.value = Math.min(Math.max(savedScale.value * e.scale, 1), 4);
+    })
+    .onEnd(() => {
+      if (scale.value < 1.05) {
+        resetZoom();
+      } else {
+        savedScale.value = scale.value;
+      }
+    });
+
+  const pan = Gesture.Pan()
+    .minDistance(2)
+    .onUpdate((e) => {
+      if (scale.value > 1.05) {
+        const maxX = ((scale.value - 1) * SW) / 2;
+        const maxY = ((scale.value - 1) * SH) / 2;
+        translateX.value = Math.min(Math.max(savedX.value + e.translationX, -maxX), maxX);
+        translateY.value = Math.min(Math.max(savedY.value + e.translationY, -maxY), maxY);
+      } else {
+        swipeX.value = e.translationX;
+        navOpacity.value = interpolate(Math.abs(e.translationX), [0, SW * 0.3], [1, 0.3], Extrapolation.CLAMP);
+      }
+    })
+    .onEnd((e) => {
+      if (scale.value > 1.05) {
+        savedX.value = translateX.value;
+        savedY.value = translateY.value;
+      } else {
+        const threshold = SW * 0.28;
+        if (e.translationX < -threshold && index < images.length - 1) {
+          swipeX.value = withTiming(-SW, { duration: 220 }, () => runOnJS(navigateTo)(index + 1));
+        } else if (e.translationX > threshold && index > 0) {
+          swipeX.value = withTiming(SW, { duration: 220 }, () => runOnJS(navigateTo)(index - 1));
+        } else {
+          swipeX.value = withSpring(0, LB_SPRING);
+        }
+        navOpacity.value = withTiming(1, { duration: 180 });
+      }
+    });
+
+  const doubleTap = Gesture.Tap()
+    .numberOfTaps(2)
+    .onEnd(() => {
+      if (scale.value > 1.2) { resetZoom(); }
+      else { scale.value = withSpring(2.4, LB_SPRING); savedScale.value = 2.4; }
+    });
+
+  const composed = Gesture.Simultaneous(pinch, Gesture.Race(doubleTap, pan));
+
+  const backdropStyle = useAnimatedStyle(() => ({ opacity: backdropOpacity.value }));
+  const cardStyle = useAnimatedStyle(() => ({ transform: [{ scale: cardScale.value }], opacity: cardOpacity.value }));
+  const imageStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: translateX.value + swipeX.value },
+      { translateY: translateY.value },
+      { scale: scale.value },
+    ],
+  }));
+  const navStyle = useAnimatedStyle(() => ({ opacity: navOpacity.value }));
+
+  return (
+    <GestureHandlerRootView style={StyleSheet.absoluteFill}>
+      <Animated2.View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(4,14,12,0.96)" }, backdropStyle]} />
+      <Pressable style={StyleSheet.absoluteFill} onPress={handleClose} />
+
+      <Animated2.View style={[lbStyles.card, cardStyle]}>
+        <GestureDetector gesture={composed}>
+          <Animated2.View style={lbStyles.imageWrap}>
+            <Animated2.Image
+              source={{ uri: image.src }}
+              style={[lbStyles.image, imageStyle]}
+              resizeMode="contain"
+            />
+          </Animated2.View>
+        </GestureDetector>
+      </Animated2.View>
+
+      {/* Top bar */}
+      <Animated2.View style={[lbStyles.topBar, navStyle]} pointerEvents="box-none">
+        <Pressable style={lbStyles.closeBtn} onPress={handleClose} hitSlop={10}>
+          <Ionicons name="close" size={22} color="#fff" />
+        </Pressable>
+        <View style={lbStyles.counter}>
+          <Text style={lbStyles.counterText}>{index + 1} / {images.length}</Text>
+        </View>
+        <View style={lbStyles.zoomHint}>
+          <Ionicons name="expand-outline" size={13} color="rgba(255,255,255,0.55)" />
+          <Text style={lbStyles.zoomHintText}>Pinch or double-tap to zoom</Text>
+        </View>
+      </Animated2.View>
+
+      {/* Prev / Next */}
+      <Animated2.View style={[lbStyles.navRow, navStyle]} pointerEvents="box-none">
+        {index > 0 ? (
+          <Pressable style={lbStyles.navBtn} onPress={() => navigateTo(index - 1)} hitSlop={10}>
+            <Ionicons name="chevron-back" size={22} color="#fff" />
+          </Pressable>
+        ) : <View style={lbStyles.navBtn} />}
+        {index < images.length - 1 ? (
+          <Pressable style={lbStyles.navBtn} onPress={() => navigateTo(index + 1)} hitSlop={10}>
+            <Ionicons name="chevron-forward" size={22} color="#fff" />
+          </Pressable>
+        ) : <View style={lbStyles.navBtn} />}
+      </Animated2.View>
+
+      {/* Caption */}
+      <Animated2.View style={[lbStyles.caption, navStyle]} pointerEvents="none">
+        <Text style={lbStyles.captionTitle} numberOfLines={1}>{image.title}</Text>
+        {!!image.category && <Text style={lbStyles.captionSub}>{image.category}</Text>}
+      </Animated2.View>
+
+      {/* Dots */}
+      {images.length > 1 && (
+        <Animated2.View style={[lbStyles.dots, navStyle]} pointerEvents="none">
+          {images.map((_, i) => (
+            <View key={i} style={[lbStyles.dot, i === index && lbStyles.dotActive]} />
+          ))}
+        </Animated2.View>
+      )}
+    </GestureHandlerRootView>
+  );
+}
+
+const SW = Dimensions.get("window").width;
+const SH = Dimensions.get("window").height;
+
+const lbStyles = StyleSheet.create({
+  card: { ...StyleSheet.absoluteFillObject, justifyContent: "center", alignItems: "center" },
+  imageWrap: { width: SW, height: SH, overflow: "hidden", justifyContent: "center", alignItems: "center" },
+  image: { width: SW, height: SH * 0.72 },
+  topBar: {
+    position: "absolute", top: 0, left: 0, right: 0,
+    paddingTop: 52, paddingHorizontal: 18, paddingBottom: 12,
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    backgroundColor: "rgba(4,14,12,0.55)",
+  },
+  closeBtn: {
+    width: 38, height: 38, borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    alignItems: "center", justifyContent: "center",
+  },
+  counter: { backgroundColor: "rgba(255,255,255,0.1)", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4 },
+  counterText: { color: "#fff", fontSize: 13, fontWeight: "700" },
+  zoomHint: { flexDirection: "row", alignItems: "center", gap: 4 },
+  zoomHintText: { color: "rgba(255,255,255,0.55)", fontSize: 11 },
+  navRow: {
+    position: "absolute", top: 0, bottom: 0, left: 0, right: 0,
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    pointerEvents: "box-none",
+  },
+  navBtn: {
+    width: 48, height: 48, borderRadius: 999,
+    backgroundColor: "rgba(13,148,136,0.3)",
+    alignItems: "center", justifyContent: "center",
+    marginHorizontal: 12,
+  },
+  caption: { position: "absolute", bottom: 72, left: 0, right: 0, paddingHorizontal: 24, gap: 3 },
+  captionTitle: { color: "#fff", fontSize: 17, fontWeight: "800", textShadowColor: "rgba(0,0,0,0.5)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 6 },
+  captionSub: { color: "#5eead4", fontSize: 11, fontWeight: "700", letterSpacing: 0.8, textTransform: "uppercase" },
+  dots: { position: "absolute", bottom: 38, left: 0, right: 0, flexDirection: "row", justifyContent: "center", gap: 6 },
+  dot: { width: 6, height: 6, borderRadius: 999, backgroundColor: "rgba(255,255,255,0.3)" },
+  dotActive: { width: 20, backgroundColor: "#0d9488" },
+});
 
 function HeroSlideshow() {
   const colors = useThemeColors();
@@ -911,23 +1222,86 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
   featuredPrice: { color: colors.foreground, fontSize: 13, fontWeight: "800" },
   featuredEmpty: { paddingVertical: 32, paddingHorizontal: 24, alignItems: "center" },
   featuredEmptyText: { color: colors.mutedForeground, fontSize: 14 },
-  actionButtons: {
-    gap: 8,
-    marginHorizontal: 18,
+  // ── Space cards ──
+  spaceCard: {
+    backgroundColor: colors.card,
+    borderRadius: radii.lg,
+    padding: 18,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    marginBottom: 14,
+    gap: 12,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.07,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
   },
-  actionButton: {
-    borderRadius: 12,
-    paddingVertical: 12,
+  spaceCardPopular: { borderColor: colors.primary, borderWidth: 2 },
+  spaceCardHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  spaceNumberBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: colors.primaryMuted,
     alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  blueButton: {
+  spaceNumber: { color: colors.primary, fontSize: 12, fontWeight: "800", letterSpacing: 0.5 },
+  popularPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
     backgroundColor: colors.primary,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
   },
-  blueButtonText: {
-    color: "#FFFFFF",
-    fontSize: 13,
-    fontWeight: "700",
+  popularPillDot: { width: 5, height: 5, borderRadius: 999, backgroundColor: "rgba(255,255,255,0.7)" },
+  popularPillText: { color: "#fff", fontSize: 11, fontWeight: "700" },
+  spaceTitleRow: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
+  spaceIconWell: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: colors.primaryMuted,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: colors.border,
   },
+  spaceIconWellPopular: { backgroundColor: colors.primary, borderColor: colors.primary },
+  spaceName: { fontSize: 16, fontWeight: "800", color: colors.foreground, letterSpacing: -0.2 },
+  spaceDesc: { fontSize: 13, color: colors.mutedForeground, marginTop: 3, lineHeight: 18 },
+  spaceDivider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.border },
+  spaceBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    paddingVertical: 11,
+    backgroundColor: colors.primaryMuted,
+  },
+  spaceBtnPopular: { backgroundColor: colors.primary, borderColor: colors.primary },
+  spaceBtnPressed: { opacity: 0.78 },
+  spaceBtnText: { color: colors.primary, fontWeight: "800", fontSize: 14 },
+  spaceBtnTextPopular: { color: "#fff" },
+  tourBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 4,
+    borderRadius: 14,
+    paddingVertical: 13,
+    backgroundColor: colors.secondary,
+  },
+  tourBtnText: { color: "#fff", fontWeight: "800", fontSize: 14 },
   section: { marginTop: 20, marginHorizontal: 18 },
   sectionHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
   sectionTitle: { color: colors.foreground, fontWeight: "800", fontSize: 19, letterSpacing: -0.3 },
@@ -939,10 +1313,23 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
     backgroundColor: colors.muted,
     height: 110,
   },
-  galleryCardPressed: {
-    transform: [{ scale: 1.05 }],
-  },
+  galleryCardPressed: { opacity: 0.88, transform: [{ scale: 0.97 }] },
   galleryImage: { width: "100%", height: "100%" },
+  galleryCardOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(4,24,20,0.25)",
+  },
+  galleryZoomIcon: {
+    position: "absolute",
+    top: 7,
+    right: 7,
+    width: 26,
+    height: 26,
+    borderRadius: 999,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   modalBackdrop: {
     flex: 1,
     backgroundColor: "rgba(15, 23, 42, 0.85)",

@@ -5,14 +5,71 @@ import { radii, useThemeColors, useThemedStyles } from "../../theme";
 import { useEffect, useMemo, useState } from "react";
 import { getPricingPlans, type PricingPlan } from "../../services/pricingService";
 import Ionicons from "react-native-vector-icons/Ionicons";
+import { useNavigation } from "@react-navigation/native";
+import type { CompositeNavigationProp } from "@react-navigation/native";
+import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { AppStackParamList, MainTabParamList } from "../../navigation/types";
 
 const fallbackPlans: PricingPlan[] = [];
+
+const STATIC_SPACES = [
+  {
+    id: "ws-01",
+    number: "01",
+    name: "Private Office",
+    description: "A dedicated office suite for focused work or small teams.",
+    icon: "business-outline",
+    features: [
+      "Secure keycard access",
+      "Premium desk & chair",
+      "High-speed internet",
+      "Daily cleaning",
+    ],
+    type: "Private Office" as const,
+    popular: false,
+  },
+  {
+    id: "ws-02",
+    number: "02",
+    name: "Hot Desk",
+    description: "Flexible desk access for remote workers and freelancers.",
+    icon: "laptop-outline",
+    features: [
+      "Flexible hours",
+      "Community lounge",
+      "Printer & scanner",
+      "Locker storage",
+    ],
+    type: "Co-Working Space" as const,
+    popular: true,
+  },
+  {
+    id: "ws-03",
+    number: "03",
+    name: "Meeting Room",
+    description: "Fully equipped rooms for presentations and team sessions.",
+    icon: "people-outline",
+    features: [
+      "AV & display setup",
+      "Whiteboard & supplies",
+      "Up to 10 people",
+      "Catering available",
+    ],
+    type: "Meeting Room" as const,
+    popular: false,
+  },
+];
 
 export default function PricingScreen() {
   const colors = useThemeColors();
   const styles = useThemedStyles(createStyles);
   const [plans, setPlans] = useState<PricingPlan[]>(fallbackPlans);
   const [loading, setLoading] = useState(true);
+  const navigation = useNavigation<CompositeNavigationProp<
+    BottomTabNavigationProp<MainTabParamList>,
+    NativeStackNavigationProp<AppStackParamList>
+  >>();
 
   useEffect(() => {
     getPricingPlans()
@@ -37,12 +94,87 @@ export default function PricingScreen() {
         <Header />
 
         <View style={styles.hero}>
-          <Text style={styles.title}>Simple, Transparent Pricing</Text>
+          <Text style={styles.title}>Simple, Transparent Booking</Text>
           <Text style={styles.subtitle}>
-            Choose the plan that fits your team and scale anytime.
+            Choose the space that fits your team and scale anytime.
           </Text>
         </View>
 
+        {/* ── Workspace type cards ── */}
+        <Text style={styles.sectionLabel}>Our Spaces</Text>
+        {STATIC_SPACES.map((space) => (
+          <View
+            key={space.id}
+            style={[styles.spaceCard, space.popular && styles.spaceCardPopular]}
+          >
+            {/* Number + popular badge row */}
+            <View style={styles.spaceCardHeader}>
+              <View style={styles.spaceNumberBadge}>
+                <Text style={styles.spaceNumber}>{space.number}</Text>
+              </View>
+              {space.popular && (
+                <View style={styles.popularPill}>
+                  <View style={styles.popularPillDot} />
+                  <Text style={styles.popularPillText}>Most Popular</Text>
+                </View>
+              )}
+            </View>
+
+            {/* Icon + title */}
+            <View style={styles.spaceTitleRow}>
+              <View style={[styles.spaceIconWell, space.popular && styles.spaceIconWellPopular]}>
+                <Ionicons
+                  name={space.icon as any}
+                  size={24}
+                  color={space.popular ? "#fff" : colors.primary}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.spaceName}>{space.name}</Text>
+                <Text style={styles.spaceDesc}>{space.description}</Text>
+              </View>
+            </View>
+
+            {/* Divider */}
+            <View style={styles.spaceDivider} />
+
+            {/* Features */}
+            <View style={styles.featuresList}>
+              {space.features.map((f) => (
+                <View key={f} style={styles.featureRow}>
+                  <Ionicons name="checkmark-circle" size={16} color={colors.primary} />
+                  <Text style={styles.featureText}>{f}</Text>
+                </View>
+              ))}
+            </View>
+
+            {/* CTA */}
+            <Pressable
+              style={({ pressed }) => [
+                styles.spaceBtn,
+                space.popular && styles.spaceBtnPopular,
+                pressed && styles.spaceBtnPressed,
+              ]}
+              onPress={() =>
+                navigation.navigate("Booking", {
+                  initialSearch: space.name,
+                })
+              }
+            >
+              <Ionicons
+                name="calendar-outline"
+                size={15}
+                color={space.popular ? "#fff" : colors.primary}
+              />
+              <Text style={[styles.spaceBtnText, space.popular && styles.spaceBtnTextPopular]}>
+                Book Now
+              </Text>
+            </Pressable>
+          </View>
+        ))}
+{/* 
+        {/* ── Pricing plans ── 
+        <Text style={styles.sectionLabel}>Pricing Plans</Text>
         {loading ? <Text style={styles.helper}>Loading plans...</Text> : null}
 
         {sortedPlans.map((plan) => (
@@ -67,7 +199,7 @@ export default function PricingScreen() {
           </View>
         ))}
 
-        <Text style={styles.faqTitle}>FAQs</Text>
+        <Text style={styles.faqTitle}>FAQs</Text> */}
       </ScrollView>
     </Screen>
   );
@@ -133,5 +265,136 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
     fontSize: 20,
     fontWeight: "700",
     color: colors.foreground,
+  },
+  sectionLabel: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: colors.foreground,
+    letterSpacing: -0.3,
+    marginBottom: 14,
+    marginTop: 4,
+  },
+  // ── Space cards ──
+  spaceCard: {
+    backgroundColor: colors.card,
+    borderRadius: radii.lg,
+    padding: 18,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    marginBottom: 16,
+    gap: 12,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.07,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
+  },
+  spaceCardPopular: {
+    borderColor: colors.primary,
+    borderWidth: 2,
+  },
+  spaceCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  spaceNumberBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: colors.primaryMuted,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  spaceNumber: {
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+  popularPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: colors.primary,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  popularPillDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.7)",
+  },
+  popularPillText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  spaceTitleRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  spaceIconWell: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: colors.primaryMuted,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: colors.border,
+  },
+  spaceIconWellPopular: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  spaceName: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: colors.foreground,
+    letterSpacing: -0.2,
+  },
+  spaceDesc: {
+    fontSize: 13,
+    color: colors.mutedForeground,
+    marginTop: 3,
+    lineHeight: 18,
+  },
+  spaceDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+    marginVertical: 2,
+  },
+  spaceBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    marginTop: 4,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    paddingVertical: 11,
+    backgroundColor: colors.primaryMuted,
+  },
+  spaceBtnPopular: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  spaceBtnPressed: {
+    opacity: 0.78,
+  },
+  spaceBtnText: {
+    color: colors.primary,
+    fontWeight: "800",
+    fontSize: 14,
+  },
+  spaceBtnTextPopular: {
+    color: "#fff",
   },
 });
