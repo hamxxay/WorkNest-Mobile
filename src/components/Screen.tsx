@@ -3,22 +3,17 @@ import { StyleSheet, ViewStyle } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useThemedStyles } from "../theme";
 
-type ScreenProps = PropsWithChildren<{
-  style?: ViewStyle;
-}>;
+type ScreenProps = PropsWithChildren<{ style?: ViewStyle }>;
 
 export function Screen({ children, style }: ScreenProps) {
   const styles = useThemedStyles((colors) =>
     StyleSheet.create({
-      root: {
-        flex: 1,
-        backgroundColor: colors.background,
-      },
+      root: { flex: 1, backgroundColor: colors.background },
     }),
   );
 
   return (
-    <SafeAreaView style={[styles.root, style]} edges={["top", "left", "right","bottom"]}>
+    <SafeAreaView style={[styles.root, style]} edges={["top", "left", "bottom"]}>
       {children}
     </SafeAreaView>
   );

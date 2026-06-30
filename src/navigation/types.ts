@@ -17,10 +17,6 @@ export type MainTabParamList = {
 
 export type AppDrawerParamList = {
   Workspace: undefined;
-  Profile: undefined;
-  BookingHistory: undefined;
-  PrivacyPolicy: undefined;
-  AboutUs: undefined;
 };
 
 export type AuthStackParamList = {
@@ -73,6 +69,10 @@ export type AppStackParamList = {
       };
     };
   };
+  Profile: undefined;
+  BookingHistory: undefined;
+  PrivacyPolicy: undefined;
+  AboutUs: undefined;
 };
 
 export type RootStackParamList = {

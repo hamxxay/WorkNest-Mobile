@@ -1,8 +1,9 @@
 import { Pressable, StyleSheet, Text, View, Image } from 'react-native';
-import { DrawerActions, useNavigation, useRoute } from '@react-navigation/native';
+import { useRoute } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useThemeColors } from '../theme';
 import { useAuth } from '../context/AuthContext';
+import { drawerNavRef } from '../navigation/AppNavigator';
 
 const SCREEN_LABELS: Record<string, string> = {
   Home: 'Home',
@@ -30,35 +31,32 @@ function getGreeting() {
 }
 
 export function Header() {
-  const navigation = useNavigation();
-  const route = useRoute();
-  const colors = useThemeColors();
+  const route   = useRoute();
+  const colors  = useThemeColors();
   const { user } = useAuth();
 
+  const isHome      = route.name === 'Home';
+  const firstName   = user?.name?.split(' ')[0] ?? 'there';
   const screenLabel = SCREEN_LABELS[route.name] ?? route.name;
-  const isHome = route.name === 'Home';
-  const firstName = user?.name?.split(' ')[0] ?? 'there';
 
   const openDrawer = () => {
-    navigation.dispatch(DrawerActions.openDrawer());
+    drawerNavRef.open();
   };
 
   return (
     <View style={[styles.container, { borderBottomColor: colors.border, backgroundColor: colors.background }]}>
       <View style={styles.brandSection}>
-        <View style={[styles.logoWell, { backgroundColor: colors.primary }]}>
-          <Image
-            source={require('../../public/Logo1.png')}
-            style={styles.logoImg}
-            resizeMode="contain"
-          />
-        </View>
+        <Image
+          source={require('../../public/Logo1.png')}
+          style={styles.logoImg}
+          resizeMode="contain"
+        />
         <View style={styles.textBlock}>
           {isHome ? (
             <>
               <Text style={[styles.greeting, { color: colors.mutedForeground }]}>{getGreeting()},</Text>
               <Text style={[styles.userName, { color: colors.foreground }]} numberOfLines={1}>
-                {firstName} 👋
+                {firstName}
               </Text>
             </>
           ) : (
@@ -72,15 +70,13 @@ export function Header() {
         </View>
       </View>
 
-      <View style={styles.rightActions}>
-        <Pressable
-          hitSlop={8}
-          onPress={openDrawer}
-          style={[styles.menuBtn, { borderColor: colors.border, backgroundColor: colors.card }]}
-        >
-          <Ionicons name="menu-outline" size={22} color={colors.foreground} />
-        </Pressable>
-      </View>
+      <Pressable
+        hitSlop={10}
+        onPress={openDrawer}
+        style={[styles.menuBtn, { borderColor: colors.border, backgroundColor: colors.card }]}
+      >
+        <Ionicons name="menu-outline" size={22} color={colors.foreground} />
+      </Pressable>
     </View>
   );
 }
@@ -98,28 +94,13 @@ const styles = StyleSheet.create({
   brandSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 2,
     flex: 1,
   },
-  textBlock: {
-    flex: 1,
-  },
-  logoWell: {
-    width: 40,
-    height: 40,
-    borderRadius: 13,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#0d9488',
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
-  },
+  textBlock: { flex: 1 },
   logoImg: {
-    width: 24,
-    height: 24,
-    tintColor: '#fff',
+    width: 38,
+    height: 38,
   },
   brandName: {
     fontSize: 10,
@@ -144,11 +125,6 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
     marginTop: 1,
   },
-  rightActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
   menuBtn: {
     width: 40,
     height: 40,
@@ -156,9 +132,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
 });
