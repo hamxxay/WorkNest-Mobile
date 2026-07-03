@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useMemo, useState } from "react";
 import {
+  Animated,
   Modal,
   Platform,
   Pressable,
@@ -498,10 +499,7 @@ export default function BookingScreen() {
         </View>
 
         {loading ? (
-          <View style={styles.emptyState}>
-            <Ionicons name="hourglass-outline" size={36} color={colors.mutedForeground} />
-            <Text style={styles.emptyStateText}>Loading workspaces…</Text>
-          </View>
+          [0, 1, 2, 3].map((i) => <BookingSkeletonCard key={i} />)
         ) : null}
         {!loading && filteredWorkspaces.length === 0 ? (
           <View style={styles.emptyState}>
@@ -925,6 +923,80 @@ function getRangeLabel(start: Date | null, end: Date | null) {
 
 function normalizeFilterValue(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function BookingSkeletonCard() {
+  const colors = useThemeColors();
+  const shimmer = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmer, { toValue: 1, duration: 900, useNativeDriver: true }),
+        Animated.timing(shimmer, { toValue: 0, duration: 900, useNativeDriver: true }),
+      ])
+    ).start();
+  }, [shimmer]);
+
+  const opacity = shimmer.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] });
+
+  return (
+    <Animated.View
+      style={[
+        {
+          borderRadius: 22,
+          marginBottom: 18,
+          overflow: "hidden",
+          backgroundColor: colors.card,
+          borderWidth: 1,
+          borderColor: colors.border,
+          shadowColor: colors.primary,
+          shadowOpacity: 0.07,
+          shadowRadius: 14,
+          shadowOffset: { width: 0, height: 7 },
+          elevation: 4,
+        },
+        { opacity },
+      ]}
+    >
+      {/* image placeholder */}
+      <View style={{ width: "100%", height: 190, backgroundColor: colors.primaryMuted }} />
+      {/* body */}
+      <View style={{ padding: 14, gap: 10 }}>
+        {/* title row */}
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+          <View style={{ height: 16, width: "55%", borderRadius: 8, backgroundColor: colors.primaryMuted }} />
+          <View style={{ height: 22, width: "28%", borderRadius: 999, backgroundColor: colors.muted }} />
+        </View>
+        {/* meta row */}
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          <View style={{ height: 11, width: "35%", borderRadius: 6, backgroundColor: colors.muted }} />
+          <View style={{ height: 11, width: "30%", borderRadius: 6, backgroundColor: colors.muted }} />
+        </View>
+        {/* amenity chips */}
+        <View style={{ flexDirection: "row", gap: 6 }}>
+          {["40%", "28%", "22%"].map((w, i) => (
+            <View key={i} style={{ height: 20, width: w, borderRadius: 999, backgroundColor: colors.muted }} />
+          ))}
+        </View>
+      </View>
+      {/* footer */}
+      <View
+        style={{
+          paddingHorizontal: 14,
+          paddingVertical: 12,
+          flexDirection: "row",
+          justifyContent: "space-between",
+          alignItems: "center",
+          borderTopWidth: StyleSheet.hairlineWidth,
+          borderTopColor: colors.border,
+        }}
+      >
+        <View style={{ height: 22, width: "30%", borderRadius: 8, backgroundColor: colors.primaryMuted }} />
+        <View style={{ height: 34, width: "22%", borderRadius: 12, backgroundColor: colors.primaryMuted }} />
+      </View>
+    </Animated.View>
+  );
 }
 
 const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.create({

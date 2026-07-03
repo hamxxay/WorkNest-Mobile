@@ -167,11 +167,11 @@ function AppDrawerContent(props: DrawerContentComponentProps) {
         {/* ── Brand header ── */}
         <View style={styles.brand}>
           <Image
-            source={require("../../public/Logo1.png")}
+            source={require("../../public/Logo.png")}
             style={styles.logoImg}
             resizeMode="contain"
           />
-          <Text style={styles.brandText}>orkNest</Text>
+          <Text style={styles.brandText}>WorkNest</Text>
         </View>
 
         {/* ── Menu items ── */}
@@ -205,9 +205,7 @@ function AppDrawerContent(props: DrawerContentComponentProps) {
 
       {/* ── Version footer ── */}
       <View style={styles.footer}>
-        {!!appVersion && (
-          <Text style={styles.version}>V {appVersion}</Text>
-        )}
+        <Text style={styles.version}>v{appVersion || "0.0.1"}</Text>
       </View>
 
       {/* ── Logout confirm modal ── */}

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Animated as RNAnimated,
   Dimensions,
   Modal,
   Pressable,
@@ -316,13 +317,13 @@ export default function GalleryScreen() {
 
   return (
     <Screen>
+      <Header />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Header />
 
-        <View style={styles.hero}>
+        {/* <View style={styles.hero}>
           <Text style={styles.title}>Gallery</Text>
           <Text style={styles.subtitle}>Explore our workspace collection.</Text>
-        </View>
+        </View> */}
 
         {/* Category filters */}
         <ScrollView
@@ -347,10 +348,7 @@ export default function GalleryScreen() {
         </ScrollView>
 
         {loading ? (
-          <View style={styles.emptyState}>
-            <Ionicons name="hourglass-outline" size={32} color={colors.mutedForeground} />
-            <Text style={styles.emptyText}>Loading gallery…</Text>
-          </View>
+          <GallerySkeletonGrid />
         ) : !loading && filteredImages.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="images-outline" size={36} color={colors.mutedForeground} />
@@ -543,6 +541,59 @@ const styles = StyleSheet.create({
     backgroundColor: "#0d9488",
   },
 });
+
+function GallerySkeletonGrid() {
+  const colors = useThemeColors();
+  const shimmer = useRef(new RNAnimated.Value(0)).current;
+
+  useEffect(() => {
+    RNAnimated.loop(
+      RNAnimated.sequence([
+        RNAnimated.timing(shimmer, { toValue: 1, duration: 900, useNativeDriver: true }),
+        RNAnimated.timing(shimmer, { toValue: 0, duration: 900, useNativeDriver: true }),
+      ])
+    ).start();
+  }, [shimmer]);
+
+  const opacity = shimmer.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] });
+
+  // mirrors the masonry pattern: every 5th is full-width, rest are half
+  const items = [0, 1, 2, 3, 4, 5, 6, 7];
+
+  return (
+    <RNAnimated.View style={[{ flexDirection: "row", flexWrap: "wrap", gap: 10 }, { opacity }]}>
+      {items.map((i) => {
+        const isFull = i % 5 === 0;
+        return (
+          <View
+            key={i}
+            style={{
+              width: isFull ? "100%" : "47.5%",
+              height: isFull ? 210 : 140,
+              borderRadius: 18,
+              backgroundColor: colors.primaryMuted,
+              overflow: "hidden",
+            }}
+          >
+            {/* bottom meta bar placeholder */}
+            <View
+              style={{
+                position: "absolute",
+                bottom: 10,
+                left: 10,
+                right: 10,
+                gap: 5,
+              }}
+            >
+              <View style={{ height: 14, width: "35%", borderRadius: 999, backgroundColor: colors.accentMuted }} />
+              <View style={{ height: 11, width: "60%", borderRadius: 6, backgroundColor: colors.accentMuted }} />
+            </View>
+          </View>
+        );
+      })}
+    </RNAnimated.View>
+  );
+}
 
 const createStyles = (colors: ReturnType<typeof useThemeColors>) =>
   StyleSheet.create({

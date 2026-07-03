@@ -1,5 +1,5 @@
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
-import { radii, useThemedStyles } from "../theme";
+import { radii, useThemedStyles, useThemeColors } from "../theme";
 
 type ConfirmModalProps = {
   visible: boolean;
@@ -10,8 +10,6 @@ type ConfirmModalProps = {
   onConfirm: () => void;
   onCancel: () => void;
 };
-
-const destructiveColor = "#dc2626";
 
 export function ConfirmModal({
   visible,
@@ -79,8 +77,8 @@ export function ConfirmModal({
         fontWeight: "700",
       },
       dangerSolidButton: {
-        backgroundColor: destructiveColor,
-        shadowColor: destructiveColor,
+        backgroundColor: colors.primary,
+        shadowColor: colors.primary,
         shadowOpacity: 0.3,
         shadowRadius: 8,
         shadowOffset: { width: 0, height: 3 },

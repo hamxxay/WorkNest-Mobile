@@ -9,7 +9,8 @@ import { Screen } from "../../components/Screen";
 import { radii, useThemeColors, useThemedStyles } from "../../theme";
 import { logoutUser, updateUserProfile } from "../../services/authService";
 import { useAuth } from "../../context/AuthContext";
-import type { RootStackParamList } from "../../navigation/types";
+import type { AppStackParamList } from "../../navigation/types";
+import { rootNavRef } from "../../navigation/AppNavigator";
 import { getMyBookings } from "../../services/workspaceService";
 
 type BookingItem = {
@@ -28,7 +29,7 @@ type BookingSummary = {
 export default function ProfileScreen() {
   const colors = useThemeColors();
   const styles = useThemedStyles(createStyles);
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const { clearSession, user, setUser } = useAuth();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [summary, setSummary] = useState<BookingSummary>({
@@ -38,6 +39,7 @@ export default function ProfileScreen() {
   });
 
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showComingSoon, setShowComingSoon] = useState(false);
   const [editName, setEditName] = useState("");
   const [editPhone, setEditPhone] = useState("");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -72,7 +74,7 @@ export default function ProfileScreen() {
     setShowLogoutConfirm(false);
     await logoutUser();
     await clearSession();
-    navigation.reset({ index: 0, routes: [{ name: "AuthStack", params: { screen: "Login" } }] });
+    rootNavRef.current?.reset({ index: 0, routes: [{ name: "AuthStack", params: { screen: "Login" } }] });
   };
 
   const isFocused = useIsFocused();
@@ -155,7 +157,7 @@ export default function ProfileScreen() {
               <Text style={styles.membershipSub}>Renews May 2026</Text>
             </View>
           </View>
-          <Pressable style={styles.manageBtn}>
+          <Pressable style={styles.manageBtn} onPress={() => setShowComingSoon(true)}>
             <Text style={styles.manageBtnText}>Manage</Text>
           </Pressable>
         </View>
@@ -164,9 +166,9 @@ export default function ProfileScreen() {
         <View style={styles.menuCard}>
           {[
             { icon: "person-outline" as const, label: "Edit Profile", onPress: handleOpenEdit },
-            { icon: "time-outline" as const, label: "Booking History", onPress: () => {} },
-            { icon: "shield-checkmark-outline" as const, label: "Privacy Policy", onPress: () => {} },
-            { icon: "information-circle-outline" as const, label: "About WorkNest", onPress: () => {} },
+            { icon: "time-outline" as const, label: "Booking History", onPress: () => navigation.navigate("BookingHistory") },
+            { icon: "shield-checkmark-outline" as const, label: "Privacy Policy", onPress: () => navigation.navigate("PrivacyPolicy") },
+            { icon: "information-circle-outline" as const, label: "About WorkNest", onPress: () => navigation.navigate("AboutUs") },
           ].map((item, idx, arr) => (
             <Pressable
               key={item.label}
@@ -206,6 +208,32 @@ export default function ProfileScreen() {
           });
         }}
       />
+
+      <Modal
+        visible={showComingSoon}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowComingSoon(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.comingSoonCard}>
+            <View style={styles.comingSoonIconWell}>
+              <Ionicons name="rocket-outline" size={32} color={colors.primary} />
+            </View>
+            <Text style={styles.comingSoonTitle}>Coming Soon</Text>
+            <Text style={styles.comingSoonDesc}>
+              Membership management is on its way! Stay in touch with us for updates.
+            </Text>
+            <View style={styles.comingSoonContact}>
+              <Ionicons name="mail-outline" size={15} color={colors.primary} />
+              <Text style={styles.comingSoonEmail}>sales@worknestpk.com</Text>
+            </View>
+            <Pressable style={styles.comingSoonBtn} onPress={() => setShowComingSoon(false)}>
+              <Text style={styles.comingSoonBtnText}>Got it</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         visible={showEditModal}
@@ -612,6 +640,76 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
     elevation: 3,
   },
   saveBtnText: { color: colors.white, fontWeight: "700", fontSize: 14 },
+  // Coming soon modal
+  comingSoonCard: {
+    backgroundColor: colors.card,
+    borderRadius: radii.xl,
+    padding: 28,
+    width: "100%",
+    maxWidth: 340,
+    alignItems: "center",
+    gap: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    shadowColor: colors.shadow,
+    shadowOpacity: 0.2,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 8,
+  },
+  comingSoonIconWell: {
+    width: 68,
+    height: 68,
+    borderRadius: 22,
+    backgroundColor: colors.primaryMuted,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 4,
+  },
+  comingSoonTitle: {
+    fontSize: 22,
+    fontWeight: "900",
+    color: colors.foreground,
+    letterSpacing: -0.5,
+  },
+  comingSoonDesc: {
+    fontSize: 14,
+    color: colors.mutedForeground,
+    textAlign: "center",
+    lineHeight: 22,
+  },
+  comingSoonContact: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: colors.primaryMuted,
+    borderRadius: radii.pill,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  comingSoonEmail: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.primary,
+  },
+  comingSoonBtn: {
+    marginTop: 4,
+    width: "100%",
+    backgroundColor: colors.primary,
+    borderRadius: radii.md,
+    paddingVertical: 13,
+    alignItems: "center",
+    shadowColor: colors.primary,
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+  comingSoonBtnText: { color: colors.white, fontWeight: "700", fontSize: 15 },
   // kept for TS compat
   sectionTitle: { color: colors.foreground, fontSize: 15, fontWeight: "700" },
   profileCard: { display: "none" },

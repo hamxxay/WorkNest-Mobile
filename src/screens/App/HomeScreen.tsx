@@ -134,6 +134,7 @@ export default function HomeScreen() {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [workspaces, setWorkspaces] = useState<any[]>([]);
+  const [loadingSpaces, setLoadingSpaces] = useState(true);
   const [activeCategory, setActiveCategory] = useState("All");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -161,7 +162,8 @@ export default function HomeScreen() {
       .catch(() => {
         setWorkspaces([]);
         setSearchOptions([]);
-      });
+      })
+      .finally(() => setLoadingSpaces(false));
   }, []);
 
   const visibleSearchOptions = useMemo(() => {
@@ -286,7 +288,9 @@ export default function HomeScreen() {
 
           {/* Workspace cards horizontal scroll */}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.featuredScroll}>
-            {featuredWorkspaces.length === 0 ? (
+            {loadingSpaces ? (
+              [0, 1, 2].map((i) => <FeaturedSkeletonCard key={i} />)
+            ) : featuredWorkspaces.length === 0 ? (
               <View style={styles.featuredEmpty}>
                 <Text style={styles.featuredEmptyText}>No spaces in this category</Text>
               </View>
@@ -717,6 +721,57 @@ const lbStyles = StyleSheet.create({
   dotActive: { width: 20, backgroundColor: "#0d9488" },
 });
 
+function FeaturedSkeletonCard() {
+  const colors = useThemeColors();
+  const shimmer = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmer, { toValue: 1, duration: 900, useNativeDriver: true }),
+        Animated.timing(shimmer, { toValue: 0, duration: 900, useNativeDriver: true }),
+      ])
+    ).start();
+  }, [shimmer]);
+
+  const opacity = shimmer.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] });
+
+  return (
+    <Animated.View
+      style={[
+        {
+          width: SCREEN_WIDTH * 0.62,
+          borderRadius: 22,
+          backgroundColor: colors.card,
+          overflow: "hidden",
+          borderWidth: 1,
+          borderColor: colors.border,
+          shadowColor: colors.primary,
+          shadowOpacity: 0.07,
+          shadowRadius: 16,
+          shadowOffset: { width: 0, height: 8 },
+          elevation: 4,
+        },
+        { opacity },
+      ]}
+    >
+      {/* image placeholder */}
+      <View style={{ width: "100%", height: 150, backgroundColor: colors.primaryMuted }} />
+      <View style={{ padding: 14, gap: 10 }}>
+        {/* name */}
+        <View style={{ height: 14, width: "70%", borderRadius: 7, backgroundColor: colors.primaryMuted }} />
+        {/* location */}
+        <View style={{ height: 11, width: "50%", borderRadius: 6, backgroundColor: colors.muted }} />
+        {/* footer row */}
+        <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 4 }}>
+          <View style={{ height: 11, width: "40%", borderRadius: 6, backgroundColor: colors.muted }} />
+          <View style={{ height: 11, width: "28%", borderRadius: 6, backgroundColor: colors.primaryMuted }} />
+        </View>
+      </View>
+    </Animated.View>
+  );
+}
+
 function HeroSlideshow() {
   const colors = useThemeColors();
   const [activeIndex, setActiveIndex] = useState(0);
@@ -1058,7 +1113,7 @@ function startOfToday() {
 }
 
 const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.create({
-  container: { paddingBottom: 24 },
+  container: { paddingBottom: 56 },
 
   // ── Search ──
   searchCard: {
@@ -1178,7 +1233,7 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
     color: colors.mutedForeground,
   },
   categoryChipTextActive: { color: colors.white },
-  featuredScroll: { gap: 14, paddingRight: 4 },
+  featuredScroll: { gap: 14, paddingRight: 4, paddingBottom: 6 },
   featuredCard: {
     width: SCREEN_WIDTH * 0.62,
     borderRadius: 22,
@@ -1186,7 +1241,7 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
     overflow: "hidden",
     shadowColor: colors.primary,
     shadowOpacity: 0.1,
-    shadowRadius: 16,
+    shadowRadius: 12,
     shadowOffset: { width: 0, height: 8 },
     elevation: 4,
     borderWidth: 1,
