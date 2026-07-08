@@ -36,6 +36,7 @@ import { getWorkspaces } from "../../services/workspaceService";
 import { SmartImage } from "../../components/SmartImage";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { Header } from "../../components/Header";
+import { ChatBot } from "../../components/ChatBot";
 import { INPUT_LIMITS, sanitizeTextForState } from "../../utils/inputSanitizer";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -435,6 +436,8 @@ export default function HomeScreen() {
           </Pressable>
         </View>
       </ScrollView>
+
+      <ChatBot />
 
       <Modal transparent visible={datePickerOpen} animationType="fade" onRequestClose={() => setDatePickerOpen(false)}>
         <View style={styles.pickerOverlay}>

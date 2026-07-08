@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   NavigationContainer,
   NavigationContainerRef,
   DrawerActions,
 } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import {
   createDrawerNavigator,
   DrawerContentScrollView,
@@ -12,7 +13,7 @@ import {
   type DrawerContentComponentProps,
 } from "@react-navigation/drawer";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { InteractionManager } from "react-native";
+import { Animated, InteractionManager, Pressable } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { StyleSheet, View, Text, Image, StatusBar } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -34,6 +35,7 @@ import ProfileScreen from "../screens/App/ProfileScreen";
 import MyBookingsScreen from "../screens/App/MyBookingsScreen";
 import PrivacyPolicyScreen from "../screens/App/PrivacyPolicyScreen";
 import AboutUsScreen from "../screens/App/AboutUsScreen";
+import UserManualScreen from "../screens/App/UserManualScreen";
 import AdminPanelScreen from "../screens/App/AdminPanelScreen";
 
 import { logoutUser } from "../services/authService";
@@ -68,48 +70,158 @@ export const drawerNavRef = {
   close: () => rootNavRef.current?.dispatch(DrawerActions.closeDrawer()),
 };
 
-// ─── Tab icons ─────────────────────────────────────────────────────────────────
-type IconProps = { color: string; size: number; focused: boolean };
-const HomeIcon    = ({ color, size, focused }: IconProps) => <Ionicons name={focused ? "home"      : "home-outline"}      color={color} size={size} />;
-const BookingIcon = ({ color, size, focused }: IconProps) => <Ionicons name={focused ? "calendar"  : "calendar-outline"}  color={color} size={size} />;
-const PaymentIcon = ({ color, size, focused }: IconProps) => <Ionicons name={focused ? "card"      : "card-outline"}      color={color} size={size} />;
-const GalleryIcon = ({ color, size, focused }: IconProps) => <Ionicons name={focused ? "images"    : "images-outline"}    color={color} size={size} />;
-const PricingIcon = ({ color, size, focused }: IconProps) => <Ionicons name={focused ? "pricetag"  : "pricetag-outline"}  color={color} size={size} />;
+// ─── Tab config ────────────────────────────────────────────────────────────────
+const TAB_ITEMS = [
+  { name: "Home",       activeIcon: "home",     inactiveIcon: "home-outline"     },
+  { name: "Booking",    activeIcon: "calendar", inactiveIcon: "calendar-outline" },
+  { name: "MyPayments", activeIcon: "card",     inactiveIcon: "card-outline"     },
+  { name: "Gallery",    activeIcon: "images",   inactiveIcon: "images-outline"   },
+  { name: "Pricing",    activeIcon: "pricetag", inactiveIcon: "pricetag-outline" },
+] as const;
 
-// ─── Main bottom tabs ──────────────────────────────────────────────────────────
-function MainTabs() {
+// ─── Animated tab item ─────────────────────────────────────────────────────────
+function TabItem({
+  focused,
+  activeIcon,
+  inactiveIcon,
+  onPress,
+}: {
+  focused: boolean;
+  activeIcon: string;
+  inactiveIcon: string;
+  onPress: () => void;
+}) {
+  const colors = useThemeColors();
+  const scale = useRef(new Animated.Value(1)).current;
+  const translateY = useRef(new Animated.Value(0)).current;
+  const bgOpacity = useRef(new Animated.Value(focused ? 1 : 0)).current;
+
+  useEffect(() => {
+    if (focused) {
+      Animated.parallel([
+        Animated.spring(scale, { toValue: 1.18, friction: 5, tension: 180, useNativeDriver: true }),
+        Animated.spring(translateY, { toValue: -6, friction: 5, tension: 180, useNativeDriver: true }),
+        Animated.timing(bgOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.spring(scale, { toValue: 1, friction: 6, tension: 160, useNativeDriver: true }),
+        Animated.spring(translateY, { toValue: 0, friction: 6, tension: 160, useNativeDriver: true }),
+        Animated.timing(bgOpacity, { toValue: 0, duration: 180, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [focused]);
+
+  return (
+    <Pressable onPress={onPress} style={styles.tabItem}>
+      <Animated.View style={{ transform: [{ scale }, { translateY }] }}>
+        {/* pill background */}
+        <Animated.View
+          style={[
+            styles.tabPill,
+            {
+              opacity: bgOpacity,
+              backgroundColor: colors.primary,
+              shadowColor: colors.primary,
+            },
+          ]}
+        />
+        <Ionicons
+          name={focused ? activeIcon : inactiveIcon}
+          size={22}
+          color={focused ? "#fff" : colors.mutedForeground}
+          style={styles.tabIcon}
+        />
+      </Animated.View>
+      {/* active dot */}
+      {focused && <View style={[styles.tabDot, { backgroundColor: colors.primary }]} />}
+    </Pressable>
+  );
+}
+
+// ─── Custom tab bar ────────────────────────────────────────────────────────────
+function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
 
   return (
-    <Tab.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.mutedForeground,
-        tabBarHideOnKeyboard: true,
-        tabBarStyle: {
+    <View
+      style={[
+        styles.tabBar,
+        {
+          paddingBottom: Math.max(insets.bottom, 8),
           backgroundColor: colors.card,
           borderTopColor: colors.border,
-          borderTopWidth: StyleSheet.hairlineWidth,
-          height: 64 + insets.bottom,
-          paddingTop: 8,
-          paddingBottom: Math.max(insets.bottom, 10),
           shadowColor: colors.primary,
-          shadowOpacity: 0.15,
-          shadowRadius: 28,
-          shadowOffset: { width: 0, height: -6 },
-          elevation: 20,
         },
-        tabBarItemStyle: { paddingTop: 4 },
-        tabBarLabelStyle: { fontSize: 10, fontWeight: "700", letterSpacing: 0.2, marginTop: 2 },
-      }}
+      ]}
     >
-      <Tab.Screen name="Home"       component={HomeScreen}       options={{ tabBarIcon: HomeIcon }} />
-      <Tab.Screen name="Booking"    component={BookingScreen}    options={{ tabBarIcon: BookingIcon }} />
-      <Tab.Screen name="MyPayments" component={MyPaymentsScreen} options={{ title: "My Payments", tabBarIcon: PaymentIcon }} />
-      <Tab.Screen name="Gallery"    component={GalleryScreen}    options={{ tabBarIcon: GalleryIcon }} />
-      <Tab.Screen name="Pricing"    component={PricingScreen}    options={{ tabBarIcon: PricingIcon }} />
+      {TAB_ITEMS.map((item, i) => (
+        <TabItem
+          key={item.name}
+          focused={state.index === i}
+          activeIcon={item.activeIcon}
+          inactiveIcon={item.inactiveIcon}
+          onPress={() => {
+            const event = navigation.emit({ type: "tabPress", target: state.routes[i].key, canPreventDefault: true });
+            if (!event.defaultPrevented) navigation.navigate(item.name);
+          }}
+        />
+      ))}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  tabBar: {
+    flexDirection: "row",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: 8,
+    shadowOpacity: 0.12,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: -4 },
+    elevation: 16,
+  },
+  tabItem: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 4,
+    paddingBottom: 2,
+    gap: 4,
+  },
+  tabPill: {
+    position: "absolute",
+    top: -6,
+    left: -14,
+    right: -14,
+    bottom: -6,
+    borderRadius: 16,
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+  },
+  tabIcon: { zIndex: 1 },
+  tabDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+  },
+});
+
+// ─── Main bottom tabs ──────────────────────────────────────────────────────────
+function MainTabs() {
+  return (
+    <Tab.Navigator
+      tabBar={(props) => <CustomTabBar {...props} />}
+      screenOptions={{ headerShown: false, tabBarHideOnKeyboard: true }}
+    >
+      <Tab.Screen name="Home"       component={HomeScreen} />
+      <Tab.Screen name="Booking"    component={BookingScreen} />
+      <Tab.Screen name="MyPayments" component={MyPaymentsScreen} />
+      <Tab.Screen name="Gallery"    component={GalleryScreen} />
+      <Tab.Screen name="Pricing"    component={PricingScreen} />
     </Tab.Navigator>
   );
 }
@@ -123,6 +235,7 @@ const MENU_ITEMS = [
   { label: "Booking History", icon: "time-outline",               screen: "BookingHistory"   },
   { label: "Privacy Policy",  icon: "shield-checkmark-outline",   screen: "PrivacyPolicy"    },
   { label: "About Us",        icon: "information-circle-outline", screen: "AboutUs"          },
+  { label: "User Manual",     icon: "book-outline",               screen: "UserManual"       },
 ] as const;
 
 function AppDrawerContent(props: DrawerContentComponentProps) {
@@ -283,6 +396,7 @@ function InnerStackNavigator() {
       <InnerStack.Screen name="BookingHistory" component={MyBookingsScreen} />
       <InnerStack.Screen name="PrivacyPolicy"  component={PrivacyPolicyScreen} />
       <InnerStack.Screen name="AboutUs"        component={AboutUsScreen} />
+      <InnerStack.Screen name="UserManual"      component={UserManualScreen} />
       <InnerStack.Screen name="AdminPanel"     component={AdminPanelScreen} />
       <InnerStack.Screen name="ContactUs"      component={ContactUsScreen} />
       <InnerStack.Screen name="SpaceDetail"    component={SpaceDetailScreen} />

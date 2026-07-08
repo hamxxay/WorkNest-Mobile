@@ -73,6 +73,7 @@ export type AppStackParamList = {
   BookingHistory: undefined;
   PrivacyPolicy: undefined;
   AboutUs: undefined;
+  UserManual: undefined;
 };
 
 export type RootStackParamList = {
