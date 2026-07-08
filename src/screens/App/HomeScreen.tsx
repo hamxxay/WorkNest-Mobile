@@ -193,8 +193,9 @@ export default function HomeScreen() {
 
   return (
     <Screen>
+      <Header />
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        <Header />
+       
 
         <HeroSlideshow />
 
