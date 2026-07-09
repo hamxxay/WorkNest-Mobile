@@ -16,8 +16,9 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Screen } from "../../components/Screen";
 import { radii, useThemeColors, useThemedStyles } from "../../theme";
 import type { AppStackParamList } from "../../navigation/types";
-import { createBooking } from "../../services/workspaceService";
 import { createLocalPaymentVoucher, type PaymentItem } from "../../services/paymentService";
+import { API_ENDPOINTS } from "../../config/api";
+import { apiRequest } from "../../services/apiClient";
 import {
   INPUT_LIMITS,
   sanitizeAccountNumberInput,
@@ -77,6 +78,7 @@ export default function PaymentScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [voucher, setVoucher] = useState<PaymentItem | null>(null);
+  const [assignedSpaceName, setAssignedSpaceName] = useState<string | null>(null);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener("beforeRemove", (e) => {
@@ -95,14 +97,54 @@ export default function PaymentScreen() {
     return unsubscribe;
   }, [navigation, voucher]);
 
-  const bookingAmount = useMemo(() => {
-    if (booking.mode === "office") {
-      return workspace.price * 30;
-    }
+  const isPrivate = booking.mode === "office";
+  const [fetchedSecurityDeposit, setFetchedSecurityDeposit] = useState<number>(booking.securityDeposit ?? 0);
 
+  useEffect(() => {
+    if (!isPrivate) return;
+    apiRequest<{ securityDeposit?: number }>(
+      API_ENDPOINTS.spaceConfig.deposit("Private"),
+      { requiresAuth: true }
+    ).then((res) => {
+      if (res?.securityDeposit != null) {
+        setFetchedSecurityDeposit(Number(res.securityDeposit));
+      }
+    }).catch(() => {});
+  }, [isPrivate]);
+
+  const priceBreakdown = useMemo(() => {
+    if (isPrivate) {
+      const parts = booking.month ? booking.month.split(" to ") : [];
+      const startMonthStr = parts[0]?.trim();
+      const endMonthStr = (parts[1] || parts[0])?.trim();
+      let months = 1;
+      if (startMonthStr && endMonthStr) {
+        const [sy, sm] = startMonthStr.split("-").map(Number);
+        const [ey, em] = endMonthStr.split("-").map(Number);
+        months = Math.max(1, (ey - sy) * 12 + (em - sm) + 1);
+      }
+      const monthlyRate = workspace.price * 30;
+      const rentTotal = monthlyRate * months;
+      const securityDeposit = fetchedSecurityDeposit;
+      return { months, monthlyRate, rentTotal, securityDeposit, total: rentTotal + securityDeposit };
+    }
+    const pricePerHour = workspace.price / 8;
+    const slotHours = (() => {
+      if (booking.slot && booking.slot.includes(" - ")) {
+        const [start, end] = booking.slot.split(" - ").map((t) => {
+          const [h, m] = t.trim().split(":").map(Number);
+          return h + (m || 0) / 60;
+        });
+        return Math.max(1, end - start);
+      }
+      return 8;
+    })();
     const bookedDays = Math.max(booking.dates.length, 1);
-    return workspace.price * bookedDays;
-  }, [booking.dates.length, booking.mode, workspace.price]);
+    const total = pricePerHour * slotHours * bookedDays;
+    return { months: 0, monthlyRate: 0, rentTotal: 0, securityDeposit: 0, total };
+  }, [booking.dates.length, booking.mode, booking.month, fetchedSecurityDeposit, isPrivate, workspace.price]);
+
+  const bookingAmount = priceBreakdown.total;
 
   const bookingSummary = useMemo(() => {
     if (booking.mode === "office") {
@@ -209,25 +251,39 @@ export default function PaymentScreen() {
         endDateTime = `${endDate}T${slotEnd}:00`;
       }
 
-      await createBooking(workspace.id, startDateTime, endDateTime, {
-        notes: `Payment via ${getPaymentMethodLabel(paymentMethod)}`,
-        guest: {
-          name: sanitizeNameInput(booking.guest.name, "Guest name"),
-          email: booking.guest.email,
-          phone: sanitizePhoneInput(booking.guest.phone),
-        },
-        payment: {
-          method: getPaymentMethodLabel(paymentMethod),
-          amount: bookingAmount,
-          voucherCode,
-          bankDepositId,
-          referenceNumber,
+      const spaceCategory =
+        booking.mode === "office" ? "Private" :
+        booking.mode === "shared" ? "Shared" : "Meeting";
+
+      const smartRes = await apiRequest<{
+        assignedSpaceName?: string;
+        assignedSpace?: string;
+      }>(API_ENDPOINTS.smartBooking.create, {
+        method: "POST",
+        requiresAuth: true,
+        body: {
+          spaceCategory,
+          startDateTime,
+          endDateTime,
+          totalAmount: bookingAmount,
+          paymentMethod: getPaymentMethodLabel(paymentMethod),
+          paymentRef: referenceNumber,
+          notes: `Payment via ${getPaymentMethodLabel(paymentMethod)}`,
+          guest: {
+            name: sanitizeNameInput(booking.guest.name, "Guest name"),
+            email: booking.guest.email,
+            phone: sanitizePhoneInput(booking.guest.phone),
+          },
         },
       });
+
+      const resolvedSpaceName = smartRes?.assignedSpaceName ?? workspace.name;
+      setAssignedSpaceName(resolvedSpaceName);
+
       const nextVoucher = await createLocalPaymentVoucher({
         amount: bookingAmount,
         paymentMethod: getPaymentMethodLabel(paymentMethod),
-        workspaceName: workspace.name,
+        workspaceName: resolvedSpaceName,
         bookingSummary,
         voucherCode,
         referenceNumber,
@@ -258,6 +314,44 @@ export default function PaymentScreen() {
               <Text style={styles.bodyText}>Time: {booking.slot}</Text>
             </>
           )}
+
+          <View style={styles.divider} />
+
+          {isPrivate ? (
+            <>
+              <View style={styles.breakdownRow}>
+                <Text style={styles.breakdownLabel}>Duration</Text>
+                <Text style={styles.breakdownValue}>{priceBreakdown.months} month{priceBreakdown.months !== 1 ? "s" : ""}</Text>
+              </View>
+              <View style={styles.breakdownRow}>
+                <Text style={styles.breakdownLabel}>Monthly Rate</Text>
+                <Text style={styles.breakdownValue}>PKR {priceBreakdown.monthlyRate.toFixed(2)}</Text>
+              </View>
+              <View style={styles.breakdownRow}>
+                <Text style={styles.breakdownLabel}>Rent Total</Text>
+                <Text style={styles.breakdownValue}>PKR {priceBreakdown.rentTotal.toFixed(2)}</Text>
+              </View>
+              {priceBreakdown.securityDeposit > 0 && (
+                <View style={styles.breakdownRow}>
+                  <Text style={styles.breakdownLabel}>Security Deposit <Text style={styles.refundableTag}>(refundable)</Text></Text>
+                  <Text style={styles.breakdownValue}>PKR {priceBreakdown.securityDeposit.toFixed(2)}</Text>
+                </View>
+              )}
+            </>
+          ) : (
+            <>
+              <View style={styles.breakdownRow}>
+                <Text style={styles.breakdownLabel}>{booking.dates.length} day{booking.dates.length !== 1 ? "s" : ""} × {priceBreakdown.total > 0 ? `${booking.slot} × PKR ${(workspace.price / 8).toFixed(0)}/hr` : `PKR ${workspace.price}/day`}</Text>
+                <Text style={styles.breakdownValue}>PKR {priceBreakdown.total.toFixed(2)}</Text>
+              </View>
+            </>
+          )}
+
+          <View style={styles.divider} />
+          <View style={styles.breakdownRow}>
+            <Text style={styles.totalLabel}>Total Payable</Text>
+            <Text style={styles.totalValue}>PKR {priceBreakdown.total.toFixed(2)}</Text>
+          </View>
         </View>
 
         <View style={styles.card}>
@@ -310,6 +404,9 @@ export default function PaymentScreen() {
           <View style={styles.infoBox}>
             <Text style={styles.infoLabel}>Amount Payable</Text>
             <Text style={styles.infoValue}>PKR {bookingAmount.toFixed(2)}</Text>
+            {isPrivate && priceBreakdown.securityDeposit > 0 && (
+              <Text style={styles.infoHint}>Includes PKR {priceBreakdown.securityDeposit.toFixed(2)} refundable security deposit</Text>
+            )}
             <Text style={styles.infoHint}>
               {paymentMethod === "cash-counter"
                 ? "Your voucher will be generated now and payment can be completed at the counter."
@@ -332,7 +429,7 @@ export default function PaymentScreen() {
               <Text style={styles.voucherLabel}>Voucher Code</Text>
               <Text style={styles.voucherCode}>{voucher.voucherCode}</Text>
             </View>
-            <Text style={styles.bodyText}>Space: {voucher.workspaceName}</Text>
+            <Text style={styles.bodyText}>Assigned Space: {assignedSpaceName ?? voucher.workspaceName}</Text>
             <Text style={styles.bodyText}>Booking: {voucher.bookingSummary}</Text>
             <Text style={styles.bodyText}>Method: {voucher.paymentMethod}</Text>
             <Text style={styles.bodyText}>Reference: {voucher.referenceNumber}</Text>
@@ -763,6 +860,13 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
   },
   sectionTitle: { color: colors.foreground, fontSize: 16, fontWeight: "700" },
   bodyText: { color: colors.mutedForeground, fontSize: 14 },
+  divider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginVertical: 4 },
+  breakdownRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  breakdownLabel: { color: colors.mutedForeground, fontSize: 13, flex: 1 },
+  breakdownValue: { color: colors.foreground, fontSize: 13, fontWeight: "600" },
+  refundableTag: { color: colors.primary, fontSize: 11, fontWeight: "700" },
+  totalLabel: { color: colors.foreground, fontSize: 15, fontWeight: "800" },
+  totalValue: { color: colors.primary, fontSize: 17, fontWeight: "800" },
   methodList: {
     gap: 10,
     marginTop: 4,

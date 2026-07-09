@@ -62,6 +62,7 @@ export type AppStackParamList = {
       dates: string[];
       slot: string;
       month?: string;
+      securityDeposit?: number;
       guest: {
         name: string;
         email: string;

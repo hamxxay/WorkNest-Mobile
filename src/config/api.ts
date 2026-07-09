@@ -89,6 +89,13 @@ export const API_ENDPOINTS = {
   locations: {
     list: "/location",
   },
+  spaceConfig: {
+    list: "/space-config",
+    deposit: (category: string) => `/space-config/deposit/${category}`,
+  },
+  smartBooking: {
+    create: "/booking/smart",
+  },
   admin: {
     dashboardSummary: "/dashboard/summary",
     recentBookings: (limit: number) => `/booking/recent?limit=${limit}`,
