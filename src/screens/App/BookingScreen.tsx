@@ -60,6 +60,17 @@ const MONTH_LABELS = [
   "December",
 ];
 
+const TNC_SECTIONS = [
+  { heading: "Acceptance of Terms", content: "By accessing or using WorkNest services, you confirm that you are at least 18 years of age, have the legal capacity to enter into a binding agreement under Pakistani law, and accept these Terms & Conditions in full." },
+  { heading: "Account Responsibility", content: "You are responsible for maintaining the confidentiality of your account credentials. Any activity conducted through your account is your responsibility. Report any unauthorised access immediately to sales@worknestpk.com." },
+  { heading: "Booking & Reservations", content: "Spaces must be booked in advance via the WorkNest platform. Bookings are confirmed only upon receipt of payment. WorkNest reserves the right to cancel unconfirmed bookings." },
+  { heading: "Prohibited Conduct", content: "Members must not use WorkNest facilities for any unlawful activity including activities prohibited under the Pakistan Penal Code, PECA 2016, or Anti-Money Laundering Act 2010. Any such activity will result in immediate termination and reporting to relevant authorities." },
+  { heading: "Refund Policy", content: "Bookings cancelled at least 48 hours before the start time are eligible for a full refund. Cancellations made 24–48 hours prior are eligible for a 50% refund. Cancellations within 24 hours are non-refundable." },
+  { heading: "Limitation of Liability", content: "WorkNest's total liability to any member for any claim arising from use of the service shall not exceed the amount paid by that member in the 30 days preceding the claim, to the extent permitted by Pakistani law." },
+  { heading: "Intellectual Property", content: "All content on the WorkNest platform including logos, text, and software is the intellectual property of WorkNest and is protected under Pakistani copyright law. Unauthorised use is strictly prohibited." },
+  { heading: "Governing Law & Dispute Resolution", content: "These terms are governed by the laws of Pakistan. Any disputes shall first be attempted to be resolved amicably. If unresolved, disputes shall be subject to the exclusive jurisdiction of the courts of Islamabad, Pakistan." },
+];
+
 export default function BookingScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const colors = useThemeColors();
@@ -91,6 +102,8 @@ export default function BookingScreen() {
   const [bookingInProgress, setBookingInProgress] = useState(false);
   const [bookingSuccess, setBookingSuccess] = useState("");
   const [bookingError, setBookingError] = useState("");
+  const [tncAccepted, setTncAccepted] = useState(false);
+  const [showTncModal, setShowTncModal] = useState(false);
   const [timePickerOpen, setTimePickerOpen] = useState(false);
   const [timePickerTarget, setTimePickerTarget] = useState<
     "quickMeeting" | "bookingStart" | "bookingEnd" | null
@@ -309,6 +322,7 @@ export default function BookingScreen() {
     setBookingError("");
     setBookingSuccess("");
     setBookingRangePickerOpen(false);
+    setTncAccepted(false);
   };
 
   const submitBooking = async () => {
@@ -329,6 +343,11 @@ export default function BookingScreen() {
 
     if (new Date(endDateTime) <= new Date(startDateTime)) {
       setBookingError("End date/time must be after start date/time.");
+      return;
+    }
+
+    if (!tncAccepted) {
+      setBookingError("Please accept the Terms & Conditions to proceed.");
       return;
     }
 
@@ -610,11 +629,24 @@ export default function BookingScreen() {
               maxLength={INPUT_LIMITS.notes}
             />
 
+            <View style={styles.tncRow}>
+              <Pressable
+                style={[styles.tncCheckbox, tncAccepted && styles.tncCheckboxChecked]}
+                onPress={() => setTncAccepted((v) => !v)}
+              >
+                {tncAccepted && <Ionicons name="checkmark" size={13} color={colors.white} />}
+              </Pressable>
+              <Text style={styles.tncText}>
+                I agree to the{" "}
+                <Text style={styles.tncLink} onPress={() => setShowTncModal(true)}>Terms &amp; Conditions</Text>
+              </Text>
+            </View>
+
             <View style={styles.modalActions}>
               <Pressable style={styles.modalOutline} onPress={closeBookingModal}>
                 <Text style={styles.modalOutlineText}>Cancel</Text>
               </Pressable>
-              <Pressable style={styles.modalPrimary} onPress={submitBooking} disabled={bookingInProgress}>
+              <Pressable style={[styles.modalPrimary, !tncAccepted && { opacity: 0.5 }]} onPress={submitBooking} disabled={bookingInProgress || !tncAccepted}>
                 <Text style={styles.modalPrimaryText}>{bookingInProgress ? "Booking..." : "Confirm Booking"}</Text>
               </Pressable>
             </View>
@@ -786,6 +818,34 @@ export default function BookingScreen() {
 
             <Pressable style={styles.pickerDone} onPress={() => setQuickActivePicker(null)}>
               <Text style={styles.pickerDoneText}>Close</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal transparent visible={showTncModal} animationType="slide" onRequestClose={() => setShowTncModal(false)}>
+        <View style={styles.tncOverlay}>
+          <View style={styles.tncModalCard}>
+            <View style={styles.tncModalHeader}>
+              <Text style={styles.tncModalTitle}>Terms &amp; Conditions</Text>
+              <Text style={styles.tncModalSub}>Last updated: January 2025</Text>
+            </View>
+            <ScrollView style={styles.tncScroll} showsVerticalScrollIndicator={false}>
+              <Text style={styles.tncIntro}>
+                These Terms &amp; Conditions govern your use of the WorkNest platform and workspace services. By creating an account or making a booking, you agree to these terms. These terms are governed by the laws of the Islamic Republic of Pakistan.
+              </Text>
+              {TNC_SECTIONS.map((s) => (
+                <View key={s.heading} style={styles.tncSection}>
+                  <Text style={styles.tncHeading}>{s.heading}</Text>
+                  <Text style={styles.tncContent}>{s.content}</Text>
+                </View>
+              ))}
+              <Text style={styles.tncContact}>
+                Questions? Contact us at sales@worknestpk.com or call +92 309 9771774.
+              </Text>
+            </ScrollView>
+            <Pressable style={styles.tncCloseBtn} onPress={() => { setTncAccepted(true); setShowTncModal(false); }}>
+              <Text style={styles.tncCloseBtnText}>I Accept &amp; Close</Text>
             </Pressable>
           </View>
         </View>
@@ -1398,4 +1458,62 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
     backgroundColor: colors.primary,
   },
   pickerDoneText: { color: colors.white, fontWeight: "700" },
+  tncRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 4,
+  },
+  tncCheckbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: colors.border,
+    backgroundColor: colors.muted,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  tncCheckboxChecked: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  tncText: { flex: 1, color: colors.mutedForeground, fontSize: 13 },
+  tncLink: { color: colors.primary, fontWeight: "700", textDecorationLine: "underline" },
+  tncOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15,23,42,0.5)",
+    justifyContent: "flex-end",
+  },
+  tncModalCard: {
+    backgroundColor: colors.card,
+    borderTopLeftRadius: radii.xl,
+    borderTopRightRadius: radii.xl,
+    maxHeight: "85%",
+    borderTopWidth: 1,
+    borderColor: colors.border,
+  },
+  tncModalHeader: {
+    padding: 20,
+    paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  tncModalTitle: { fontSize: 20, fontWeight: "800", color: colors.foreground },
+  tncModalSub: { fontSize: 12, color: colors.mutedForeground, marginTop: 3 },
+  tncScroll: { paddingHorizontal: 20, paddingTop: 12 },
+  tncIntro: { color: colors.mutedForeground, fontSize: 13, lineHeight: 20, marginBottom: 16 },
+  tncSection: { marginBottom: 14 },
+  tncHeading: { color: colors.foreground, fontSize: 14, fontWeight: "700", marginBottom: 4 },
+  tncContent: { color: colors.mutedForeground, fontSize: 13, lineHeight: 20 },
+  tncContact: { color: colors.mutedForeground, fontSize: 12, marginTop: 8, marginBottom: 20, fontStyle: "italic" },
+  tncCloseBtn: {
+    margin: 16,
+    backgroundColor: colors.primary,
+    borderRadius: radii.md,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  tncCloseBtnText: { color: colors.white, fontWeight: "800", fontSize: 15 },
 });

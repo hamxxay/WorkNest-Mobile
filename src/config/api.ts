@@ -1,64 +1,24 @@
-import { NativeModules, Platform } from "react-native";
+import { Platform } from "react-native";
 import { API_BASE } from "@env";
 
-const LOCALHOST_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
-
-function parseHost(value?: string | null): string | null {
-  if (!value) return null;
-
-  try {
-    const hostname = new URL(value).hostname;
-    if (hostname) return hostname;
-  } catch {}
-
-  const match = value.match(/\/\/(\[[^\]]+\]|[^/:]+)(?::\d+)?/);
-  if (!match?.[1]) return null;
-
-  return match[1].replace(/^\[|\]$/g, "");
-}
-
-function resolveDevApiHost(host: string): string {
-  if (Platform.OS === "android" && LOCALHOST_HOSTS.has(host)) {
-    return "10.0.2.2";
-  }
-
-  return host;
-}
-
-function getMetroHostFromScriptUrl(): string | null {
-  if (!__DEV__) return null;
-
-  const scriptURL = NativeModules?.SourceCode?.scriptURL as string | undefined;
-  const scriptHost = parseHost(scriptURL);
-  if (scriptHost) return scriptHost;
-
-  const serverHost = NativeModules?.PlatformConstants?.ServerHost as
-    | string
-    | undefined;
-
-  return parseHost(serverHost);
-}
-
-function getDevApiBaseUrl() {
-  const metroHost = getMetroHostFromScriptUrl();
-
-  if (metroHost) {
-    return `https://${resolveDevApiHost(metroHost)}:8000/api`;
-  }
-
-  return Platform.OS === "android"
-    ? "http://10.0.2.2:8000/api"
-    : "https://work-nest-api-s.vercel.app/api";
-}
-
-const DEV_API_BASE_URL = getDevApiBaseUrl();
 const ENV_API_BASE_URL = (API_BASE ?? "").trim();
-const PROD_API_BASE_URL = ENV_API_BASE_URL;
-const FALLBACK_API_BASE_URL = __DEV__ ? DEV_API_BASE_URL : PROD_API_BASE_URL;
 
-export const API_BASE_URL = ENV_API_BASE_URL.length > 0
-  ? ENV_API_BASE_URL
-  : FALLBACK_API_BASE_URL;
+function resolveApiBaseUrl(): string {
+  const base = ENV_API_BASE_URL.length > 0
+    ? ENV_API_BASE_URL
+    : "http://localhost:7200/api";
+
+  // Android emulator cannot reach host machine via localhost — remap to 10.0.2.2
+  if (Platform.OS === "android") {
+    return base
+      .replace("localhost", "10.0.2.2")
+      .replace("127.0.0.1", "10.0.2.2");
+  }
+
+  return base;
+}
+
+export const API_BASE_URL = resolveApiBaseUrl();
 
 export const API_ENDPOINTS = {
   auth: {
@@ -85,6 +45,7 @@ export const API_ENDPOINTS = {
   },
   payments: {
     my: "/payment/my",
+    approve: (id: number | string) => `/payment/${id}/approve`,
   },
   locations: {
     list: "/location",

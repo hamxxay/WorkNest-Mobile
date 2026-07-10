@@ -32,6 +32,15 @@ import {
   sanitizeTransferReferenceInput,
 } from "../../utils/inputSanitizer";
 
+const TNC_SECTIONS_PAYMENT = [
+  { heading: "Acceptance of Terms", content: "By accessing or using WorkNest services, you confirm that you are at least 18 years of age, have the legal capacity to enter into a binding agreement under Pakistani law, and accept these Terms & Conditions in full." },
+  { heading: "Payment Terms", content: "All prices are listed in Pakistani Rupees (PKR). Bookings are confirmed only upon receipt of payment. WorkNest accepts payment via debit/credit card, bank transfer, Easypaisa, Quick Pay, and cash at counter." },
+  { heading: "Refund Policy", content: "Bookings cancelled at least 48 hours before the start time are eligible for a full refund. Cancellations made 24\u201348 hours prior are eligible for a 50% refund. Cancellations within 24 hours are non-refundable." },
+  { heading: "Cash on Counter", content: "Cash on Counter payments must be completed at the reception before the booking start time. The booking remains in Pending status until an admin verifies and approves the cash payment." },
+  { heading: "Limitation of Liability", content: "WorkNest's total liability to any member for any claim arising from use of the service shall not exceed the amount paid by that member in the 30 days preceding the claim, to the extent permitted by Pakistani law." },
+  { heading: "Governing Law", content: "These terms are governed by the laws of Pakistan. Any disputes shall be subject to the exclusive jurisdiction of the courts of Islamabad, Pakistan." },
+];
+
 type PaymentMethod =
   | "quick-pay"
   | "credit-debit-card"
@@ -79,6 +88,8 @@ export default function PaymentScreen() {
   const [error, setError] = useState("");
   const [voucher, setVoucher] = useState<PaymentItem | null>(null);
   const [assignedSpaceName, setAssignedSpaceName] = useState<string | null>(null);
+  const [tncAccepted, setTncAccepted] = useState(false);
+  const [showTncModal, setShowTncModal] = useState(false);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener("beforeRemove", (e) => {
@@ -415,9 +426,23 @@ export default function PaymentScreen() {
           </View>
 
           {!voucher ? (
-            <Pressable style={styles.payButton} onPress={handlePayment} disabled={loading}>
-              <Text style={styles.payButtonText}>{loading ? "Processing..." : "Confirm Booking & Generate Voucher"}</Text>
-            </Pressable>
+            <>
+              <View style={styles.tncRow}>
+                <Pressable
+                  style={[styles.tncCheckbox, tncAccepted && styles.tncCheckboxChecked]}
+                  onPress={() => setTncAccepted((v) => !v)}
+                >
+                  {tncAccepted && <Text style={styles.tncCheckmark}>✓</Text>}
+                </Pressable>
+                <Text style={styles.tncText}>
+                  I agree to the{" "}
+                  <Text style={styles.tncLink} onPress={() => setShowTncModal(true)}>Terms &amp; Conditions</Text>
+                </Text>
+              </View>
+              <Pressable style={[styles.payButton, !tncAccepted && { opacity: 0.5 }]} onPress={handlePayment} disabled={loading || !tncAccepted}>
+                <Text style={styles.payButtonText}>{loading ? "Processing..." : "Confirm Booking & Generate Voucher"}</Text>
+              </Pressable>
+            </>
           ) : null}
           {!!error && <Text style={styles.errorText}>{error}</Text>}
         </View>
@@ -425,6 +450,11 @@ export default function PaymentScreen() {
         {voucher ? (
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>Payment Voucher</Text>
+            {voucher.paymentStatus === "Pending" && (
+              <View style={styles.pendingBadge}>
+                <Text style={styles.pendingBadgeText}>⏳ Awaiting Counter Payment Approval</Text>
+              </View>
+            )}
             <View style={styles.voucherBanner}>
               <Text style={styles.voucherLabel}>Voucher Code</Text>
               <Text style={styles.voucherCode}>{voucher.voucherCode}</Text>
@@ -436,6 +466,7 @@ export default function PaymentScreen() {
             <Text style={styles.bodyText}>Bank Deposit ID: {voucher.bankDepositId ?? "N/A"}</Text>
             <Text style={styles.bodyText}>Amount: PKR {Number(voucher.amount ?? 0).toFixed(2)}</Text>
             <Text style={styles.bodyText}>Issued: {formatDate(voucher.paidAt)}</Text>
+            <Text style={styles.bodyText}>Status: {voucher.paymentStatus ?? "Unknown"}</Text>
             <View style={styles.row}>
               <Pressable
                 style={[styles.secondaryButton, styles.rowItem]}
@@ -453,6 +484,39 @@ export default function PaymentScreen() {
           </View>
         ) : null}
       </ScrollView>
+
+      <Modal
+        transparent
+        animationType="slide"
+        visible={showTncModal}
+        onRequestClose={() => setShowTncModal(false)}
+      >
+        <View style={styles.tncOverlay}>
+          <View style={styles.tncModalCard}>
+            <View style={styles.tncModalHeader}>
+              <Text style={styles.tncModalTitle}>Terms &amp; Conditions</Text>
+              <Text style={styles.tncModalSub}>Last updated: January 2025</Text>
+            </View>
+            <ScrollView style={styles.tncScroll} showsVerticalScrollIndicator={false}>
+              <Text style={styles.tncIntro}>
+                These Terms &amp; Conditions govern your use of the WorkNest platform and workspace services. By creating an account or making a booking, you agree to these terms. These terms are governed by the laws of the Islamic Republic of Pakistan.
+              </Text>
+              {TNC_SECTIONS_PAYMENT.map((s) => (
+                <View key={s.heading} style={styles.tncSection}>
+                  <Text style={styles.tncHeading}>{s.heading}</Text>
+                  <Text style={styles.tncContent}>{s.content}</Text>
+                </View>
+              ))}
+              <Text style={styles.tncContact}>
+                Questions? Contact us at sales@worknestpk.com or call +92 308 0256000.
+              </Text>
+            </ScrollView>
+            <Pressable style={styles.tncCloseBtn} onPress={() => { setTncAccepted(true); setShowTncModal(false); }}>
+              <Text style={styles.tncCloseBtnText}>I Accept &amp; Close</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         transparent
@@ -1032,4 +1096,76 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
     fontSize: 13,
     fontWeight: "800",
   },
+  pendingBadge: {
+    borderRadius: 10,
+    backgroundColor: "#fef3c7",
+    borderWidth: 1,
+    borderColor: "#f59e0b",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  pendingBadgeText: {
+    color: "#92400e",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  tncRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 10,
+  },
+  tncCheckbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: colors.border,
+    backgroundColor: colors.muted,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  tncCheckboxChecked: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  tncCheckmark: { color: colors.white, fontSize: 13, fontWeight: "800" },
+  tncText: { flex: 1, color: colors.mutedForeground, fontSize: 13 },
+  tncLink: { color: colors.primary, fontWeight: "700", textDecorationLine: "underline" },
+  tncOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15,23,42,0.5)",
+    justifyContent: "flex-end",
+  },
+  tncModalCard: {
+    backgroundColor: colors.card,
+    borderTopLeftRadius: radii.lg,
+    borderTopRightRadius: radii.lg,
+    maxHeight: "85%",
+    borderTopWidth: 1,
+    borderColor: colors.border,
+  },
+  tncModalHeader: {
+    padding: 20,
+    paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  tncModalTitle: { fontSize: 20, fontWeight: "800", color: colors.foreground },
+  tncModalSub: { fontSize: 12, color: colors.mutedForeground, marginTop: 3 },
+  tncScroll: { paddingHorizontal: 20, paddingTop: 12 },
+  tncIntro: { color: colors.mutedForeground, fontSize: 13, lineHeight: 20, marginBottom: 16 },
+  tncSection: { marginBottom: 14 },
+  tncHeading: { color: colors.foreground, fontSize: 14, fontWeight: "700", marginBottom: 4 },
+  tncContent: { color: colors.mutedForeground, fontSize: 13, lineHeight: 20 },
+  tncContact: { color: colors.mutedForeground, fontSize: 12, marginTop: 8, marginBottom: 20, fontStyle: "italic" },
+  tncCloseBtn: {
+    margin: 16,
+    backgroundColor: colors.primary,
+    borderRadius: radii.md,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  tncCloseBtnText: { color: colors.white, fontWeight: "800", fontSize: 15 },
 });

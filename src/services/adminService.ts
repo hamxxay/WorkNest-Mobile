@@ -117,6 +117,8 @@ export type AdminPayment = {
   paymentMethod?: string;
   paymentStatus?: string;
   paidAt?: string;
+  approvedAt?: string;
+  approvedByAdminId?: string;
 };
 
 export type AdminContact = {
@@ -321,4 +323,12 @@ export async function getGalleryPage(
   query: ListQuery = {}
 ): Promise<PaginatedList<AdminGallery>> {
   return getEntityPage<AdminGallery>("/gallery/all", query, "Unable to load gallery items.");
+}
+
+export async function approvePayment(id: number): Promise<AdminPayment> {
+  const response = await apiRequest<ApiResponse<AdminPayment>>(
+    API_ENDPOINTS.payments.approve(id),
+    { method: "POST", requiresAuth: true, unwrapData: false }
+  );
+  return ensureSuccess(response, "Unable to approve payment.");
 }

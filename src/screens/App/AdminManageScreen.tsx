@@ -11,6 +11,7 @@ import {
   getPricingPlansPage,
   getSpacesPage,
   getSpaceTypesPage,
+  approvePayment,
   type AdminBooking,
   type AdminContact,
   type AdminGallery,
@@ -23,6 +24,7 @@ import {
   type PaginatedList,
 } from "../../services/adminService";
 import { INPUT_LIMITS, sanitizeSearchInput, sanitizeTextForState } from "../../utils/inputSanitizer";
+import { useAuth } from "../../context/AuthContext";
 
 const PAGE_SIZE = 20;
 
