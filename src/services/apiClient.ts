@@ -23,15 +23,17 @@ export class ApiError extends Error {
 }
 
 function normalizePayload<T>(payload: unknown): T {
-  if (
-    payload &&
-    typeof payload === "object" &&
-    "data" in payload &&
-    (payload as { data?: unknown }).data !== undefined
-  ) {
-    return (payload as { data: T }).data;
+  if (payload && typeof payload === "object") {
+    const p = payload as Record<string, unknown>;
+    // .NET MVC envelope: { isSuccessful, data, message }
+    if ("isSuccessful" in p && p.data !== undefined) {
+      return p.data as T;
+    }
+    // Generic { data: ... } envelope
+    if ("data" in p && p.data !== undefined) {
+      return p.data as T;
+    }
   }
-
   return payload as T;
 }
 
@@ -87,11 +89,17 @@ export async function apiRequest<T>(
 
   if (!response.ok) {
     let message = "Request failed";
-    if (payload && typeof payload === "object" && "message" in payload) {
-      const candidate = (payload as { message?: unknown }).message;
+    if (payload && typeof payload === "object") {
+      const p = payload as Record<string, unknown>;
+      // .NET MVC / ASP.NET Core error shapes
+      const candidate =
+        p["message"] ?? p["Message"] ?? p["title"] ?? p["detail"] ?? p["error"];
       if (typeof candidate === "string" && candidate.trim().length > 0) {
         message = candidate;
       }
+    }
+    if (__DEV__) {
+      console.warn(`[API ${response.status}] ${message}`, payload);
     }
     throw new ApiError(message, response.status, payload);
   }

@@ -33,6 +33,7 @@ import { Screen } from "../../components/Screen";
 import { radii, useThemeColors, useThemedStyles } from "../../theme";
 import { GalleryImage, getGalleryImages } from "../../services/galleryService";
 import { getWorkspaces } from "../../services/workspaceService";
+import { useAuth } from "../../context/AuthContext";
 import { SmartImage } from "../../components/SmartImage";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { Header } from "../../components/Header";
@@ -131,6 +132,7 @@ export default function HomeScreen() {
   >();
   const colors = useThemeColors();
   const styles = useThemedStyles(createStyles);
+  const { user, isLoadingUser } = useAuth();
   const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -148,7 +150,11 @@ export default function HomeScreen() {
     getGalleryImages()
       .then((items) => setGalleryImages(items.slice(0, 4)))
       .catch(() => setGalleryImages([]));
+  }, []);
 
+  useEffect(() => {
+    if (isLoadingUser) return;
+    setLoadingSpaces(true);
     getWorkspaces()
       .then((items) => {
         setWorkspaces(items.slice(0, 6));
@@ -165,7 +171,7 @@ export default function HomeScreen() {
         setSearchOptions([]);
       })
       .finally(() => setLoadingSpaces(false));
-  }, []);
+  }, [isLoadingUser, user]);
 
   const visibleSearchOptions = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();

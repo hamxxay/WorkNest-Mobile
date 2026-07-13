@@ -203,6 +203,28 @@ export async function triggerBackgroundSync(currentUser: StoredUser) {
   }
 }
 
+async function exchangeFirebaseTokenForJwt(user: FirebaseAuthTypes.User, displayNameOverride?: string): Promise<string | null> {
+  if (!user.email) return null;
+  try {
+    let firstName = "";
+    let lastName = "";
+    const displayName = displayNameOverride ?? user.displayName ?? "";
+    if (displayName) {
+      const parts = displayName.trim().split(/\s+/);
+      firstName = parts[0] || "";
+      lastName = parts.slice(1).join(" ") || "";
+    }
+    const response = await apiRequest<{ token?: string; id?: string; roles?: string[] }>("/auth/google-login", {
+      method: "POST",
+      body: { email: user.email, firstName, lastName },
+    });
+    return response?.token ?? null;
+  } catch (err) {
+    debugAuth("jwt exchange failed", { message: err instanceof Error ? err.message : "unknown" });
+    return null;
+  }
+}
+
 async function persistFirebaseSession(
   user: FirebaseAuthTypes.User,
   displayNameOverride?: string
@@ -216,20 +238,21 @@ async function persistFirebaseSession(
     uid: user.uid,
     email: maskEmail(user.email),
     displayName: firebaseUser.name ?? null,
-    tokenLength: idToken.length,
-    idToken: idToken.slice(0, 10) + "..." + idToken.slice(-10), // Log only the beginning and end of the token for debuggings
   });
-  await saveToken(idToken);
+
+  // Exchange Firebase token for .NET JWT — save the .NET JWT so API calls are authorized
+  const dotnetJwt = await exchangeFirebaseTokenForJwt(user, displayNameOverride);
+  await saveToken(dotnetJwt ?? idToken);
 
   const existing = await getUser();
   const mergedUser: StoredUser = {
     ...existing,
     ...firebaseUser,
-    role: existing?.role ?? firebaseUser.role, // preserve existing role if we already have it
+    role: existing?.role ?? firebaseUser.role,
   };
   await saveUser(mergedUser);
 
-  return { user: mergedUser, idToken };
+  return { user: mergedUser, idToken: dotnetJwt ?? idToken };
 }
 
 export async function logoutUser(): Promise<void> {
