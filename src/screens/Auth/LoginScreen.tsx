@@ -13,9 +13,10 @@ import {
   View,
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import type { AuthStackParamList, RootStackParamList } from "../../navigation/types";
+import type { RouteProp } from "@react-navigation/native";
+import type { AuthStackParamList, RootStackParamList, AppStackParamList } from "../../navigation/types";
 import { Screen } from "../../components/Screen";
 import { ConfirmModal } from "../../components/ConfirmModal";
 import { useThemeColors, useThemedStyles } from "../../theme";
@@ -39,8 +40,9 @@ const { width: SW } = Dimensions.get("window");
 export default function LoginScreen() {
   const colors = useThemeColors();
   const styles = useThemedStyles(createStyles);
-  const navigation =
-    useNavigation<NativeStackNavigationProp<AuthStackParamList>>();
+  const navigation = useNavigation<NativeStackNavigationProp<AuthStackParamList & AppStackParamList>>();
+  const route = useRoute<RouteProp<AuthStackParamList, "Login">>();
+  const redirectAfterLogin = route.params?.redirectAfterLogin;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -52,7 +54,22 @@ export default function LoginScreen() {
     navigation.getParent<NativeStackNavigationProp<RootStackParamList>>();
 
   const routeToApp = () => {
-    rootNavigation?.replace("AppStack", { screen: "MainTabs" });
+    if (redirectAfterLogin) {
+      // Came from inside the app stack (guest guard) — go back then navigate
+      navigation.goBack();
+      (navigation as NativeStackNavigationProp<AppStackParamList>).navigate(
+        redirectAfterLogin.screen as any,
+        redirectAfterLogin.params
+      );
+      return;
+    }
+    // Came from AuthStack (standalone login) — replace the root
+    if (rootNavigation) {
+      rootNavigation.replace("AppStack", { screen: "MainTabs" });
+    } else {
+      // Pushed inside InnerStack without a redirect — just go back to Home
+      navigation.goBack();
+    }
   };
 
   const handleLogin = async () => {

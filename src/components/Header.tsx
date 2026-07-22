@@ -3,7 +3,7 @@ import { useRoute } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useThemeColors } from '../theme';
 import { useAuth } from '../context/AuthContext';
-import { drawerNavRef } from '../navigation/AppNavigator';
+import { drawerNavRef, rootNavRef } from '../navigation/AppNavigator';
 
 const SCREEN_LABELS: Record<string, string> = {
   Home: 'Home',
@@ -31,12 +31,12 @@ function getGreeting() {
 }
 
 export function Header() {
-  const route   = useRoute();
-  const colors  = useThemeColors();
+  const route  = useRoute();
+  const colors = useThemeColors();
   const { user } = useAuth();
 
-  const isHome      = route.name === 'Home';
-  const firstName   = user?.name?.split(' ')[0] ?? 'there';
+  const isHome = route.name === 'Home';
+  const firstName = user?.name?.split(' ')[0] ?? 'GUEST USER ';
   const screenLabel = SCREEN_LABELS[route.name] ?? route.name;
 
   const openDrawer = () => {
@@ -70,13 +70,23 @@ export function Header() {
         </View>
       </View>
 
-      <Pressable
+      {!user ? (
+        <Pressable
+          hitSlop={10}
+          onPress={() => rootNavRef.current?.navigate('AppStack', { screen: 'Login' } as any)}
+          style={[styles.loginBtn, { borderColor: colors.primary, backgroundColor: colors.primaryMuted }]}
+        >
+          <Ionicons name="log-in-outline" size={16} color={colors.primary} />
+          <Text style={[styles.loginBtnText, { color: colors.primary }]}>Sign In</Text>
+        </Pressable>
+      ) : <Pressable
         hitSlop={10}
         onPress={openDrawer}
         style={[styles.menuBtn, { borderColor: colors.border, backgroundColor: colors.card }]}
       >
         <Ionicons name="menu-outline" size={22} color={colors.foreground} />
-      </Pressable>
+      </Pressable>}
+
     </View>
   );
 }
@@ -133,5 +143,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1.5,
     elevation: 2,
+  },
+  loginBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 13,
+    borderWidth: 1.5,
+    marginRight: 8,
+  },
+  loginBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

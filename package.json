@@ -7,7 +7,7 @@
     "android": "npm run sync:config && react-native run-android",
     "ios": "npm run sync:config && react-native run-ios",
     "lint": "eslint .",
-    "start": "react-native start",
+    "start": "react-native start --client-logs",
     "test": "jest"
   },
   "dependencies": {

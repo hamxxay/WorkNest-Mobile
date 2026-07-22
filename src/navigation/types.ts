@@ -9,10 +9,9 @@ export type MainTabParamList = {
         initialSearch?: string;
       }
     | undefined;
-  MyBookings: undefined;
   MyPayments: undefined;
-  Pricing: undefined;
   Gallery: undefined;
+  Profile: undefined;
 };
 
 export type AppDrawerParamList = {
@@ -20,8 +19,8 @@ export type AppDrawerParamList = {
 };
 
 export type AuthStackParamList = {
-  Login: undefined;
-  Signup: undefined;
+  Login: { redirectAfterLogin?: { screen: keyof AppStackParamList; params?: any } } | undefined;
+  Signup: { redirectAfterLogin?: { screen: keyof AppStackParamList; params?: any } } | undefined;
 };
 
 export type WorkspaceSummary = {
@@ -75,6 +74,9 @@ export type AppStackParamList = {
   PrivacyPolicy: undefined;
   AboutUs: undefined;
   UserManual: undefined;
+  Pricing: undefined;
+  Login: { redirectAfterLogin?: { screen: keyof AppStackParamList; params?: any } } | undefined;
+  Signup: { redirectAfterLogin?: { screen: keyof AppStackParamList; params?: any } } | undefined;
 };
 
 export type RootStackParamList = {

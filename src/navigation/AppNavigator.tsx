@@ -76,7 +76,7 @@ const TAB_ITEMS = [
   { name: "Booking",    activeIcon: "calendar", inactiveIcon: "calendar-outline" },
   { name: "MyPayments", activeIcon: "card",     inactiveIcon: "card-outline"     },
   { name: "Gallery",    activeIcon: "images",   inactiveIcon: "images-outline"   },
-  { name: "Pricing",    activeIcon: "pricetag", inactiveIcon: "pricetag-outline" },
+  { name: "Profile",    activeIcon: "person",   inactiveIcon: "person-outline"   },
 ] as const;
 
 // ─── Animated tab item ─────────────────────────────────────────────────────────
@@ -143,6 +143,10 @@ function TabItem({
 function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
+  const { user } = useAuth();
+
+  // Screens that require authentication
+  const PROTECTED_TABS = ["MyPayments", "Profile"];
 
   return (
     <View
@@ -151,7 +155,7 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
         {
           paddingBottom: Math.max(insets.bottom, 8),
           backgroundColor: colors.card,
-          borderTopColor: colors.border,
+          borderTopColor: colors.border + "40",
           shadowColor: colors.primary,
         },
       ]}
@@ -163,6 +167,15 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
           activeIcon={item.activeIcon}
           inactiveIcon={item.inactiveIcon}
           onPress={() => {
+            const isProtected = PROTECTED_TABS.includes(item.name);
+            if (isProtected && !user) {
+              // Navigate to Login inside the app stack, with redirect back
+              navigation.navigate("Home" as any);
+              (navigation as any).getParent()?.navigate("Login", {
+                redirectAfterLogin: { screen: item.name },
+              });
+              return;
+            }
             const event = navigation.emit({ type: "tabPress", target: state.routes[i].key, canPreventDefault: true });
             if (!event.defaultPrevented) navigation.navigate(item.name);
           }}
@@ -177,10 +190,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     borderTopWidth: StyleSheet.hairlineWidth,
     paddingTop: 8,
-    shadowOpacity: 0.12,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: -4 },
-    elevation: 16,
+    shadowOpacity: 0.03,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: -1 },
+    elevation: 4,
   },
   tabItem: {
     flex: 1,
@@ -197,10 +210,10 @@ const styles = StyleSheet.create({
     right: -14,
     bottom: -6,
     borderRadius: 16,
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 2,
   },
   tabIcon: { zIndex: 1 },
   tabDot: {
@@ -221,7 +234,7 @@ function MainTabs() {
       <Tab.Screen name="Booking"    component={BookingScreen} />
       <Tab.Screen name="MyPayments" component={MyPaymentsScreen} />
       <Tab.Screen name="Gallery"    component={GalleryScreen} />
-      <Tab.Screen name="Pricing"    component={PricingScreen} />
+      <Tab.Screen name="Profile"    component={ProfileScreen} />
     </Tab.Navigator>
   );
 }
@@ -231,21 +244,28 @@ function MainTabs() {
 // screen: string → push that screen onto AppStack
 const MENU_ITEMS = [
   { label: "Home",            icon: "grid-outline",               screen: null               },
-  { label: "Profile",         icon: "person-outline",             screen: "Profile"          },
-  { label: "Booking History", icon: "time-outline",               screen: "BookingHistory"   },
+  { label: "Pricing",         icon: "pricetag-outline",           screen: "Pricing"          },
+  { label: "Booking History", icon: "time-outline",               screen: "BookingHistory",  protected: true },
   { label: "Privacy Policy",  icon: "shield-checkmark-outline",   screen: "PrivacyPolicy"    },
   { label: "About Us",        icon: "information-circle-outline", screen: "AboutUs"          },
   { label: "User Manual",     icon: "book-outline",               screen: "UserManual"       },
 ] as const;
 
 function AppDrawerContent(props: DrawerContentComponentProps) {
-  const { clearSession } = useAuth();
+  const { clearSession, user } = useAuth();
   const colors  = useThemeColors();
   const styles  = useThemedStyles(makeDrawerStyles);
   const [showLogout, setShowLogout] = useState(false);
   const appVersion = (packageLock as any)?.version ?? "";
 
-  const goTo = (screen: string | null) => {
+  const goTo = (screen: string | null, isProtected?: boolean) => {
+    if (isProtected && !user) {
+      props.navigation.closeDrawer();
+      InteractionManager.runAfterInteractions(() => {
+        props.navigation.navigate("Workspace" as any, { screen: "Login" } as any);
+      });
+      return;
+    }
     props.navigation.closeDrawer();
     InteractionManager.runAfterInteractions(() => {
       if (!screen) {
@@ -259,10 +279,10 @@ function AppDrawerContent(props: DrawerContentComponentProps) {
     });
   };
 
-  const resetToLogin = () => {
+  const resetToHome = () => {
     rootNavRef.current?.reset({
       index: 0,
-      routes: [{ name: "AuthStack", params: { screen: "Login" } }],
+      routes: [{ name: "AppStack", params: { screen: "MainTabs" } }],
     });
   };
 
@@ -270,7 +290,7 @@ function AppDrawerContent(props: DrawerContentComponentProps) {
     setShowLogout(false);
     await logoutUser();
     await clearSession();
-    resetToLogin();
+    resetToHome();
   };
 
   return (
@@ -300,20 +320,37 @@ function AppDrawerContent(props: DrawerContentComponentProps) {
             icon={({ size, color }) => (
               <Ionicons name={item.icon} size={size} color={color} />
             )}
-            onPress={() => goTo(item.screen)}
+            onPress={() => goTo(item.screen, (item as any).protected)}
           />
         ))}
 
-        {/* ── Logout ── */}
-        <DrawerItem
-          label="Log Out"
-          labelStyle={styles.logoutLabel}
-          style={styles.item}
-          icon={({ size }) => (
-            <Ionicons name="log-out-outline" size={size} color={colors.danger} />
-          )}
-          onPress={() => setShowLogout(true)}
-        />
+        {/* ── Login (guest only) / Logout (authenticated only) ── */}
+        {!user ? (
+          <DrawerItem
+            label="Sign In"
+            labelStyle={[styles.itemLabel, { color: colors.primary }]}
+            style={styles.item}
+            icon={({ size }) => (
+              <Ionicons name="log-in-outline" size={size} color={colors.primary} />
+            )}
+            onPress={() => {
+              props.navigation.closeDrawer();
+              InteractionManager.runAfterInteractions(() => {
+                props.navigation.navigate("Workspace" as any, { screen: "Login" } as any);
+              });
+            }}
+          />
+        ) : (
+          <DrawerItem
+            label="Log Out"
+            labelStyle={styles.logoutLabel}
+            style={styles.item}
+            icon={({ size }) => (
+              <Ionicons name="log-out-outline" size={size} color={colors.danger} />
+            )}
+            onPress={() => setShowLogout(true)}
+          />
+        )}
       </DrawerContentScrollView>
 
       {/* ── Version footer ── */}
@@ -332,7 +369,7 @@ function AppDrawerContent(props: DrawerContentComponentProps) {
         onConfirm={() => {
           handleLogout().catch(() => {
             setShowLogout(false);
-            resetToLogin();
+            resetToHome();
           });
         }}
       />
@@ -396,12 +433,15 @@ function InnerStackNavigator() {
       <InnerStack.Screen name="BookingHistory" component={MyBookingsScreen} />
       <InnerStack.Screen name="PrivacyPolicy"  component={PrivacyPolicyScreen} />
       <InnerStack.Screen name="AboutUs"        component={AboutUsScreen} />
-      <InnerStack.Screen name="UserManual"      component={UserManualScreen} />
+      <InnerStack.Screen name="UserManual"     component={UserManualScreen} />
+      <InnerStack.Screen name="Pricing"        component={PricingScreen} />
       <InnerStack.Screen name="AdminPanel"     component={AdminPanelScreen} />
       <InnerStack.Screen name="ContactUs"      component={ContactUsScreen} />
       <InnerStack.Screen name="SpaceDetail"    component={SpaceDetailScreen} />
       <InnerStack.Screen name="BookingInfo"    component={BookingInfoScreen} />
       <InnerStack.Screen name="Payment"        component={PaymentScreen} />
+      <InnerStack.Screen name="Login"          component={LoginScreen} />
+      <InnerStack.Screen name="Signup"         component={SignupScreen} />
     </InnerStack.Navigator>
   );
 }

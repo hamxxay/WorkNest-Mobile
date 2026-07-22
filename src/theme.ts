@@ -2,7 +2,7 @@ import { useMemo } from "react";
 
 export const colors = {
   // Surfaces
-  background: "#F0FAF9",
+  background: "#ffffff",
   card: "#FFFFFF",
   // Text
   foreground: "#0A1628",
@@ -10,13 +10,13 @@ export const colors = {
   // Brand
   primary: "#0d9488",
   secondary: "#0f766e",
-  primaryMuted: "rgba(13, 148, 136, 0.08)",
+  primaryMuted: "rgba(13, 148, 136, 0.05)",
   // Neutrals
   muted: "#F0FAF9",
-  border: "#99F6E4",
+  border: "#d1faf4",
   // Accents
   accent: "#115e59",
-  accentMuted: "rgba(13, 148, 136, 0.16)",
+  accentMuted: "rgba(13, 148, 136, 0.08)",
   // Status
   success: "#059669",
   successMuted: "#D1FAE5",
@@ -24,7 +24,7 @@ export const colors = {
   dangerMuted: "#FEE2E2",
   // Utility
   overlay: "rgba(10, 22, 40, 0.55)",
-  shadow: "#0d9488",
+  shadow: "#c8d8d6",
   white: "#FFFFFF",
 };
 
@@ -62,23 +62,23 @@ export const spacing = {
 export const shadows = {
   sm: {
     shadowColor: "#0D1526",
-    shadowOpacity: 0.07,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
   md: {
     shadowColor: "#0D1526",
-    shadowOpacity: 0.12,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 6,
+    shadowOpacity: 0.07,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 4,
   },
   lg: {
     shadowColor: "#0D1526",
-    shadowOpacity: 0.18,
-    shadowRadius: 32,
-    shadowOffset: { width: 0, height: 20 },
-    elevation: 12,
+    shadowOpacity: 0.10,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 7,
   },
 } as const;

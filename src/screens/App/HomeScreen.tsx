@@ -202,75 +202,76 @@ export default function HomeScreen() {
     <Screen>
       <Header />
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-       
 
-        <HeroSlideshow />
+        {/* ── Greeting + search ── */}
+        <View style={styles.heroBlock}>
+          {/* <Text style={styles.heroGreeting}>Good {getTimeOfDay()} 👋</Text> */}
+          <Text style={styles.heroHeading}>Find Your Ideal <Text style={[styles.heroHeading,{color: colors.primary}]}>Workspace</Text></Text>
 
-        {/* ── Search bar ── */}
-        {/* <View style={styles.searchCard}>
-          <View style={styles.searchRow}>
-            <Ionicons name="search" size={18} color={colors.primary} />
-            <TextInput
-              value={searchQuery}
-              onChangeText={(value) =>
-                setSearchQuery(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.search }))
-              }
-              onFocus={() => setIsSearchFocused(true)}
-              onBlur={() => setTimeout(() => setIsSearchFocused(false), 150)}
-              onSubmitEditing={() => {
-                if (searchQuery.trim().length > 0) {
-                  navigation.navigate("Booking", { initialSearch: searchQuery.trim() });
-                }
-              }}
-              placeholder="Search spaces, locations…"
-              placeholderTextColor={colors.mutedForeground}
-              maxLength={INPUT_LIMITS.search}
-              returnKeyType="search"
-              style={styles.searchInput}
-            />
-            {searchQuery.length > 0 && (
-              <Pressable onPress={() => setSearchQuery("")} hitSlop={8}>
-                <Ionicons name="close-circle" size={18} color={colors.mutedForeground} />
-              </Pressable>
-            )}
+          {/* Search bar */}
+          <View style={styles.searchWrap}>
+            <View style={[styles.searchRow, isSearchFocused && styles.searchRowFocused]}>
+              <Ionicons name="search" size={18} color={colors.primary} />
+              <TextInput
+                value={searchQuery}
+                onChangeText={(v) => setSearchQuery(sanitizeTextForState(v, { maxLength: INPUT_LIMITS.search }))}
+                onFocus={() => setIsSearchFocused(true)}
+                onBlur={() => setTimeout(() => setIsSearchFocused(false), 150)}
+                onSubmitEditing={() => {
+                  if (searchQuery.trim()) navigation.navigate("Booking", { initialSearch: searchQuery.trim() });
+                }}
+                placeholder="Search spaces or locations…"
+                placeholderTextColor={colors.mutedForeground}
+                maxLength={INPUT_LIMITS.search}
+                returnKeyType="search"
+                style={styles.searchInput}
+              />
+              {searchQuery.length > 0 ? (
+                <Pressable onPress={() => setSearchQuery("")} hitSlop={8}>
+                  <Ionicons name="close-circle" size={18} color={colors.mutedForeground} />
+                </Pressable>
+              ) : (
+                <Pressable style={styles.searchBtn} onPress={() => navigation.navigate("Booking")}>
+                  <Ionicons name="options-outline" size={16} color={colors.primary} />
+                </Pressable>
+              )}
+            </View>
+
+            {/* {isSearchFocused && visibleSearchOptions.length > 0 && (
+              <View style={styles.searchSuggestions}>
+                {visibleSearchOptions.map((option) => (
+                  <Pressable
+                    key={option}
+                    style={({ pressed }) => [styles.searchSuggestionItem, pressed && styles.searchSuggestionItemPressed]}
+                    onPress={() => {
+                      setSearchQuery(option);
+                      setIsSearchFocused(false);
+                      navigation.navigate("Booking", { initialSearch: option });
+                    }}
+                  >
+                    <Ionicons name="location-outline" size={14} color={colors.primary} />
+                    <Text style={styles.searchSuggestionText}>{option}</Text>
+                    <Ionicons name="chevron-forward" size={13} color={colors.mutedForeground} />
+                  </Pressable>
+                ))}
+              </View>
+            )} */}
           </View>
 
-          {isSearchFocused && visibleSearchOptions.length > 0 ? (
-            <View style={styles.searchSuggestions}>
-              {visibleSearchOptions.map((option) => (
-                <Pressable
-                  key={option}
-                  style={({ pressed }) => [
-                    styles.searchSuggestionItem,
-                    pressed && styles.searchSuggestionItemPressed,
-                  ]}
-                  onPress={() => {
-                    setSearchQuery(option);
-                    setIsSearchFocused(false);
-                    navigation.navigate("Booking", { initialSearch: option });
-                  }}
-                >
-                  <Ionicons name="location-outline" size={15} color={colors.primary} />
-                  <Text style={styles.searchSuggestionText}>{option}</Text>
-                  <Ionicons name="arrow-forward-outline" size={13} color={colors.mutedForeground} />
-                </Pressable>
-              ))}
-            </View>
-          ) : null}
-
-          {searchQuery.trim().length > 0 && !isSearchFocused && (
-            <Pressable
-              style={styles.searchSubmitBtn}
-              onPress={() => navigation.navigate("Booking", { initialSearch: searchQuery.trim() })}
-            >
-              <Ionicons name="search" size={15} color="#fff" />
-              <Text style={styles.searchSubmitText}>Search "{searchQuery.trim()}"</Text>
-            </Pressable>
-          )}
-        </View> */}
-
-        {/* ── Quick actions ── */}
-        
+          {/* Quick type chips */}
+          {/* <View style={styles.quickChips}>
+            {QUICK_ACTIONS.map((q) => (
+              <Pressable
+                key={q.label}
+                style={[styles.quickChip, { borderColor: q.color + "55" }]}
+                onPress={() => navigation.navigate("Booking", { initialRoomType: q.label as any })}
+              >
+                <Ionicons name={q.icon as any} size={14} color={q.color} />
+                <Text style={[styles.quickChipText, { color: q.color }]}>{q.label}</Text>
+              </Pressable>
+            ))}
+          </View> */}
+        </View>
 
         {/* ── Featured workspaces ── */}
         <View style={styles.section}>
@@ -280,9 +281,9 @@ export default function HomeScreen() {
               <Text style={styles.linkText}>View All</Text>
             </Pressable>
           </View>
-
+        
           {/* Category filter pills */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll} contentContainerStyle={styles.categoryContent}>
+          {/* <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll} contentContainerStyle={styles.categoryContent}>
             {CATEGORIES.map((cat) => (
               <Pressable
                 key={cat}
@@ -292,7 +293,7 @@ export default function HomeScreen() {
                 <Text style={[styles.categoryChipText, activeCategory === cat && styles.categoryChipTextActive]}>{cat}</Text>
               </Pressable>
             ))}
-          </ScrollView>
+          </ScrollView> */}
 
           {/* Workspace cards horizontal scroll */}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.featuredScroll}>
@@ -1122,72 +1123,119 @@ function startOfToday() {
   return today;
 }
 
+function getTimeOfDay() {
+  const h = new Date().getHours();
+  if (h < 12) return "Morning";
+  if (h < 17) return "Afternoon";
+  return "Evening";
+}
+
 const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.create({
   container: { paddingBottom: 56 },
 
-  // ── Search ──
-  searchCard: {
-    marginTop: 16,
-    marginHorizontal: 18,
-    backgroundColor: colors.card,
-    borderRadius: radii.lg,
-    padding: 12,
-    shadowColor: colors.primary,
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 3,
-    gap: 10,
+  // ── Hero block ──
+  heroBlock: {
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 4,
+    gap: 4,
   },
+  heroGreeting: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.mutedForeground,
+  },
+  heroHeading: {
+    fontSize: 32,
+    fontWeight: "800",
+    color: colors.foreground,
+    letterSpacing: -0.6,
+    lineHeight: 32,
+    marginBottom: 14,
+    textAlign: "center",
+  },
+
+  // ── Search ──
+  searchWrap: { gap: 0 },
   searchRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    borderRadius: 12,
-    borderWidth: 1.5,
+    gap: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: colors.card,
+    shadowColor: "#000",
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  searchRowFocused: {
     borderColor: colors.primary,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: colors.primaryMuted,
   },
   searchInput: {
     flex: 1,
     color: colors.foreground,
     fontSize: 14,
+    paddingVertical: 0,
+  },
+  searchBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: colors.primaryMuted,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  searchBtnText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "700",
   },
   searchSuggestions: {
-    borderRadius: 12,
+    marginTop: 6,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.card,
     overflow: "hidden",
+    elevation: 2,
   },
   searchSuggestionItem: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 11,
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
   searchSuggestionItemPressed: { backgroundColor: colors.primaryMuted },
-  searchSuggestionText: { flex: 1, color: colors.foreground, fontSize: 14 },
-  searchSubmitBtn: {
+  searchSuggestionText: { flex: 1, color: colors.foreground, fontSize: 13 },
+
+  // ── Quick type chips ──
+  quickChips: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 12,
+    flexWrap: "wrap",
+  },
+  quickChip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 7,
-    backgroundColor: colors.primary,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    justifyContent: "center",
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    borderWidth: 1,
+    backgroundColor: colors.card,
   },
-  searchSubmitText: {
-    color: "#fff",
+  quickChipText: {
+    fontSize: 12,
     fontWeight: "700",
-    fontSize: 13,
-    flexShrink: 1,
   },
   // ── Quick actions ──
   quickActions: {

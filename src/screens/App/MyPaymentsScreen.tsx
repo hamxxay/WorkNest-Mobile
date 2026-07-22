@@ -1,12 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Header } from "../../components/Header";
 import { Screen } from "../../components/Screen";
 import { radii, useThemedStyles, useThemeColors } from "../../theme";
 import { getMyPayments, type PaymentItem } from "../../services/paymentService";
+import { useAuth } from "../../context/AuthContext";
+import type { AppStackParamList } from "../../navigation/types";
+import Ionicons from "react-native-vector-icons/Ionicons";
 
 export default function MyPaymentsScreen() {
   const styles = useThemedStyles(createStyles);
+  const colors = useThemeColors();
+  const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
+  const { user } = useAuth();
   const [payments, setPayments] = useState<PaymentItem[]>([]);
   const [loadingPayments, setLoadingPayments] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -23,6 +31,24 @@ export default function MyPaymentsScreen() {
   useEffect(() => { fetchPayments(); }, []);
 
   const loading = loadingPayments;
+
+  // Guest wall
+  if (!user) {
+    return (
+      <Screen>
+        <Header />
+        <View style={styles.guestWall}>
+          <Ionicons name="card-outline" size={72} color={colors.primary} style={{ opacity: 0.5 }} />
+          <Text style={styles.guestTitle}>Sign in to view payments</Text>
+          <Text style={styles.guestSub}>Your payment history will appear here once you're signed in.</Text>
+          <Pressable style={styles.guestBtn} onPress={() => navigation.navigate("Login")}>
+            <Ionicons name="log-in-outline" size={18} color="#fff" />
+            <Text style={styles.guestBtnText}>Sign In</Text>
+          </Pressable>
+        </View>
+      </Screen>
+    );
+  }
 
   const totalPaid = useMemo(
     () =>
@@ -165,4 +191,24 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
   },
   pendingBadgeText: { color: "#92400e", fontSize: 12, fontWeight: "700" },
   sectionTitle: { color: colors.foreground, fontSize: 18, fontWeight: "800", marginTop: 8, marginBottom: 8 },
+  guestWall: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 32,
+    gap: 12,
+  },
+  guestTitle: { color: colors.foreground, fontSize: 20, fontWeight: "800", textAlign: "center", letterSpacing: -0.3 },
+  guestSub: { color: colors.mutedForeground, fontSize: 14, textAlign: "center", lineHeight: 21 },
+  guestBtn: {
+    marginTop: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: colors.primary,
+    borderRadius: radii.md,
+    paddingVertical: 13,
+    paddingHorizontal: 28,
+  },
+  guestBtnText: { color: colors.white, fontWeight: "700", fontSize: 15 },
 });

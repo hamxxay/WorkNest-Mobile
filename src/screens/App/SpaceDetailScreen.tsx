@@ -17,6 +17,7 @@ import { Screen } from "../../components/Screen";
 import { SmartImage } from "../../components/SmartImage";
 import { radii, useThemeColors, useThemedStyles } from "../../theme";
 import type { AppStackParamList } from "../../navigation/types";
+import { useAuth } from "../../context/AuthContext";
 
 type TabKey = "description" | "amenities" | "reviews";
 
@@ -86,6 +87,7 @@ export default function SpaceDetailScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const route = useRoute<RouteProp<AppStackParamList, "SpaceDetail">>();
   const { workspace } = route.params;
+  const { user } = useAuth();
 
   const [activeTab, setActiveTab] = useState<TabKey>("description");
   const [calendarMonth, setCalendarMonth] = useState<Date>(startOfMonth(new Date()));
@@ -235,6 +237,14 @@ export default function SpaceDetailScreen() {
   };
 
   const onBookNow = () => {
+    // Guard: guests must log in before booking
+    if (!user) {
+      navigation.navigate("Login", {
+        redirectAfterLogin: { screen: "SpaceDetail", params: { workspace } },
+      });
+      return;
+    }
+
     if (isOffice) {
       if (!selectedMonth || !selectedMonthEnd) {
         setBookingError("Select a month range to book.");

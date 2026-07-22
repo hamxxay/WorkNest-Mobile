@@ -74,7 +74,7 @@ export default function ProfileScreen() {
     setShowLogoutConfirm(false);
     await logoutUser();
     await clearSession();
-    rootNavRef.current?.reset({ index: 0, routes: [{ name: "AuthStack", params: { screen: "Login" } }] });
+    rootNavRef.current?.reset({ index: 0, routes: [{ name: "AppStack", params: { screen: "MainTabs" } }] });
   };
 
   const isFocused = useIsFocused();
@@ -107,6 +107,27 @@ export default function ProfileScreen() {
 
   const displayName = user?.name?.trim() || "WorkNest Member";
   const displaySubtitle = user?.email?.trim() || "Signed in with Firebase";
+
+  // Guest wall — user reached Profile tab without being authenticated
+  if (!user) {
+    return (
+      <Screen>
+        <Header />
+        <View style={styles.guestWall}>
+          <Ionicons name="person-circle-outline" size={72} color={colors.primary} style={{ opacity: 0.5 }} />
+          <Text style={styles.guestTitle}>Sign in to view your profile</Text>
+          <Text style={styles.guestSub}>Access your bookings, history, and account settings.</Text>
+          <Pressable
+            style={styles.guestBtn}
+            onPress={() => navigation.navigate("Login")}
+          >
+            <Ionicons name="log-in-outline" size={18} color="#fff" />
+            <Text style={styles.guestBtnText}>Sign In</Text>
+          </Pressable>
+        </View>
+      </Screen>
+    );
+  }
 
   return (
     <Screen>
@@ -721,4 +742,41 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
   membershipRow: { display: "none" },
   membershipButton: { display: "none" },
   membershipButtonText: { display: "none" },
+  // Guest wall
+  guestWall: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 32,
+    gap: 12,
+  },
+  guestTitle: {
+    color: colors.foreground,
+    fontSize: 20,
+    fontWeight: "800",
+    textAlign: "center",
+    letterSpacing: -0.3,
+  },
+  guestSub: {
+    color: colors.mutedForeground,
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 21,
+  },
+  guestBtn: {
+    marginTop: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: colors.primary,
+    borderRadius: radii.md,
+    paddingVertical: 13,
+    paddingHorizontal: 28,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+  guestBtnText: { color: colors.white, fontWeight: "700", fontSize: 15 },
 });

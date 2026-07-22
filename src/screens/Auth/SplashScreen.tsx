@@ -28,21 +28,14 @@ export default function SplashScreen() {
         return;
       }
 
-      const user = await hydrateSessionUser();
-      const hasSession = Boolean(user);
-
       timer = setTimeout(() => {
-        if (hasSession) {
-          navigation.replace("AppStack", { screen: "MainTabs" });
-          return;
-        }
-        navigation.replace("AuthStack", { screen: "Login" });
+        navigation.replace("AppStack", { screen: "MainTabs" });
       }, 1500);
     };
 
     checkAuth().catch(() => {
       timer = setTimeout(() => {
-        navigation.replace("AuthStack", { screen: "Login" });
+        navigation.replace("AppStack", { screen: "MainTabs" });
       }, 1500);
     });
 

@@ -142,7 +142,7 @@ export default function OnboardingScreen() {
 
   const finishOnboarding = async () => {
     await setOnboardingCompleted();
-    navigation.replace("AuthStack", { screen: "Login" });
+    navigation.replace("AppStack", { screen: "MainTabs" });
   };
 
   const goToIndex = (index: number) => {
@@ -157,7 +157,7 @@ export default function OnboardingScreen() {
   const handleNext = () => {
     if (isLast) {
       finishOnboarding().catch(() => {
-        navigation.replace("AuthStack", { screen: "Login" });
+        navigation.replace("AppStack", { screen: "MainTabs" });
       });
       return;
     }
@@ -167,7 +167,7 @@ export default function OnboardingScreen() {
 
   const handleSkip = () => {
     finishOnboarding().catch(() => {
-      navigation.replace("AuthStack", { screen: "Login" });
+      navigation.replace("AppStack", { screen: "MainTabs" });
     });
   };
 
