@@ -36,6 +36,7 @@ import MyBookingsScreen from "../screens/App/MyBookingsScreen";
 import PrivacyPolicyScreen from "../screens/App/PrivacyPolicyScreen";
 import AboutUsScreen from "../screens/App/AboutUsScreen";
 import UserManualScreen from "../screens/App/UserManualScreen";
+import ChallanScreen from "../screens/App/ChallanScreen";
 import AdminPanelScreen from "../screens/App/AdminPanelScreen";
 
 import { logoutUser } from "../services/authService";
@@ -442,6 +443,7 @@ function InnerStackNavigator() {
       <InnerStack.Screen name="Payment"        component={PaymentScreen} />
       <InnerStack.Screen name="Login"          component={LoginScreen} />
       <InnerStack.Screen name="Signup"         component={SignupScreen} />
+      <InnerStack.Screen name="Challan"        component={ChallanScreen} />
     </InnerStack.Navigator>
   );
 }

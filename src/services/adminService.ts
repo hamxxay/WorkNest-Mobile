@@ -200,14 +200,14 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
     gallery,
     memberships,
   ] = await Promise.all([
-    getCountFrom("/user"),
-    getCountFrom("/space"),
-    getCountFrom("/booking"),
-    getCountFrom("/contact"),
-    getCountFrom("/location/all"),
-    getCountFrom("/pricingplan/all"),
-    getCountFrom("/gallery/all"),
-    getCountFrom("/membership"),
+    getCountFrom(API_ENDPOINTS.admin.users),
+    getCountFrom(API_ENDPOINTS.admin.spaces),
+    getCountFrom(API_ENDPOINTS.admin.bookings),
+    getCountFrom(API_ENDPOINTS.admin.contacts),
+    getCountFrom(API_ENDPOINTS.admin.locationAll),
+    getCountFrom(API_ENDPOINTS.admin.pricingPlansAll),
+    getCountFrom(API_ENDPOINTS.admin.galleryAll),
+    getCountFrom(API_ENDPOINTS.admin.memberships),
   ]);
 
   return { users, spaces, bookings, contacts, locations, plans, gallery, memberships };
@@ -262,67 +262,55 @@ async function getEntityPage<T>(
 export async function getLocationsPage(
   query: ListQuery = {}
 ): Promise<PaginatedList<AdminLocation>> {
-  return getEntityPage<AdminLocation>("/location/all", query, "Unable to load locations.");
+  return getEntityPage<AdminLocation>(API_ENDPOINTS.admin.locationAll, query, "Unable to load locations.");
 }
 
 export async function getSpaceTypesPage(
   query: ListQuery = {}
 ): Promise<PaginatedList<AdminSpaceType>> {
-  return getEntityPage<AdminSpaceType>(
-    "/spacetype/all",
-    query,
-    "Unable to load space types."
-  );
+  return getEntityPage<AdminSpaceType>(API_ENDPOINTS.admin.spacetypesAll, query, "Unable to load space types.");
 }
 
 export async function getSpacesPage(
   query: ListQuery = {}
 ): Promise<PaginatedList<AdminSpace>> {
-  return getEntityPage<AdminSpace>("/space", query, "Unable to load spaces.");
+  return getEntityPage<AdminSpace>(API_ENDPOINTS.admin.spaces, query, "Unable to load spaces.");
 }
 
 export async function getBookingsPage(
   query: ListQuery = {}
 ): Promise<PaginatedList<AdminBooking>> {
-  return getEntityPage<AdminBooking>("/booking", query, "Unable to load bookings.");
+  return getEntityPage<AdminBooking>(API_ENDPOINTS.admin.bookings, query, "Unable to load bookings.");
 }
 
 export async function getPricingPlansPage(
   query: ListQuery = {}
 ): Promise<PaginatedList<AdminPricingPlan>> {
-  return getEntityPage<AdminPricingPlan>(
-    "/pricingplan/all",
-    query,
-    "Unable to load pricing plans."
-  );
+  return getEntityPage<AdminPricingPlan>(API_ENDPOINTS.admin.pricingPlansAll, query, "Unable to load pricing plans.");
 }
 
 export async function getMembershipsPage(
   query: ListQuery = {}
 ): Promise<PaginatedList<AdminMembership>> {
-  return getEntityPage<AdminMembership>(
-    "/membership",
-    query,
-    "Unable to load memberships."
-  );
+  return getEntityPage<AdminMembership>(API_ENDPOINTS.admin.memberships, query, "Unable to load memberships.");
 }
 
 export async function getPaymentsPage(
   query: ListQuery = {}
 ): Promise<PaginatedList<AdminPayment>> {
-  return getEntityPage<AdminPayment>("/payment", query, "Unable to load payments.");
+  return getEntityPage<AdminPayment>(API_ENDPOINTS.admin.payments, query, "Unable to load payments.");
 }
 
 export async function getContactsPage(
   query: ListQuery = {}
 ): Promise<PaginatedList<AdminContact>> {
-  return getEntityPage<AdminContact>("/contact", query, "Unable to load contacts.");
+  return getEntityPage<AdminContact>(API_ENDPOINTS.admin.contacts, query, "Unable to load contacts.");
 }
 
 export async function getGalleryPage(
   query: ListQuery = {}
 ): Promise<PaginatedList<AdminGallery>> {
-  return getEntityPage<AdminGallery>("/gallery/all", query, "Unable to load gallery items.");
+  return getEntityPage<AdminGallery>(API_ENDPOINTS.admin.galleryAll, query, "Unable to load gallery items.");
 }
 
 export async function approvePayment(id: number): Promise<AdminPayment> {

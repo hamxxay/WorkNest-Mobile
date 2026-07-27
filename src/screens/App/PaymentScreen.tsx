@@ -19,6 +19,7 @@ import type { AppStackParamList } from "../../navigation/types";
 import { createLocalPaymentVoucher, type PaymentItem } from "../../services/paymentService";
 import { API_ENDPOINTS } from "../../config/api";
 import { apiRequest } from "../../services/apiClient";
+import { useAuth } from "../../context/AuthContext";
 import {
   INPUT_LIMITS,
   sanitizeAccountNumberInput,
@@ -75,6 +76,7 @@ export default function PaymentScreen() {
   const route = useRoute<RouteProp<AppStackParamList, "Payment">>();
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const { workspace, booking } = route.params;
+  const { user } = useAuth();
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("quick-pay");
   const [detailsModalMethod, setDetailsModalMethod] = useState<PaymentMethod | null>(null);
   const [accountName, setAccountName] = useState("");
@@ -218,46 +220,38 @@ export default function PaymentScreen() {
     setLoading(true);
 
     try {
-      const voucherCode = generateVoucherCode(workspace.id);
-      const bankDepositId = generateBankDepositId(workspace.id);
       const paymentDetails = getPaymentPayload(paymentMethod, sanitizedValues);
       const referenceNumber = paymentDetails.referenceNumber;
 
       let startDateTime: string;
       let endDateTime: string;
       if (booking.mode === "office") {
-        // booking.month is in format "YYYY-MM to YYYY-MM" or "YYYY-MM"
         const parts = booking.month ? booking.month.split(" to ") : [];
         const startMonthStr = parts[0]?.trim();
         const endMonthStr = (parts[1] || parts[0])?.trim();
-
         if (startMonthStr) {
           const startParts = startMonthStr.split("-").map(Number);
           const endParts = endMonthStr ? endMonthStr.split("-").map(Number) : startParts;
-
           const startDateObj = new Date(startParts[0], startParts[1] - 1, 1);
-          const endDateObj = new Date(endParts[0], endParts[1], 0); // Last day of end month
-
+          const endDateObj = new Date(endParts[0], endParts[1], 0);
           const formatISO = (d: Date) => {
             const y = d.getFullYear();
             const m = String(d.getMonth() + 1).padStart(2, "0");
             const day = String(d.getDate()).padStart(2, "0");
             return `${y}-${m}-${day}`;
           };
-
           startDateTime = `${formatISO(startDateObj)}T09:00:00`;
           endDateTime = `${formatISO(endDateObj)}T17:00:00`;
         } else {
-          // Fallback to today if booking.month is empty
           const todayStr = new Date().toISOString().split('T')[0];
           startDateTime = `${todayStr}T09:00:00`;
           endDateTime = `${todayStr}T17:00:00`;
         }
       } else {
-        const startDate = booking.dates && booking.dates.length > 0 ? booking.dates[0] : new Date().toISOString().split('T')[0];
-        const endDate = booking.dates && booking.dates.length > 0 ? booking.dates[booking.dates.length - 1] : startDate;
-        const slotStart = booking.slot && booking.slot.includes(' - ') ? booking.slot.split(' - ')[0] : "09:00";
-        const slotEnd = booking.slot && booking.slot.includes(' - ') ? booking.slot.split(' - ')[1] : "17:00";
+        const startDate = booking.dates.length > 0 ? booking.dates[0] : new Date().toISOString().split('T')[0];
+        const endDate = booking.dates.length > 0 ? booking.dates[booking.dates.length - 1] : startDate;
+        const slotStart = booking.slot.includes(' - ') ? booking.slot.split(' - ')[0] : "09:00";
+        const slotEnd = booking.slot.includes(' - ') ? booking.slot.split(' - ')[1] : "17:00";
         startDateTime = `${startDate}T${slotStart}:00`;
         endDateTime = `${endDate}T${slotEnd}:00`;
       }
@@ -266,9 +260,16 @@ export default function PaymentScreen() {
         booking.mode === "office" ? "Private" :
         booking.mode === "shared" ? "Shared" : "Meeting";
 
+      const customerCode = (user as any)?.customerCode ?? (user as any)?.code ?? undefined;
       const smartRes = await apiRequest<{
         assignedSpaceName?: string;
         assignedSpace?: string;
+        challanNumber?: string;
+        validity?: string;
+        bookingId?: string;
+        id?: string;
+        securityDeposit?: number;
+        totalAmount?: number;
       }>(API_ENDPOINTS.smartBooking.create, {
         method: "POST",
         requiresAuth: true,
@@ -280,25 +281,27 @@ export default function PaymentScreen() {
           paymentMethod: getPaymentMethodLabel(paymentMethod),
           paymentRef: referenceNumber,
           notes: `Payment via ${getPaymentMethodLabel(paymentMethod)}`,
-          guest: {
-            name: sanitizeNameInput(booking.guest.name, "Guest name"),
-            email: booking.guest.email,
-            phone: sanitizePhoneInput(booking.guest.phone),
-          },
+          customerCode: customerCode ?? undefined,
         },
       });
 
       const resolvedSpaceName = smartRes?.assignedSpaceName ?? workspace.name;
       setAssignedSpaceName(resolvedSpaceName);
 
+      // Use challanNumber from DB as the voucher code — fall back only if SP didn't return one
+      const dbChallan = smartRes?.challanNumber ?? null;
+      const dbValidity = smartRes?.validity ?? null;
+      const dbBookingId = smartRes?.bookingId ?? smartRes?.id ?? null;
+
       const nextVoucher = await createLocalPaymentVoucher({
         amount: bookingAmount,
         paymentMethod: getPaymentMethodLabel(paymentMethod),
         workspaceName: resolvedSpaceName,
         bookingSummary,
-        voucherCode,
+        voucherCode: dbChallan ?? `WN-${workspace.id}-${String(Date.now()).slice(-6)}`,
         referenceNumber,
-        bankDepositId,
+        bankDepositId: dbBookingId ?? `BD-${workspace.id}-${String(Date.now()).slice(-8)}`,
+        validity: dbValidity ?? undefined,
       });
       setVoucher(nextVoucher);
     } catch (err) {
@@ -466,6 +469,7 @@ export default function PaymentScreen() {
             <Text style={styles.bodyText}>Bank Deposit ID: {voucher.bankDepositId ?? "N/A"}</Text>
             <Text style={styles.bodyText}>Amount: PKR {Number(voucher.amount ?? 0).toFixed(2)}</Text>
             <Text style={styles.bodyText}>Issued: {formatDate(voucher.paidAt)}</Text>
+            {voucher.validity ? <Text style={styles.bodyText}>Valid Until: {formatDate(voucher.validity)}</Text> : null}
             <Text style={styles.bodyText}>Status: {voucher.paymentStatus ?? "Unknown"}</Text>
             <View style={styles.row}>
               <Pressable
@@ -481,6 +485,14 @@ export default function PaymentScreen() {
                 <Text style={styles.payButtonText}>View Payments</Text>
               </Pressable>
             </View>
+            {voucher.voucherCode ? (
+              <Pressable
+                style={[styles.payButton, styles.payButtonCompact]}
+                onPress={() => navigation.navigate("Challan", { challanNumber: voucher.voucherCode })}
+              >
+                <Text style={styles.payButtonText}>View / Print Challan</Text>
+              </Pressable>
+            ) : null}
           </View>
         ) : null}
       </ScrollView>
@@ -722,14 +734,6 @@ export default function PaymentScreen() {
 
 function getPaymentMethodLabel(method: PaymentMethod) {
   return PAYMENT_METHODS.find((item) => item.key === method)?.label ?? method;
-}
-
-function generateVoucherCode(workspaceId: number) {
-  return `WN-${workspaceId}-${String(Date.now()).slice(-6)}`;
-}
-
-function generateBankDepositId(workspaceId: number) {
-  return `BD-${workspaceId}-${String(Date.now()).slice(-8)}`;
 }
 
 function getPaymentMethodDescription(method: PaymentMethod) {

@@ -16,6 +16,7 @@ export type PaymentItem = {
   referenceNumber?: string;
   transactionRef?: string;
   bankDepositId?: string;
+  validity?: string;
 };
 
 type PaymentResponse =

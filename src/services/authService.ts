@@ -182,17 +182,21 @@ export async function triggerBackgroundSync(currentUser: StoredUser) {
       name: string;
       phone: string;
       role: string;
+      customerCode?: string;
+      CustomerCode?: string;
     }>("/auth/me", {
       requiresAuth: true,
     });
     if (profile) {
       const activeUser = await getUser();
       if (activeUser && activeUser.email === currentUser.email) {
+        const customerCode = profile.customerCode ?? profile.CustomerCode ?? activeUser.customerCode;
         const updatedUser: StoredUser = {
           ...activeUser,
           id: profile.id ?? activeUser.id,
           name: profile.name || activeUser.name,
           role: profile.role || "general",
+          customerCode,
         };
         await saveUser(updatedUser);
         notifyAuthListeners(updatedUser);
@@ -216,7 +220,7 @@ async function exchangeFirebaseTokenForJwt(user: FirebaseAuthTypes.User, display
     }
     const response = await apiRequest<{ token?: string; id?: string; roles?: string[] }>("/auth/google-login", {
       method: "POST",
-      body: { email: user.email, firstName, lastName },
+      body: { idToken: await user.getIdToken(), email: user.email, firstName, lastName },
     });
     return response?.token ?? null;
   } catch (err) {
