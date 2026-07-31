@@ -121,7 +121,7 @@ function getBotReply(input: string): string {
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
-export function ChatBot() {
+export function ChatBot({ visible = true }: { visible?: boolean }) {
   const colors = useThemeColors();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
@@ -165,13 +165,20 @@ export function ChatBot() {
 
   const s = makeStyles(colors);
 
+  const fabVisibility = useRef(new Animated.Value(visible ? 1 : 0)).current;
+  useEffect(() => {
+    Animated.spring(fabVisibility, { toValue: visible ? 1 : 0, useNativeDriver: true, friction: 7 }).start();
+  }, [fabVisibility, visible]);
+
   return (
     <>
       {/* ── FAB ── */}
-      <Animated.View style={[s.fabRing, { transform: [{ scale: pulse }] }]} pointerEvents="none" />
-      <Pressable style={s.fab} onPress={() => setOpen(true)}>
+      <Animated.View style={[s.fabRing, { opacity: fabVisibility, transform: [{ scale: Animated.multiply(pulse, fabVisibility) }] }]} pointerEvents="none" />
+      <Animated.View pointerEvents={visible ? "auto" : "none"} style={{ opacity: fabVisibility, transform: [{ scale: fabVisibility }] }}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Open WorkNest assistant" style={s.fab} onPress={() => setOpen(true)}>
         <Ionicons name="chatbubble-ellipses" size={24} color="#fff" />
       </Pressable>
+      </Animated.View>
 
       {/* ── Chat modal ── */}
       <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
@@ -272,8 +279,8 @@ const makeStyles = (colors: ReturnType<typeof useThemeColors>) =>
       position: "absolute",
       bottom: 24,
       right: 20,
-      width: 54,
-      height: 54,
+      width: 48,
+      height: 48,
       borderRadius: 999,
       backgroundColor: colors.primary,
       alignItems: "center",
@@ -286,8 +293,8 @@ const makeStyles = (colors: ReturnType<typeof useThemeColors>) =>
       position: "absolute",
       bottom: 24,
       right: 20,
-      width: 54,
-      height: 54,
+      width: 48,
+      height: 48,
       borderRadius: 999,
       backgroundColor: colors.primary,
       opacity: 0.25,
@@ -296,7 +303,7 @@ const makeStyles = (colors: ReturnType<typeof useThemeColors>) =>
 
     // Modal
     overlay: { flex: 1, justifyContent: "flex-end" },
-    backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.4)" },
+    backdrop: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(0,0,0,0.4)" },
     sheet: {
       backgroundColor: colors.background,
       borderTopLeftRadius: 28,

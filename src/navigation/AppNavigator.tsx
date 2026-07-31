@@ -84,11 +84,13 @@ function TabItem({
   focused,
   activeIcon,
   inactiveIcon,
+  label,
   onPress,
 }: {
   focused: boolean;
   activeIcon: string;
   inactiveIcon: string;
+  label: string;
   onPress: () => void;
 }) {
   const colors = useThemeColors();
@@ -110,10 +112,10 @@ function TabItem({
         Animated.timing(bgOpacity, { toValue: 0, duration: 180, useNativeDriver: true }),
       ]).start();
     }
-  }, [focused]);
+  }, [bgOpacity, focused, scale, translateY]);
 
   return (
-    <Pressable onPress={onPress} style={styles.tabItem}>
+    <Pressable accessibilityRole="tab" accessibilityLabel={label} accessibilityState={{ selected: focused }} android_ripple={{ color: colors.primaryMuted, borderless: false }} onPress={onPress} style={styles.tabItem}>
       <Animated.View style={{ transform: [{ scale }, { translateY }] }}>
         {/* pill background */}
         <Animated.View
@@ -135,6 +137,7 @@ function TabItem({
       </Animated.View>
       {/* active dot */}
       {focused && <View style={[styles.tabDot, { backgroundColor: colors.primary }]} />}
+      <Text style={[styles.tabLabel, { color: focused ? colors.primary : colors.mutedForeground }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -166,6 +169,7 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
           focused={state.index === i}
           activeIcon={item.activeIcon}
           inactiveIcon={item.inactiveIcon}
+          label={item.name === "MyPayments" ? "Payments" : item.name}
           onPress={() => {
             const isProtected = PROTECTED_TABS.includes(item.name);
             if (isProtected && !user) {
@@ -199,8 +203,9 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
+    minHeight: 56,
     paddingTop: 4,
-    paddingBottom: 2,
+    paddingBottom: 4,
     gap: 4,
   },
   tabPill: {
@@ -221,6 +226,7 @@ const styles = StyleSheet.create({
     height: 4,
     borderRadius: 2,
   },
+  tabLabel: { fontSize: 10, fontWeight: "700", marginTop: -2 },
 });
 
 // ─── Main bottom tabs ──────────────────────────────────────────────────────────
@@ -523,7 +529,7 @@ export function AppNavigator() {
           contentStyle: { backgroundColor: colors.background },
         }}
       >
-        <Root.Screen name="Splash"      component={SplashScreen} />
+        <Root.Screen name="Splash"      component={SplashScreen} options={{ animation: "fade" }} />
         <Root.Screen name="Onboarding"  component={OnboardingScreen} />
         <Root.Screen name="AuthStack"   component={AuthStackNavigator} />
         <Root.Screen name="AppStack"    component={AppStackNavigator} />
