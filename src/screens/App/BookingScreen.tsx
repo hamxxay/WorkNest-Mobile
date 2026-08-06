@@ -18,6 +18,7 @@ import type { AppStackParamList, MainTabParamList } from "../../navigation/types
 import { Screen } from "../../components/Screen";
 import { radii, useThemeColors, useThemedStyles } from "../../theme";
 import { createBooking, getWorkspaces, getLocations } from "../../services/workspaceService";
+import { useAuth } from "../../context/AuthContext";
 import { SmartImage } from "../../components/SmartImage";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Header } from "../../components/Header";
@@ -76,6 +77,7 @@ export default function BookingScreen() {
   const colors = useThemeColors();
   const styles = useThemedStyles(createStyles);
   const route = useRoute<RouteProp<MainTabParamList, "Booking">>();
+  const { user } = useAuth();
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [dbLocations, setDbLocations] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -359,7 +361,7 @@ export default function BookingScreen() {
         selectedSpace.id,
         startDateTime,
         endDateTime,
-        sanitizeNotesInput(bookingNotes)
+        { notes: sanitizeNotesInput(bookingNotes) || undefined }
       );
       setBookingSuccess("Booking created successfully!");
       setTimeout(() => {

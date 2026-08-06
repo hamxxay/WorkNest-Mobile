@@ -151,6 +151,12 @@ export default function ProfileScreen() {
               <Text style={styles.phoneText} numberOfLines={1}>{user.phoneNumber as string}</Text>
             </View>
           ) : null}
+          {user?.customerCode ? (
+            <View style={styles.phoneRow}>
+              <Ionicons name="pricetag-outline" size={13} color={colors.mutedForeground} />
+              <Text style={styles.phoneText} numberOfLines={1}>Customer Code: {user.customerCode as string}</Text>
+            </View>
+          ) : null}
           <Pressable style={styles.editButton} onPress={handleOpenEdit}>
             <Ionicons name="create-outline" size={15} color={colors.white} />
             <Text style={styles.editText}>Edit Profile</Text>

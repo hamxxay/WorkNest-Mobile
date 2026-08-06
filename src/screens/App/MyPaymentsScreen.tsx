@@ -121,6 +121,15 @@ export default function MyPaymentsScreen() {
                   <Text style={styles.pendingBadgeText}>⏳ Awaiting Admin Approval</Text>
                 </View>
               )}
+              {payment.voucherCode ? (
+                <Pressable
+                  style={styles.challanBtn}
+                  onPress={() => navigation.navigate("Challan", { challanNumber: payment.voucherCode })}
+                >
+                  <Ionicons name="document-text-outline" size={14} color={colors.primary} />
+                  <Text style={styles.challanBtnText}>View / Print Challan</Text>
+                </Pressable>
+              ) : null}
             </View>
           );
         })}
@@ -190,6 +199,20 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
     alignSelf: "flex-start",
   },
   pendingBadgeText: { color: "#92400e", fontSize: 12, fontWeight: "700" },
+  challanBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 6,
+    alignSelf: "flex-start",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: colors.primaryMuted,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  challanBtnText: { color: colors.primary, fontSize: 12, fontWeight: "700" },
   sectionTitle: { color: colors.foreground, fontSize: 18, fontWeight: "800", marginTop: 8, marginBottom: 8 },
   guestWall: {
     flex: 1,

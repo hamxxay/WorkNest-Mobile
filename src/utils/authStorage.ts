@@ -15,6 +15,7 @@ export type StoredUser = {
   userType?: string;
   userRole?: string;
   isAdmin?: boolean | string;
+  customerCode?: string;
   [key: string]: unknown;
 };
 

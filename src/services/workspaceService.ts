@@ -6,8 +6,6 @@ import {
   sanitizeNameInput,
   sanitizeNotesInput,
   sanitizePhoneInput,
-  sanitizeTextForState,
-  INPUT_LIMITS,
 } from "../utils/inputSanitizer";
 export type Faq = {};
 
@@ -96,6 +94,7 @@ export type BookingPaymentDetails = {
 
 export type BookingCreateDetails = {
   notes?: string;
+  spaceType?: string;
   guest?: BookingGuestDetails;
   payment?: BookingPaymentDetails;
 };
@@ -219,7 +218,8 @@ export async function createBooking(
     method: "POST",
     requiresAuth: true,
     body: {
-      spaceId: workspaceId,
+      spaceId: String(workspaceId),
+      spaceType: payloadDetails.spaceType ?? undefined,
       startDateTime,
       endDateTime,
       notes,
@@ -265,13 +265,9 @@ export async function getLocations(): Promise<ApiLocation[]> {
   try {
     const payload = await apiRequest<ApiListResponse<ApiLocation>>(
       API_ENDPOINTS.locations.list,
-      {
-        requiresAuth: true,
-      }
+      { requiresAuth: true }
     );
-
     if (!payload) return [];
-
     return extractList(payload);
   } catch (err) {
     console.error("Error fetching locations:", err);

@@ -1,5 +1,5 @@
 import { API_BASE_URL } from "../config/api";
-import { getToken, getUser } from "../utils/authStorage";
+import { getToken, getUser, saveToken } from "../utils/authStorage";
 
 
 type RequestOptions = {
@@ -37,76 +37,119 @@ function normalizePayload<T>(payload: unknown): T {
   return payload as T;
 }
 
-export async function apiRequest<T>(
-  path: string,
-  options: RequestOptions = {}
-): Promise<T> {
-  const method = options.method ?? "GET";
+async function buildHeaders(
+  options: RequestOptions
+): Promise<Record<string, string>> {
   const headers: Record<string, string> = {
     Accept: "application/json",
     "Content-Type": "application/json",
     ...(options.headers ?? {}),
   };
-
   if (options.requiresAuth) {
     const token = await getToken();
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
+    if (token) headers.Authorization = `Bearer ${token}`;
     const user = await getUser();
-    if (user && user.email) {
-      headers["X-User-Email"] = user.email;
-    }
+    if (user?.email) headers["X-User-Email"] = user.email;
   }
+  return headers;
+}
 
-  const requestUrl = `${API_BASE_URL}${path}`;
-  let response: Response;
+async function refreshDotnetToken(): Promise<string | null> {
   try {
-    response = await fetch(requestUrl, {
-      method,
-      headers,
-      credentials: "omit",
-      body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
-    });
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : "Network request failed";
-    throw new ApiError(
-      `Network error calling ${requestUrl}. ${reason}`,
-      0,
-      error
+    // Lazy import to avoid circular dependency
+    const { default: firebaseAuth } = await import(
+      "@react-native-firebase/auth"
     );
-  }
+    const firebaseUser = firebaseAuth().currentUser;
+    if (!firebaseUser?.email) return null;
 
-  let payload: unknown = null;
-  const responseText = await response.text();
-  if (responseText) {
-    try {
-      payload = JSON.parse(responseText);
-    } catch {
-      payload = responseText;
+    const idToken = await firebaseUser.getIdToken(true); // force refresh
+    const user = await getUser();
+    let firstName = "";
+    let lastName = "";
+    if (user?.name) {
+      const parts = (user.name as string).trim().split(/\s+/);
+      firstName = parts[0] ?? "";
+      lastName = parts.slice(1).join(" ");
     }
-  }
 
-  if (!response.ok) {
-    let message = "Request failed";
+    const res = await fetch(`${API_BASE_URL}/auth/google-login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        idToken,
+        email: firebaseUser.email,
+        firstName,
+        lastName,
+      }),
+    });
+    if (!res.ok) return null;
+    const json = await res.json() as Record<string, unknown>;
+    const data = (json.data ?? json) as Record<string, unknown>;
+    const newToken = typeof data.token === "string" ? data.token : null;
+    if (newToken) await saveToken(newToken);
+    return newToken;
+  } catch {
+    return null;
+  }
+}
+
+export async function apiRequest<T>(
+  path: string,
+  options: RequestOptions = {}
+): Promise<T> {
+  const method = options.method ?? "GET";
+  const requestUrl = `${API_BASE_URL}${path}`;
+
+  const doFetch = async (headers: Record<string, string>): Promise<Response> => {
+    try {
+      return await fetch(requestUrl, {
+        method,
+        headers,
+        credentials: "omit",
+        body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+      });
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "Network request failed";
+      throw new ApiError(`Network error calling ${requestUrl}. ${reason}`, 0, error);
+    }
+  };
+
+  const parsePayload = async (response: Response): Promise<unknown> => {
+    const text = await response.text();
+    if (!text) return null;
+    try { return JSON.parse(text); } catch { return text; }
+  };
+
+  const extractMessage = (payload: unknown): string => {
     if (payload && typeof payload === "object") {
       const p = payload as Record<string, unknown>;
-      // .NET MVC / ASP.NET Core error shapes
-      const candidate =
-        p["message"] ?? p["Message"] ?? p["title"] ?? p["detail"] ?? p["error"];
-      if (typeof candidate === "string" && candidate.trim().length > 0) {
-        message = candidate;
-      }
+      const candidate = p["message"] ?? p["Message"] ?? p["title"] ?? p["detail"] ?? p["error"];
+      if (typeof candidate === "string" && candidate.trim()) return candidate;
     }
-    if (__DEV__) {
-      console.warn(`[API ${response.status}] ${message}`, payload);
+    return "Request failed";
+  };
+
+  let headers = await buildHeaders(options);
+  let response = await doFetch(headers);
+
+  // On 401 with an auth request, try once to refresh the .NET JWT and retry
+  if (response.status === 401 && options.requiresAuth) {
+    const newToken = await refreshDotnetToken();
+    if (newToken) {
+      headers = await buildHeaders(options); // re-read fresh token from storage
+      response = await doFetch(headers);
     }
+  }
+
+  const payload = await parsePayload(response);
+
+  if (!response.ok) {
+    const message = extractMessage(payload);
+    if (__DEV__) console.warn(`[API ${response.status}] ${message}`, payload);
     throw new ApiError(message, response.status, payload);
   }
 
-  if (options.unwrapData === false) {
-    return payload as T;
-  }
-
+  if (options.unwrapData === false) return payload as T;
   return normalizePayload<T>(payload);
 }
