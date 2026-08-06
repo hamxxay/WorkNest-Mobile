@@ -26,6 +26,13 @@ import {
   sanitizeTextForState,
 } from "../../utils/inputSanitizer";
 import { useAuth } from "../../context/AuthContext";
+import {
+  BookingProgress,
+  BookingSummaryCard,
+  ErrorCard,
+  OutlinedField,
+  WorkspaceSummaryCard,
+} from "../Booking/components/BookingUi";
 
 type StepKey = "datetime" | "guest" | "payment";
 type CalendarDay = {
@@ -104,14 +111,6 @@ export default function BookingInfoScreen() {
     return selectedDate || "Select";
   }, [booking.dates, booking.month, isOffice, isShared, selectedDate]);
 
-  const stepLabel = (step: StepKey) => {
-    if (step === "datetime") return "Date & Time";
-    if (step === "guest") return "Guest Info";
-    return "Payment";
-  };
-  const isActiveStep = (step: StepKey) =>
-    activeStep === step || (step === "payment" && activeStep !== "datetime" && activeStep !== "guest");
-
   const openDatePicker = () => {
     const baseDate = selectedDate ? parseDate(selectedDate) : new Date();
     setDatePickerValue(baseDate);
@@ -188,60 +187,37 @@ export default function BookingInfoScreen() {
     <Screen>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
         <View style={styles.headerRow}>
-          <Pressable style={styles.iconButton} onPress={handleBack}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Go back" style={styles.iconButton} onPress={handleBack}>
             <Ionicons name="chevron-back" size={20} color={colors.foreground} />
           </Pressable>
-          <Text style={styles.headerTitle}>{workspace.name}</Text>
+          <View style={styles.headerCopy}><Text style={styles.headerEyebrow}>SECURE BOOKING</Text><Text numberOfLines={1} style={styles.headerTitle}>Complete your booking</Text></View>
           <View style={styles.iconButton} />
         </View>
 
-        <View style={styles.stepsRow}>
-          {(["datetime", "guest", "payment"] as StepKey[]).map((step, index) => {
-            const active = isActiveStep(step);
-            return (
-              <View key={step} style={styles.stepItem}>
-                <View style={[styles.stepCircle, active && styles.stepCircleActive]}>
-                  <Text style={[styles.stepNumber, active && styles.stepNumberActive]}>
-                    {index + 1}
-                  </Text>
-                </View>
-                <Text style={[styles.stepLabel, active && styles.stepLabelActive]}>
-                  {stepLabel(step)}
-                </Text>
-              </View>
-            );
-          })}
-        </View>
+        <BookingProgress activeStep={activeStep} />
+        <WorkspaceSummaryCard workspace={workspace} />
 
         {activeStep === "datetime" && (
-          <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Date & Time</Text>
-            <Text style={styles.helperText}>
+          <View style={styles.bookingCard}>
+            <View><Text style={styles.sectionTitle}>Booking information</Text><Text style={styles.helperText}>
               {isOffice
                 ? "Private office bookings are handled monthly."
                 : isShared
                   ? "Shared space bookings keep the dates you selected on the previous screen."
                   : "Meeting room bookings can be adjusted here."}
-            </Text>
+            </Text></View>
 
-            <Text style={styles.label}>{isOffice ? "Booking Month" : isShared ? "Selected Dates" : "Select Date"}</Text>
             {isMeeting ? (
-              <Pressable style={styles.input} onPress={openDatePicker}>
-                <Text style={styles.inputValue}>{selectedDatesLabel}</Text>
-              </Pressable>
+              <OutlinedField icon="calendar-outline" label="Booking date" value={selectedDatesLabel} onPress={openDatePicker} />
             ) : (
-              <View style={styles.input}>
-                <Text style={styles.inputValue}>{selectedDatesLabel}</Text>
-              </View>
+              <OutlinedField icon="calendar-outline" label={isOffice ? "Booking month" : "Selected dates"} value={selectedDatesLabel} />
             )}
 
-            {!isOffice ? <Text style={styles.label}>Select Time</Text> : null}
             {isOffice ? (
-              <View style={styles.input}>
-                <Text style={styles.inputValue}>Month-based booking only</Text>
-              </View>
+              <OutlinedField icon="business-outline" label="Workspace type" value="Month-based private office" />
             ) : (
               <>
+                <Text style={styles.fieldSectionLabel}>Choose a time</Text>
                 <View style={styles.timeOptions}>
                   {timeOptions.map((slot) => {
                     const active = selectedTime === slot;
@@ -259,62 +235,29 @@ export default function BookingInfoScreen() {
                   })}
                 </View>
                 {isMeeting ? (
-                  <Pressable style={styles.input} onPress={openTimePicker}>
-                    <Text style={styles.inputValue}>
-                      {selectedTime ? `Custom: ${selectedTime}` : "Pick a time"}
-                    </Text>
-                  </Pressable>
+                  <OutlinedField icon="time-outline" label="Custom time" value={selectedTime ? `Custom: ${selectedTime}` : "Pick a time"} onPress={openTimePicker} />
                 ) : null}
               </>
             )}
+            <BookingSummaryCard workspace={workspace} dateLabel={selectedDatesLabel} timeLabel={isOffice ? "Monthly booking" : selectedTime || "Select a time"} />
           </View>
         )}
 
         {activeStep === "guest" && (
-          <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Guest Info</Text>
-            <Text style={styles.label}>Name</Text>
-            <TextInput
-              value={name}
-              onChangeText={(value) =>
-                setName(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.name }))
-              }
-              placeholder="Full name"
-              placeholderTextColor={colors.mutedForeground}
-              maxLength={INPUT_LIMITS.name}
-              style={styles.input}
-            />
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              value={email}
-              onChangeText={(value) =>
-                setEmail(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.email }))
-              }
-              placeholder="Email address"
-              placeholderTextColor={colors.mutedForeground}
-              keyboardType="email-address"
-              maxLength={INPUT_LIMITS.email}
-              style={styles.input}
-            />
-            <Text style={styles.label}>Phone</Text>
-            <TextInput
-              value={phone}
-              onChangeText={(value) =>
-                setPhone(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.phone }))
-              }
-              placeholder="Phone number"
-              placeholderTextColor={colors.mutedForeground}
-              keyboardType="phone-pad"
-              maxLength={INPUT_LIMITS.phone}
-              style={styles.input}
-            />
+          <View style={styles.bookingCard}>
+            <View><Text style={styles.sectionTitle}>Guest details</Text><Text style={styles.helperText}>These details are used for your booking confirmation.</Text></View>
+            <View style={styles.textField}><Ionicons name="person-outline" size={18} color={colors.primary} /><TextInput accessibilityLabel="Guest name" value={name} onChangeText={(value) => setName(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.name }))} placeholder="Full name" placeholderTextColor={colors.mutedForeground} maxLength={INPUT_LIMITS.name} style={styles.textInput} /></View>
+            <View style={styles.textField}><Ionicons name="mail-outline" size={18} color={colors.primary} /><TextInput accessibilityLabel="Email address" value={email} onChangeText={(value) => setEmail(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.email }))} placeholder="Email address" placeholderTextColor={colors.mutedForeground} keyboardType="email-address" autoCapitalize="none" maxLength={INPUT_LIMITS.email} style={styles.textInput} /></View>
+            <View style={styles.textField}><Ionicons name="call-outline" size={18} color={colors.primary} /><TextInput accessibilityLabel="Phone number" value={phone} onChangeText={(value) => setPhone(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.phone }))} placeholder="Phone number" placeholderTextColor={colors.mutedForeground} keyboardType="phone-pad" maxLength={INPUT_LIMITS.phone} style={styles.textInput} /></View>
+            <View style={styles.trustRow}><Ionicons name="shield-checkmark-outline" size={17} color={colors.primary} /><Text style={styles.trustText}>Your details are kept secure and used only to process this booking.</Text></View>
+            <BookingSummaryCard workspace={workspace} dateLabel={selectedDatesLabel} timeLabel={isOffice ? "Monthly booking" : selectedTime || "Select a time"} />
           </View>
         )}
 
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+        {error ? <ErrorCard message={error} /> : null}
 
-        <Pressable style={styles.nextButton} onPress={onNext}>
-          <Text style={styles.nextButtonText}>Next</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel={activeStep === "datetime" ? "Continue to guest details" : "Continue to payment"} style={styles.nextButton} onPress={onNext} android_ripple={{ color: "rgba(255,255,255,0.18)" }}>
+          <Text style={styles.nextButtonText}>{activeStep === "datetime" ? "Continue to guest details" : "Review payment"}</Text><Ionicons name="arrow-forward" size={18} color={colors.white} />
         </Pressable>
       </ScrollView>
 
@@ -511,10 +454,12 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
   headerTitle: {
     flex: 1,
     textAlign: "center",
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "800",
     color: colors.foreground,
   },
+  headerCopy: { flex: 1, alignItems: "center", gap: 1 },
+  headerEyebrow: { color: colors.primary, fontSize: 10, fontWeight: "800", letterSpacing: 1 },
   iconButton: {
     width: 36,
     height: 36,
@@ -550,6 +495,19 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
     borderColor: colors.border,
     gap: 10,
   },
+  bookingCard: {
+    backgroundColor: colors.card,
+    borderRadius: radii.xl,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 14,
+    shadowColor: colors.shadow,
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 3,
+  },
   sectionTitle: { color: colors.foreground, fontSize: 18, fontWeight: "700" },
   helperText: { color: colors.mutedForeground, fontSize: 12 },
   label: { color: colors.foreground, fontWeight: "600", fontSize: 13 },
@@ -563,6 +521,21 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
     color: colors.foreground,
   },
   inputValue: { color: colors.foreground, fontWeight: "600" },
+  fieldSectionLabel: { color: colors.foreground, fontSize: 13, fontWeight: "700", marginTop: 2 },
+  textField: {
+    minHeight: 54,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    paddingHorizontal: 13,
+    backgroundColor: colors.card,
+  },
+  textInput: { flex: 1, color: colors.foreground, fontSize: 15, paddingVertical: 10 },
+  trustRow: { flexDirection: "row", gap: 8, padding: 11, borderRadius: 12, backgroundColor: colors.primaryMuted },
+  trustText: { flex: 1, color: colors.mutedForeground, fontSize: 12, lineHeight: 17 },
   timeOptions: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   timeChip: {
     borderRadius: 999,
@@ -581,7 +554,16 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
     paddingVertical: 14,
     borderRadius: 14,
     alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
     marginTop: 4,
+    minHeight: 52,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.28,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 5,
   },
   nextButtonText: { color: colors.white, fontWeight: "800" },
   modalOverlay: {

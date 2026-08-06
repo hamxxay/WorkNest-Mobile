@@ -3,10 +3,20 @@ import { API_BASE } from "@env";
 
 const ENV_API_BASE_URL = (API_BASE ?? "").trim();
 
+export function normalizeApiBaseUrl(baseUrl: string): string {
+  const trimmed = baseUrl.trim();
+  if (!trimmed) {
+    return "http://localhost:7200/api";
+  }
+
+  const hasApiSuffix = /\/api(?:\/)?$/i.test(trimmed);
+  const normalized = trimmed.replace(/\/+$/, "");
+
+  return hasApiSuffix ? normalized : `${normalized}/api`;
+}
+
 function resolveApiBaseUrl(): string {
-  const base = ENV_API_BASE_URL.length > 0
-    ? ENV_API_BASE_URL
-    : "http://localhost:7200/api";
+  const base = normalizeApiBaseUrl(ENV_API_BASE_URL.length > 0 ? ENV_API_BASE_URL : "http://localhost:7200");
 
   // Android emulator cannot reach host machine via localhost — remap to 10.0.2.2
   if (Platform.OS === "android") {
@@ -19,6 +29,12 @@ function resolveApiBaseUrl(): string {
 }
 
 export const API_BASE_URL = resolveApiBaseUrl();
+
+export function buildApiPath(path: string): string {
+  const trimmed = path.trim();
+  if (!trimmed) return "/";
+  return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+}
 
 export const API_ENDPOINTS = {
   auth: {

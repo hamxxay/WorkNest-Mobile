@@ -9,11 +9,30 @@ import {
   isSuccessResponse,
   statusCodes,
 } from "@react-native-google-signin/google-signin";
-import { FIREBASE_IOS_CLIENT_ID, FIREBASE_WEB_CLIENT_ID } from "@env";
+import { FIREBASE_IOS_CLIENT_ID, FIREBASE_WEB_CLIENT_ID, FIREBASE_AUTH_EXCHANGE_ENDPOINT } from "@env";
+import { buildApiPath } from "../config/api";
 import { clearAuthStorage, removeToken, removeUser, saveToken, saveUser, getUser } from "../utils/authStorage";
 import { ApiError, apiRequest } from "./apiClient";
-import type { AuthResponse, LoginRequest, RegisterRequest } from "./api/types";
 import type { StoredUser } from "../utils/authStorage";
+
+type AuthResponse = {
+  token: string;
+  email: string | null;
+  userId: string;
+  roles: string[] | null;
+};
+
+type LoginRequest = {
+  email: string;
+  password: string;
+};
+
+type RegisterRequest = {
+  email: string;
+  password: string;
+  firstName?: string;
+  lastName?: string;
+};
 import {
   sanitizeEmailInput,
   sanitizeOptionalNameInput,
@@ -79,7 +98,7 @@ export async function syncUserWithBackend(user: StoredUser): Promise<void> {
       lastName = parts.slice(1).join(" ") || "";
     }
 
-    await apiRequest("/auth/sync", {
+    await apiRequest(buildApiPath("auth/sync"), {
       method: "POST",
       body: {
         email: user.email,
@@ -218,7 +237,8 @@ async function exchangeFirebaseTokenForJwt(user: FirebaseAuthTypes.User, display
       firstName = parts[0] || "";
       lastName = parts.slice(1).join(" ") || "";
     }
-    const response = await apiRequest<{ token?: string; id?: string; roles?: string[] }>("/auth/google-login", {
+    const exchangePath = (FIREBASE_AUTH_EXCHANGE_ENDPOINT ?? "").trim() || "/auth/google-login";
+    const response = await apiRequest<{ token?: string; id?: string; roles?: string[] }>(buildApiPath(exchangePath), {
       method: "POST",
       body: { idToken: await user.getIdToken(), email: user.email, firstName, lastName },
     });
