@@ -3,7 +3,7 @@ import { useMemo } from "react";
 export const colors = {
   // Surfaces
   background: "#ffffff",
-  card: "#FFFFFF",
+  card: "#ffffff",
   // Text
   foreground: "#0A1628",
   mutedForeground: "#4E637F",

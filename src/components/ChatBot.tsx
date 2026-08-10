@@ -6,6 +6,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
@@ -173,20 +174,22 @@ export function ChatBot({ visible = true }: { visible?: boolean }) {
   return (
     <>
       {/* ── FAB ── */}
-      <Animated.View style={[s.fabRing, { opacity: fabVisibility, transform: [{ scale: Animated.multiply(pulse, fabVisibility) }] }]} pointerEvents="none" />
+      
       <Animated.View pointerEvents={visible ? "auto" : "none"} style={{ opacity: fabVisibility, transform: [{ scale: fabVisibility }] }}>
+      <Animated.View style={[s.fabRing, { opacity: fabVisibility, transform: [{ scale: Animated.multiply(pulse, fabVisibility) }] }]} pointerEvents="none" />
       <Pressable accessibilityRole="button" accessibilityLabel="Open WorkNest assistant" style={s.fab} onPress={() => setOpen(true)}>
         <Ionicons name="chatbubble-ellipses" size={24} color="#fff" />
       </Pressable>
       </Animated.View>
 
       {/* ── Chat modal ── */}
-      <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
+      <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)} statusBarTranslucent >
+      
         <KeyboardAvoidingView
           style={s.overlay}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          keyboardVerticalOffset={0}
+          behavior={Platform.OS === "ios" ? "padding" : 'height'}
         >
+
           <Pressable style={s.backdrop} onPress={() => setOpen(false)} />
 
           <View style={s.sheet}>
@@ -308,7 +311,7 @@ const makeStyles = (colors: ReturnType<typeof useThemeColors>) =>
       backgroundColor: colors.background,
       borderTopLeftRadius: 28,
       borderTopRightRadius: 28,
-      maxHeight: "82%",
+      flex: 1/1.08,
       overflow: "hidden",
       ...shadows.lg,
     },

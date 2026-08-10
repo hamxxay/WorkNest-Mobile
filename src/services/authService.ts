@@ -485,6 +485,9 @@ export async function beginGoogleAuth(): Promise<PendingGoogleAuth> {
       await GoogleSignin.signOut();
     }
 
+    // Allow the Android Activity to fully resume before launching the sign-in intent
+    await new Promise<void>(resolve => setTimeout(resolve, 300));
+
     const signInResult = await GoogleSignin.signIn();
     if (isCancelledResponse(signInResult)) {
       debugAuth("google sign-in cancelled");

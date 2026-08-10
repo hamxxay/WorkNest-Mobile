@@ -38,8 +38,12 @@ import AboutUsScreen from "../screens/App/AboutUsScreen";
 import UserManualScreen from "../screens/App/UserManualScreen";
 import ChallanScreen from "../screens/App/ChallanScreen";
 import AdminPanelScreen from "../screens/App/AdminPanelScreen";
+import NotificationsScreen from "../screens/App/NotificationsScreen";
 
 import { logoutUser } from "../services/authService";
+import { setupPushNotifications, registerFCMToken } from "../services/notificationService";
+import { loadNotifications } from "../store/slices/notificationSlice";
+import { store } from "../store/store";
 import { useAuth } from "../context/AuthContext";
 import { useThemeColors, useThemedStyles } from "../theme";
 import { ConfirmModal } from "../components/ConfirmModal";
@@ -450,6 +454,7 @@ function InnerStackNavigator() {
       <InnerStack.Screen name="Login"          component={LoginScreen} />
       <InnerStack.Screen name="Signup"         component={SignupScreen} />
       <InnerStack.Screen name="Challan"        component={ChallanScreen} />
+      <InnerStack.Screen name="Notifications"   component={NotificationsScreen} />
     </InnerStack.Navigator>
   );
 }
@@ -519,6 +524,14 @@ function AppStackNavigator() {
 export function AppNavigator() {
   const colors = useThemeColors();
   useEffect(() => { StatusBar.setBackgroundColor(colors.background); }, [colors.background]);
+
+  useEffect(() => {
+    store.dispatch(loadNotifications() as any);
+    let cleanup = () => {};
+    setupPushNotifications().then(unsub => { cleanup = unsub; });
+    registerFCMToken();
+    return () => cleanup();
+  }, []);
 
   return (
     <NavigationContainer ref={rootNavRef}>

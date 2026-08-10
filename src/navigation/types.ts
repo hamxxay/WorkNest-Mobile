@@ -76,6 +76,7 @@ export type AppStackParamList = {
   UserManual: undefined;
   Pricing: undefined;
   Challan: { challanNumber?: string; bookingGuid?: string };
+  Notifications: undefined;
   Login: { redirectAfterLogin?: { screen: keyof AppStackParamList; params?: any } } | undefined;
   Signup: { redirectAfterLogin?: { screen: keyof AppStackParamList; params?: any } } | undefined;
 };
