@@ -77,6 +77,11 @@ export type AppStackParamList = {
   Pricing: undefined;
   Challan: { challanNumber?: string; bookingGuid?: string };
   Notifications: undefined;
+  Quotation: { quotationId: string };
+  CustomerInfo: { quotationId: string };
+  ModifyOrder: { quotationId: string };
+  QuotationPayment: { quotationId: string };
+  ShareQuotation: { quotationId: string };
   Login: { redirectAfterLogin?: { screen: keyof AppStackParamList; params?: any } } | undefined;
   Signup: { redirectAfterLogin?: { screen: keyof AppStackParamList; params?: any } } | undefined;
 };

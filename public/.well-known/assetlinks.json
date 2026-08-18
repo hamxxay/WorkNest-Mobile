@@ -1,0 +1,16 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls",
+      "delegate_permission/common.get_login_creds"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.worknestmobile",
+      "sha256_cert_fingerprints": [
+        "52:58:F9:6E:0D:26:3B:60:7F:AE:F0:94:CF:B5:CB:B8:54:2F:BA:EA:1B:C8:6C:9A:97:48:EC:7D:6B:AC:A1:72",
+        "FA:C6:17:45:DC:09:03:78:6F:B9:ED:E6:2A:96:2B:39:9F:73:48:F0:BB:6F:89:9B:83:32:66:75:91:03:3B:9C"
+      ]
+    }
+  }
+]

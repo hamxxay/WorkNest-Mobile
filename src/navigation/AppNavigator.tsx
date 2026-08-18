@@ -39,6 +39,11 @@ import UserManualScreen from "../screens/App/UserManualScreen";
 import ChallanScreen from "../screens/App/ChallanScreen";
 import AdminPanelScreen from "../screens/App/AdminPanelScreen";
 import NotificationsScreen from "../screens/App/NotificationsScreen";
+import QuotationScreen from "../screens/App/QuotationScreen";
+import CustomerInfoScreen from "../screens/App/CustomerInfoScreen";
+import ModifyOrderScreen from "../screens/App/ModifyOrderScreen";
+import QuotationPaymentScreen from "../screens/App/QuotationPaymentScreen";
+import ShareQuotationScreen from "../screens/App/ShareQuotationScreen";
 
 import { logoutUser } from "../services/authService";
 import { setupPushNotifications, registerFCMToken } from "../services/notificationService";
@@ -47,6 +52,7 @@ import { store } from "../store/store";
 import { useAuth } from "../context/AuthContext";
 import { useThemeColors, useThemedStyles } from "../theme";
 import { ConfirmModal } from "../components/ConfirmModal";
+import { linking } from "./linking";
 import packageLock from "../../package-lock.json";
 
 import type {
@@ -256,6 +262,7 @@ function MainTabs() {
 const MENU_ITEMS = [
   { label: "Home",            icon: "grid-outline",               screen: null               },
   { label: "Pricing",         icon: "pricetag-outline",           screen: "Pricing"          },
+  { label: "Quotation",       icon: "document-text-outline",      screen: "Quotation",       protected: true, params: { quotationId: "QUO-1001" } },
   { label: "Booking History", icon: "time-outline",               screen: "BookingHistory",  protected: true },
   { label: "Privacy Policy",  icon: "shield-checkmark-outline",   screen: "PrivacyPolicy"    },
   { label: "About Us",        icon: "information-circle-outline", screen: "AboutUs"          },
@@ -269,7 +276,7 @@ function AppDrawerContent(props: DrawerContentComponentProps) {
   const [showLogout, setShowLogout] = useState(false);
   const appVersion = (packageLock as any)?.version ?? "";
 
-  const goTo = (screen: string | null, isProtected?: boolean) => {
+  const goTo = (screen: string | null, isProtected?: boolean, params?: Record<string, any>) => {
     if (isProtected && !user) {
       props.navigation.closeDrawer();
       InteractionManager.runAfterInteractions(() => {
@@ -285,7 +292,7 @@ function AppDrawerContent(props: DrawerContentComponentProps) {
           params: { screen: "Home" },
         } as any);
       } else {
-        props.navigation.navigate("Workspace" as any, { screen } as any);
+        props.navigation.navigate("Workspace" as any, { screen, params } as any);
       }
     });
   };
@@ -331,7 +338,7 @@ function AppDrawerContent(props: DrawerContentComponentProps) {
             icon={({ size, color }) => (
               <Ionicons name={item.icon} size={size} color={color} />
             )}
-            onPress={() => goTo(item.screen, (item as any).protected)}
+            onPress={() => goTo(item.screen, (item as any).protected, (item as any).params)}
           />
         ))}
 
@@ -455,6 +462,11 @@ function InnerStackNavigator() {
       <InnerStack.Screen name="Signup"         component={SignupScreen} />
       <InnerStack.Screen name="Challan"        component={ChallanScreen} />
       <InnerStack.Screen name="Notifications"   component={NotificationsScreen} />
+      <InnerStack.Screen name="Quotation"       component={QuotationScreen} />
+      <InnerStack.Screen name="CustomerInfo"    component={CustomerInfoScreen} />
+      <InnerStack.Screen name="ModifyOrder"     component={ModifyOrderScreen} />
+      <InnerStack.Screen name="QuotationPayment" component={QuotationPaymentScreen} />
+      <InnerStack.Screen name="ShareQuotation"   component={ShareQuotationScreen} />
     </InnerStack.Navigator>
   );
 }
@@ -534,7 +546,7 @@ export function AppNavigator() {
   }, []);
 
   return (
-    <NavigationContainer ref={rootNavRef}>
+    <NavigationContainer ref={rootNavRef} linking={linking}>
       <Root.Navigator
         initialRouteName="Splash"
         screenOptions={{

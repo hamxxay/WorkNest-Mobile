@@ -72,12 +72,10 @@ export async function registerFCMToken(): Promise<string | null> {
       if (!granted) return null;
     } else {
       const { PermissionsAndroid } = await import("react-native");
-      if (Number(Platform.Version) >= 33) {
-        const result = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
-        );
-        if (result !== PermissionsAndroid.RESULTS.GRANTED) return null;
-      }
+      const result = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
+      );
+      if (result !== PermissionsAndroid.RESULTS.GRANTED) return null;
     }
 
     const token = await messaging.getToken();

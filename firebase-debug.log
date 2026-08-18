@@ -1,0 +1,110 @@
+[debug] [2026-08-16T19:49:21.307Z] ----------------------------------------------------------------------
+[debug] [2026-08-16T19:49:21.310Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\SALAHUDDIN\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js deploy --only hosting
+[debug] [2026-08-16T19:49:21.310Z] CLI Version:   15.27.0
+[debug] [2026-08-16T19:49:21.311Z] Platform:      win32
+[debug] [2026-08-16T19:49:21.311Z] Node Version:  v24.16.0
+[debug] [2026-08-16T19:49:21.311Z] Detected Agent: unknown
+[debug] [2026-08-16T19:49:21.312Z] Time:          Mon Aug 17 2026 00:49:21 GMT+0500 (Pakistan Standard Time)
+[debug] [2026-08-16T19:49:21.312Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-08-16T19:49:23.030Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-08-16T19:49:23.030Z] > authorizing via signed-in user (salahuddina999@gmail.com)
+[debug] [2026-08-16T19:49:23.030Z] [iam] checking project work-nest-3936a for permissions ["firebase.projects.get","firebasehosting.sites.update"]
+[debug] [2026-08-16T19:49:23.047Z] Checked if tokens are valid: true, expires at: 1786912073407
+[debug] [2026-08-16T19:49:23.047Z] Checked if tokens are valid: true, expires at: 1786912073407
+[debug] [2026-08-16T19:49:23.049Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/work-nest-3936a:testIamPermissions [none]
+[debug] [2026-08-16T19:49:23.049Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/work-nest-3936a:testIamPermissions  x-goog-user-project=work-nest-3936a
+[debug] [2026-08-16T19:49:23.049Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/work-nest-3936a:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2026-08-16T19:49:24.608Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/work-nest-3936a:testIamPermissions 200
+[debug] [2026-08-16T19:49:24.608Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/work-nest-3936a:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2026-08-16T19:49:24.609Z] Checked if tokens are valid: true, expires at: 1786912073407
+[debug] [2026-08-16T19:49:24.609Z] Checked if tokens are valid: true, expires at: 1786912073407
+[debug] [2026-08-16T19:49:24.610Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/work-nest-3936a [none]
+[debug] [2026-08-16T19:49:25.241Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/work-nest-3936a 200
+[debug] [2026-08-16T19:49:25.241Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/work-nest-3936a {"projectId":"work-nest-3936a","projectNumber":"722479405081","displayName":"work-nest","name":"projects/work-nest-3936a","resources":{"hostingSite":"work-nest-3936a"},"state":"ACTIVE","labels":{"firebase":"enabled"},"etag":"1_369c8ac2-df52-40c7-8c95-157675bc280a"}
+[info] 
+[info] === Deploying to 'work-nest-3936a'...
+[info] 
+[info] i  deploying hosting 
+[debug] [2026-08-16T19:49:25.245Z] Checked if tokens are valid: true, expires at: 1786912073407
+[debug] [2026-08-16T19:49:25.245Z] Checked if tokens are valid: true, expires at: 1786912073407
+[debug] [2026-08-16T19:49:25.246Z] >>> [apiv2][query] GET https://firebasehosting.googleapis.com/v1beta1/projects/work-nest-3936a/sites/work-nest-3936a [none]
+[debug] [2026-08-16T19:49:27.029Z] <<< [apiv2][status] GET https://firebasehosting.googleapis.com/v1beta1/projects/work-nest-3936a/sites/work-nest-3936a 200
+[debug] [2026-08-16T19:49:27.030Z] <<< [apiv2][body] GET https://firebasehosting.googleapis.com/v1beta1/projects/work-nest-3936a/sites/work-nest-3936a {"name":"projects/work-nest-3936a/sites/work-nest-3936a","defaultUrl":"https://work-nest-3936a.web.app","type":"DEFAULT_SITE"}
+[debug] [2026-08-16T19:49:27.037Z] Checked if tokens are valid: true, expires at: 1786912073407
+[debug] [2026-08-16T19:49:27.037Z] Checked if tokens are valid: true, expires at: 1786912073407
+[debug] [2026-08-16T19:49:27.038Z] >>> [apiv2][query] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/work-nest-3936a/versions [none]
+[debug] [2026-08-16T19:49:27.038Z] >>> [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/work-nest-3936a/versions {"status":"CREATED","labels":{"deployment-tool":"cli-firebase"}}
+[debug] [2026-08-16T19:49:28.457Z] <<< [apiv2][status] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/work-nest-3936a/versions 200
+[debug] [2026-08-16T19:49:28.457Z] <<< [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/work-nest-3936a/versions {"name":"projects/722479405081/sites/work-nest-3936a/versions/05f4821be7d4267f","status":"CREATED","config":{},"labels":{"deployment-tool":"cli-firebase"}}
+[info] i  hosting[work-nest-3936a]: beginning deploy... 
+[info] i  hosting[work-nest-3936a]: found 17 files in public 
+[debug] [2026-08-16T19:49:28.474Z] [hosting] uploading with 200 concurrency
+[debug] [2026-08-16T19:49:28.480Z] Checked if tokens are valid: true, expires at: 1786912073407
+[debug] [2026-08-16T19:49:28.480Z] Checked if tokens are valid: true, expires at: 1786912073407
+[debug] [2026-08-16T19:49:28.481Z] [hosting] hash cache [cHVibGlj] stored for 17 files
+[debug] [2026-08-16T19:49:28.481Z] [hosting][hash queue][FINAL] {"max":1,"min":0,"avg":0,"active":0,"complete":17,"success":17,"errored":0,"retried":0,"total":17,"elapsed":3}
+[debug] [2026-08-16T19:49:28.481Z] >>> [apiv2][query] POST https://firebasehosting.googleapis.com/v1beta1/projects/722479405081/sites/work-nest-3936a/versions/05f4821be7d4267f:populateFiles [none]
+[debug] [2026-08-16T19:49:28.481Z] >>> [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/722479405081/sites/work-nest-3936a/versions/05f4821be7d4267f:populateFiles {"files":{"/Logo1.png":"1efa67825e318f5a880a6e51a5359c425a45b4f572ca0ca13fcb6ae48aea5b36","/Logo.png":"16cf494099bc27f71735c91f1ebd7f7bf0be7af1299b91e901d024c2ad170002","/index.html":"dddd5894b9b74433e97cd267c9bd120afa4301af4de810eb5496c2eb3dc134dd","/images/happy-team.jpg":"6d15369b3389a78948916a299829fbc1850d10f432c9788a8224e56934ae4d59","/images/spaces/modern-office.jpg":"45ecc41ff0c2bec9b4d8598d82c8dbc98f0856303992ecef9495dfa15577216b","/images/spaces/meeting-room.jpg":"c245feedbd80556cafd4466c2c759cdfb6c9d66908ad1e7d749a29b9a22d8dc8","/images/spaces/lounge.jpg":"0d2063a4e83a1129c9a9542fd8d1741abea447791784b43cd765102d7534c74c","/images/spaces/creative-cowork.jpg":"8207c0ed524f7d89c4305c5f3be5585fcfb9cde1e45e2af09da736e6b9fe2ec8","/images/spaces/collaborative.jpg":"67dcbadf9448772766ddc1cccaff6250964be54ef246c5d9a0b0b0cb50f0d91a","/images/spaces/board-room.jpg":"140f92b8a14105307b12fb6825ba5d060d7d3da09efb0d6324737ca848c20848","/images/gallery/team-collab.jpg":"360a298c0c3fa673a4a141b70acef847ef7540aee68d508aa65036d2a58f44d9","/images/gallery/rooftop-terrace.jpg":"f0ca9299404e3e503c774dc4f69e5afbf4a3cd6a12d1e7d06f25bee5357877c8","/images/gallery/private-suite.jpg":"83b15a47b34f39d90a1d9e50c5b4ebf83c770ae0cbc943623eb6274cd66eaf21","/images/gallery/meeting-pod.jpg":"e5c6edd66d96f0549e32ab0ac54ee7212da69d84e319d677af2881200a710ec8","/images/gallery/corner-office.jpg":"700980597e3c9eea44d221d1be2f12570ee89353588005669cdb022d4320e8c6","/images/gallery/cafe-break.jpg":"b8769e0bcc57afd94ce14976419e6d3a5afd9a8a2b8f0547db15514bff53a286","/.well-known/assetlinks.json":"903effbfc0d90520ff4275bd5d070c2d39beb784971c4324970a63b079dd9a90"}}
+[debug] [2026-08-16T19:49:29.406Z] <<< [apiv2][status] POST https://firebasehosting.googleapis.com/v1beta1/projects/722479405081/sites/work-nest-3936a/versions/05f4821be7d4267f:populateFiles 200
+[debug] [2026-08-16T19:49:29.406Z] <<< [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/722479405081/sites/work-nest-3936a/versions/05f4821be7d4267f:populateFiles {"uploadUrl":"https://upload-firebasehosting.googleapis.com/upload/sites/work-nest-3936a/versions/05f4821be7d4267f/files"}
+[debug] [2026-08-16T19:49:29.406Z] [hosting][populate queue][FINAL] {"max":926,"min":926,"avg":926,"active":0,"complete":1,"success":1,"errored":0,"retried":0,"total":1,"elapsed":926}
+[debug] [2026-08-16T19:49:29.407Z] [hosting] uploads queued: 0
+[debug] [2026-08-16T19:49:29.407Z] [hosting][upload queue][FINAL] {"max":0,"min":9999999999,"avg":0,"active":0,"complete":0,"success":0,"errored":0,"retried":0,"total":0,"elapsed":1786909769407}
+[info] i  hosting: upload complete 
+[info] +  hosting[work-nest-3936a]: file upload complete 
+[debug] [2026-08-16T19:49:29.407Z] [hosting] deploy completed after 947ms
+[debug] [2026-08-16T19:49:29.407Z] [
+  {
+    "config": {
+      "public": "public",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "headers": [
+        {
+          "source": "/.well-known/assetlinks.json",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        }
+      ],
+      "rewrites": [
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ],
+      "site": "work-nest-3936a"
+    },
+    "version": "projects/722479405081/sites/work-nest-3936a/versions/05f4821be7d4267f"
+  }
+]
+[info] i  hosting[work-nest-3936a]: finalizing version... 
+[debug] [2026-08-16T19:49:29.410Z] Checked if tokens are valid: true, expires at: 1786912073407
+[debug] [2026-08-16T19:49:29.410Z] Checked if tokens are valid: true, expires at: 1786912073407
+[debug] [2026-08-16T19:49:29.410Z] >>> [apiv2][query] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/work-nest-3936a/versions/05f4821be7d4267f updateMask=status%2Cconfig
+[debug] [2026-08-16T19:49:29.410Z] >>> [apiv2][body] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/work-nest-3936a/versions/05f4821be7d4267f {"status":"FINALIZED","config":{"rewrites":[{"glob":"**","path":"/index.html"}],"headers":[{"glob":"/.well-known/assetlinks.json","headers":{"Content-Type":"application/json"}}]}}
+[debug] [2026-08-16T19:49:30.940Z] <<< [apiv2][status] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/work-nest-3936a/versions/05f4821be7d4267f 200
+[debug] [2026-08-16T19:49:30.941Z] <<< [apiv2][body] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/work-nest-3936a/versions/05f4821be7d4267f {"name":"projects/722479405081/sites/work-nest-3936a/versions/05f4821be7d4267f","status":"FINALIZED","config":{"headers":[{"headers":{"Content-Type":"application/json"},"glob":"/.well-known/assetlinks.json"}],"rewrites":[{"glob":"**","path":"/index.html"}]},"labels":{"deployment-tool":"cli-firebase"},"createTime":"2026-08-16T19:49:28.405112Z","createUser":{"email":"SalahuddinA999@gmail.com"},"finalizeTime":"2026-08-16T19:49:31.577541Z","finalizeUser":{"email":"SalahuddinA999@gmail.com"}}
+[debug] [2026-08-16T19:49:30.941Z] [hosting] finalized version for work-nest-3936a:[object Object]
+[info] +  hosting[work-nest-3936a]: version finalized 
+[info] i  hosting[work-nest-3936a]: releasing new version... 
+[debug] [2026-08-16T19:49:30.942Z] Checked if tokens are valid: true, expires at: 1786912073407
+[debug] [2026-08-16T19:49:30.942Z] Checked if tokens are valid: true, expires at: 1786912073407
+[debug] [2026-08-16T19:49:30.943Z] >>> [apiv2][query] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/work-nest-3936a/channels/live/releases versionName=projects%2F722479405081%2Fsites%2Fwork-nest-3936a%2Fversions%2F05f4821be7d4267f
+[debug] [2026-08-16T19:49:30.943Z] >>> [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/work-nest-3936a/channels/live/releases {}
+[debug] [2026-08-16T19:49:32.403Z] <<< [apiv2][status] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/work-nest-3936a/channels/live/releases 200
+[debug] [2026-08-16T19:49:32.404Z] <<< [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/work-nest-3936a/channels/live/releases {"name":"projects/722479405081/sites/work-nest-3936a/channels/live/releases/1786909772111000","version":{"name":"projects/722479405081/sites/work-nest-3936a/versions/05f4821be7d4267f","status":"FINALIZED","config":{"headers":[{"headers":{"Content-Type":"application/json"},"glob":"/.well-known/assetlinks.json"}],"rewrites":[{"glob":"**","path":"/index.html"}]},"labels":{"deployment-tool":"cli-firebase"},"createTime":"2026-08-16T19:49:28.405112Z","createUser":{"email":"SalahuddinA999@gmail.com","imageUrl":"https://lh3.googleusercontent.com/a/ACg8ocJO3TC23NPNCFyETva4mc9Oh8OG8Mya6a7Aj1_XuLaPU7bqU5ZT"},"finalizeTime":"2026-08-16T19:49:31.577541Z","finalizeUser":{"email":"SalahuddinA999@gmail.com","imageUrl":"https://lh3.googleusercontent.com/a/ACg8ocJO3TC23NPNCFyETva4mc9Oh8OG8Mya6a7Aj1_XuLaPU7bqU5ZT"}},"type":"DEPLOY","releaseTime":"2026-08-16T19:49:32.111Z","releaseUser":{"email":"SalahuddinA999@gmail.com","imageUrl":"https://lh3.googleusercontent.com/a/ACg8ocJO3TC23NPNCFyETva4mc9Oh8OG8Mya6a7Aj1_XuLaPU7bqU5ZT"}}
+[debug] [2026-08-16T19:49:32.404Z] [hosting] release: {"name":"projects/722479405081/sites/work-nest-3936a/channels/live/releases/1786909772111000","version":{"name":"projects/722479405081/sites/work-nest-3936a/versions/05f4821be7d4267f","status":"FINALIZED","config":{"headers":[{"headers":{"Content-Type":"application/json"},"glob":"/.well-known/assetlinks.json"}],"rewrites":[{"glob":"**","path":"/index.html"}]},"labels":{"deployment-tool":"cli-firebase"},"createTime":"2026-08-16T19:49:28.405112Z","createUser":{"email":"SalahuddinA999@gmail.com","imageUrl":"https://lh3.googleusercontent.com/a/ACg8ocJO3TC23NPNCFyETva4mc9Oh8OG8Mya6a7Aj1_XuLaPU7bqU5ZT"},"finalizeTime":"2026-08-16T19:49:31.577541Z","finalizeUser":{"email":"SalahuddinA999@gmail.com","imageUrl":"https://lh3.googleusercontent.com/a/ACg8ocJO3TC23NPNCFyETva4mc9Oh8OG8Mya6a7Aj1_XuLaPU7bqU5ZT"}},"type":"DEPLOY","releaseTime":"2026-08-16T19:49:32.111Z","releaseUser":{"email":"SalahuddinA999@gmail.com","imageUrl":"https://lh3.googleusercontent.com/a/ACg8ocJO3TC23NPNCFyETva4mc9Oh8OG8Mya6a7Aj1_XuLaPU7bqU5ZT"}}
+[info] +  hosting[work-nest-3936a]: release complete 
+[info] 
+[info] +  Deploy complete! 
+[info] 
+[info] Project Console: https://console.firebase.google.com/project/work-nest-3936a/overview
+[info] Hosting URL: https://work-nest-3936a.web.app
