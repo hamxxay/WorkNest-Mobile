@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,18 +14,27 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { Screen } from "../../components/Screen";
 import { radii, shadows, useThemeColors, useThemedStyles } from "../../theme";
-import { getQuotationById } from "../../services/mockQuotationService";
+import {
+  acceptQuotation,
+  declineQuotation,
+  getQuotationActivities,
+  getQuotationById,
+  getQuotationVersions,
+  type QuotationActivity,
+} from "../../services/mockQuotationService";
 import type { Quotation } from "../../data/mockQuotationData";
 import type { AppStackParamList } from "../../navigation/types";
 import { useAuth } from "../../context/AuthContext";
 
 // ─── Status helpers ───────────────────────────────────────────────────────────
-const STATUS_CONFIG = {
+const STATUS_CONFIG: Record<string, { label: string; bg: string; border: string; text: string }> = {
+  active:   { label: "Active",   bg: "rgba(16,185,129,0.1)",  border: "rgba(16,185,129,0.3)",  text: "#059669" },
+  inactive: { label: "Inactive", bg: "rgba(100,116,139,0.1)", border: "rgba(100,116,139,0.3)", text: "#64748b" },
   pending:  { label: "Pending",  bg: "rgba(245,158,11,0.1)",  border: "rgba(245,158,11,0.3)",  text: "#d97706" },
   approved: { label: "Approved", bg: "rgba(16,185,129,0.1)",  border: "rgba(16,185,129,0.3)",  text: "#059669" },
   rejected: { label: "Rejected", bg: "rgba(220,38,38,0.1)",   border: "rgba(220,38,38,0.3)",   text: "#dc2626" },
   expired:  { label: "Expired",  bg: "rgba(100,116,139,0.1)", border: "rgba(100,116,139,0.3)", text: "#64748b" },
-} as const;
+};
 
 export default function QuotationScreen() {
   const colors = useThemeColors();
@@ -37,6 +47,9 @@ export default function QuotationScreen() {
   const [quotation, setQuotation] = useState<Quotation | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [versions, setVersions] = useState<Quotation[]>([]);
+  const [activities, setActivities] = useState<QuotationActivity[]>([]);
+  const [actioning, setActioning] = useState<"accept" | "decline" | null>(null);
 
   // Auth guard — redirect to Login then back after successful login
   useEffect(() => {
@@ -55,6 +68,46 @@ export default function QuotationScreen() {
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load quotation."))
       .finally(() => setLoading(false));
   }, [quotationId]);
+
+  useEffect(() => {
+    Promise.allSettled([getQuotationVersions(quotationId), getQuotationActivities()])
+      .then(([versionsResult, activitiesResult]) => {
+        if (versionsResult.status === "fulfilled") setVersions(versionsResult.value);
+        if (activitiesResult.status === "fulfilled") setActivities(activitiesResult.value);
+      });
+  }, [quotationId]);
+
+  function handleDecision(decision: "accept" | "decline") {
+    const label = decision === "accept" ? "accept" : "decline";
+    Alert.alert(
+      `${decision === "accept" ? "Accept" : "Decline"} Quotation`,
+      `Are you sure you want to ${label} this quotation?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: decision === "accept" ? "Accept" : "Decline",
+          style: decision === "decline" ? "destructive" : "default",
+          onPress: async () => {
+            setActioning(decision);
+            try {
+              if (decision === "accept") await acceptQuotation(quotationId);
+              else await declineQuotation(quotationId);
+              const [updated, latestActivities] = await Promise.all([
+                getQuotationById(quotationId),
+                getQuotationActivities(),
+              ]);
+              setQuotation(updated);
+              setActivities(latestActivities);
+            } catch (e) {
+              Alert.alert("Unable to Update", e instanceof Error ? e.message : "The quotation could not be updated.");
+            } finally {
+              setActioning(null);
+            }
+          },
+        },
+      ]
+    );
+  }
 
   if (loading) {
     return (
@@ -82,8 +135,8 @@ export default function QuotationScreen() {
     );
   }
 
-  const statusCfg = STATUS_CONFIG[quotation.status] ?? STATUS_CONFIG.pending;
-  const isActionable = quotation.status === "pending" || quotation.status === "approved";
+  const statusCfg = STATUS_CONFIG[quotation.status?.toLowerCase()] ?? STATUS_CONFIG.active;
+  const isActionable = quotation.status?.toLowerCase() === "active" || quotation.status?.toLowerCase() === "pending";
 
   return (
     <Screen>
@@ -112,7 +165,7 @@ export default function QuotationScreen() {
         <View style={s.headerCard}>
           <View style={s.headerCardTop}>
             <View>
-              <Text style={s.quotationNumber}>{quotation.id}</Text>
+              <Text style={s.quotationNumber}>{quotation.quotationNumber || quotation.id}</Text>
               <Text style={s.customerName}>{quotation.customerName}</Text>
             </View>
             <View style={s.brandMark}>
@@ -145,26 +198,26 @@ export default function QuotationScreen() {
             <View key={item.id} style={[s.tableRow, i < quotation.items.length - 1 && s.tableRowBorder]}>
               <Text style={[s.tableCell, { flex: 3 }]}>{item.name}</Text>
               <Text style={[s.tableCell, s.textCenter]}>{item.quantity}</Text>
-              <Text style={[s.tableCell, s.textRight]}>PKR {item.price.toLocaleString()}</Text>
-              <Text style={[s.tableCell, s.textRight, s.tableCellBold]}>PKR {item.total.toLocaleString()}</Text>
+              <Text style={[s.tableCell, s.textRight]}>PKR {(item.price ?? 0).toLocaleString()}</Text>
+              <Text style={[s.tableCell, s.textRight, s.tableCellBold]}>PKR {(item.total ?? 0).toLocaleString()}</Text>
             </View>
           ))}
           <View style={s.tableDivider} />
           {quotation.tax > 0 && (
             <View style={s.totalRow}>
               <Text style={s.totalLabel}>Subtotal</Text>
-              <Text style={s.totalValue}>PKR {quotation.subtotal.toLocaleString()}</Text>
+              <Text style={s.totalValue}>PKR {(quotation.subtotal ?? 0).toLocaleString()}</Text>
             </View>
           )}
           {quotation.tax > 0 && (
             <View style={s.totalRow}>
               <Text style={s.totalLabel}>Tax</Text>
-              <Text style={s.totalValue}>PKR {quotation.tax.toLocaleString()}</Text>
+              <Text style={s.totalValue}>PKR {(quotation.tax ?? 0).toLocaleString()}</Text>
             </View>
           )}
           <View style={[s.totalRow, s.grandTotalRow]}>
             <Text style={s.grandTotalLabel}>Grand Total</Text>
-            <Text style={s.grandTotalValue}>PKR {quotation.total.toLocaleString()}</Text>
+            <Text style={s.grandTotalValue}>PKR {(quotation.total ?? 0).toLocaleString()}</Text>
           </View>
         </View>
 
@@ -176,9 +229,54 @@ export default function QuotationScreen() {
           </View>
         )}
 
+        {versions.length > 0 && (
+          <View style={s.card}>
+            <Text style={s.sectionTitle}>Version History</Text>
+            {versions.map((version) => (
+              <View key={`${version.id}-${version.version}`} style={s.historyRow}>
+                <Text style={s.historyTitle}>Version {version.version ?? 1}</Text>
+                <Text style={s.historyMeta}>{version.status || "Created"}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {activities.length > 0 && (
+          <View style={s.card}>
+            <Text style={s.sectionTitle}>Recent Activity</Text>
+            {activities.slice(0, 5).map((activity, index) => (
+              <View key={activity.id || `${activity.action}-${index}`} style={s.activityRow}>
+                <View style={s.activityDot} />
+                <View style={{ flex: 1 }}>
+                  <Text style={s.historyTitle}>{activity.action}</Text>
+                  <Text style={s.historyMeta}>{activity.description}{activity.createdAt ? ` · ${activity.createdAt}` : ""}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+
         {/* Actions */}
         {isActionable ? (
           <View style={s.actions}>
+            <View style={s.decisionRow}>
+              <Pressable
+                style={[s.acceptAction, actioning && { opacity: 0.6 }]}
+                onPress={() => handleDecision("accept")}
+                disabled={!!actioning}
+              >
+                {actioning === "accept" ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="checkmark-outline" size={19} color="#fff" />}
+                <Text style={s.acceptActionText}>Accept</Text>
+              </Pressable>
+              <Pressable
+                style={[s.declineAction, actioning && { opacity: 0.6 }]}
+                onPress={() => handleDecision("decline")}
+                disabled={!!actioning}
+              >
+                {actioning === "decline" ? <ActivityIndicator size="small" color={colors.danger} /> : <Ionicons name="close-outline" size={19} color={colors.danger} />}
+                <Text style={s.declineActionText}>Decline</Text>
+              </Pressable>
+            </View>
             <Pressable
               style={s.primaryAction}
               onPress={() => navigation.navigate("CustomerInfo", { quotationId: quotation.id })}
@@ -265,7 +363,18 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) =>
     notesCard: { flexDirection: "row", gap: 8, backgroundColor: colors.primaryMuted, borderRadius: radii.md, padding: 12, borderWidth: 1, borderColor: colors.border, alignItems: "flex-start" },
     notesText: { flex: 1, color: colors.foreground, fontSize: 13, lineHeight: 19 },
 
+    historyRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+    historyTitle: { color: colors.foreground, fontSize: 13, fontWeight: "700" },
+    historyMeta: { color: colors.mutedForeground, fontSize: 12, marginTop: 2, textTransform: "capitalize" },
+    activityRow: { flexDirection: "row", gap: 9, paddingVertical: 7 },
+    activityDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.primary, marginTop: 5 },
+
     actions: { gap: 10 },
+    decisionRow: { flexDirection: "row", gap: 10 },
+    acceptAction: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, backgroundColor: colors.success, borderRadius: radii.md, paddingVertical: 13 },
+    acceptActionText: { color: "#fff", fontSize: 15, fontWeight: "800" },
+    declineAction: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, backgroundColor: colors.card, borderRadius: radii.md, borderWidth: 1, borderColor: colors.danger, paddingVertical: 12 },
+    declineActionText: { color: colors.danger, fontSize: 15, fontWeight: "800" },
     primaryAction: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: colors.primary, borderRadius: radii.md, paddingVertical: 15, ...shadows.sm, shadowColor: colors.primary },
     primaryActionText: { color: "#fff", fontSize: 16, fontWeight: "800" },
     secondaryAction: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: colors.card, borderRadius: radii.md, paddingVertical: 14, borderWidth: 1.5, borderColor: colors.primary },

@@ -78,6 +78,7 @@ export type AppStackParamList = {
   Challan: { challanNumber?: string; bookingGuid?: string };
   Notifications: undefined;
   Quotation: { quotationId: string };
+  QuotationList: undefined;
   CustomerInfo: { quotationId: string };
   ModifyOrder: { quotationId: string };
   QuotationPayment: { quotationId: string };

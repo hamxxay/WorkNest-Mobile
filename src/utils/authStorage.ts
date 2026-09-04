@@ -79,6 +79,7 @@ export const getRefreshToken = async () => {
 
 export const getUser = async (): Promise<StoredUser | null> => {
   const raw = await AsyncStorage.getItem(USER_KEY);
+  console.log('getUser raw:', raw);
   if (!raw) {
     return null;
   }

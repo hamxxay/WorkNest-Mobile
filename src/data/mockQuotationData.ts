@@ -10,15 +10,28 @@ export type QuotationItem = {
 
 export type Quotation = {
   id: string;
+  guid: string;
+  quotationNumber: string;
   customerName: string;
+  customerEmail: string;
+  spaceName: string;
+  spaceCode: string;
+  locationName: string;
+  spaceTypeName: string;
+  startDateTime: string;
+  endDateTime: string;
   quotationDate: string;
   validUntil: string;
   items: QuotationItem[];
   subtotal: number;
   tax: number;
   total: number;
-  status: "pending" | "approved" | "rejected" | "expired";
+  discountAmount: number;
+  securityDeposit: number;
+  status: string;
   notes?: string;
+  version: number;
+  isActive: boolean;
 };
 
 export type Challan = {
@@ -75,7 +88,7 @@ export const MOCK_QUOTATIONS: Record<string, Quotation> = {
     subtotal: 24000,
     tax: 0,
     total: 24000,
-    status: "pending",
+    status: "approved",
   },
   "QUO-1003": {
     id: "QUO-1003",
@@ -90,6 +103,33 @@ export const MOCK_QUOTATIONS: Record<string, Quotation> = {
     tax: 0,
     total: 57000,
     status: "expired",
+  },
+  "QUO-1004": {
+    id: "QUO-1004",
+    customerName: "Fatima Malik",
+    quotationDate: "12 Aug 2026",
+    validUntil: "19 Aug 2026",
+    items: [
+      { id: 1, name: "Co-Working Space (Weekly)", quantity: 2, price: 5000, total: 10000 },
+    ],
+    subtotal: 10000,
+    tax: 0,
+    total: 10000,
+    status: "rejected",
+  },
+  "QUO-1005": {
+    id: "QUO-1005",
+    customerName: "Hassan Raza",
+    quotationDate: "17 Aug 2026",
+    validUntil: "24 Aug 2026",
+    items: [
+      { id: 1, name: "Private Office (3 Months)", quantity: 1, price: 75000, total: 75000 },
+      { id: 2, name: "Parking Slot", quantity: 1, price: 3000, total: 3000 },
+    ],
+    subtotal: 78000,
+    tax: 0,
+    total: 78000,
+    status: "pending",
   },
 };
 

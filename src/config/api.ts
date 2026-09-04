@@ -95,6 +95,21 @@ export const API_ENDPOINTS = {
     reassign: (id: number | string) => `/booking/${id}/reassign`,
     adminCreate: "/booking/create-admin",
   },
+  quotation: {
+    byCustomer: (customerId: string) => `/quotation/by-customer/${customerId}`,
+    byId: (id: string) => `/quotation/${id}`,
+    accept: (id: string) => `/quotation/${id}/accept`,
+    decline: (id: string) => `/quotation/${id}/decline`,
+    createVersion: (id: string) => `/quotation/${id}/create-version`,
+    versions: (id: string) => `/quotation/${id}/versions`,
+    activities: "/quotation/activities",
+    send: (id: string) => `/quotation/${id}/send`,
+    versionAccept: (id: string, version: number | string) =>
+      `/quotations/${id}/versions/${version}/accept`,
+    versionDecline: (id: string, version: number | string) =>
+      `/quotations/${id}/versions/${version}/decline`,
+    versionCreate: (id: string) => `/quotations/${id}/versions`,
+  },
   admin: {
     dashboardSummary: "/dashboard/summary",
     recentBookings: (limit: number) => `/booking/recent?limit=${limit}`,

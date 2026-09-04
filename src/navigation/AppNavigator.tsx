@@ -40,6 +40,7 @@ import ChallanScreen from "../screens/App/ChallanScreen";
 import AdminPanelScreen from "../screens/App/AdminPanelScreen";
 import NotificationsScreen from "../screens/App/NotificationsScreen";
 import QuotationScreen from "../screens/App/QuotationScreen";
+import QuotationListScreen from "../screens/App/QuotationListScreen";
 import CustomerInfoScreen from "../screens/App/CustomerInfoScreen";
 import ModifyOrderScreen from "../screens/App/ModifyOrderScreen";
 import QuotationPaymentScreen from "../screens/App/QuotationPaymentScreen";
@@ -262,7 +263,7 @@ function MainTabs() {
 const MENU_ITEMS = [
   { label: "Home",            icon: "grid-outline",               screen: null               },
   { label: "Pricing",         icon: "pricetag-outline",           screen: "Pricing"          },
-  { label: "Quotation",       icon: "document-text-outline",      screen: "Quotation",       protected: true, params: { quotationId: "QUO-1001" } },
+  { label: "Quotation",       icon: "document-text-outline",      screen: "QuotationList",   protected: true },
   { label: "Booking History", icon: "time-outline",               screen: "BookingHistory",  protected: true },
   { label: "Privacy Policy",  icon: "shield-checkmark-outline",   screen: "PrivacyPolicy"    },
   { label: "About Us",        icon: "information-circle-outline", screen: "AboutUs"          },
@@ -463,6 +464,7 @@ function InnerStackNavigator() {
       <InnerStack.Screen name="Challan"        component={ChallanScreen} />
       <InnerStack.Screen name="Notifications"   component={NotificationsScreen} />
       <InnerStack.Screen name="Quotation"       component={QuotationScreen} />
+      <InnerStack.Screen name="QuotationList"   component={QuotationListScreen} />
       <InnerStack.Screen name="CustomerInfo"    component={CustomerInfoScreen} />
       <InnerStack.Screen name="ModifyOrder"     component={ModifyOrderScreen} />
       <InnerStack.Screen name="QuotationPayment" component={QuotationPaymentScreen} />

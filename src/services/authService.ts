@@ -2,6 +2,7 @@ import {
   default as auth,
   FirebaseAuthTypes,
   GoogleAuthProvider,
+  getIdToken,
 } from "@react-native-firebase/auth";
 import {
   GoogleSignin,
@@ -9,7 +10,7 @@ import {
   isSuccessResponse,
   statusCodes,
 } from "@react-native-google-signin/google-signin";
-import { FIREBASE_IOS_CLIENT_ID, FIREBASE_WEB_CLIENT_ID, FIREBASE_AUTH_EXCHANGE_ENDPOINT } from "@env";
+import { FIREBASE_IOS_CLIENT_ID, FIREBASE_WEB_CLIENT_ID } from "@env";
 import { buildApiPath } from "../config/api";
 import { clearAuthStorage, removeToken, removeUser, saveToken, saveUser, getUser } from "../utils/authStorage";
 import { ApiError, apiRequest } from "./apiClient";
@@ -145,7 +146,7 @@ function mapFirebaseAuthResponse(
   idToken: string
 ): AuthResponse {
   return {
-    token: idToken,
+    token: idToken ?? null,
     email: user.email ?? null,
     userId: user.uid,
     roles: null,
@@ -196,26 +197,29 @@ export async function triggerBackgroundSync(currentUser: StoredUser) {
     await syncUserWithBackend(currentUser);
     // 2. Fetch profile from database to get correct role
     const profile = await apiRequest<{
-      id: string | null;
+      id: string | number | null;
       email: string;
       name: string;
       phone: string;
       role: string;
-      customerCode?: string;
-      CustomerCode?: string;
+      customerCode?: string | number;
+      customerId?: string | number;
+      CustomerCode?: string | number;
+      CustomerId?: string | number;
     }>("/auth/me", {
       requiresAuth: true,
     });
     if (profile) {
       const activeUser = await getUser();
       if (activeUser && activeUser.email === currentUser.email) {
-        const customerCode = profile.customerCode ?? profile.CustomerCode ?? activeUser.customerCode;
+        const customerCode = profile.customerCode ?? profile.customerId ?? profile.CustomerCode ?? profile.CustomerId ?? activeUser.customerCode;
         const updatedUser: StoredUser = {
           ...activeUser,
           id: profile.id ?? activeUser.id,
           name: profile.name || activeUser.name,
           role: profile.role || "general",
-          customerCode,
+          customerCode: String(customerCode),
+          customerId: String(customerCode),
         };
         await saveUser(updatedUser);
         notifyAuthListeners(updatedUser);
@@ -223,29 +227,6 @@ export async function triggerBackgroundSync(currentUser: StoredUser) {
     }
   } catch (err) {
     console.warn("[Background Sync] Failed:", err);
-  }
-}
-
-async function exchangeFirebaseTokenForJwt(user: FirebaseAuthTypes.User, displayNameOverride?: string): Promise<string | null> {
-  if (!user.email) return null;
-  try {
-    let firstName = "";
-    let lastName = "";
-    const displayName = displayNameOverride ?? user.displayName ?? "";
-    if (displayName) {
-      const parts = displayName.trim().split(/\s+/);
-      firstName = parts[0] || "";
-      lastName = parts.slice(1).join(" ") || "";
-    }
-    const exchangePath = (FIREBASE_AUTH_EXCHANGE_ENDPOINT ?? "").trim() || "/auth/google-login";
-    const response = await apiRequest<{ token?: string; id?: string; roles?: string[] }>(buildApiPath(exchangePath), {
-      method: "POST",
-      body: { idToken: await user.getIdToken(), email: user.email, firstName, lastName },
-    });
-    return response?.token ?? null;
-  } catch (err) {
-    debugAuth("jwt exchange failed", { message: err instanceof Error ? err.message : "unknown" });
-    return null;
   }
 }
 
@@ -257,7 +238,7 @@ async function persistFirebaseSession(
   if (displayNameOverride) {
     firebaseUser.name = displayNameOverride;
   }
-  const idToken = await user.getIdToken();
+  const idToken = await getIdToken(user);
   debugAuth("persist session", {
     uid: user.uid,
     email: maskEmail(user.email),
@@ -265,8 +246,8 @@ async function persistFirebaseSession(
   });
 
   // Exchange Firebase token for .NET JWT — save the .NET JWT so API calls are authorized
-  const dotnetJwt = await exchangeFirebaseTokenForJwt(user, displayNameOverride);
-  await saveToken(dotnetJwt ?? idToken);
+  // Use the Firebase ID token directly for authenticated API requests.
+  await saveToken(idToken);
 
   const existing = await getUser();
   const mergedUser: StoredUser = {
@@ -276,7 +257,7 @@ async function persistFirebaseSession(
   };
   await saveUser(mergedUser);
 
-  return { user: mergedUser, idToken: dotnetJwt ?? idToken };
+  return { user: mergedUser, idToken };
 }
 
 export async function logoutUser(): Promise<void> {

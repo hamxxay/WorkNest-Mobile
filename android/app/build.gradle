@@ -42,8 +42,8 @@ android {
         applicationId "com.worknestmobile"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 19
-        versionName "0.0.19"
+        versionCode 20
+        versionName "0.0.20"
     }
 
     signingConfigs {

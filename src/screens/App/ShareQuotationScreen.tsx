@@ -2,7 +2,6 @@ import { useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
-  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -19,7 +18,8 @@ import { Screen } from "../../components/Screen";
 import { radii, useThemeColors, useThemedStyles } from "../../theme";
 import { isValidEmail } from "../../utils/validation";
 import type { AppStackParamList } from "../../navigation/types";
-import { MOCK_QUOTATIONS } from "../../data/mockQuotationData";
+import { MOCK_QUOTATIONS, type Quotation } from "../../data/mockQuotationData";
+import { sendQuotation } from "../../services/mockQuotationService";
 
 // ─── Deep link base ───────────────────────────────────────────────────────────
 // When the real backend is ready, replace this with a dynamic universal link
@@ -39,6 +39,7 @@ export default function ShareQuotationScreen() {
   const [toEmail, setToEmail] = useState("");
   const [toEmailError, setToEmailError] = useState("");
   const [sent, setSent] = useState(false);
+  const [sending, setSending] = useState(false);
 
   // Pre-built email parts — editable so sender can personalise
   const defaultSubject = `WorkNest Quotation ${quotationId}${quotation ? ` — PKR ${quotation.total.toLocaleString()}` : ""}`;
@@ -56,17 +57,19 @@ export default function ShareQuotationScreen() {
 
   async function handleSend() {
     if (!validate()) return;
-    const mailto =
-      `mailto:${encodeURIComponent(toEmail.trim())}` +
-      `?subject=${encodeURIComponent(subject)}` +
-      `&body=${encodeURIComponent(body)}`;
-    const canOpen = await Linking.canOpenURL(mailto);
-    if (!canOpen) {
-      Alert.alert("No Email App", "No email app was found on this device. Please install one and try again.");
-      return;
+    setSending(true);
+    try {
+      await sendQuotation(quotationId, {
+        recipientEmail: toEmail.trim(),
+        subject: subject.trim() || undefined,
+        message: body.trim() || undefined,
+      });
+      setSent(true);
+    } catch (error) {
+      Alert.alert("Unable to Send", error instanceof Error ? error.message : "Unable to send this quotation right now.");
+    } finally {
+      setSending(false);
     }
-    await Linking.openURL(mailto);
-    setSent(true);
   }
 
   if (sent) {
@@ -74,9 +77,9 @@ export default function ShareQuotationScreen() {
       <Screen>
         <View style={s.center}>
           <Ionicons name="mail" size={64} color={colors.primary} />
-          <Text style={s.successTitle}>Email Opened!</Text>
+          <Text style={s.successTitle}>Quotation Sent!</Text>
           <Text style={s.successBody}>
-            Your email app has been opened with the quotation pre-filled. Send it to let the recipient tap the deep link and open the quotation directly in the app.
+            The quotation has been sent to {toEmail.trim()}. The recipient can use the deep link to open it directly in the app.
           </Text>
           <View style={s.linkPreview}>
             <Text style={s.linkPreviewLabel}>Deep Link</Text>
@@ -168,9 +171,9 @@ export default function ShareQuotationScreen() {
             </View>
           </View>
 
-          <Pressable style={s.primaryBtn} onPress={handleSend}>
-            <Ionicons name="mail-outline" size={18} color="#fff" />
-            <Text style={s.primaryBtnText}>Open Email App & Send</Text>
+          <Pressable style={[s.primaryBtn, sending && { opacity: 0.6 }]} onPress={handleSend} disabled={sending}>
+            {sending ? <Ionicons name="hourglass-outline" size={18} color="#fff" /> : <Ionicons name="mail-outline" size={18} color="#fff" />}
+            <Text style={s.primaryBtnText}>{sending ? "Sending…" : "Send Quotation"}</Text>
           </Pressable>
 
         </ScrollView>
@@ -182,7 +185,7 @@ export default function ShareQuotationScreen() {
 // ─── Email body builder ───────────────────────────────────────────────────────
 function buildEmailBody(
   quotationId: string,
-  quotation: ReturnType<typeof MOCK_QUOTATIONS[string]> | undefined,
+  quotation: Quotation | undefined,
   deepLink: string
 ): string {
   const itemLines = quotation?.items

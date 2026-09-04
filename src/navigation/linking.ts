@@ -19,18 +19,55 @@ export const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com
 // For Firebase Hosting App Links, host assetlinks.json at:
 //   https://work-nest-3936.web.app/.well-known/assetlinks.json
 
+function getStateFromPath(path: string, options: any) {
+  const { getStateFromPath: defaultGetStateFromPath } = require("@react-navigation/native");
+  if (path === "/quotation" || path === "/quotation/") {
+    return {
+      routes: [
+        {
+          name: "AppStack",
+          state: {
+            routes: [{
+              name: "MainTabs",
+              state: {
+                routes: [{
+                  name: "Workspace",
+                  state: {
+                    routes: [{ name: "QuotationList" }],
+                  },
+                }],
+              },
+            }],
+          },
+        },
+      ],
+    };
+  }
+  return defaultGetStateFromPath(path, options);
+}
+
 export const linking: LinkingOptions<RootStackParamList> = {
   prefixes: ["myapp://", "https://work-nest-3936a.web.app", "http://work-nest-3936a.web.app", "https://worknestpk.com", "http://worknestpk.com"],
+  getStateFromPath,
   config: {
     screens: {
       AppStack: {
         screens: {
           MainTabs: {
             screens: {
-              Home: "home",
+              Workspace: {
+                screens: {
+                  MainTabs: {
+                    screens: {
+                      Home: "home",
+                    },
+                  },
+                  QuotationList: "quotation",
+                  Quotation: "quotation/:quotationId",
+                },
+              },
             },
           },
-          Quotation: "quotation/:quotationId",
         },
       },
     },
