@@ -6,7 +6,7 @@ const ENV_API_BASE_URL = (API_BASE ?? "").trim();
 export function normalizeApiBaseUrl(baseUrl: string): string {
   const trimmed = baseUrl.trim();
   if (!trimmed) {
-    return "http://localhost:7200/api";
+    return "https://aeo.eaccounting360.com.pk/WorkNest/api";
   }
 
   const hasApiSuffix = /\/api(?:\/)?$/i.test(trimmed);
@@ -16,15 +16,15 @@ export function normalizeApiBaseUrl(baseUrl: string): string {
 }
 
 function resolveApiBaseUrl(): string {
-  let base = ENV_API_BASE_URL;
-  if (!base || base.includes("aeo.eaccounting360.com.pk")) {
-    base = "http://localhost:5200/api";
-  } else {
-    base = normalizeApiBaseUrl(base);
+  const base = ENV_API_BASE_URL || "https://aeo.eaccounting360.com.pk/WorkNest/api";
+  const normalized = normalizeApiBaseUrl(base);
+
+  // Only remap localhost/127.0.0.1 for local development when the app is truly targeting a local API.
+  if (Platform.OS === "android" && /localhost|127\.0\.0\.1/.test(normalized)) {
+    return normalized.replace("localhost", "10.0.2.2").replace("127.0.0.1", "10.0.2.2");
   }
 
-  // Keep http://localhost:5200/api so adb reverse tcp:5200 tcp:5200 works seamlessly on both physical devices and emulators
-  return base;
+  return normalized;
 }
 
 export const API_BASE_URL = resolveApiBaseUrl();
@@ -96,20 +96,20 @@ export const API_ENDPOINTS = {
     adminCreate: "/booking/create-admin",
   },
   quotation: {
-    list: "/quotations",
+    list: "/quotation",
     byCustomer: (customerId: string) => `/quotation/by-customer/${customerId}`,
-    byId: (id: string) => `/quotations/${id}`,
-    accept: (id: string) => `/quotations/${id}/accept`,
-    decline: (id: string) => `/quotations/${id}/decline`,
+    byId: (id: string) => `/quotation/${id}`,
+    accept: (id: string) => `/quotation/${id}/accept`,
+    decline: (id: string) => `/quotation/${id}/decline`,
     createVersion: (id: string) => `/quotation/${id}/create-version`,
     versions: (id: string) => `/quotation/${id}/versions`,
     activities: "/quotation/activities",
     send: (id: string) => `/quotation/${id}/send`,
     versionAccept: (id: string, version: number | string) =>
-      `/quotations/${id}/versions/${version}/accept`,
+      `/quotation/${id}/versions/${version}/accept`,
     versionDecline: (id: string, version: number | string) =>
-      `/quotations/${id}/versions/${version}/decline`,
-    versionCreate: (id: string) => `/quotations/${id}/versions`,
+      `/quotation/${id}/versions/${version}/decline`,
+    versionCreate: (id: string) => `/quotation/${id}/versions`,
   },
   invoices: {
     list: "/invoices",

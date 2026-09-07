@@ -91,20 +91,11 @@ function mapFirebaseUser(user: FirebaseAuthTypes.User): StoredUser {
 export async function syncUserWithBackend(user: StoredUser): Promise<void> {
   if (!user.email) return;
   try {
-    let firstName = "";
-    let lastName = "";
-    if (user.name) {
-      const parts = user.name.trim().split(/\s+/);
-      firstName = parts[0] || "";
-      lastName = parts.slice(1).join(" ") || "";
-    }
-
     await apiRequest(buildApiPath("auth/sync"), {
       method: "POST",
       body: {
         email: user.email,
-        firstName,
-        lastName,
+        name: user.name ?? undefined,
         phone: (user.phoneNumber as string) || undefined,
       },
     });
@@ -206,20 +197,29 @@ export async function triggerBackgroundSync(currentUser: StoredUser) {
       customerId?: string | number;
       CustomerCode?: string | number;
       CustomerId?: string | number;
-    }>("/auth/me", {
+    }>(buildApiPath("auth/me"), {
       requiresAuth: true,
     });
     if (profile) {
       const activeUser = await getUser();
       if (activeUser && activeUser.email === currentUser.email) {
-        const customerCode = profile.customerId ;
+        const rawCustomerId =
+          profile.customerId ??
+          profile.customerCode ??
+          profile.CustomerId ??
+          profile.CustomerCode;
+        const customerCode =
+          rawCustomerId !== null && rawCustomerId !== undefined && rawCustomerId !== ""
+            ? String(rawCustomerId)
+            : activeUser.customerCode;
+
         const updatedUser: StoredUser = {
           ...activeUser,
           id: profile.id ?? activeUser.id,
           name: profile.name || activeUser.name,
-          role: profile.role || "general",
-          customerCode: String(customerCode),
-          customerId: String(customerCode),
+          role: profile.role || activeUser.role || "general",
+          customerCode: customerCode,
+          customerId: customerCode,
         };
         await saveUser(updatedUser);
         notifyAuthListeners(updatedUser);
@@ -228,6 +228,40 @@ export async function triggerBackgroundSync(currentUser: StoredUser) {
   } catch (err) {
     console.warn("[Background Sync] Failed:", err);
   }
+}
+
+async function exchangeFirebaseTokenForJwt(
+  user: FirebaseAuthTypes.User,
+  displayNameOverride?: string
+): Promise<{ token: string | null; roles: string[] | null }> {
+  if (!user.email) return { token: null, roles: null };
+  try {
+    const idToken = await getIdToken(user);
+    const displayName = displayNameOverride ?? user.displayName ?? "";
+    const response = await apiRequest<{ token?: string; id?: string; roles?: string[] }>(
+      buildApiPath("auth/google-login"),
+      {
+        method: "POST",
+        body: {
+          idToken,
+          email: user.email,
+          name: displayName || undefined,
+        },
+      }
+    );
+    if (response?.token) {
+      debugAuth("jwt exchange success", {
+        hasToken: true,
+        roles: response.roles ?? null,
+      });
+      return { token: response.token, roles: response.roles ?? null };
+    }
+  } catch (err) {
+    debugAuth("jwt exchange failed", {
+      message: err instanceof Error ? err.message : "unknown",
+    });
+  }
+  return { token: null, roles: null };
 }
 
 async function persistFirebaseSession(
@@ -245,19 +279,24 @@ async function persistFirebaseSession(
     displayName: firebaseUser.name ?? null,
   });
 
-  // Exchange Firebase token for .NET JWT — save the .NET JWT so API calls are authorized
-  // Use the Firebase ID token directly for authenticated API requests.
-  await saveToken(idToken);
+  // Exchange Firebase token for .NET JWT so API calls are authorized
+  const { token: dotnetJwt, roles } = await exchangeFirebaseTokenForJwt(
+    user,
+    displayNameOverride
+  );
+  const activeToken = dotnetJwt || idToken;
+  await saveToken(activeToken);
 
   const existing = await getUser();
+  const primaryRole = roles && roles.length > 0 ? roles[0] : undefined;
   const mergedUser: StoredUser = {
     ...existing,
     ...firebaseUser,
-    role: existing?.role ?? firebaseUser.role,
+    role: primaryRole ?? existing?.role ?? firebaseUser.role,
   };
   await saveUser(mergedUser);
 
-  return { user: mergedUser, idToken };
+  return { user: mergedUser, idToken: activeToken };
 }
 
 export async function logoutUser(): Promise<void> {

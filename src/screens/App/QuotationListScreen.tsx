@@ -211,7 +211,7 @@ export default function QuotationListScreen() {
   ) {
     const normalizedId = String(quotationId ?? '').trim();
     const routeId = normalizedId.match(/\d+/)?.[0] ?? normalizedId;
-
+    console.log('handleAction', { quotationId, routeId, action });
     switch (action) {
       case 'view':
         return navigation.navigate('Quotation', { quotationId: routeId });

@@ -9,8 +9,8 @@ import {
   type QuotationItem,
 } from "../data/mockQuotationData";
 import { apiRequest, ApiError } from "./apiClient";
-import { API_ENDPOINTS } from "../config/api";
-import { getUser } from "../utils/authStorage";
+import { API_ENDPOINTS, buildApiPath } from "../config/api";
+import { getUser, saveUser } from "../utils/authStorage";
 
 const delay = (ms = 800) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -50,9 +50,15 @@ async function withMockFallback<T>(
 
 export async function getQuotationById(id: string): Promise<Quotation> {
   const apiId = normalizeQuotationApiId(id);
-  const raw = await apiRequest<any>(API_ENDPOINTS.quotation.byId(apiId), { requiresAuth: true });
-  const data = raw?.data ?? raw;
-  return normalizeQuotation(data);
+  return withMockFallback(
+    `getQuotationById(${id})`,
+    async () => {
+      const raw = await apiRequest<any>(API_ENDPOINTS.quotation.byId(apiId), { requiresAuth: true });
+      const data = raw?.data ?? raw;
+      return normalizeQuotation(data);
+    },
+    MOCK_QUOTATIONS[id] ?? MOCK_QUOTATIONS[apiId] ?? normalizeQuotation({ id: apiId })
+  );
 }
 
 export function normalizeQuotation(q: any): Quotation {
@@ -204,55 +210,91 @@ export async function sendQuotation(id: string, payload: SendQuotationPayload): 
   });
 }
 
-export async function getAllQuotations(status?: string, page: number = 1, limit: number = 10): Promise<Quotation[]> {
-  const user = await getUser();
-  console.log(" -=-=-=-getAllQuotations called for user:", user);
+/**
+ * Fetches quotations strictly by customer ID from the backend endpoint:
+ * /api/quotation/by-customer/{customerId}
+ */
+export async function getQuotationsByCustomerId(
+  customerId: string | number
+): Promise<Quotation[]> {
+  const cid = String(customerId).trim();
+  if (!cid || cid === "undefined" || cid === "null") return [];
 
-  // 1. Try /api/quotation/my (resolves customer from session email/token)
   try {
-    const rawMy = await apiRequest<any>("/quotation/my", { requiresAuth: true });
-    const itemsMy = Array.isArray(rawMy) ? rawMy : rawMy?.data ?? rawMy?.items ?? [];
-    if (Array.isArray(itemsMy) && itemsMy.length > 0) {
-      return itemsMy.map(normalizeQuotation);
-    }
-  } catch (e) {
-    console.warn("[mockQuotationService] /quotation/my endpoint error:", e);
-  }
-
-  // 2. Try primary list endpoint /api/quotations
-  try {
-    let url = API_ENDPOINTS.quotation.list;
-    const queryParams: string[] = [`page=${page}`, `limit=${limit}`];
-    if (status && status !== 'all') queryParams.push(`status=${encodeURIComponent(status)}`);
-    url += `?${queryParams.join('&')}`;
-
-    const raw = await apiRequest<any>(url, { requiresAuth: true });
+    const raw = await apiRequest<any>(
+      buildApiPath(API_ENDPOINTS.quotation.byCustomer(cid)),
+      { requiresAuth: true }
+    );
     const items = Array.isArray(raw) ? raw : raw?.data ?? raw?.items ?? [];
     if (Array.isArray(items) && items.length > 0) {
       return items.map(normalizeQuotation);
     }
   } catch (error) {
-    console.warn("[mockQuotationService] getAllQuotations primary list endpoint error:", error);
-  }
-
-  // 3. Fallback to /api/quotation/by-customer/{id} with numeric IDs only
-  const candidateIds = Array.from(new Set([user?.customerId, user?.customerCode, user?.id].filter(Boolean)))
-    .map(String)
-    .filter(id => /^\d+$/.test(id));
-
-  for (const cid of candidateIds) {
-    try {
-      const rawByCust = await apiRequest<any>(API_ENDPOINTS.quotation.byCustomer(cid), { requiresAuth: true });
-      const itemsByCust = Array.isArray(rawByCust) ? rawByCust : (rawByCust as any)?.data ?? [];
-      if (Array.isArray(itemsByCust) && itemsByCust.length > 0) {
-        return itemsByCust.map(normalizeQuotation);
-      }
-    } catch (e) {
-      console.warn(`[mockQuotationService] byCustomer(${cid}) failed:`, e);
-    }
+    console.warn(`[mockQuotationService] getQuotationsByCustomerId(${cid}) error:`, error);
   }
 
   return [];
+}
+
+/**
+ * Resolves the logged-in user's customerId and fetches all their quotations by customer ID.
+ */
+export async function getAllQuotations(
+  status?: string,
+  page: number = 1,
+  limit: number = 10,
+  customerIdOverride?: string | number
+): Promise<Quotation[]> {
+  let customerId = customerIdOverride ? String(customerIdOverride).trim() : "";
+
+  if (!customerId) {
+    const user = await getUser();
+    customerId = String(user?.customerId ?? user?.customerCode ?? "").trim();
+
+    // If customerId is not yet in stored user, resolve it directly from /auth/me
+    if (!customerId || customerId === "undefined" || customerId === "null") {
+      try {
+        const profile = await apiRequest<{
+          id?: string | number;
+          customerId?: string | number;
+          customerCode?: string | number;
+        }>(buildApiPath("auth/me"), { requiresAuth: true });
+        const resolvedId = profile?.customerId ?? profile?.customerCode;
+        if (resolvedId != null && resolvedId !== "") {
+          customerId = String(resolvedId).trim();
+          if (user) {
+            await saveUser({
+              ...user,
+              customerId,
+              customerCode: customerId,
+            });
+          }
+        }
+      } catch (err) {
+        console.warn("[mockQuotationService] Could not resolve customerId from /auth/me:", err);
+      }
+    }
+  }
+
+  console.log("[mockQuotationService] Getting quotations by customerId:", customerId);
+
+  // Fetch quotations strictly by customer ID
+  if (customerId && /^\d+$/.test(customerId)) {
+    const items = await getQuotationsByCustomerId(customerId);
+    if (items.length > 0) {
+      if (status && status !== "all") {
+        return items.filter((q) => q.status?.toLowerCase() === status.toLowerCase());
+      }
+      return items;
+    }
+  }
+
+  // Fallback to mock quotations if server has no items or user is offline
+  const fallback = Object.values(MOCK_QUOTATIONS);
+  if (status && status !== "all") {
+    return fallback.filter((q) => q.status?.toLowerCase() === status.toLowerCase());
+  }
+  return fallback;
 }
 
 export async function submitChallanRequest(
