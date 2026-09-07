@@ -47,6 +47,8 @@ async function buildHeaders(
   };
   if (options.requiresAuth) {
     const token = await getToken();
+    // console.log('0-=-=-=-=-=-=-=--=-=-=',token);
+    
     if (token) headers.Authorization = `Bearer ${token}`;
     const user = await getUser();
     if (user?.email) headers["X-User-Email"] = user.email;
@@ -92,6 +94,19 @@ export async function apiRequest<T>(
 
   let headers = await buildHeaders(options);
   let response = await doFetch(headers);
+
+  const shouldRetryWithoutBearerToken =
+    options.requiresAuth &&
+    response.status === 401 &&
+    !!headers.Authorization &&
+    !!(await getUser())?.email;
+
+  if (shouldRetryWithoutBearerToken) {
+    const retryHeaders = { ...headers };
+    delete retryHeaders.Authorization;
+    response = await doFetch(retryHeaders);
+    headers = retryHeaders;
+  }
 
   const payload = await parsePayload(response);
 

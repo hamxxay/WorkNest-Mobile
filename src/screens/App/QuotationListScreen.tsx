@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+﻿import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -129,6 +129,8 @@ export default function QuotationListScreen() {
     setError('');
     try {
       const data = await getAllQuotations();
+      console.log("Qutation",data);
+      
       const order = [
         'active',
         'pending',

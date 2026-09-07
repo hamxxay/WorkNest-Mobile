@@ -208,10 +208,32 @@ export async function sendQuotation(id: string, payload: SendQuotationPayload): 
 
 export async function getAllQuotations(): Promise<Quotation[]> {
   const user = await getUser();
-  const customerId = user?.customerCode ?? user?.customerId ;
-  if (!customerId) return Object.values(MOCK_QUOTATIONS);
-  const raw = await apiRequest<any[]>(API_ENDPOINTS.quotation.byCustomer(String(customerId)), { requiresAuth: true });
-  return (Array.isArray(raw) ? raw : []).map(normalizeQuotation);
+  console.log(" -=-=-=-getAllQuotations called for user:", user);
+  const customerId = user?.customerCode ?? user?.customerId ?? user?.id;
+
+  console.log("[mockQuotationService] getAllQuotations called for customerId:", customerId);
+  if (!customerId) {
+    console.warn("[mockQuotationService] No customer id found; using mock quotations fallback.");
+    return Object.values(MOCK_QUOTATIONS);
+  }
+
+  try {
+    const raw = await apiRequest<any[]>(
+      API_ENDPOINTS.quotation.byCustomer(String(customerId)),
+      { requiresAuth: true }
+    );
+
+    const items = Array.isArray(raw) ? raw : raw?.items ?? raw?.data ?? [];
+    return (Array.isArray(items) ? items : []).map(normalizeQuotation);
+  } catch (error) {
+    const status = error instanceof ApiError ? error.status : undefined;
+    if (status === 401 || status === 404) {
+      console.warn("[mockQuotationService] getAllQuotations fallback triggered.", error);
+      return Object.values(MOCK_QUOTATIONS);
+    }
+
+    throw error;
+  }
 }
 
 export async function submitChallanRequest(

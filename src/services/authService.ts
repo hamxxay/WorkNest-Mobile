@@ -212,7 +212,7 @@ export async function triggerBackgroundSync(currentUser: StoredUser) {
     if (profile) {
       const activeUser = await getUser();
       if (activeUser && activeUser.email === currentUser.email) {
-        const customerCode = profile.customerCode ?? profile.customerId ?? profile.CustomerCode ?? profile.CustomerId ?? activeUser.customerCode;
+        const customerCode = profile.customerId ;
         const updatedUser: StoredUser = {
           ...activeUser,
           id: profile.id ?? activeUser.id,
