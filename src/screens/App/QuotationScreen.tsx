@@ -91,7 +91,7 @@ export default function QuotationScreen() {
             setActioning(decision);
             try {
               if (decision === "accept") await acceptQuotation(quotationId);
-              else await declineQuotation(quotationId);
+              else await declineQuotation(quotationId, "Customer declined quotation");
               const [updated, latestActivities] = await Promise.all([
                 getQuotationById(quotationId),
                 getQuotationActivities(),

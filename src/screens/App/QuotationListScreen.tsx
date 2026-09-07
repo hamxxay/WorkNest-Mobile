@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -28,6 +28,41 @@ const STATUS_CONFIG: Record<
     bg: 'rgba(16,185,129,0.1)',
     border: 'rgba(16,185,129,0.35)',
     text: '#059669',
+  },
+  draft: {
+    label: 'Draft',
+    icon: 'create-outline',
+    bg: 'rgba(100,116,139,0.1)',
+    border: 'rgba(100,116,139,0.35)',
+    text: '#64748b',
+  },
+  sent: {
+    label: 'Sent',
+    icon: 'paper-plane-outline',
+    bg: 'rgba(59,130,246,0.1)',
+    border: 'rgba(59,130,246,0.35)',
+    text: '#2563eb',
+  },
+  converted: {
+    label: 'Converted to Booking',
+    icon: 'checkmark-done-circle-outline',
+    bg: 'rgba(16,185,129,0.1)',
+    border: 'rgba(16,185,129,0.35)',
+    text: '#059669',
+  },
+  accepted: {
+    label: 'Accepted',
+    icon: 'checkmark-circle-outline',
+    bg: 'rgba(16,185,129,0.1)',
+    border: 'rgba(16,185,129,0.35)',
+    text: '#059669',
+  },
+  declined: {
+    label: 'Declined',
+    icon: 'close-circle-outline',
+    bg: 'rgba(220,38,38,0.1)',
+    border: 'rgba(220,38,38,0.35)',
+    text: '#dc2626',
   },
   inactive: {
     label: 'Inactive',
@@ -87,6 +122,18 @@ const STATUS_ACTIONS: Record<
     },
     { label: 'Modify', icon: 'create-outline', action: 'modify' },
   ],
+  sent: [
+    { label: 'View', icon: 'eye-outline', action: 'view' },
+    {
+      label: 'Request Challan',
+      icon: 'document-text-outline',
+      action: 'challan',
+    },
+  ],
+  draft: [{ label: 'View', icon: 'eye-outline', action: 'view' }],
+  converted: [{ label: 'View', icon: 'eye-outline', action: 'view' }],
+  accepted: [{ label: 'View', icon: 'eye-outline', action: 'view' }],
+  declined: [{ label: 'View', icon: 'eye-outline', action: 'view' }],
   inactive: [{ label: 'View', icon: 'eye-outline', action: 'view' }],
   pending: [
     { label: 'View', icon: 'eye-outline', action: 'view' },

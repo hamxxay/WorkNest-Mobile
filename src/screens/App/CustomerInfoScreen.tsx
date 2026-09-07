@@ -22,7 +22,6 @@ import {
   simulateAdminNotification,
   simulateChallanReadyNotification,
 } from "../../services/mockNotificationService";
-import { MOCK_CHALLANS } from "../../data/mockQuotationData";
 import { isValidEmail } from "../../utils/validation";
 import type { AppStackParamList } from "../../navigation/types";
 
@@ -74,22 +73,8 @@ export default function CustomerInfoScreen() {
         whatsapp: sameAsWhatsApp ? mobile.value.trim() : whatsapp.value.trim(),
         email: email.value.trim(),
       });
-      await simulateAdminNotification(quotationId);
       setSubmitted(true);
-
-      // Simulate admin processing → customer receives challan-ready notification
-      const mockChallan = MOCK_CHALLANS[quotationId];
-      if (mockChallan) {
-        simulateChallanReadyNotification(
-          quotationId,
-          mockChallan.challanId,
-          mockChallan.amount,
-          (n) => {
-            setChallanId(n.challanId ?? "");
-            setChallanReady(true);
-          }
-        );
-      }
+      setChallanReady(true);
     } finally {
       setLoading(false);
     }

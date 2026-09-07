@@ -50,67 +50,65 @@ async function withMockFallback<T>(
 
 export async function getQuotationById(id: string): Promise<Quotation> {
   const apiId = normalizeQuotationApiId(id);
-  const fallback = Object.values(MOCK_QUOTATIONS).find(
-    (q) => q.id === id || normalizeQuotationApiId(q.id) === apiId
-  ) ?? Object.values(MOCK_QUOTATIONS)[0];
-
-  return withMockFallback(
-    `getQuotationById(${id})`,
-    async () => {
-      const raw = await apiRequest<any>(API_ENDPOINTS.quotation.byId(apiId), { requiresAuth: true });
-      return normalizeQuotation(raw);
-    },
-    fallback,
-  );
+  const raw = await apiRequest<any>(API_ENDPOINTS.quotation.byId(apiId), { requiresAuth: true });
+  const data = raw?.data ?? raw;
+  return normalizeQuotation(data);
 }
 
 export function normalizeQuotation(q: any): Quotation {
   const rawItems = Array.isArray(q?.details)
     ? q.details
-    : Array.isArray(q?.items)
-      ? q.items
-      : [];
+    : Array.isArray(q?.Details)
+      ? q.Details
+      : Array.isArray(q?.items)
+        ? q.items
+        : Array.isArray(q?.Items)
+          ? q.Items
+          : [];
 
   const items = rawItems.map((item: any, index: number) => ({
-    id: Number(item?.id ?? item?.itemId ?? index + 1),
-    name: String(item?.name ?? item?.itemName ?? `Item ${index + 1}`),
-    quantity: Number(item?.quantity ?? item?.qty ?? 1),
-    price: Number(item?.price ?? item?.unitPrice ?? item?.amount ?? 0),
+    id: Number(item?.id ?? item?.Id ?? item?.itemId ?? index + 1),
+    name: String(item?.name ?? item?.Name ?? item?.description ?? item?.Description ?? `Item ${index + 1}`),
+    quantity: Number(item?.quantity ?? item?.Quantity ?? item?.qty ?? 1),
+    price: Number(item?.price ?? item?.Price ?? item?.unitPrice ?? item?.UnitPrice ?? item?.amount ?? item?.Amount ?? 0),
     total: Number(
       item?.total ??
+        item?.Total ??
         item?.lineTotal ??
+        item?.LineTotal ??
         item?.amount ??
-        (Number(item?.price ?? 0) * Number(item?.quantity ?? 1))
+        item?.Amount ??
+        (Number(item?.price ?? item?.UnitPrice ?? 0) * Number(item?.quantity ?? item?.Quantity ?? 1))
     ),
   }));
 
-  const subtotal = Number(q?.subtotalAmount ?? q?.subtotal ?? items.reduce((sum: number, item: any) => sum + Number(item.total ?? 0), 0));
-  const total = Number(q?.totalAmount ?? q?.total ?? totalFromItems(items) ?? 0);
+  const subtotal = Number(q?.subtotalAmount ?? q?.SubtotalAmount ?? q?.subtotal ?? q?.Subtotal ?? items.reduce((sum: number, item: any) => sum + Number(item.total ?? 0), 0));
+  const total = Number(q?.totalAmount ?? q?.TotalAmount ?? q?.total ?? q?.Total ?? totalFromItems(items) ?? 0);
 
   return {
-    id: String(q?.quotationId ?? q?.id ?? q?.quotationNumber ?? q?.quotationNo ?? ""),
-    guid: q?.guid ?? "",
-    quotationNumber: String(q?.quotationNumber ?? q?.quotationNo ?? q?.quotationCode ?? q?.number ?? q?.quotationId ?? q?.id ?? ""),
-    customerName: q?.customerName ?? q?.customer?.name ?? "",
-    customerEmail: q?.customerEmail ?? q?.customer?.email ?? "",
-    spaceName: q?.spaceName ?? "",
-    spaceCode: q?.spaceCode ?? "",
-    locationName: q?.locationName ?? "",
-    spaceTypeName: q?.spaceTypeName ?? "",
-    startDateTime: q?.startDateTime ?? q?.startDate ?? "",
-    endDateTime: q?.endDateTime ?? q?.endDate ?? "",
-    quotationDate: q?.quotationDate ?? q?.date ?? "",
-    validUntil: q?.validUntil ?? q?.validityDate ?? q?.expiryDate ?? "",
+    id: String(q?.id ?? q?.Id ?? q?.quotationId ?? q?.QuotationId ?? q?.quotationNumber ?? q?.QuotationNumber ?? ""),
+    guid: q?.guid ?? q?.Guid ?? "",
+    quotationNumber: String(q?.quotationNumber ?? q?.QuotationNumber ?? q?.quotationNo ?? q?.number ?? q?.id ?? q?.Id ?? ""),
+    customerName: q?.customerName ?? q?.CustomerName ?? q?.customer?.name ?? "",
+    customerEmail: q?.customerEmail ?? q?.CustomerEmail ?? q?.customer?.email ?? "",
+    spaceName: q?.spaceName ?? q?.SpaceName ?? "",
+    spaceCode: q?.spaceCode ?? q?.SpaceCode ?? "",
+    locationName: q?.locationName ?? q?.LocationName ?? "",
+    spaceTypeName: q?.spaceTypeName ?? q?.SpaceTypeName ?? "",
+    startDateTime: q?.startDateTime ?? q?.StartDateTime ?? q?.startDate ?? "",
+    endDateTime: q?.endDateTime ?? q?.EndDateTime ?? q?.endDate ?? "",
+    quotationDate: q?.quotationDate ?? q?.QuotationDate ?? q?.date ?? "",
+    validUntil: q?.validUntil ?? q?.ValidUntil ?? q?.validityDate ?? "",
     items,
     subtotal: subtotal || 0,
-    tax: Number(q?.tax ?? 0),
+    tax: Number(q?.taxAmount ?? q?.TaxAmount ?? q?.tax ?? 0),
     total: total || 0,
-    discountAmount: Number(q?.discountAmount ?? 0),
-    securityDeposit: Number(q?.securityDeposit ?? 0),
-    status: String(q?.status ?? q?.quotationStatus ?? q?.state ?? "active").toLowerCase(),
-    notes: q?.remarks ?? q?.notes ?? undefined,
-    version: Number(q?.version ?? 1),
-    isActive: q?.isActive ?? true,
+    discountAmount: Number(q?.discountAmount ?? q?.DiscountAmount ?? 0),
+    securityDeposit: Number(q?.securityDeposit ?? q?.SecurityDeposit ?? 0),
+    status: String(q?.status ?? q?.Status ?? q?.quotationStatus ?? q?.state ?? "active").toLowerCase(),
+    notes: q?.remarks ?? q?.Remarks ?? q?.notes ?? q?.Notes ?? undefined,
+    version: Number(q?.version ?? q?.Version ?? 1),
+    isActive: q?.isActive ?? q?.IsActive ?? true,
   };
 }
 
@@ -142,21 +140,21 @@ function normalizeActivity(activity: any): QuotationActivity {
   };
 }
 
-export async function acceptQuotation(id: string, version?: number): Promise<Quotation> {
+export async function acceptQuotation(id: string, note?: string, version?: number): Promise<Quotation> {
   const apiId = normalizeQuotationApiId(id);
   const path = version == null
     ? API_ENDPOINTS.quotation.accept(apiId)
     : API_ENDPOINTS.quotation.versionAccept(apiId, version);
-  const raw = await apiRequest<any>(path, { method: "POST", requiresAuth: true });
+  const raw = await apiRequest<any>(path, { method: "POST", body: { note }, requiresAuth: true });
   return normalizeQuotation(raw);
 }
 
-export async function declineQuotation(id: string, version?: number): Promise<Quotation> {
+export async function declineQuotation(id: string, note: string, version?: number): Promise<Quotation> {
   const apiId = normalizeQuotationApiId(id);
   const path = version == null
     ? API_ENDPOINTS.quotation.decline(apiId)
     : API_ENDPOINTS.quotation.versionDecline(apiId, version);
-  const raw = await apiRequest<any>(path, { method: "POST", requiresAuth: true });
+  const raw = await apiRequest<any>(path, { method: "POST", body: { note }, requiresAuth: true });
   return normalizeQuotation(raw);
 }
 
@@ -206,34 +204,55 @@ export async function sendQuotation(id: string, payload: SendQuotationPayload): 
   });
 }
 
-export async function getAllQuotations(): Promise<Quotation[]> {
+export async function getAllQuotations(status?: string, page: number = 1, limit: number = 10): Promise<Quotation[]> {
   const user = await getUser();
   console.log(" -=-=-=-getAllQuotations called for user:", user);
-  const customerId = user?.customerCode ?? user?.customerId ?? user?.id;
 
-  console.log("[mockQuotationService] getAllQuotations called for customerId:", customerId);
-  if (!customerId) {
-    console.warn("[mockQuotationService] No customer id found; using mock quotations fallback.");
-    return Object.values(MOCK_QUOTATIONS);
-  }
-
+  // 1. Try /api/quotation/my (resolves customer from session email/token)
   try {
-    const raw = await apiRequest<any[]>(
-      API_ENDPOINTS.quotation.byCustomer(String(customerId)),
-      { requiresAuth: true }
-    );
-
-    const items = Array.isArray(raw) ? raw : raw?.items ?? raw?.data ?? [];
-    return (Array.isArray(items) ? items : []).map(normalizeQuotation);
-  } catch (error) {
-    const status = error instanceof ApiError ? error.status : undefined;
-    if (status === 401 || status === 404) {
-      console.warn("[mockQuotationService] getAllQuotations fallback triggered.", error);
-      return Object.values(MOCK_QUOTATIONS);
+    const rawMy = await apiRequest<any>("/quotation/my", { requiresAuth: true });
+    const itemsMy = Array.isArray(rawMy) ? rawMy : rawMy?.data ?? rawMy?.items ?? [];
+    if (Array.isArray(itemsMy) && itemsMy.length > 0) {
+      return itemsMy.map(normalizeQuotation);
     }
-
-    throw error;
+  } catch (e) {
+    console.warn("[mockQuotationService] /quotation/my endpoint error:", e);
   }
+
+  // 2. Try primary list endpoint /api/quotations
+  try {
+    let url = API_ENDPOINTS.quotation.list;
+    const queryParams: string[] = [`page=${page}`, `limit=${limit}`];
+    if (status && status !== 'all') queryParams.push(`status=${encodeURIComponent(status)}`);
+    url += `?${queryParams.join('&')}`;
+
+    const raw = await apiRequest<any>(url, { requiresAuth: true });
+    const items = Array.isArray(raw) ? raw : raw?.data ?? raw?.items ?? [];
+    if (Array.isArray(items) && items.length > 0) {
+      return items.map(normalizeQuotation);
+    }
+  } catch (error) {
+    console.warn("[mockQuotationService] getAllQuotations primary list endpoint error:", error);
+  }
+
+  // 3. Fallback to /api/quotation/by-customer/{id} with numeric IDs only
+  const candidateIds = Array.from(new Set([user?.customerId, user?.customerCode, user?.id].filter(Boolean)))
+    .map(String)
+    .filter(id => /^\d+$/.test(id));
+
+  for (const cid of candidateIds) {
+    try {
+      const rawByCust = await apiRequest<any>(API_ENDPOINTS.quotation.byCustomer(cid), { requiresAuth: true });
+      const itemsByCust = Array.isArray(rawByCust) ? rawByCust : (rawByCust as any)?.data ?? [];
+      if (Array.isArray(itemsByCust) && itemsByCust.length > 0) {
+        return itemsByCust.map(normalizeQuotation);
+      }
+    } catch (e) {
+      console.warn(`[mockQuotationService] byCustomer(${cid}) failed:`, e);
+    }
+  }
+
+  return [];
 }
 
 export async function submitChallanRequest(

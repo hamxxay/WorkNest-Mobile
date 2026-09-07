@@ -10,28 +10,28 @@ export type QuotationItem = {
 
 export type Quotation = {
   id: string;
-  guid: string;
-  quotationNumber: string;
-  customerName: string;
-  customerEmail: string;
-  spaceName: string;
-  spaceCode: string;
-  locationName: string;
-  spaceTypeName: string;
-  startDateTime: string;
-  endDateTime: string;
+  guid?: string;
+  quotationNumber?: string;
+  customerName?: string;
+  customerEmail?: string;
+  spaceName?: string;
+  spaceCode?: string;
+  locationName?: string;
+  spaceTypeName?: string;
+  startDateTime?: string;
+  endDateTime?: string;
   quotationDate: string;
   validUntil: string;
   items: QuotationItem[];
   subtotal: number;
   tax: number;
   total: number;
-  discountAmount: number;
-  securityDeposit: number;
+  discountAmount?: number;
+  securityDeposit?: number;
   status: string;
   notes?: string;
-  version: number;
-  isActive: boolean;
+  version?: number;
+  isActive?: boolean;
 };
 
 export type Challan = {

@@ -16,19 +16,19 @@ export function normalizeApiBaseUrl(baseUrl: string): string {
 }
 
 function resolveApiBaseUrl(): string {
-  const base = normalizeApiBaseUrl(ENV_API_BASE_URL.length > 0 ? ENV_API_BASE_URL : "http://localhost:7200");
-
-  // Android emulator cannot reach host machine via localhost — remap to 10.0.2.2
-  if (Platform.OS === "android") {
-    return base
-      .replace("localhost", "10.0.2.2")
-      .replace("127.0.0.1", "10.0.2.2");
+  let base = ENV_API_BASE_URL;
+  if (!base || base.includes("aeo.eaccounting360.com.pk")) {
+    base = "http://localhost:5200/api";
+  } else {
+    base = normalizeApiBaseUrl(base);
   }
 
+  // Keep http://localhost:5200/api so adb reverse tcp:5200 tcp:5200 works seamlessly on both physical devices and emulators
   return base;
 }
 
 export const API_BASE_URL = resolveApiBaseUrl();
+console.log("[API CONFIG] Resolved API_BASE_URL:", API_BASE_URL);
 
 export function buildApiPath(path: string): string {
   const trimmed = path.trim();
@@ -96,10 +96,11 @@ export const API_ENDPOINTS = {
     adminCreate: "/booking/create-admin",
   },
   quotation: {
+    list: "/quotations",
     byCustomer: (customerId: string) => `/quotation/by-customer/${customerId}`,
-    byId: (id: string) => `/quotation/${id}`,
-    accept: (id: string) => `/quotation/${id}/accept`,
-    decline: (id: string) => `/quotation/${id}/decline`,
+    byId: (id: string) => `/quotations/${id}`,
+    accept: (id: string) => `/quotations/${id}/accept`,
+    decline: (id: string) => `/quotations/${id}/decline`,
     createVersion: (id: string) => `/quotation/${id}/create-version`,
     versions: (id: string) => `/quotation/${id}/versions`,
     activities: "/quotation/activities",
@@ -109,6 +110,14 @@ export const API_ENDPOINTS = {
     versionDecline: (id: string, version: number | string) =>
       `/quotations/${id}/versions/${version}/decline`,
     versionCreate: (id: string) => `/quotations/${id}/versions`,
+  },
+  invoices: {
+    list: "/invoices",
+    byId: (id: number | string) => `/invoices/${id}`,
+  },
+  attendants: {
+    list: "/attendants",
+    byBooking: (bookingId: number | string) => `/bookings/${bookingId}/attendants`,
   },
   admin: {
     dashboardSummary: "/dashboard/summary",

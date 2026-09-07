@@ -2,10 +2,12 @@ import { API_ENDPOINTS } from "../config/api";
 import { apiRequest } from "./apiClient";
 import { resolveMediaUrl } from "../utils/mediaUrl";
 import {
+  INPUT_LIMITS,
   sanitizeEmailInput,
   sanitizeNameInput,
   sanitizeNotesInput,
   sanitizePhoneInput,
+  sanitizeTextForState,
 } from "../utils/inputSanitizer";
 export type Faq = {};
 

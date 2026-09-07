@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -18,8 +18,8 @@ import { Screen } from "../../components/Screen";
 import { radii, useThemeColors, useThemedStyles } from "../../theme";
 import { isValidEmail } from "../../utils/validation";
 import type { AppStackParamList } from "../../navigation/types";
-import { MOCK_QUOTATIONS, type Quotation } from "../../data/mockQuotationData";
-import { sendQuotation } from "../../services/mockQuotationService";
+import type { Quotation } from "../../data/mockQuotationData";
+import { getQuotationById, sendQuotation } from "../../services/mockQuotationService";
 
 // ─── Deep link base ───────────────────────────────────────────────────────────
 // When the real backend is ready, replace this with a dynamic universal link
@@ -33,7 +33,7 @@ export default function ShareQuotationScreen() {
   const route = useRoute<RouteProp<AppStackParamList, "ShareQuotation">>();
   const { quotationId } = route.params;
 
-  const quotation = MOCK_QUOTATIONS[quotationId];
+  const [quotation, setQuotation] = useState<Quotation | null>(null);
   const deepLink = `${DEEP_LINK_BASE}/${quotationId}`;
 
   const [toEmail, setToEmail] = useState("");
@@ -41,12 +41,18 @@ export default function ShareQuotationScreen() {
   const [sent, setSent] = useState(false);
   const [sending, setSending] = useState(false);
 
-  // Pre-built email parts — editable so sender can personalise
-  const defaultSubject = `WorkNest Quotation ${quotationId}${quotation ? ` — PKR ${quotation.total.toLocaleString()}` : ""}`;
-  const defaultBody = buildEmailBody(quotationId, quotation, deepLink);
+  const [subject, setSubject] = useState(`WorkNest Quotation ${quotationId}`);
+  const [body, setBody] = useState("");
 
-  const [subject, setSubject] = useState(defaultSubject);
-  const [body, setBody] = useState(defaultBody);
+  useEffect(() => {
+    getQuotationById(quotationId).then((q) => {
+      if (q) {
+        setQuotation(q);
+        setSubject(`WorkNest Quotation ${quotationId} — PKR ${q.total.toLocaleString()}`);
+        setBody(buildEmailBody(quotationId, q, deepLink));
+      }
+    }).catch(() => {});
+  }, [quotationId, deepLink]);
 
   function validate(): boolean {
     if (!toEmail.trim()) { setToEmailError("Recipient email is required."); return false; }
