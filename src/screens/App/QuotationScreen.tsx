@@ -2,10 +2,12 @@ import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -25,6 +27,18 @@ import {
 import type { Quotation } from "../../data/mockQuotationData";
 import type { AppStackParamList } from "../../navigation/types";
 import { useAuth } from "../../context/AuthContext";
+
+// ─── Date formatter ──────────────────────────────────────────────────────────
+function formatDate(raw: string | undefined): string {
+  if (!raw) return "—";
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) return raw;
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear();
+  const weekday = d.toLocaleDateString("en-US", { weekday: "long" });
+  return `${weekday} ${day} / ${month} / ${year}`;
+}
 
 // ─── Status helpers ───────────────────────────────────────────────────────────
 const STATUS_CONFIG: Record<string, { label: string; bg: string; border: string; text: string }> = {
@@ -50,6 +64,8 @@ export default function QuotationScreen() {
   const [versions, setVersions] = useState<Quotation[]>([]);
   const [activities, setActivities] = useState<QuotationActivity[]>([]);
   const [actioning, setActioning] = useState<"accept" | "decline" | null>(null);
+  const [rejectModalVisible, setRejectModalVisible] = useState(false);
+  const [rejectNote, setRejectNote] = useState("");
 
   // Auth guard — redirect to Login then back after successful login
   useEffect(() => {
@@ -77,21 +93,19 @@ export default function QuotationScreen() {
       });
   }, [quotationId]);
 
-  function handleDecision(decision: "accept" | "decline") {
-    const label = decision === "accept" ? "accept" : "decline";
+  function handleAccept() {
+    if (!quotation) return;
     Alert.alert(
-      `${decision === "accept" ? "Accept" : "Decline"} Quotation`,
-      `Are you sure you want to ${label} this quotation?`,
+      "Accept Quotation",
+      "Are you sure you want to accept this quotation?",
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: decision === "accept" ? "Accept" : "Decline",
-          style: decision === "decline" ? "destructive" : "default",
+          text: "Accept",
           onPress: async () => {
-            setActioning(decision);
+            setActioning("accept");
             try {
-              if (decision === "accept") await acceptQuotation(quotationId);
-              else await declineQuotation(quotationId, "Customer declined quotation");
+              await acceptQuotation(quotationId, undefined, quotation.version);
               const [updated, latestActivities] = await Promise.all([
                 getQuotationById(quotationId),
                 getQuotationActivities(),
@@ -99,7 +113,7 @@ export default function QuotationScreen() {
               setQuotation(updated);
               setActivities(latestActivities);
             } catch (e) {
-              Alert.alert("Unable to Update", e instanceof Error ? e.message : "The quotation could not be updated.");
+              Alert.alert("Unable to Accept", e instanceof Error ? e.message : "The quotation could not be accepted.");
             } finally {
               setActioning(null);
             }
@@ -107,6 +121,30 @@ export default function QuotationScreen() {
         },
       ]
     );
+  }
+
+  async function handleRejectConfirm() {
+    if (!quotation) return;
+    if (!rejectNote.trim()) {
+      Alert.alert("Note Required", "Please enter a note before rejecting.");
+      return;
+    }
+    setRejectModalVisible(false);
+    setActioning("decline");
+    try {
+      await declineQuotation(quotationId, rejectNote.trim(), quotation.version);
+      const [updated, latestActivities] = await Promise.all([
+        getQuotationById(quotationId),
+        getQuotationActivities(),
+      ]);
+      setQuotation(updated);
+      setActivities(latestActivities);
+      setRejectNote("");
+    } catch (e) {
+      Alert.alert("Unable to Reject", e instanceof Error ? e.message : "The quotation could not be rejected.");
+    } finally {
+      setActioning(null);
+    }
   }
 
   if (loading) {
@@ -134,9 +172,12 @@ export default function QuotationScreen() {
       </Screen>
     );
   }
-
-  const statusCfg = STATUS_CONFIG[quotation.status?.toLowerCase()] ?? STATUS_CONFIG.active;
-  const isActionable = quotation.status?.toLowerCase() === "active" || quotation.status?.toLowerCase() === "pending";
+  const status = quotation.status?.toLowerCase() ?? "";
+  if (__DEV__) console.log("[QuotationScreen] status:", JSON.stringify(quotation.status), "→", status);
+  const statusCfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.pending;
+  const isActionable = ["active", "pending", "sent", "open", "new", "awaiting", "senttocustomer"].includes(status);
+  const isAccepted = status === "approved" || status === "accepted";
+  const isRejected = status === "rejected" || status === "declined";
 
   return (
     <Screen>
@@ -175,12 +216,12 @@ export default function QuotationScreen() {
           <View style={s.headerDates}>
             <View style={s.dateItem}>
               <Text style={s.dateLabel}>Issued</Text>
-              <Text style={s.dateValue}>{quotation.quotationDate}</Text>
+              <Text style={s.dateValue}>{formatDate(quotation.quotationDate)}</Text>
             </View>
             <View style={s.dateDivider} />
             <View style={s.dateItem}>
               <Text style={s.dateLabel}>Valid Until</Text>
-              <Text style={[s.dateValue, { color: colors.danger }]}>{quotation.validUntil}</Text>
+              <Text style={[s.dateValue, { color: colors.danger }]}>{formatDate(quotation.validUntil)}</Text>
             </View>
           </View>
         </View>
@@ -256,48 +297,82 @@ export default function QuotationScreen() {
           </View>
         )}
 
+        {/* Reject Note Modal */}
+        <Modal
+          visible={rejectModalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setRejectModalVisible(false)}
+        >
+          <View style={s.modalOverlay}>
+            <View style={s.modalCard}>
+              <Text style={s.modalTitle}>Reject Quotation</Text>
+              <Text style={s.modalSubtitle}>Please provide a reason for rejection.</Text>
+              <TextInput
+                style={s.noteInput}
+                placeholder="Enter note…"
+                placeholderTextColor={colors.mutedForeground}
+                value={rejectNote}
+                onChangeText={setRejectNote}
+                multiline
+                numberOfLines={4}
+                maxLength={500}
+              />
+              <View style={s.modalActions}>
+                <Pressable
+                  style={s.modalCancel}
+                  onPress={() => { setRejectModalVisible(false); setRejectNote(""); }}
+                >
+                  <Text style={s.modalCancelText}>Cancel</Text>
+                </Pressable>
+                <Pressable style={s.modalConfirm} onPress={handleRejectConfirm}>
+                  <Text style={s.modalConfirmText}>Reject</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
         {/* Actions */}
         {isActionable ? (
-          <View style={s.actions}>
-            <View style={s.decisionRow}>
-              <Pressable
-                style={[s.acceptAction, actioning && { opacity: 0.6 }]}
-                onPress={() => handleDecision("accept")}
-                disabled={!!actioning}
-              >
-                {actioning === "accept" ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="checkmark-outline" size={19} color="#fff" />}
-                <Text style={s.acceptActionText}>Accept</Text>
-              </Pressable>
-              <Pressable
-                style={[s.declineAction, actioning && { opacity: 0.6 }]}
-                onPress={() => handleDecision("decline")}
-                disabled={!!actioning}
-              >
-                {actioning === "decline" ? <ActivityIndicator size="small" color={colors.danger} /> : <Ionicons name="close-outline" size={19} color={colors.danger} />}
-                <Text style={s.declineActionText}>Decline</Text>
-              </Pressable>
-            </View>
+          <View style={s.decisionRow}>
             <Pressable
-              style={s.primaryAction}
-              onPress={() => navigation.navigate("CustomerInfo", { quotationId: quotation.id })}
+              style={[s.acceptAction, actioning && { opacity: 0.6 }]}
+              onPress={handleAccept}
+              disabled={!!actioning}
             >
-              <Ionicons name="document-text-outline" size={20} color="#fff" />
-              <Text style={s.primaryActionText}>Request Challan</Text>
+              {actioning === "accept" ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="checkmark-outline" size={19} color="#fff" />}
+              <Text style={s.acceptActionText}>Accept</Text>
             </Pressable>
             <Pressable
-              style={s.secondaryAction}
-              onPress={() => navigation.navigate("ModifyOrder", { quotationId: quotation.id })}
+              style={[s.declineAction, actioning && { opacity: 0.6 }]}
+              onPress={() => setRejectModalVisible(true)}
+              disabled={!!actioning}
             >
-              <Ionicons name="create-outline" size={20} color={colors.primary} />
-              <Text style={s.secondaryActionText}>Modify Order</Text>
+              {actioning === "decline" ? <ActivityIndicator size="small" color={colors.danger} /> : <Ionicons name="close-outline" size={19} color={colors.danger} />}
+              <Text style={s.declineActionText}>Reject</Text>
             </Pressable>
           </View>
+        ) : isAccepted ? (
+          <View style={[s.statusNote, { backgroundColor: "rgba(16,185,129,0.08)", borderColor: "rgba(16,185,129,0.3)" }]}>
+            <Ionicons name="checkmark-circle-outline" size={22} color={colors.success} />
+            <View style={{ flex: 1 }}>
+              <Text style={[s.statusNoteTitle, { color: colors.success }]}>Accepted</Text>
+              <Text style={[s.statusNoteText, { color: colors.success }]}>Wait for invoice — invoice will be sent to you.</Text>
+            </View>
+          </View>
+        ) : isRejected ? (
+          <View style={[s.statusNote, { backgroundColor: "rgba(220,38,38,0.08)", borderColor: "rgba(220,38,38,0.3)" }]}>
+            <Ionicons name="close-circle-outline" size={22} color={colors.danger} />
+            <View style={{ flex: 1 }}>
+              <Text style={[s.statusNoteTitle, { color: colors.danger }]}>Rejected</Text>
+              <Text style={[s.statusNoteText, { color: colors.danger }]}>Wait for admin action.</Text>
+            </View>
+          </View>
         ) : (
-          <View style={s.expiredNote}>
-            <Ionicons name="time-outline" size={18} color={colors.mutedForeground} />
-            <Text style={s.expiredNoteText}>
-              This quotation is {quotation.status} and can no longer be actioned.
-            </Text>
+          <View style={s.statusNote}>
+            <ActivityIndicator size="small" color={colors.mutedForeground} />
+            <Text style={s.statusNoteText}>Processing…</Text>
           </View>
         )}
 
@@ -369,17 +444,23 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) =>
     activityRow: { flexDirection: "row", gap: 9, paddingVertical: 7 },
     activityDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.primary, marginTop: 5 },
 
-    actions: { gap: 10 },
     decisionRow: { flexDirection: "row", gap: 10 },
+    modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 24 },
+    modalCard: { backgroundColor: colors.card, borderRadius: radii.xl, padding: 24, width: "100%", gap: 12, borderWidth: 1, borderColor: colors.border },
+    modalTitle: { color: colors.foreground, fontSize: 18, fontWeight: "800" },
+    modalSubtitle: { color: colors.mutedForeground, fontSize: 13 },
+    noteInput: { borderWidth: 1.5, borderColor: colors.border, borderRadius: radii.md, padding: 12, color: colors.foreground, fontSize: 14, minHeight: 100, textAlignVertical: "top", backgroundColor: colors.muted },
+    modalActions: { flexDirection: "row", gap: 10, marginTop: 4 },
+    modalCancel: { flex: 1, paddingVertical: 13, borderRadius: radii.md, borderWidth: 1, borderColor: colors.border, alignItems: "center" },
+    modalCancelText: { color: colors.mutedForeground, fontWeight: "700" },
+    modalConfirm: { flex: 1, paddingVertical: 13, borderRadius: radii.md, backgroundColor: colors.danger, alignItems: "center" },
+    modalConfirmText: { color: "#fff", fontWeight: "800" },
     acceptAction: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, backgroundColor: colors.success, borderRadius: radii.md, paddingVertical: 13 },
     acceptActionText: { color: "#fff", fontSize: 15, fontWeight: "800" },
     declineAction: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, backgroundColor: colors.card, borderRadius: radii.md, borderWidth: 1, borderColor: colors.danger, paddingVertical: 12 },
     declineActionText: { color: colors.danger, fontSize: 15, fontWeight: "800" },
-    primaryAction: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: colors.primary, borderRadius: radii.md, paddingVertical: 15, ...shadows.sm, shadowColor: colors.primary },
-    primaryActionText: { color: "#fff", fontSize: 16, fontWeight: "800" },
-    secondaryAction: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: colors.card, borderRadius: radii.md, paddingVertical: 14, borderWidth: 1.5, borderColor: colors.primary },
-    secondaryActionText: { color: colors.primary, fontSize: 16, fontWeight: "700" },
 
-    expiredNote: { flexDirection: "row", gap: 8, alignItems: "center", backgroundColor: colors.muted, borderRadius: radii.md, padding: 14, borderWidth: 1, borderColor: colors.border },
-    expiredNoteText: { flex: 1, color: colors.mutedForeground, fontSize: 13 },
+    statusNote: { flexDirection: "row", gap: 10, alignItems: "flex-start", backgroundColor: colors.muted, borderRadius: radii.md, padding: 14, borderWidth: 1, borderColor: colors.border },
+    statusNoteTitle: { fontSize: 14, fontWeight: "800", marginBottom: 2 },
+    statusNoteText: { flex: 1, color: colors.mutedForeground, fontSize: 13, lineHeight: 19 },
   });
