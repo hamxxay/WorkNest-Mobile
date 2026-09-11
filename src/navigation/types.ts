@@ -80,6 +80,8 @@ export type AppStackParamList = {
   Quotation: { quotationId: string };
   QuotationList: undefined;
   CustomerInfo: { quotationId: string };
+  CustomerCreate: undefined;
+  CustomerList: undefined;
   ModifyOrder: { quotationId: string };
   QuotationPayment: { quotationId: string };
   ShareQuotation: { quotationId: string };

@@ -2,7 +2,7 @@ import { StatusBar, StyleSheet } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Provider } from "react-redux";
-import AppNavigator from "./src/navigation/AppNavigator";
+import RootNavigator from "./src/navigation/RootNavigator";
 import { store } from "./src/store/store";
 import { AuthProvider } from "./src/context/AuthContext";
 import { colors } from "./src/theme";
@@ -19,7 +19,7 @@ function App() {
               backgroundColor={colors.background}
               translucent={false}
             />
-            <AppNavigator />
+            <RootNavigator />
           </SafeAreaProvider>
         </AuthProvider>
       </Provider>

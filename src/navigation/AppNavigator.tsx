@@ -42,6 +42,8 @@ import NotificationsScreen from "../screens/App/General/NotificationsScreen";
 import QuotationScreen from "../screens/App/General/QuotationScreen";
 import QuotationListScreen from "../screens/App/General/QuotationListScreen";
 import CustomerInfoScreen from "../screens/App/General/CustomerInfoScreen";
+import CustomerCreateScreen from "../screens/App/Sales/CustomerCreateScreen";
+import CustomerListScreen from "../screens/App/Sales/CustomerListScreen";
 import ModifyOrderScreen from "../screens/App/General/ModifyOrderScreen";
 import QuotationPaymentScreen from "../screens/App/General/QuotationPaymentScreen";
 import ShareQuotationScreen from "../screens/App/General/ShareQuotationScreen";
@@ -75,11 +77,16 @@ const InnerStack = createNativeStackNavigator<AppStackParamList>();
 // rootNavRef  → NavigationContainer  (always alive, used for all navigation)
 export const rootNavRef = React.createRef<NavigationContainerRef<RootStackParamList>>();
 
-// drawerNavRef → dispatches DrawerActions through the root nav ref
-// Works even when AppDrawerNavigator is not the active screen
+// drawerNavRef → dispatches DrawerActions through the active drawer navigator.
+// The role-specific stacks register themselves here so the menu button works in
+// Sale/Admin dashboards too, not just the general app flow.
 export const drawerNavRef = {
-  open:  () => rootNavRef.current?.dispatch(DrawerActions.openDrawer()),
-  close: () => rootNavRef.current?.dispatch(DrawerActions.closeDrawer()),
+  current: null as NavigationContainerRef<any> | null,
+  set: (ref: NavigationContainerRef<any> | null) => {
+    drawerNavRef.current = ref;
+  },
+  open: () => drawerNavRef.current?.dispatch(DrawerActions.openDrawer()),
+  close: () => drawerNavRef.current?.dispatch(DrawerActions.closeDrawer()),
 };
 
 // ─── Tab config ────────────────────────────────────────────────────────────────
@@ -466,6 +473,8 @@ function InnerStackNavigator() {
       <InnerStack.Screen name="Quotation"       component={QuotationScreen} />
       <InnerStack.Screen name="QuotationList"   component={QuotationListScreen} />
       <InnerStack.Screen name="CustomerInfo"    component={CustomerInfoScreen} />
+      <InnerStack.Screen name="CustomerCreate"  component={CustomerCreateScreen} />
+      <InnerStack.Screen name="CustomerList"    component={CustomerListScreen} />
       <InnerStack.Screen name="ModifyOrder"     component={ModifyOrderScreen} />
       <InnerStack.Screen name="QuotationPayment" component={QuotationPaymentScreen} />
       <InnerStack.Screen name="ShareQuotation"   component={ShareQuotationScreen} />
@@ -548,7 +557,13 @@ export function AppNavigator() {
   }, []);
 
   return (
-    <NavigationContainer ref={rootNavRef} linking={linking}>
+    <NavigationContainer
+      ref={(ref) => {
+        rootNavRef.current = ref;
+        drawerNavRef.set(ref);
+      }}
+      linking={linking}
+    >
       <Root.Navigator
         initialRouteName="Splash"
         screenOptions={{

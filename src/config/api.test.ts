@@ -2,6 +2,7 @@ import { normalizeApiBaseUrl } from "./api";
 import { normalizeQuotation } from "../services/mockQuotationService";
 import { apiRequest } from "../services/apiClient";
 import { getToken, getUser } from "../utils/authStorage";
+import { normalizeQuotationPayload } from "../services/quotationService";
 
 jest.mock("../utils/authStorage", () => ({
   getToken: jest.fn(),
@@ -53,6 +54,48 @@ describe("normalizeQuotation", () => {
       total: 45000,
     });
     expect(normalized.total).toBe(57000);
+  });
+});
+
+describe("normalizeQuotationPayload", () => {
+  it("sanitizes and normalizes the sales quotation body expected by /api/quotation", () => {
+    const payload = normalizeQuotationPayload({
+      customerId: "42",
+      spaceId: "7",
+      startDateTime: "2026-08-05T10:00:00Z",
+      endDateTime: "2026-08-06T10:00:00Z",
+      perSeatBasePrice: "2500",
+      capacity: "12",
+      monthlyBasePrice: "90000",
+      maxDiscountPercent: "30",
+      discountType: "percentage",
+      discountPercentage: "10",
+      discountValue: "5000",
+      securityDepositOverride: "20000",
+      billingPeriodMonths: "6",
+      securityDepositMonths: "2",
+      floorId: "3",
+      remarks: "Needs air conditioning",
+      validUntil: "2026-08-12T00:00:00Z",
+    });
+
+    expect(payload).toMatchObject({
+      customerId: 42,
+      spaceId: 7,
+      perSeatBasePrice: 2500,
+      capacity: 12,
+      monthlyBasePrice: 90000,
+      maxDiscountPercent: 30,
+      discountType: "percentage",
+      discountPercentage: 10,
+      discountValue: 5000,
+      securityDepositOverride: 20000,
+      billingPeriodMonths: 6,
+      securityDepositMonths: 2,
+      floorId: 3,
+      remarks: "Needs air conditioning",
+      validUntil: "2026-08-12T00:00:00Z",
+    });
   });
 });
 

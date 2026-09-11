@@ -87,6 +87,7 @@ export const API_ENDPOINTS = {
     create: "/booking/smart",
   },
   booking: {
+    list: "/booking",
     details: (id: number | string) => `/booking/${id}/details`,
     challan: (challanNumber: string) => `/booking/challan/${challanNumber}`,
     calendar: (spaceId: number, year: number, month: number) =>
@@ -96,6 +97,7 @@ export const API_ENDPOINTS = {
     adminCreate: "/booking/create-admin",
   },
   quotation: {
+    create: "/quotation",
     list: "/quotation",
     byCustomer: (customerId: string) => `/quotation/by-customer/${customerId}`,
     byId: (id: string) => `/quotation/${id}`,
@@ -135,5 +137,10 @@ export const API_ENDPOINTS = {
     contacts: "/contact",
     galleryAll: "/gallery/all",
     locationAll: "/location/all",
+  },
+  customer: {
+    create: "/customer",
+    list: "/customer",
+    search: "/customer/search",
   },
 } as const;
