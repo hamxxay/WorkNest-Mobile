@@ -1,89 +1,364 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Welcome to Firebase Hosting</title>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>WorkNest — Opening App…</title>
+  <meta name="description" content="WorkNest — Premium Co-Working Spaces in Pakistan. Download the app to manage bookings, quotations, and invoices on the go.">
 
-    <!-- update the version number as needed -->
-    <script defer src="/__/firebase/12.17.1/firebase-app-compat.js"></script>
-    <!-- include only the Firebase features as you need -->
-    <script defer src="/__/firebase/12.17.1/firebase-auth-compat.js"></script>
-    <script defer src="/__/firebase/12.17.1/firebase-database-compat.js"></script>
-    <script defer src="/__/firebase/12.17.1/firebase-firestore-compat.js"></script>
-    <script defer src="/__/firebase/12.17.1/firebase-functions-compat.js"></script>
-    <script defer src="/__/firebase/12.17.1/firebase-messaging-compat.js"></script>
-    <script defer src="/__/firebase/12.17.1/firebase-storage-compat.js"></script>
-    <script defer src="/__/firebase/12.17.1/firebase-analytics-compat.js"></script>
-    <script defer src="/__/firebase/12.17.1/firebase-remote-config-compat.js"></script>
-    <script defer src="/__/firebase/12.17.1/firebase-performance-compat.js"></script>
-    <!-- 
-      initialize the SDK after all desired features are loaded, set useEmulator to false
-      to avoid connecting the SDK to running emulators.
-    -->
-    <script defer src="/__/firebase/init.js?useEmulator=true"></script>
+  <!-- Open Graph -->
+  <meta property="og:title" content="WorkNest">
+  <meta property="og:description" content="Premium Co-Working Spaces — Book, manage quotations & invoices.">
+  <meta property="og:image" content="https://work-nest-3936a.web.app/Logo.png">
+  <meta property="og:url" content="https://work-nest-3936a.web.app">
 
-    <style media="screen">
-      body { background: #ECEFF1; color: rgba(0,0,0,0.87); font-family: Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; }
-      #message { background: white; max-width: 360px; margin: 100px auto 16px; padding: 32px 24px; border-radius: 3px; }
-      #message h2 { color: #ffa100; font-weight: bold; font-size: 16px; margin: 0 0 8px; }
-      #message h1 { font-size: 22px; font-weight: 300; color: rgba(0,0,0,0.6); margin: 0 0 16px;}
-      #message p { line-height: 140%; margin: 16px 0 24px; font-size: 14px; }
-      #message a { display: block; text-align: center; background: #039be5; text-transform: uppercase; text-decoration: none; color: white; padding: 16px; border-radius: 4px; }
-      #message, #message a { box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24); }
-      #load { color: rgba(0,0,0,0.4); text-align: center; font-size: 13px; }
-      @media (max-width: 600px) {
-        body, #message { margin-top: 0; background: white; box-shadow: none; }
-        body { border-top: 16px solid #ffa100; }
-      }
-    </style>
-  </head>
-  <body>
-    <div id="message">
-      <h2>Welcome</h2>
-      <h1>Firebase Hosting Setup Complete</h1>
-      <p>You're seeing this because you've successfully setup Firebase Hosting. Now it's time to go build something extraordinary!</p>
-      <a target="_blank" href="https://firebase.google.com/docs/hosting/">Open Hosting Documentation</a>
+  <!-- Smart App Banner (iOS Safari native) -->
+  <meta name="apple-itunes-app" content="app-id=REPLACE_WITH_APP_STORE_ID">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --primary: #6C63FF;
+      --primary-dark: #5248d4;
+      --accent: #FF6584;
+      --bg: #0F0F1A;
+      --card: #1A1A2E;
+      --border: rgba(255,255,255,0.08);
+      --text: #FFFFFF;
+      --muted: rgba(255,255,255,0.55);
+      --success: #4CAF50;
+      --android: #3DDC84;
+      --ios: #FFFFFF;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px;
+      background:
+        radial-gradient(ellipse 80% 60% at 50% -10%, rgba(108,99,255,0.35) 0%, transparent 70%),
+        var(--bg);
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 40px 32px 36px;
+      max-width: 400px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 32px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04);
+      animation: slideUp 0.5s cubic-bezier(0.16,1,0.3,1) both;
+    }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(24px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .logo-wrap {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+
+    .logo-img {
+      width: 52px;
+      height: 52px;
+      border-radius: 14px;
+      object-fit: contain;
+      background: rgba(108,99,255,0.15);
+      padding: 6px;
+    }
+
+    .logo-text {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+    }
+
+    .logo-text span { color: var(--primary); }
+
+    /* Spinner */
+    .spinner-wrap {
+      display: flex;
+      justify-content: center;
+      margin: 8px 0 24px;
+    }
+
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 3px solid rgba(108,99,255,0.2);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .status-title {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .status-sub {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.6;
+      margin-bottom: 28px;
+    }
+
+    /* Buttons */
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      padding: 15px 20px;
+      border-radius: 14px;
+      font-size: 15px;
+      font-weight: 600;
+      text-decoration: none;
+      border: none;
+      cursor: pointer;
+      transition: transform 0.15s ease, opacity 0.15s ease, box-shadow 0.15s ease;
+      margin-bottom: 10px;
+    }
+
+    .btn:active { transform: scale(0.97); opacity: 0.9; }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      color: #fff;
+      box-shadow: 0 8px 24px rgba(108,99,255,0.35);
+    }
+
+    .btn-primary:hover { box-shadow: 0 12px 32px rgba(108,99,255,0.5); }
+
+    .btn-android {
+      background: rgba(61,220,132,0.12);
+      color: var(--android);
+      border: 1px solid rgba(61,220,132,0.25);
+    }
+
+    .btn-ios {
+      background: rgba(255,255,255,0.06);
+      color: var(--ios);
+      border: 1px solid rgba(255,255,255,0.12);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--muted);
+      font-size: 13px;
+      padding: 10px;
+      margin-top: 4px;
+    }
+
+    .btn svg { flex-shrink: 0; }
+
+    /* Divider */
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 4px 0 14px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .divider::before, .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* Deep link path chip */
+    .path-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(108,99,255,0.12);
+      border: 1px solid rgba(108,99,255,0.25);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 12px;
+      color: #a89fff;
+      font-family: monospace;
+      margin-bottom: 20px;
+      word-break: break-all;
+    }
+
+    /* Hidden by default */
+    .android-only, .ios-only, .desktop-only { display: none; }
+
+    .footer {
+      margin-top: 20px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo-wrap">
+      <img class="logo-img" src="/Logo.png" alt="WorkNest Logo" onerror="this.style.display='none'">
+      <div class="logo-text">Work<span>Nest</span></div>
     </div>
-    <p id="load">Firebase SDK Loading&hellip;</p>
 
-    <script>
-      document.addEventListener('DOMContentLoaded', function() {
-        const loadEl = document.querySelector('#load');
-        // // 🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥
-        // // The Firebase SDK is initialized and available here!
-        //
-        // firebase.auth().onAuthStateChanged(user => { });
-        // firebase.database().ref('/path/to/ref').on('value', snapshot => { });
-        // firebase.firestore().doc('/foo/bar').get().then(() => { });
-        // firebase.functions().httpsCallable('yourFunction')().then(() => { });
-        // firebase.messaging().requestPermission().then(() => { });
-        // firebase.storage().ref('/path/to/ref').getDownloadURL().then(() => { });
-        // firebase.analytics(); // call to activate
-        // firebase.analytics().logEvent('tutorial_completed');
-        // firebase.performance(); // call to activate
-        //
-        // // 🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥
+    <!-- Deep link path display -->
+    <div class="path-chip" id="pathChip" style="display:none">
+      🔗 <span id="pathLabel"></span>
+    </div>
 
-        try {
-          let app = firebase.app();
-          let features = [
-            'auth', 
-            'database', 
-            'firestore',
-            'functions',
-            'messaging', 
-            'storage', 
-            'analytics', 
-            'remoteConfig',
-            'performance',
-          ].filter(feature => typeof app[feature] === 'function');
-          loadEl.textContent = `Firebase SDK loaded with ${features.join(', ')}`;
-        } catch (e) {
-          console.error(e);
-          loadEl.textContent = 'Error loading the Firebase SDK, check the console.';
-        }
-      });
-    </script>
-  </body>
+    <!-- Spinner state -->
+    <div id="stateOpening">
+      <div class="spinner-wrap"><div class="spinner"></div></div>
+      <div class="status-title">Opening WorkNest…</div>
+      <div class="status-sub">Launching the app on your device.<br>If it doesn't open automatically, use the button below.</div>
+    </div>
+
+    <!-- Fallback buttons (shown after timeout) -->
+    <div id="stateFallback" style="display:none">
+      <div class="status-title">App not installed?</div>
+      <div class="status-sub">Download WorkNest to view this content.</div>
+
+      <!-- Android -->
+      <a id="btnPlayStore" class="btn btn-android android-only" href="https://play.google.com/store/apps/details?id=com.worknestmobile" target="_blank">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M3.18 23.76a2 2 0 0 0 2.17-.22l11.67-8.5L13.59 12 3.18 23.76zm16.04-9.62L16.5 12.6l-2.91 2.15 2.61 2.63a1.99 1.99 0 0 0 3.02-2.24zM3.18.24C2.73.54 2.5 1.06 2.5 1.68V22.3c0 .62.23 1.14.68 1.44L13.59 12 3.18.24zm10.41 10.61L16.5 11.4l2.72-1.98a2 2 0 0 0-3.02-2.24l-2.61 2.63 2.91 2.15-2.91-.11z"/></svg>
+        Download on Google Play
+      </a>
+
+      <!-- iOS -->
+      <a id="btnAppStore" class="btn btn-ios ios-only" href="https://apps.apple.com/app/id/REPLACE_WITH_APP_STORE_ID" target="_blank">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+        Download on the App Store
+      </a>
+
+      <!-- Desktop -->
+      <div class="desktop-only">
+        <a class="btn btn-android" href="https://play.google.com/store/apps/details?id=com.worknestmobile" target="_blank">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M3.18 23.76a2 2 0 0 0 2.17-.22l11.67-8.5L13.59 12 3.18 23.76zm16.04-9.62L16.5 12.6l-2.91 2.15 2.61 2.63a1.99 1.99 0 0 0 3.02-2.24zM3.18.24C2.73.54 2.5 1.06 2.5 1.68V22.3c0 .62.23 1.14.68 1.44L13.59 12 3.18.24zm10.41 10.61L16.5 11.4l2.72-1.98a2 2 0 0 0-3.02-2.24l-2.61 2.63 2.91 2.15-2.91-.11z"/></svg>
+          Google Play
+        </a>
+        <div class="divider">or</div>
+        <a class="btn btn-ios" href="https://apps.apple.com/app/id/REPLACE_WITH_APP_STORE_ID" target="_blank">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+          App Store
+        </a>
+      </div>
+
+      <div class="divider">or</div>
+      <button class="btn btn-ghost" id="btnRetry" onclick="tryOpenApp()">Try opening app again</button>
+    </div>
+
+    <div class="footer">WorkNest &copy; 2024 &mdash; Premium Co-Working Spaces</div>
+  </div>
+
+  <script>
+    // ─── Detect platform ──────────────────────────────────────────────────────
+    const ua = navigator.userAgent || '';
+    const isAndroid = /android/i.test(ua);
+    const isIOS = /iphone|ipad|ipod/i.test(ua);
+    const isMobile = isAndroid || isIOS;
+
+    // Show platform-specific buttons
+    if (isAndroid) {
+      document.querySelectorAll('.android-only').forEach(el => el.style.display = 'flex');
+    } else if (isIOS) {
+      document.querySelectorAll('.ios-only').forEach(el => el.style.display = 'flex');
+    } else {
+      document.querySelectorAll('.desktop-only').forEach(el => el.style.display = 'block');
+    }
+
+    // ─── Build deep link from current URL path ────────────────────────────────
+    const currentPath = window.location.pathname + window.location.search;
+    const deepLinkBase = 'myapp:/';
+    const appDeepLink = deepLinkBase + currentPath;
+
+    // Show path chip if navigating to a specific resource
+    if (currentPath && currentPath !== '/') {
+      document.getElementById('pathChip').style.display = 'inline-flex';
+      document.getElementById('pathLabel').textContent = currentPath;
+    }
+
+    // ─── Intent URL for Android (opens Play Store if app not installed) ───────
+    function getAndroidIntentUrl() {
+      const encodedDeepLink = encodeURIComponent(appDeepLink);
+      const packageName = 'com.worknestmobile';
+      const playStoreUrl = 'https://play.google.com/store/apps/details?id=' + packageName;
+      // intent:// scheme — falls back to Play Store automatically
+      return `intent:/${currentPath}#Intent;scheme=myapp;package=${packageName};S.browser_fallback_url=${encodeURIComponent(playStoreUrl)};end`;
+    }
+
+    const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.worknestmobile';
+    let openAttempted = false;
+    let fallbackTimer = null;
+
+    function tryOpenApp() {
+      document.getElementById('stateOpening').style.display = 'block';
+      document.getElementById('stateFallback').style.display = 'none';
+      openAttempted = true;
+
+      if (isAndroid) {
+        // Use Android intent URL — the OS handles the Play Store fallback automatically
+        window.location.href = getAndroidIntentUrl();
+        // Also set a JS timer in case the intent URL doesn't redirect to store
+        clearTimeout(fallbackTimer);
+        fallbackTimer = setTimeout(showFallback, 2500);
+      } else if (isIOS) {
+        // Try custom scheme — if app not installed iOS will silently fail
+        window.location.href = appDeepLink;
+        // Show fallback after 2s
+        clearTimeout(fallbackTimer);
+        fallbackTimer = setTimeout(showFallback, 2000);
+      } else {
+        // Desktop — just show store links immediately
+        showFallback();
+      }
+    }
+
+    function showFallback() {
+      document.getElementById('stateOpening').style.display = 'none';
+      document.getElementById('stateFallback').style.display = 'block';
+    }
+
+    // Cancel fallback timer if user came back to page (app opened successfully)
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden && openAttempted) {
+        clearTimeout(fallbackTimer);
+        // App probably opened — don't show fallback
+      }
+    });
+
+    window.addEventListener('pagehide', function () {
+      clearTimeout(fallbackTimer);
+    });
+
+    // ─── Auto-trigger on load ─────────────────────────────────────────────────
+    // Small delay so the page renders first
+    setTimeout(tryOpenApp, 400);
+  </script>
+</body>
 </html>

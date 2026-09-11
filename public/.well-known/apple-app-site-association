@@ -1,0 +1,27 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "722479405081.com.worknestmobile",
+        "paths": [
+          "/quotation",
+          "/quotation/*",
+          "/invoice",
+          "/invoice/*",
+          "/pricing",
+          "/about",
+          "/privacy",
+          "/manual",
+          "/notifications",
+          "/bookings",
+          "/home",
+          "/booking",
+          "/payments",
+          "/gallery",
+          "/profile"
+        ]
+      }
+    ]
+  }
+}

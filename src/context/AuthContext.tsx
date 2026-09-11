@@ -10,9 +10,22 @@ import {
 import { clearAuthStorage, getUser, type StoredUser } from "../utils/authStorage";
 import { hydrateSessionUser, subscribeToAuthChanges } from "../services/authService";
 
+export type UserRole = "admin" | "sales_executive" | "general";
+
+export function resolveRole(user: StoredUser | null): UserRole {
+  if (!user) return "general";
+  const raw = (user.role ?? user.userType ?? user.userRole ?? "") as string;
+  const r = raw.toLowerCase();
+  if (r === "admin" || r === "super_admin" || user.isAdmin === true || user.isAdmin === "true") return "admin";
+  if (r === "sales_executive") return "sales_executive";
+  return "general";
+}
+
 type AuthContextValue = {
   user: StoredUser | null;
   isAdmin: boolean;
+  isSalesExecutive: boolean;
+  role: UserRole;
   isLoadingUser: boolean;
   refreshUser: () => Promise<void>;
   setUser: (nextUser: StoredUser | null) => void;
@@ -113,6 +126,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       user,
       isAdmin: hasAdminRole(user),
+      isSalesExecutive: resolveRole(user) === "sales_executive",
+      role: resolveRole(user),
       isLoadingUser,
       refreshUser,
       setUser,

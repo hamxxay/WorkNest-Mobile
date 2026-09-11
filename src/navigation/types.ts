@@ -83,6 +83,8 @@ export type AppStackParamList = {
   ModifyOrder: { quotationId: string };
   QuotationPayment: { quotationId: string };
   ShareQuotation: { quotationId: string };
+  InvoiceList: undefined;
+  InvoiceDetail: { invoiceId: number | string };
   Login: { redirectAfterLogin?: { screen: keyof AppStackParamList; params?: any } } | undefined;
   Signup: { redirectAfterLogin?: { screen: keyof AppStackParamList; params?: any } } | undefined;
 };
