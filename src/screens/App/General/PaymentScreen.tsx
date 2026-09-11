@@ -13,13 +13,13 @@ import {
 import { useRoute, useNavigation } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { Screen } from "../../components/Screen";
-import { radii, useThemeColors, useThemedStyles } from "../../theme";
-import type { AppStackParamList } from "../../navigation/types";
-import { createLocalPaymentVoucher, type PaymentItem } from "../../services/paymentService";
-import { API_ENDPOINTS } from "../../config/api";
-import { apiRequest } from "../../services/apiClient";
-import { useAuth } from "../../context/AuthContext";
+import { Screen } from "../../../components/Screen";
+import { radii, useThemeColors, useThemedStyles } from "../../../theme";
+import type { AppStackParamList } from "../../../navigation/types";
+import { createLocalPaymentVoucher, type PaymentItem } from "../../../services/paymentService";
+import { API_ENDPOINTS } from "../../../config/api";
+import { apiRequest } from "../../../services/apiClient";
+import { useAuth } from "../../../context/AuthContext";
 import {
   INPUT_LIMITS,
   sanitizeAccountNumberInput,
@@ -31,7 +31,7 @@ import {
   sanitizePhoneInput,
   sanitizeTextForState,
   sanitizeTransferReferenceInput,
-} from "../../utils/inputSanitizer";
+} from "../../../utils/inputSanitizer";
 
 const TNC_SECTIONS_PAYMENT = [
   { heading: "Acceptance of Terms", content: "By accessing or using WorkNest services, you confirm that you are at least 18 years of age, have the legal capacity to enter into a binding agreement under Pakistani law, and accept these Terms & Conditions in full." },

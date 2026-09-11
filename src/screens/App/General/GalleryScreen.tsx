@@ -24,11 +24,11 @@ import {
   GestureDetector,
   GestureHandlerRootView,
 } from "react-native-gesture-handler";
-import { Header } from "../../components/Header";
-import { Screen } from "../../components/Screen";
-import { radii, useThemeColors, useThemedStyles } from "../../theme";
-import { GalleryImage, getGalleryImages } from "../../services/galleryService";
-import { SmartImage } from "../../components/SmartImage";
+import { Header } from "../../../components/Header";
+import { Screen } from "../../../components/Screen";
+import { radii, useThemeColors, useThemedStyles } from "../../../theme";
+import { GalleryImage, getGalleryImages } from "../../../services/galleryService";
+import { SmartImage } from "../../../components/SmartImage";
 import Ionicons from "react-native-vector-icons/Ionicons";
 
 const { width: SW, height: SH } = Dimensions.get("window");
@@ -415,7 +415,7 @@ export default function GalleryScreen() {
 const styles = StyleSheet.create({
   // lightbox
   lbCard: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -647,7 +647,7 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) =>
     },
     cardImage: { width: "100%", height: "100%" },
     cardOverlay: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       backgroundColor: "rgba(4,24,20,0.38)",
     },
     cardMeta: {

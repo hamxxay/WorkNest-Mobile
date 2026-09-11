@@ -15,15 +15,15 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Ionicons from "react-native-vector-icons/Ionicons";
-import { Screen } from "../../components/Screen";
-import { radii, useThemeColors, useThemedStyles } from "../../theme";
-import { submitChallanRequest } from "../../services/mockQuotationService";
+import { Screen } from "../../../components/Screen";
+import { radii, useThemeColors, useThemedStyles } from "../../../theme";
+import { submitChallanRequest } from "../../../services/mockQuotationService";
 import {
   simulateAdminNotification,
   simulateChallanReadyNotification,
-} from "../../services/mockNotificationService";
-import { isValidEmail } from "../../utils/validation";
-import type { AppStackParamList } from "../../navigation/types";
+} from "../../../services/mockNotificationService";
+import { isValidEmail } from "../../../utils/validation";
+import type { AppStackParamList } from "../../../navigation/types";
 
 type Field = { value: string; error: string };
 const field = (value = ""): Field => ({ value, error: "" });

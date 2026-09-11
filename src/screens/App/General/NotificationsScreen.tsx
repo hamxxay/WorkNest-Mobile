@@ -2,16 +2,16 @@ import { useEffect, useCallback } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
-import { Screen } from '../../components/Screen';
-import { useThemeColors, shadows, radii, spacing } from '../../theme';
-import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { Screen } from '../../../components/Screen';
+import { useThemeColors, shadows, radii, spacing } from '../../../theme';
+import { useAppDispatch, useAppSelector } from '../../../store/hooks';
 import {
   markRead,
   markAllRead,
   clearAll,
   type AppNotification,
-} from '../../store/slices/notificationSlice';
-import { persistNotifications } from '../../store/slices/notificationSlice';
+} from '../../../store/slices/notificationSlice';
+import { persistNotifications } from '../../../store/slices/notificationSlice';
 
 export default function NotificationsScreen() {
   const colors = useThemeColors();

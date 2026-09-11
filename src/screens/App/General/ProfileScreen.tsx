@@ -3,15 +3,15 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Activi
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { useNavigation, useIsFocused } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { ConfirmModal } from "../../components/ConfirmModal";
-import { Header } from "../../components/Header";
-import { Screen } from "../../components/Screen";
-import { radii, useThemeColors, useThemedStyles } from "../../theme";
-import { logoutUser, updateUserProfile } from "../../services/authService";
-import { useAuth } from "../../context/AuthContext";
-import type { AppStackParamList } from "../../navigation/types";
-import { rootNavRef } from "../../navigation/AppNavigator";
-import { getMyBookings } from "../../services/workspaceService";
+import { ConfirmModal } from "../../../components/ConfirmModal";
+import { Header } from "../../../components/Header";
+import { Screen } from "../../../components/Screen";
+import { radii, useThemeColors, useThemedStyles } from "../../../theme";
+import { logoutUser, updateUserProfile } from "../../../services/authService";
+import { useAuth } from "../../../context/AuthContext";
+import type { AppStackParamList } from "../../../navigation/types";
+import { rootNavRef } from "../../../navigation/AppNavigator";
+import { getMyBookings } from "../../../services/workspaceService";
 
 type BookingItem = {
   id: number;

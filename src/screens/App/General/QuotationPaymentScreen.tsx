@@ -11,12 +11,12 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Ionicons from "react-native-vector-icons/Ionicons";
-import { Screen } from "../../components/Screen";
-import { radii, shadows, useThemeColors, useThemedStyles } from "../../theme";
-import { getChallan } from "../../services/mockQuotationService";
-import { simulatePayment } from "../../services/mockPaymentService";
-import type { Challan } from "../../data/mockQuotationData";
-import type { AppStackParamList } from "../../navigation/types";
+import { Screen } from "../../../components/Screen";
+import { radii, shadows, useThemeColors, useThemedStyles } from "../../../theme";
+import { getChallan } from "../../../services/mockQuotationService";
+import { simulatePayment } from "../../../services/mockPaymentService";
+import type { Challan } from "../../../data/mockQuotationData";
+import type { AppStackParamList } from "../../../navigation/types";
 
 export default function QuotationPaymentScreen() {
   const colors = useThemeColors();

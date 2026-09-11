@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from "react-native";
-import { Header } from "../../components/Header";
-import { Screen } from "../../components/Screen";
-import { radii, useThemeColors, useThemedStyles } from "../../theme";
+import { Header } from "../../../components/Header";
+import { Screen } from "../../../components/Screen";
+import { radii, useThemeColors, useThemedStyles } from "../../../theme";
 
 export default function BookingHistoryScreen() {
   const styles = useThemedStyles(createStyles);

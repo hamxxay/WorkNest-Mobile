@@ -14,27 +14,17 @@ import Ionicons from "react-native-vector-icons/Ionicons";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import type { AppStackParamList, MainTabParamList } from "../../navigation/types";
-import { Screen } from "../../components/Screen";
-import { radii, useThemeColors, useThemedStyles } from "../../theme";
-import { createBooking, getWorkspaces, getLocations } from "../../services/workspaceService";
-import { useAuth } from "../../context/AuthContext";
-import { SmartImage } from "../../components/SmartImage";
+import type { AppStackParamList, MainTabParamList } from "../../../navigation/types";
+import { Screen } from "../../../components/Screen";
+import { radii, useThemeColors, useThemedStyles } from "../../../theme";
+import { createBooking, getWorkspaces, getLocations } from "../../../services/workspaceService";
+import { useAuth } from "../../../context/AuthContext";
+import { SmartImage } from "../../../components/SmartImage";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { Header } from "../../components/Header";
-import { INPUT_LIMITS, sanitizeNotesInput, sanitizeSearchInput, sanitizeTextForState } from "../../utils/inputSanitizer";
+import { Header } from "../../../components/Header";
+import { INPUT_LIMITS, sanitizeNotesInput, sanitizeSearchInput, sanitizeTextForState } from "../../../utils/inputSanitizer";
 
-type Workspace = {
-  id: number;
-  name: string;
-  type: "Private Office" | "Co-Working Space" | "Meeting Room" | "Event Space";
-  location: string;
-  capacity: string;
-  price: number;
-  amenities: string[];
-  image: string;
-  available: boolean;
-};
+import type { Workspace } from "../../../services/workspaceService";
 
 type PickerType = "office" | null;
 

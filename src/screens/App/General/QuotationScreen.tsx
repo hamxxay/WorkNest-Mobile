@@ -14,8 +14,8 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Ionicons from "react-native-vector-icons/Ionicons";
-import { Screen } from "../../components/Screen";
-import { radii, shadows, useThemeColors, useThemedStyles } from "../../theme";
+import { Screen } from "../../../components/Screen";
+import { radii, shadows, useThemeColors, useThemedStyles } from "../../../theme";
 import {
   acceptQuotation,
   declineQuotation,
@@ -23,10 +23,10 @@ import {
   getQuotationById,
   getQuotationVersions,
   type QuotationActivity,
-} from "../../services/mockQuotationService";
-import type { Quotation } from "../../data/mockQuotationData";
-import type { AppStackParamList } from "../../navigation/types";
-import { useAuth } from "../../context/AuthContext";
+} from "../../../services/mockQuotationService";
+import type { Quotation } from "../../../data/mockQuotationData";
+import type { AppStackParamList } from "../../../navigation/types";
+import { useAuth } from "../../../context/AuthContext";
 
 // ─── Date formatter ──────────────────────────────────────────────────────────
 function formatDate(raw: string | undefined): string {

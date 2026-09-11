@@ -14,12 +14,12 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Ionicons from "react-native-vector-icons/Ionicons";
-import { Screen } from "../../components/Screen";
-import { radii, useThemeColors, useThemedStyles } from "../../theme";
-import { isValidEmail } from "../../utils/validation";
-import type { AppStackParamList } from "../../navigation/types";
-import type { Quotation } from "../../data/mockQuotationData";
-import { getQuotationById, sendQuotation } from "../../services/mockQuotationService";
+import { Screen } from "../../../components/Screen";
+import { radii, useThemeColors, useThemedStyles } from "../../../theme";
+import { isValidEmail } from "../../../utils/validation";
+import type { AppStackParamList } from "../../../navigation/types";
+import type { Quotation } from "../../../data/mockQuotationData";
+import { getQuotationById, sendQuotation } from "../../../services/mockQuotationService";
 
 // ─── Deep link base ───────────────────────────────────────────────────────────
 // When the real backend is ready, replace this with a dynamic universal link

@@ -15,11 +15,11 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Ionicons from "react-native-vector-icons/Ionicons";
-import { Screen } from "../../components/Screen";
-import { radii, useThemeColors, useThemedStyles } from "../../theme";
-import { apiRequest } from "../../services/apiClient";
-import { API_ENDPOINTS } from "../../config/api";
-import type { AppStackParamList } from "../../navigation/types";
+import { Screen } from "../../../components/Screen";
+import { radii, useThemeColors, useThemedStyles } from "../../../theme";
+import { apiRequest } from "../../../services/apiClient";
+import { API_ENDPOINTS } from "../../../config/api";
+import type { AppStackParamList } from "../../../navigation/types";
 
 type BookingDetail = {
   feeType?: string;

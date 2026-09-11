@@ -13,11 +13,11 @@ import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { Screen } from "../../components/Screen";
-import { SmartImage } from "../../components/SmartImage";
-import { radii, useThemeColors, useThemedStyles } from "../../theme";
-import type { AppStackParamList } from "../../navigation/types";
-import { useAuth } from "../../context/AuthContext";
+import { Screen } from "../../../components/Screen";
+import { SmartImage } from "../../../components/SmartImage";
+import { radii, useThemeColors, useThemedStyles } from "../../../theme";
+import type { AppStackParamList } from "../../../navigation/types";
+import { useAuth } from "../../../context/AuthContext";
 
 type TabKey = "description" | "amenities" | "reviews";
 

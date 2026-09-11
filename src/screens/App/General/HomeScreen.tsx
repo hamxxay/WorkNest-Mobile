@@ -12,19 +12,19 @@ import { useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { CompositeNavigationProp } from '@react-navigation/native';
-import { Screen } from '../../components/Screen';
-import { ChatBot } from '../../components/ChatBot';
-import { drawerNavRef } from '../../navigation/AppNavigator';
+import { Screen } from '../../../components/Screen';
+import { ChatBot } from '../../../components/ChatBot';
+import { drawerNavRef } from '../../../navigation/AppNavigator';
 import type {
   AppStackParamList,
   MainTabParamList,
-} from '../../navigation/types';
-import { useAuth } from '../../context/AuthContext';
-import { getWorkspaces } from '../../services/workspaceService';
-import { INPUT_LIMITS, sanitizeTextForState } from '../../utils/inputSanitizer';
-import { shadows, useThemeColors } from '../../theme';
-import { useAppSelector } from '../../store/hooks';
-import { HOME_SPACING } from '../Home/constants';
+} from '../../../navigation/types';
+import { useAuth } from '../../../context/AuthContext';
+import { getWorkspaces } from '../../../services/workspaceService';
+import { INPUT_LIMITS, sanitizeTextForState } from '../../../utils/inputSanitizer';
+import { shadows, useThemeColors } from '../../../theme';
+import { useAppSelector } from '../../../store/hooks';
+import { HOME_SPACING } from '../../Home/constants';
 import {
   EmptyState,
   FilterChips,
@@ -33,8 +33,8 @@ import {
   SectionHeader,
   SkeletonCard,
   WorkspaceCard,
-} from '../Home/components';
-import type { HomeFilter, Workspace } from '../Home/types';
+} from '../../Home/components';
+import type { HomeFilter, Workspace } from '../../Home/types';
 
 type HomeNavigation = CompositeNavigationProp<
   BottomTabNavigationProp<MainTabParamList>,

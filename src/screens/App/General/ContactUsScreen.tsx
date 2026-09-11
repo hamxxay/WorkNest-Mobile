@@ -16,11 +16,11 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Ionicons from "react-native-vector-icons/Ionicons";
-import { Screen } from "../../components/Screen";
-import { radii, useThemeColors, useThemedStyles } from "../../theme";
-import type { AppStackParamList } from "../../navigation/types";
-import { createContact } from "../../services/contactService";
-import { ApiError } from "../../services/apiClient";
+import { Screen } from "../../../components/Screen";
+import { radii, useThemeColors, useThemedStyles } from "../../../theme";
+import type { AppStackParamList } from "../../../navigation/types";
+import { createContact } from "../../../services/contactService";
+import { ApiError } from "../../../services/apiClient";
 import {
   INPUT_LIMITS,
   sanitizeEmailInput,
@@ -28,8 +28,8 @@ import {
   sanitizeNameInput,
   sanitizePhoneInput,
   sanitizeTextForState,
-} from "../../utils/inputSanitizer";
-import { useAuth } from "../../context/AuthContext";
+} from "../../../utils/inputSanitizer";
+import { useAuth } from "../../../context/AuthContext";
 
 const WHATSAPP_NUMBER = "923160577702";
 

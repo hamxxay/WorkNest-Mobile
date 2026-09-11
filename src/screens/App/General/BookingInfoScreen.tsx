@@ -15,24 +15,24 @@ import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import Ionicons from "react-native-vector-icons/Ionicons";
-import { Screen } from "../../components/Screen";
-import { radii, useThemeColors, useThemedStyles } from "../../theme";
-import type { AppStackParamList } from "../../navigation/types";
+import { Screen } from "../../../components/Screen";
+import { radii, useThemeColors, useThemedStyles } from "../../../theme";
+import type { AppStackParamList } from "../../../navigation/types";
 import {
   INPUT_LIMITS,
   sanitizeEmailInput,
   sanitizeNameInput,
   sanitizePhoneInput,
   sanitizeTextForState,
-} from "../../utils/inputSanitizer";
-import { useAuth } from "../../context/AuthContext";
+} from "../../../utils/inputSanitizer";
+import { useAuth } from "../../../context/AuthContext";
 import {
   BookingProgress,
   BookingSummaryCard,
   ErrorCard,
   OutlinedField,
   WorkspaceSummaryCard,
-} from "../Booking/components/BookingUi";
+} from "../../Booking/components/BookingUi";
 
 type StepKey = "datetime" | "guest" | "payment";
 type CalendarDay = {

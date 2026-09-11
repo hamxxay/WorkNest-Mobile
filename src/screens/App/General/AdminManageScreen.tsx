@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { radii, useThemeColors, useThemedStyles } from "../../theme";
+import { radii, useThemeColors, useThemedStyles } from "../../../theme";
 import {
   getBookingsPage,
   getContactsPage,
@@ -22,9 +22,9 @@ import {
   type AdminSpace,
   type AdminSpaceType,
   type PaginatedList,
-} from "../../services/adminService";
-import { INPUT_LIMITS, sanitizeSearchInput, sanitizeTextForState } from "../../utils/inputSanitizer";
-import { useAuth } from "../../context/AuthContext";
+} from "../../../services/adminService";
+import { INPUT_LIMITS, sanitizeSearchInput, sanitizeTextForState } from "../../../utils/inputSanitizer";
+import { useAuth } from "../../../context/AuthContext";
 
 const PAGE_SIZE = 20;
 

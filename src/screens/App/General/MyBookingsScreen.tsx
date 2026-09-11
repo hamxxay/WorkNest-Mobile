@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
-import { Header } from "../../components/Header";
-import { Screen } from "../../components/Screen";
-import { radii, shadows, useThemeColors, useThemedStyles } from "../../theme";
-import { cancelBooking, getMyBookings } from "../../services/workspaceService";
+import { Header } from "../../../components/Header";
+import { Screen } from "../../../components/Screen";
+import { radii, shadows, useThemeColors, useThemedStyles } from "../../../theme";
+import { cancelBooking, getMyBookings } from "../../../services/workspaceService";
 
 type BookingItem = {
   id: number | string;

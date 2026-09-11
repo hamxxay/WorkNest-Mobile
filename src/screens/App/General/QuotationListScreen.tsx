@@ -11,11 +11,11 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { Screen } from '../../components/Screen';
-import { radii, shadows, useThemeColors, useThemedStyles } from '../../theme';
-import { getAllQuotations } from '../../services/mockQuotationService';
-import type { Quotation } from '../../data/mockQuotationData';
-import type { AppStackParamList } from '../../navigation/types';
+import { Screen } from '../../../components/Screen';
+import { radii, shadows, useThemeColors, useThemedStyles } from '../../../theme';
+import { getAllQuotations } from '../../../services/mockQuotationService';
+import type { Quotation } from '../../../data/mockQuotationData';
+import type { AppStackParamList } from '../../../navigation/types';
 
 // ─── Status config ────────────────────────────────────────────────────────────
 const STATUS_CONFIG: Record<

@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { Header } from "../../components/Header";
-import { Screen } from "../../components/Screen";
-import { radii, useThemeColors, useThemedStyles } from "../../theme";
-import { getUsersPage, type AdminUser } from "../../services/adminService";
-import { INPUT_LIMITS, sanitizeSearchInput, sanitizeTextForState } from "../../utils/inputSanitizer";
+import { Header } from "../../../components/Header";
+import { Screen } from "../../../components/Screen";
+import { radii, useThemeColors, useThemedStyles } from "../../../theme";
+import { getUsersPage, type AdminUser } from "../../../services/adminService";
+import { INPUT_LIMITS, sanitizeSearchInput, sanitizeTextForState } from "../../../utils/inputSanitizer";
 
 const PAGE_SIZE = 20;
 

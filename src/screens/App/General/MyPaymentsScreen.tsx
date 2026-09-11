@@ -2,12 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { Header } from "../../components/Header";
-import { Screen } from "../../components/Screen";
-import { radii, useThemedStyles, useThemeColors } from "../../theme";
-import { getMyPayments, type PaymentItem } from "../../services/paymentService";
-import { useAuth } from "../../context/AuthContext";
-import type { AppStackParamList } from "../../navigation/types";
+import { Header } from "../../../components/Header";
+import { Screen } from "../../../components/Screen";
+import { radii, useThemedStyles, useThemeColors } from "../../../theme";
+import { getMyPayments, type PaymentItem } from "../../../services/paymentService";
+import { useAuth } from "../../../context/AuthContext";
+import type { AppStackParamList } from "../../../navigation/types";
 import Ionicons from "react-native-vector-icons/Ionicons";
 
 export default function MyPaymentsScreen() {

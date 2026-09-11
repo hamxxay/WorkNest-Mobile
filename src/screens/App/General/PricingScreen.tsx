@@ -1,15 +1,15 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { Header } from "../../components/Header";
-import { Screen } from "../../components/Screen";
-import { radii, useThemeColors, useThemedStyles } from "../../theme";
+import { Header } from "../../../components/Header";
+import { Screen } from "../../../components/Screen";
+import { radii, useThemeColors, useThemedStyles } from "../../../theme";
 import { useEffect, useMemo, useState } from "react";
-import { getPricingPlans, type PricingPlan } from "../../services/pricingService";
+import { getPricingPlans, type PricingPlan } from "../../../services/pricingService";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { useNavigation } from "@react-navigation/native";
 import type { CompositeNavigationProp } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import type { AppStackParamList, MainTabParamList } from "../../navigation/types";
+import type { AppStackParamList, MainTabParamList } from "../../../navigation/types";
 
 const fallbackPlans: PricingPlan[] = [];
 
