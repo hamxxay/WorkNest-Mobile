@@ -8,8 +8,10 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { radii, shadows, useThemeColors } from '../../theme';
+import { colors, radii, shadows, useThemeColors } from '../../theme';
 import {
   DEFAULT_AMENITIES,
   HOME_FILTERS,
@@ -27,6 +29,8 @@ export const HomeHeader = memo(function HomeHeader({
   onSignIn,
   onMenu,
   onNotifications,
+  onBookings,
+  avatarUrl,
   unreadCount = 0,
 }: {
   userName?: string;
@@ -35,64 +39,67 @@ export const HomeHeader = memo(function HomeHeader({
   onSignIn: () => void;
   onMenu: () => void;
   onNotifications: () => void;
+  onBookings?: () => void;
+  avatarUrl?: string;
   unreadCount?: number;
 }) {
+  const insets = useSafeAreaInsets();
   const colors = useThemeColors();
   return (
-    <View style={styles.header}>
-      <View style={styles.headerCopy}>
-        <Text style={[styles.eyebrow, { color: colors.mutedForeground }]}>
-          {isGuest ? 'Welcome Guest' : `Good ${getGreeting()}, ${userName}`}
-        </Text>
-        <View style={styles.locationRow}>
-          <Ionicons name="location-outline" size={15} color={colors.primary} />
-          <Text
-            style={[styles.locationText, { color: colors.foreground }]}
-            numberOfLines={1}
-          >
-            {isGuest ? 'Browse workspaces freely' : location}
-          </Text>
-        </View>
-      </View>
-      {isGuest ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Sign in"
-          onPress={onSignIn}
-          style={[styles.signInButton, { backgroundColor: colors.primary }]}
-        >
-          <Text style={styles.signInText}>Sign In</Text>
-        </Pressable>
-      ) : (
-        <View style={styles.headerActions}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Notifications"
-            onPress={onNotifications}
-            style={[styles.headerIcon, { borderColor: colors.border }]}
-            android_ripple={{ color: colors.primaryMuted }}
-          >
-            <Ionicons name="notifications-outline" size={21} color={colors.foreground} />
-            {unreadCount > 0 && (
-              <View style={[styles.notifBadge, { backgroundColor: colors.danger }]}>
-                <Text style={styles.notifBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
-              </View>
-            )}
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Open profile menu"
-            onPress={onMenu}
-            style={[styles.avatar, { backgroundColor: colors.primary }]}
-            android_ripple={{ color: 'rgba(255,255,255,0.2)' }}
-          >
-            <Text style={styles.avatarText}>
-              {userName?.slice(0, 1).toUpperCase() || 'W'}
-            </Text>
-          </Pressable>
-        </View>
-      )}
-    </View>
+ <View style={[styles.headerShell, { backgroundColor: '#0D5B5F' }]}>
+  <View
+    style={[
+      styles.summaryCard,
+      {
+        backgroundColor: '#0D5B5F',
+        paddingTop: insets.top, // pushes content below the status bar/notch
+        borderTopLeftRadius: 0,
+        borderTopRightRadius: 0,
+        borderBottomLeftRadius: 32,
+        borderBottomRightRadius: 32,
+      },
+    ]}
+  >
+  <View style={[styles.summaryRow]}>
+  <View style={styles.avatarCircle}>
+    {avatarUrl ? (
+      <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+    ) : (
+      <Text style={styles.avatarInitial}>
+        {(userName || 'Guest').trim().charAt(0).toUpperCase()}
+      </Text>
+    )}
+  </View>
+
+  <View style={styles.summaryLeft}>
+    <Text style={[styles.eyebrow, { color: '#fff' }]}>
+      {isGuest ? 'Good afternoon' : `Good ${getGreeting().toLowerCase()}`}
+    </Text>
+    <Text style={[styles.summaryName, { color: '#fff' }]}>
+      {userName || 'Guest'}
+    </Text>
+    <Text style={[styles.locationText, { color: '#fff' }]}>
+      {isGuest ? 'Browse workspaces freely' : `location: ${location} MARKAZ ISLAMABAD`}
+    </Text>
+  </View>
+</View>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="My bookings"
+      onPress={onBookings}
+      style={[
+        styles.bookingBadge,
+        {
+          backgroundColor: 'rgba(255,255,255,0.12)',
+          borderColor: 'rgba(255,255,255,0.2)',
+        },
+      ]}
+    >
+      <Text style={styles.bookingBadgeText}>My bookings</Text>
+    </Pressable>
+  
+  </View>
+</View>
   );
 });
 
@@ -115,6 +122,7 @@ export const SearchSection = memo(function SearchSection({
 }) {
   const colors = useThemeColors();
   const focus = useRef(new Animated.Value(0)).current;
+
   useEffect(() => {
     Animated.timing(focus, {
       toValue: focused ? 1 : 0,
@@ -122,59 +130,66 @@ export const SearchSection = memo(function SearchSection({
       useNativeDriver: false,
     }).start();
   }, [focus, focused]);
+
   const borderColor = focus.interpolate({
     inputRange: [0, 1],
     outputRange: [colors.border, colors.primary],
   });
+
   return (
-    <Animated.View
-      style={[
-        styles.searchShell,
-        {
-          borderColor,
-          shadowOpacity: focus.interpolate({
-            inputRange: [0, 1],
-            outputRange: [0.07, 0.16],
-          }),
-        },
-      ]}
-    >
-      <Ionicons name="search" size={22} color={colors.primary} />
-      <TextInput
-        accessibilityLabel="Search workspaces and locations"
-        value={value}
-        onChangeText={onChangeText}
-        onFocus={onFocus}
-        onBlur={onBlur}
-        onSubmitEditing={onSubmit}
-        placeholder="Search by workspace, city, or amenity"
-        placeholderTextColor={colors.mutedForeground}
-        returnKeyType="search"
-        style={[styles.searchInput, { color: colors.foreground }]}
-      />
-      {value.length > 0 && (
-        <Pressable
-          accessibilityLabel="Clear search"
-          hitSlop={12}
-          onPress={() => onChangeText('')}
-        >
-          <Ionicons
-            name="close-circle"
-            size={20}
-            color={colors.mutedForeground}
-          />
-        </Pressable>
-      )}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Open workspace filters"
-        onPress={onFilter}
-        style={[styles.filterButton, { backgroundColor: colors.primaryMuted }]}
-        android_ripple={{ color: colors.primaryMuted }}
+    <View style={styles.searchBlock}>
+      <Animated.View
+        style={[
+          styles.searchShell,
+          {
+            borderColor,
+            shadowOpacity: focus.interpolate({
+              inputRange: [0, 1],
+              outputRange: [0.07, 0.16],
+            }),
+          },
+        ]}
       >
-        <Ionicons name="options-outline" size={20} color={colors.primary} />
-      </Pressable>
-    </Animated.View>
+        <Ionicons name="search" size={22} color={colors.primary} />
+        <TextInput
+          accessibilityLabel="Search workspaces and locations"
+          value={value}
+          onChangeText={onChangeText}
+          onFocus={onFocus}
+          onBlur={onBlur}
+          onSubmitEditing={onSubmit}
+          placeholder="Search by workspace, city, or amenity"
+          placeholderTextColor={colors.mutedForeground}
+          returnKeyType="search"
+          style={[styles.searchInput, { color: colors.foreground }]}
+        />
+        {value.length > 0 && (
+          <Pressable
+            accessibilityLabel="Clear search"
+            hitSlop={12}
+            onPress={() => onChangeText('')}
+          >
+            <Ionicons
+              name="close-circle"
+              size={20}
+              color={colors.mutedForeground}
+            />
+          </Pressable>
+        )}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Open workspace filters"
+          onPress={onFilter}
+          style={[
+            styles.filterButton,
+            { backgroundColor: colors.primaryMuted },
+          ]}
+          android_ripple={{ color: colors.primaryMuted }}
+        >
+          <Ionicons name="options-outline" size={20} color={colors.primary} />
+        </Pressable>
+      </Animated.View>
+    </View>
   );
 });
 
@@ -506,28 +521,126 @@ function getAvailability(workspace: Workspace) {
 }
 
 const styles = StyleSheet.create({
-  header: {
+  headerShell: {
+  borderBottomRightRadius: 32,
+  borderBottomLeftRadius: 32,
+  marginBottom: 16,
+    ...shadows.md,
+  },
+  topMetaRow: {
+    // alignItems: 'center',
+    justifyContent: 'space-between',
+    // marginBottom: HOME_SPACING.sm,
+    // ...shadows.md
+  },
+  timeText: { fontSize: 18, fontWeight: '700', letterSpacing: -0.4 },
+  topMetaRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: HOME_SPACING.md,
-    paddingTop: HOME_SPACING.sm,
-    paddingBottom: HOME_SPACING.md,
+    gap: 8,
   },
-  headerCopy: { flex: 1, paddingRight: HOME_SPACING.sm },
-  eyebrow: { fontSize: 17, fontWeight: '800', letterSpacing: -0.2 },
+  topStatusPill: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  topStatusDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  badgeText: { fontSize: 13, fontWeight: '700' },
+  eyebrow: { fontSize: 16, fontWeight: '600', letterSpacing: -0.1 },
+  userNameText: {
+    fontSize: 38,
+    lineHeight: 42,
+    fontWeight: '900',
+    letterSpacing: -1.1,
+    marginTop: 4,
+  },
   locationRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: HOME_SPACING.xxs,
     marginTop: HOME_SPACING.xs,
   },
-  locationText: { fontSize: 13, fontWeight: '600', flexShrink: 1 },
+  locationText: {
+    fontSize: 14,
+    fontWeight: '500',
+    flexShrink: 1,
+    marginTop: 2,
+  },
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: HOME_SPACING.sm,
   },
+  summaryCard: {
+     paddingHorizontal: 20,
+  paddingBottom: 24,
+  },
+  summaryLeft: {
+    // paddingVertical: 4,
+    // marginVertical: 4,
+    gap: 4,
+    // flexDirection: 'row',
+    // alignItems: 'center',
+    // flex: 1,
+    marginRight: HOME_SPACING.sm,
+  },
+  summaryRow: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 12,
+  marginVertical: HOME_SPACING.sm,
+},
+avatarCircle: {
+  width: 68,
+  height: 68,
+  borderRadius: 54,
+  backgroundColor: 'rgba(255,255,255,0.15)',
+  borderWidth: 1,
+  borderColor: 'rgba(255,255,255,0.3)',
+  alignItems: 'center',
+  justifyContent: 'center',
+  overflow: 'hidden',
+},
+avatarImage: {
+  width: '100%',
+  height: '100%',
+  borderRadius: 24,
+},
+avatarInitial: {
+  fontSize: 18,
+  fontWeight: '600',
+  color: '#fff',
+},
+// summaryLeft: {
+//   flex: 1,
+// },
+  avatarLarge: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: HOME_SPACING.sm,
+  },
+  avatarLargeText: { color: '#fff', fontSize: 17, fontWeight: '800' },
+  summaryNameWrap: { flex: 1 },
+  summaryName: { fontSize: 28, fontWeight: '800' },
+  summaryMeta: { fontSize: 12, fontWeight: '600', marginTop: 2 },
+  bookingBadge: {
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: HOME_SPACING.sm,
+    paddingVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bookingBadgeText: { color: '#fff', fontSize: 12, fontWeight: '700' },
   headerIcon: {
     width: 48,
     height: 48,
@@ -564,6 +677,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   signInText: { color: '#fff', fontSize: 14, fontWeight: '800' },
+  searchBlock: {
+    gap: HOME_SPACING.md,
+  },
   searchShell: {
     minHeight: 58,
     flexDirection: 'row',

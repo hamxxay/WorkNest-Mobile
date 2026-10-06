@@ -1,86 +1,253 @@
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { Screen } from "../../../components/Screen";
-import { Header } from "../../../components/Header";
+import { DashboardHeader } from "../../../components/DashboardHeader";
 import { radii, shadows, useThemeColors, useThemedStyles } from "../../../theme";
+import {
+  getDashboardSummary,
+  getRecentBookings,
+  getRecentContacts,
+  type DashboardSummary,
+  type RecentBooking,
+  type RecentContact,
+} from "../../../services/adminService";
 
-// Placeholder stat cards — replace values with real API data later
-const STAT_CARDS = [
-  { label: "Total Users",    value: "—", icon: "people-outline"         },
-  { label: "Total Spaces",   value: "—", icon: "business-outline"       },
-  { label: "Bookings",       value: "—", icon: "calendar-outline"       },
-  { label: "Revenue",        value: "—", icon: "cash-outline"           },
-  { label: "Locations",      value: "—", icon: "location-outline"       },
-  { label: "Contacts",       value: "—", icon: "mail-outline"           },
+// ─── Status badge helper ──────────────────────────────────────────────────────
+function statusColor(status: string | undefined): string {
+  switch ((status ?? "").toLowerCase()) {
+    case "confirmed":
+    case "approved":
+    case "active":
+      return "#059669";
+    case "pending":
+      return "#f59e0b";
+    case "cancelled":
+    case "rejected":
+      return "#ef4444";
+    default:
+      return "#6366f1";
+  }
+}
+
+// ─── Stat card config ─────────────────────────────────────────────────────────
+type StatCard = {
+  label: string;
+  key: keyof DashboardSummary;
+  icon: string;
+};
+
+const STAT_CARDS: StatCard[] = [
+  { label: "Total Users",   key: "users",       icon: "people-outline"        },
+  { label: "Spaces",        key: "spaces",       icon: "business-outline"      },
+  { label: "Bookings",      key: "bookings",     icon: "calendar-outline"      },
+  { label: "Contacts",      key: "contacts",     icon: "mail-outline"          },
+  { label: "Locations",     key: "locations",    icon: "location-outline"      },
+  { label: "Memberships",   key: "memberships",  icon: "card-outline"          },
+  { label: "Pricing Plans", key: "plans",        icon: "pricetag-outline"      },
+  { label: "Gallery",       key: "gallery",      icon: "images-outline"        },
 ];
 
-// Placeholder quick-action sections — wire up navigation later
 const QUICK_ACTIONS = [
-  { label: "Manage Users",    icon: "person-circle-outline"  },
-  { label: "Manage Spaces",   icon: "grid-outline"           },
-  { label: "View Bookings",   icon: "list-outline"           },
-  { label: "Payments",        icon: "card-outline"           },
+  { label: "Manage Users",   icon: "person-circle-outline", screen: "UserList"    },
+  { label: "Manage Spaces",  icon: "grid-outline",          screen: "SpaceList"   },
+  { label: "View Bookings",  icon: "list-outline",          screen: "BookingList" },
+  { label: "Payments",       icon: "card-outline",          screen: "PaymentList" },
 ];
 
-export default function AdminDashboard() {
+export default function AdminDashboard({ navigation }: { navigation: any }) {
   const colors = useThemeColors();
   const styles = useThemedStyles(createStyles);
 
+  const [summary, setSummary]             = useState<DashboardSummary>({});
+  const [recentBookings, setRecentBookings] = useState<RecentBooking[]>([]);
+  const [recentContacts, setRecentContacts] = useState<RecentContact[]>([]);
+  const [loading, setLoading]             = useState(true);
+  const [refreshing, setRefreshing]       = useState(false);
+  const [error, setError]                 = useState<string | null>(null);
+
+  const load = useCallback(async (isRefresh = false) => {
+    try {
+      if (isRefresh) setRefreshing(true);
+      else setLoading(true);
+      setError(null);
+
+      const [summaryData, bookingsData, contactsData] = await Promise.all([
+        getDashboardSummary(),
+        getRecentBookings(5).catch(() => [] as RecentBooking[]),
+        getRecentContacts(5).catch(() => [] as RecentContact[]),
+      ]);
+
+      setSummary(summaryData);
+      setRecentBookings(bookingsData);
+      setRecentContacts(contactsData);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load dashboard data.");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const fmt = (val: number | undefined) =>
+    val == null ? "—" : val >= 1000 ? `${(val / 1000).toFixed(1)}k` : String(val);
+
   return (
     <Screen>
-      <Header />
+      <DashboardHeader role="Admin" title="Admin Dashboard" />
       <ScrollView
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => load(true)}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
       >
-        {/* ── Page heading ── */}
-        <View style={styles.headingRow}>
-          <View style={styles.iconWell}>
-            <Ionicons name="shield-checkmark-outline" size={22} color={colors.white} />
-          </View>
-          <View>
-            <Text style={styles.eyebrow}>ROLE · ADMIN</Text>
-            <Text style={styles.title}>Admin Dashboard</Text>
-          </View>
-        </View>
-
         <Text style={styles.subtitle}>
           System overview and operational controls.
         </Text>
 
+        {/* ── Error banner ── */}
+        {error && (
+          <View style={styles.errorBanner}>
+            <Ionicons name="alert-circle-outline" size={16} color="#ef4444" />
+            <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity onPress={() => load()}>
+              <Text style={styles.retryText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* ── Stats grid ── */}
         <Text style={styles.sectionLabel}>Overview</Text>
-        <View style={styles.grid}>
-          {STAT_CARDS.map((card) => (
-            <View key={card.label} style={styles.statCard}>
-              <View style={styles.statIconWell}>
-                <Ionicons name={card.icon} size={18} color={colors.primary} />
+        {loading ? (
+          <View style={styles.loadingBox}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={styles.loadingText}>Loading KPIs…</Text>
+          </View>
+        ) : (
+          <View style={styles.grid}>
+            {STAT_CARDS.map((card) => (
+              <View key={card.label} style={styles.statCard}>
+                <View style={styles.statIconWell}>
+                  <Ionicons name={card.icon} size={18} color={colors.primary} />
+                </View>
+                <Text style={styles.statValue}>{fmt(summary[card.key] as number | undefined)}</Text>
+                <Text style={styles.statLabel}>{card.label}</Text>
               </View>
-              <Text style={styles.statValue}>{card.value}</Text>
-              <Text style={styles.statLabel}>{card.label}</Text>
-            </View>
-          ))}
-        </View>
+            ))}
+          </View>
+        )}
 
         {/* ── Quick actions ── */}
         <Text style={styles.sectionLabel}>Quick Actions</Text>
         <View style={styles.actionsGrid}>
           {QUICK_ACTIONS.map((action) => (
-            <View key={action.label} style={styles.actionCard}>
+            <TouchableOpacity
+              key={action.label}
+              style={styles.actionCard}
+              activeOpacity={0.75}
+              onPress={() => {
+                try { navigation?.navigate(action.screen); } catch {}
+              }}
+            >
               <Ionicons name={action.icon} size={26} color={colors.primary} />
               <Text style={styles.actionLabel}>{action.label}</Text>
-            </View>
+            </TouchableOpacity>
           ))}
         </View>
 
-        {/* ── Placeholder activity feed ── */}
-        <Text style={styles.sectionLabel}>Recent Activity</Text>
-        <View style={styles.placeholderCard}>
-          <Ionicons name="time-outline" size={28} color={colors.mutedForeground} />
-          <Text style={styles.placeholderText}>
-            Recent bookings and events will appear here.
-          </Text>
-        </View>
+        {/* ── Recent Bookings ── */}
+        <Text style={styles.sectionLabel}>Recent Bookings</Text>
+        {loading ? (
+          <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: 12 }} />
+        ) : recentBookings.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <Ionicons name="calendar-outline" size={28} color={colors.mutedForeground} />
+            <Text style={styles.emptyText}>No recent bookings.</Text>
+          </View>
+        ) : (
+          <View style={styles.listCard}>
+            {recentBookings.map((b, i) => (
+              <View
+                key={b.id ?? i}
+                style={[styles.listRow, i < recentBookings.length - 1 && styles.listRowBorder]}
+              >
+                <View style={styles.listRowLeft}>
+                  <Text style={styles.listRowPrimary} numberOfLines={1}>
+                    {b.spaceName ?? "Space"}
+                  </Text>
+                  <Text style={styles.listRowSecondary} numberOfLines={1}>
+                    {b.userEmail ?? "—"}
+                  </Text>
+                </View>
+                <View
+                  style={[
+                    styles.statusBadge,
+                    { backgroundColor: statusColor(b.bookingStatus) + "22" },
+                  ]}
+                >
+                  <Text style={[styles.statusText, { color: statusColor(b.bookingStatus) }]}>
+                    {b.bookingStatus ?? "—"}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* ── Recent Contacts ── */}
+        <Text style={styles.sectionLabel}>Recent Contacts</Text>
+        {loading ? (
+          <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: 12 }} />
+        ) : recentContacts.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <Ionicons name="mail-outline" size={28} color={colors.mutedForeground} />
+            <Text style={styles.emptyText}>No recent contacts.</Text>
+          </View>
+        ) : (
+          <View style={styles.listCard}>
+            {recentContacts.map((c, i) => (
+              <View
+                key={c.id ?? i}
+                style={[styles.listRow, i < recentContacts.length - 1 && styles.listRowBorder]}
+              >
+                <View style={styles.listRowLeft}>
+                  <Text style={styles.listRowPrimary} numberOfLines={1}>
+                    {c.fullName ?? "—"}
+                  </Text>
+                  <Text style={styles.listRowSecondary} numberOfLines={1}>
+                    {c.email ?? "—"}
+                  </Text>
+                </View>
+                <View
+                  style={[
+                    styles.statusBadge,
+                    { backgroundColor: statusColor(c.status) + "22" },
+                  ]}
+                >
+                  <Text style={[styles.statusText, { color: statusColor(c.status) }]}>
+                    {c.status ?? "—"}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
       </ScrollView>
     </Screen>
   );
@@ -88,7 +255,7 @@ export default function AdminDashboard() {
 
 const createStyles = (colors: ReturnType<typeof useThemeColors>) =>
   StyleSheet.create({
-    container: { paddingHorizontal: 20, paddingBottom: 32, gap: 4 },
+    container: { paddingHorizontal: 20, paddingBottom: 40, gap: 4 },
 
     headingRow: {
       flexDirection: "row",
@@ -122,6 +289,32 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) =>
       fontSize: 14,
       color: colors.mutedForeground,
       marginBottom: 16,
+    },
+
+    // Error
+    errorBanner: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      backgroundColor: "#ef444420",
+      borderRadius: radii.sm,
+      borderWidth: 1,
+      borderColor: "#ef4444",
+      padding: 10,
+      marginBottom: 8,
+    },
+    errorText: { flex: 1, color: "#ef4444", fontSize: 13 },
+    retryText: { color: colors.primary, fontWeight: "700", fontSize: 13 },
+
+    // Loading
+    loadingBox: {
+      alignItems: "center",
+      paddingVertical: 32,
+      gap: 10,
+    },
+    loadingText: {
+      color: colors.mutedForeground,
+      fontSize: 13,
     },
 
     sectionLabel: {
@@ -177,7 +370,6 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) =>
       padding: 16,
       alignItems: "center",
       gap: 8,
-      // ...shadows.sm,
     },
     actionLabel: {
       fontSize: 13,
@@ -186,8 +378,49 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) =>
       textAlign: "center",
     },
 
-    // Placeholder
-    placeholderCard: {
+    // List card (recent items)
+    listCard: {
+      backgroundColor: colors.card,
+      borderRadius: radii.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      overflow: "hidden",
+      ...shadows.sm,
+    },
+    listRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      gap: 10,
+    },
+    listRowBorder: {
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    listRowLeft: { flex: 1, gap: 2 },
+    listRowPrimary: {
+      fontSize: 13,
+      fontWeight: "700",
+      color: colors.foreground,
+    },
+    listRowSecondary: {
+      fontSize: 11,
+      color: colors.mutedForeground,
+    },
+    statusBadge: {
+      borderRadius: 6,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+    },
+    statusText: {
+      fontSize: 11,
+      fontWeight: "700",
+      textTransform: "capitalize",
+    },
+
+    // Empty state
+    emptyCard: {
       backgroundColor: colors.muted,
       borderRadius: radii.md,
       borderWidth: 1,
@@ -196,7 +429,7 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) =>
       alignItems: "center",
       gap: 10,
     },
-    placeholderText: {
+    emptyText: {
       color: colors.mutedForeground,
       fontSize: 13,
       textAlign: "center",

@@ -45,8 +45,11 @@ const STATUS_CONFIG: Record<string, { label: string; bg: string; border: string;
   active:   { label: "Active",   bg: "rgba(16,185,129,0.1)",  border: "rgba(16,185,129,0.3)",  text: "#059669" },
   inactive: { label: "Inactive", bg: "rgba(100,116,139,0.1)", border: "rgba(100,116,139,0.3)", text: "#64748b" },
   pending:  { label: "Pending",  bg: "rgba(245,158,11,0.1)",  border: "rgba(245,158,11,0.3)",  text: "#d97706" },
+  sent:     { label: "Sent",     bg: "rgba(245,158,11,0.1)",  border: "rgba(245,158,11,0.3)",  text: "#d97706" },
   approved: { label: "Approved", bg: "rgba(16,185,129,0.1)",  border: "rgba(16,185,129,0.3)",  text: "#059669" },
+  accepted: { label: "Accepted", bg: "rgba(16,185,129,0.1)",  border: "rgba(16,185,129,0.3)",  text: "#059669" },
   rejected: { label: "Rejected", bg: "rgba(220,38,38,0.1)",   border: "rgba(220,38,38,0.3)",   text: "#dc2626" },
+  declined: { label: "Declined", bg: "rgba(220,38,38,0.1)",   border: "rgba(220,38,38,0.3)",   text: "#dc2626" },
   expired:  { label: "Expired",  bg: "rgba(100,116,139,0.1)", border: "rgba(100,116,139,0.3)", text: "#64748b" },
 };
 
@@ -86,7 +89,7 @@ export default function QuotationScreen() {
   }, [quotationId]);
 
   useEffect(() => {
-    Promise.allSettled([getQuotationVersions(quotationId), getQuotationActivities()])
+    Promise.allSettled([getQuotationVersions(quotationId), getQuotationActivities(quotationId)])
       .then(([versionsResult, activitiesResult]) => {
         if (versionsResult.status === "fulfilled") setVersions(versionsResult.value);
         if (activitiesResult.status === "fulfilled") setActivities(activitiesResult.value);
@@ -108,7 +111,7 @@ export default function QuotationScreen() {
               await acceptQuotation(quotationId, undefined, quotation.version);
               const [updated, latestActivities] = await Promise.all([
                 getQuotationById(quotationId),
-                getQuotationActivities(),
+                getQuotationActivities(quotationId),
               ]);
               setQuotation(updated);
               setActivities(latestActivities);
@@ -135,7 +138,7 @@ export default function QuotationScreen() {
       await declineQuotation(quotationId, rejectNote.trim(), quotation.version);
       const [updated, latestActivities] = await Promise.all([
         getQuotationById(quotationId),
-        getQuotationActivities(),
+        getQuotationActivities(quotationId),
       ]);
       setQuotation(updated);
       setActivities(latestActivities);
@@ -173,7 +176,6 @@ export default function QuotationScreen() {
     );
   }
   const status = quotation.status?.toLowerCase() ?? "";
-  if (__DEV__) console.log("[QuotationScreen] status:", JSON.stringify(quotation.status), "→", status);
   const statusCfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.pending;
   const isActionable = ["active", "pending", "sent", "open", "new", "awaiting", "senttocustomer"].includes(status);
   const isAccepted = status === "approved" || status === "accepted";
@@ -208,6 +210,7 @@ export default function QuotationScreen() {
             <View>
               <Text style={s.quotationNumber}>{quotation.quotationNumber || quotation.id}</Text>
               <Text style={s.customerName}>{quotation.customerName}</Text>
+              <Text style={[s.totalValue,{color: "#fff", fontSize: 20, fontWeight: "800",}]}>PKR {quotation.total.toLocaleString()}  </Text>
             </View>
             <View style={s.brandMark}>
               <Text style={s.brandMarkText}>WN</Text>
@@ -246,13 +249,13 @@ export default function QuotationScreen() {
           <View style={s.tableDivider} />
           {quotation.tax > 0 && (
             <View style={s.totalRow}>
-              <Text style={s.totalLabel}>Subtotal</Text>
+              <Text style={s.totalLabel}>Subtotal </Text>
               <Text style={s.totalValue}>PKR {(quotation.subtotal ?? 0).toLocaleString()}</Text>
             </View>
           )}
           {quotation.tax > 0 && (
             <View style={s.totalRow}>
-              <Text style={s.totalLabel}>Tax</Text>
+              <Text style={s.totalLabel}>Tax </Text>
               <Text style={s.totalValue}>PKR {(quotation.tax ?? 0).toLocaleString()}</Text>
             </View>
           )}
@@ -358,7 +361,7 @@ export default function QuotationScreen() {
             <Ionicons name="checkmark-circle-outline" size={22} color={colors.success} />
             <View style={{ flex: 1 }}>
               <Text style={[s.statusNoteTitle, { color: colors.success }]}>Accepted</Text>
-              <Text style={[s.statusNoteText, { color: colors.success }]}>Wait for invoice — invoice will be sent to you.</Text>
+              <Text style={[s.statusNoteText, { color: colors.success }]}>Please wait — you will receive an agreement. Please sign and upload it.</Text>
             </View>
           </View>
         ) : isRejected ? (

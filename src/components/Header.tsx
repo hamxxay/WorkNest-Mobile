@@ -9,7 +9,7 @@ const SCREEN_LABELS: Record<string, string> = {
   Home: 'Home',
   Booking: 'Book a Space',
   MyBookings: 'My Bookings',
-  MyPayments: 'My Payments',
+  MyPayments: 'My Invoices',
   Pricing: 'Pricing',
   Gallery: 'Gallery',
   Profile: 'Profile',
@@ -20,6 +20,7 @@ const SCREEN_LABELS: Record<string, string> = {
   SpaceDetail: 'Space Detail',
   BookingInfo: 'Booking Info',
   Payment: 'Payment',
+  Attendees: 'Attendees',
   AdminPanel: 'Admin Panel',
 };
 
@@ -29,6 +30,37 @@ function getGreeting() {
   if (h < 17) return 'Good afternoon';
   return 'Good evening';
 }
+
+export function HomeHeader() {
+  const colors = useThemeColors();
+
+  return (
+    <View style={[styles.homeHeaderContainer, { backgroundColor: '#0D5B5F' }]}>
+      <View style={styles.brandSection}>
+        <Image
+          source={require('../../public/Logo1.png')}
+          style={styles.logoImg}
+          resizeMode="contain"
+        />
+        <View style={styles.textBlock}>
+          <Text style={[styles.brandName, { color: '#EAFBF2' }]}>WorkNest</Text>
+          <Text style={[styles.userName, { color: '#FFFFFF' }]} numberOfLines={1}>
+            Dashboard
+          </Text>
+        </View>
+      </View>
+      {/* <Pressable
+        hitSlop={10}
+        onPress={() => drawerNavRef.open()}
+        style={[styles.menuBtn, { borderColor: '#D7F5E2', backgroundColor: 'rgba(255,255,255,0.12)' }]}
+      >
+        <Ionicons name="menu-outline" size={22} color="#FFFFFF" />
+      </Pressable> */}
+    </View>
+  );
+}
+
+export const HOMEHEADER = HomeHeader;
 
 export function Header() {
   const route  = useRoute();
@@ -54,9 +86,9 @@ export function Header() {
         <View style={styles.textBlock}>
           {isHome ? (
             <>
-              <Text style={[styles.greeting, { color: colors.mutedForeground }]}>{getGreeting()},</Text>
+              {/* <Text style={[styles.greeting, { color: colors.mutedForeground }]}>{getGreeting()},</Text> */}
               <Text style={[styles.userName, { color: colors.foreground }]} numberOfLines={1}>
-                {firstName}
+                Dashboard 
               </Text>
             </>
           ) : (
@@ -70,7 +102,7 @@ export function Header() {
         </View>
       </View>
 
-      {!user ? (
+      {/* {!user ? (
         <Pressable
           hitSlop={10}
           onPress={() => rootNavRef.current?.navigate('AppStack', { screen: 'Login' } as any)}
@@ -85,7 +117,7 @@ export function Header() {
         style={[styles.menuBtn, { borderColor: colors.border, backgroundColor: colors.card }]}
       >
         <Ionicons name="menu-outline" size={22} color={colors.foreground} />
-      </Pressable>}
+      </Pressable>} */}
 
     </View>
   );
@@ -100,6 +132,16 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  homeHeaderContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 18,
+    paddingTop: 8,
+    paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#D7F5E2',
   },
   brandSection: {
     flexDirection: 'row',

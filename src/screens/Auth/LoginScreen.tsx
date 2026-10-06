@@ -55,20 +55,32 @@ export default function LoginScreen() {
 
   const routeToApp = () => {
     if (redirectAfterLogin) {
-      // Came from inside the app stack (guest guard) — go back then navigate
-      navigation.goBack();
-      (navigation as NativeStackNavigationProp<AppStackParamList>).navigate(
-        redirectAfterLogin.screen as any,
-        redirectAfterLogin.params
-      );
+      // Came from inside the app stack (guest guard) — clear auth history and return to the home tab
+      if (rootNavigation) {
+        rootNavigation.reset({
+          index: 0,
+          routes: [{ name: "AppStack", params: { screen: "MainTabs" } }],
+        });
+      } else {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: "MainTabs" }],
+        });
+      }
       return;
     }
-    // Came from AuthStack (standalone login) — replace the root
+
+    // Came from AuthStack (standalone login) — replace the root and clear all prior auth screens
     if (rootNavigation) {
-      rootNavigation.replace("AppStack", { screen: "MainTabs" });
+      rootNavigation.reset({
+        index: 0,
+        routes: [{ name: "AppStack", params: { screen: "MainTabs" } }],
+      });
     } else {
-      // Pushed inside InnerStack without a redirect — just go back to Home
-      navigation.goBack();
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "MainTabs" }],
+      });
     }
   };
 

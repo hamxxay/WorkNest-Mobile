@@ -1,5 +1,5 @@
 import { apiRequest } from "./apiClient";
-import { API_ENDPOINTS } from "../config/api";
+import { API_BASE_URL, API_ENDPOINTS } from "../config/api";
 
 export interface InvoiceItemSummary {
   id: number;
@@ -48,52 +48,82 @@ export interface InvoiceDetail extends InvoiceItemSummary {
   spaceName?: string;
 }
 
+export function buildInvoicePdfUrl(id: number | string): string {
+  return `${API_BASE_URL}${API_ENDPOINTS.invoices.pdf(id)}`;
+}
+
+export function buildInvoiceStatementPdfUrl(id: number | string): string {
+  return `${API_BASE_URL}${API_ENDPOINTS.invoices.statementPdf(id)}`;
+}
+
 export async function getCustomerInvoices(
   page: number = 1,
   limit: number = 10,
-  statusId?: number
+  statusId?: number,
+  customerId?: number | string,
 ): Promise<{ items: InvoiceItemSummary[]; total: number; page: number; limit: number }> {
-  let query = `?page=${page}&limit=${limit}`;
-  if (statusId != null && statusId > 0) {
-    query += `&statusId=${statusId}`;
-  }
+  const query = `?page=${page}&limit=${limit}${statusId != null && statusId > 0 ? `&statusId=${statusId}` : ""}`;
 
   try {
-    const res = await apiRequest<{
-      isSuccessful: boolean;
-      data: any[];
-      total: number;
-      page: number;
-      limit: number;
-    }>(`${API_ENDPOINTS.invoices.list}${query}`, { requiresAuth: true });
+    const endpoints: string[] = customerId != null
+      ? [
+          `${API_ENDPOINTS.invoices.customerInvoices(customerId)}${query}`,
+          `${API_ENDPOINTS.invoices.byCustomer(customerId)}${query}`,
+        ]
+      : [`${API_ENDPOINTS.invoices.list}${query}`];
 
-    const rawItems = res?.data ?? [];
-    const items: InvoiceItemSummary[] = rawItems.map((i: any) => ({
-      id: Number(i?.id ?? i?.Id ?? 0),
-      publicId: String(i?.publicId ?? i?.PublicId ?? ""),
-      invoiceNumber: String(i?.invoiceNumber ?? i?.InvoiceNumber ?? `INV-${i?.id}`),
-      issuedOn: String(i?.issuedOn ?? i?.IssuedOn ?? i?.createdOn ?? i?.CreatedOn ?? ""),
-      dueOn: String(i?.dueOn ?? i?.DueOn ?? ""),
-      billingPeriodStart: i?.billingPeriodStart ?? i?.BillingPeriodStart,
-      billingPeriodEnd: i?.billingPeriodEnd ?? i?.BillingPeriodEnd,
-      subTotal: Number(i?.subTotal ?? i?.SubTotal ?? 0),
-      discountTotal: Number(i?.discountTotal ?? i?.DiscountTotal ?? 0),
-      taxTotal: Number(i?.taxTotal ?? i?.TaxTotal ?? 0),
-      grandTotal: Number(i?.grandTotal ?? i?.GrandTotal ?? 0),
-      paidTotal: Number(i?.paidTotal ?? i?.PaidTotal ?? 0),
-      balanceDue: Number(i?.balanceDue ?? i?.BalanceDue ?? 0),
-      currencyCode: String(i?.currencyCode ?? i?.CurrencyCode ?? "PKR"),
-      statusId: Number(i?.statusId ?? i?.StatusId ?? 1),
-      statusLabel: String(i?.statusLabel ?? i?.StatusLabel ?? (i?.statusId === 2 ? "Paid" : "Unpaid")),
-      notes: i?.notes ?? i?.Notes,
-    }));
+    let lastError: unknown;
 
-    return {
-      items,
-      total: Number(res?.total ?? items.length),
-      page: Number(res?.page ?? page),
-      limit: Number(res?.limit ?? limit),
-    };
+    for (const endpoint of endpoints) {
+      try {
+        const res = await apiRequest<{
+          isSuccessful?: boolean;
+          data?: any[];
+          items?: any[];
+          total?: number;
+          page?: number;
+          limit?: number;
+        }>(endpoint, { requiresAuth: true });
+
+        const rawItems = Array.isArray(res?.data)
+          ? res.data
+          : Array.isArray(res?.items)
+            ? res.items
+            : [];
+
+        const items: InvoiceItemSummary[] = rawItems.map((i: any) => ({
+          id: Number(i?.id ?? i?.Id ?? 0),
+          publicId: String(i?.publicId ?? i?.PublicId ?? ""),
+          invoiceNumber: String(i?.invoiceNumber ?? i?.InvoiceNumber ?? `INV-${i?.id}`),
+          issuedOn: String(i?.issuedOn ?? i?.IssuedOn ?? i?.createdOn ?? i?.CreatedOn ?? ""),
+          dueOn: String(i?.dueOn ?? i?.DueOn ?? ""),
+          billingPeriodStart: i?.billingPeriodStart ?? i?.BillingPeriodStart,
+          billingPeriodEnd: i?.billingPeriodEnd ?? i?.BillingPeriodEnd,
+          subTotal: Number(i?.subTotal ?? i?.SubTotal ?? 0),
+          discountTotal: Number(i?.discountTotal ?? i?.DiscountTotal ?? 0),
+          taxTotal: Number(i?.taxTotal ?? i?.TaxTotal ?? 0),
+          grandTotal: Number(i?.grandTotal ?? i?.GrandTotal ?? 0),
+          paidTotal: Number(i?.paidTotal ?? i?.PaidTotal ?? 0),
+          balanceDue: Number(i?.balanceDue ?? i?.BalanceDue ?? 0),
+          currencyCode: String(i?.currencyCode ?? i?.CurrencyCode ?? "PKR"),
+          statusId: Number(i?.statusId ?? i?.StatusId ?? 1),
+          statusLabel: String(i?.statusLabel ?? i?.StatusLabel ?? (i?.statusId === 2 ? "Paid" : "Unpaid")),
+          notes: i?.notes ?? i?.Notes,
+        }));
+
+        return {
+          items,
+          total: Number(res?.total ?? items.length),
+          page: Number(res?.page ?? page),
+          limit: Number(res?.limit ?? limit),
+        };
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    console.warn("[invoiceService] Error fetching customer invoices", lastError ?? "unknown");
+    return { items: [], total: 0, page, limit };
   } catch (error) {
     console.warn("[invoiceService] Error fetching customer invoices", error);
     return { items: [], total: 0, page, limit };

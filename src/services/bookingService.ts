@@ -113,3 +113,10 @@ export async function getBookings(): Promise<BookingRecord[]> {
     requiresAuth: true,
   });
 }
+
+export async function getBookingById(bookingId: number | string): Promise<BookingRecord | null> {
+  return apiRequest<BookingRecord>(API_ENDPOINTS.booking.byId(bookingId), {
+    method: "GET",
+    requiresAuth: true,
+  });
+}

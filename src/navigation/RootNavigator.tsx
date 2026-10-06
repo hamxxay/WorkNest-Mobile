@@ -53,6 +53,7 @@ export default function RootNavigator() {
     // "general" and any future/unrecognised role safely fall through to the
     // existing general-user navigator, which is never modified by this file.
     default:
+      // return <SaleStack />;
       return <AppNavigator />;
   }
 }

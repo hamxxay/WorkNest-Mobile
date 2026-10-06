@@ -9,12 +9,14 @@ import { hasCompletedOnboarding } from "../../utils/onboardingStorage";
 import { SplashContent } from "./splash/SplashContent";
 import { createSplashStyles } from "./splash/styles";
 import { useSplashAnimation } from "./splash/useSplashAnimation";
+import { useAuth } from "../../context/AuthContext";
 
 const MIN_SPLASH_DURATION = 2200;
 
 export default function SplashScreen() {
   const styles = useThemedStyles(createSplashStyles);
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const { user } = useAuth();
   const [reduceMotion, setReduceMotion] = useState(false);
   const animation = useSplashAnimation(reduceMotion);
 
@@ -31,15 +33,25 @@ export default function SplashScreen() {
         if (!active) return;
         animation.fadeOut(() => {
           if (!active) return;
-          if (onboardingDone) navigation.replace("AppStack", { screen: "MainTabs" });
-          else navigation.replace("Onboarding");
+
+          if (!user) {
+            navigation.replace("AuthStack", { screen: "Login" });
+            return;
+          }
+
+          if (!onboardingDone) {
+            navigation.replace("Onboarding");
+            return;
+          }
+
+          navigation.replace("AppStack", { screen: "MainTabs" });
         });
       }, remaining);
     };
 
     hasCompletedOnboarding().then(finish).catch(() => finish(true));
     return () => { active = false; };
-  }, [animation, navigation]);
+  }, [animation, navigation, user]);
 
   return <Screen><SplashContent animation={animation} styles={styles} /></Screen>;
 }

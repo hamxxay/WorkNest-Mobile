@@ -34,7 +34,8 @@ async function withMockFallback<T>(
   fallback: T,
   shouldFallback: (error: unknown) => boolean = (error) => {
     const status = error instanceof ApiError ? error.status : undefined;
-    return status === 401 || status === 404;
+    // Only fall back on genuine not-found / network issues, not auth failures
+    return status === 404 || status === 0;
   }
 ): Promise<T> {
   try {
@@ -151,8 +152,28 @@ export async function acceptQuotation(id: string, note?: string, version?: numbe
   const path = version == null
     ? API_ENDPOINTS.quotation.accept(apiId)
     : API_ENDPOINTS.quotation.versionAccept(apiId, version);
-  const raw = await apiRequest<any>(path, { method: "POST", body: { note }, requiresAuth: true });
-  return normalizeQuotation(raw);
+
+  const user = await getUser();
+  const customerId = user?.customerId ?? user?.customerCode ?? undefined;
+    console.log('=>>>>>>>>>>>>>>>>>>>>===',customerId);
+
+  try {
+    const raw = await apiRequest<any>(path, {
+      method: "POST",
+      body: { note, customerId: customerId ? String(customerId) : undefined },
+      requiresAuth: true,
+    });
+    const data = raw?.data ?? raw;
+    if (data && typeof data === "object" && (data.id ?? data.Id ?? data.quotationId)) {
+      return normalizeQuotation(data);
+    }
+    return await getQuotationById(id);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 0) {
+      return await getQuotationById(id);
+    }
+    throw error;
+  }
 }
 
 export async function declineQuotation(id: string, note: string, version?: number): Promise<Quotation> {
@@ -160,8 +181,27 @@ export async function declineQuotation(id: string, note: string, version?: numbe
   const path = version == null
     ? API_ENDPOINTS.quotation.decline(apiId)
     : API_ENDPOINTS.quotation.versionDecline(apiId, version);
-  const raw = await apiRequest<any>(path, { method: "POST", body: { note }, requiresAuth: true });
-  return normalizeQuotation(raw);
+
+  const user = await getUser();
+  const customerId = user?.customerId ?? user?.customerCode ?? undefined;
+
+  try {
+    const raw = await apiRequest<any>(path, {
+      method: "POST",
+      body: { note, customerId: customerId ? String(customerId) : undefined },
+      requiresAuth: true,
+    });
+    const data = raw?.data ?? raw;
+    if (data && typeof data === "object" && (data.id ?? data.Id ?? data.quotationId)) {
+      return normalizeQuotation(data);
+    }
+    return await getQuotationById(id);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 0) {
+      return await getQuotationById(id);
+    }
+    throw error;
+  }
 }
 
 export async function createQuotationVersion(
@@ -190,12 +230,13 @@ export async function getQuotationVersions(id: string): Promise<Quotation[]> {
   );
 }
 
-export async function getQuotationActivities(): Promise<QuotationActivity[]> {
+export async function getQuotationActivities(quotationId?: string | number): Promise<QuotationActivity[]> {
   return withMockFallback(
-    "getQuotationActivities()",
+    `getQuotationActivities(${quotationId ?? 'all'})`,
     async () => {
-      const raw = await apiRequest<any>(API_ENDPOINTS.quotation.activities, { requiresAuth: true });
-      const activities = Array.isArray(raw) ? raw : raw?.items ?? raw?.activities ?? [];
+      const path = API_ENDPOINTS.quotation.activities(quotationId);
+      const raw = await apiRequest<any>(path, { requiresAuth: true });
+      const activities = Array.isArray(raw) ? raw : raw?.data ?? raw?.items ?? raw?.activities ?? [];
       return activities.map(normalizeActivity);
     },
     []

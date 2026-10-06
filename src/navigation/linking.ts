@@ -19,7 +19,7 @@ export const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com
 //               └── Workspace (DrawerScreen)
 //                    └── InnerStack (InnerStackNavigator)
 //                         ├── MainTabs (BottomTabNavigator)
-//                         │    └── Home, Booking, MyPayments, Gallery, Profile
+//                         │    └── Home, Booking, MyPayments, Profile
 //                         ├── QuotationList
 //                         ├── Quotation
 //                         └── ... other screens
@@ -65,7 +65,6 @@ export const linking: LinkingOptions<RootStackParamList> = {
                       Home: "home",
                       Booking: "booking",
                       MyPayments: "payments",
-                      Gallery: "gallery",
                       Profile: "profile",
                     },
                   },

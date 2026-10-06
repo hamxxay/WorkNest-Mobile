@@ -74,7 +74,7 @@ export default function ProfileScreen() {
     setShowLogoutConfirm(false);
     await logoutUser();
     await clearSession();
-    rootNavRef.current?.reset({ index: 0, routes: [{ name: "AppStack", params: { screen: "MainTabs" } }] });
+    rootNavRef.current?.reset({ index: 0, routes: [{ name: "AuthStack", params: { screen: "Login" } }] });
   };
 
   const isFocused = useIsFocused();
@@ -193,9 +193,13 @@ export default function ProfileScreen() {
         <View style={styles.menuCard}>
           {[
             { icon: "person-outline" as const, label: "Edit Profile", onPress: handleOpenEdit },
+            { icon: "document-text-outline" as const, label: "Quotations", onPress: () => navigation.navigate("QuotationList") },
+            // { icon: "pricetag-outline" as const, label: "Pricing", onPress: () => navigation.navigate("Pricing") },
+            { icon: "time-outline" as const, label: "My Bookings", onPress: () => navigation.navigate("MyBookings") },
             { icon: "time-outline" as const, label: "Booking History", onPress: () => navigation.navigate("BookingHistory") },
             { icon: "shield-checkmark-outline" as const, label: "Privacy Policy", onPress: () => navigation.navigate("PrivacyPolicy") },
             { icon: "information-circle-outline" as const, label: "About WorkNest", onPress: () => navigation.navigate("AboutUs") },
+            { icon: "book-outline" as const, label: "User Manual", onPress: () => navigation.navigate("UserManual") },
           ].map((item, idx, arr) => (
             <Pressable
               key={item.label}

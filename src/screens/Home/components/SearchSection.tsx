@@ -1,120 +1,98 @@
-import { View, TextInput, Pressable, StyleSheet, Animated, Dimensions } from 'react-native';
+import { useState } from 'react';
+import {
+  Animated,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useThemeColors } from '../../../theme';
-import { FILTER_CHIPS } from '../constants';
-import { useNavigation } from '@react-navigation/native';
-import { useCallback } from 'react';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export const SearchSection = () => {
   const colors = useThemeColors();
-  const navigation = useNavigation();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isFocused, setIsFocused] = useState(false);
-  const [filteredOptions, setFilteredOptions] = useState([]);
-  const [activeFilter, setActiveFilter] = useState(null);
+  const navigation = useNavigation<any>();
+  const [query, setQuery] = useState('');
+  const [focused, setFocused] = useState(false);
 
-  const filteredSearchOptions = (query) => {
-    if (!query) return FILTER_CHIPS;
-    const lowerQuery = query.toLowerCase();
-    return FILTER_CHIPS.filter(option => 
-      option.label.toLowerCase().includes(lowerQuery)
-    );
-  };
-
-  const handleFilterPress = (filter) => {
-    setActiveFilter(filter);
-    setSearchQuery(filter.label);
-    setFilteredOptions([]);
-    navigation.navigate('Booking', { initialRoomType: filter.id });
-  };
-
-  const suggestions = useCallback(() => {
-    const filtered = filteredSearchOptions(searchQuery);
-    setFilteredOptions(filtered.slice(0, 8));
-  }, [searchQuery, filteredSearchOptions]);
+  const quickSections = [
+    { label: 'Quotation', icon: 'document-text-outline', screen: 'QuotationList' },
+    { label: 'Invoices', icon: 'receipt-outline', screen: 'MyPayments' },
+    { label: 'Attendees', icon: 'people-outline', screen: 'Attendees' },
+    { label: 'Booking', icon: 'calendar-outline', screen: 'Booking' },
+    { label: 'Access Request', icon: 'key-outline', screen: 'AccessRequest' },
+  ];
 
   return (
     <View style={styles.container}>
-      {/* Search Bar */}
-      <View style={[styles.searchRow, isFocused && styles.searchRowFocused]}>
-        <View style={styles.searchIconWrapper}>
-          <Ionicons name="search" size={18} color={colors.primary} />
-        </View>
+      <Animated.View
+        style={[
+          styles.searchRow,
+          focused && styles.searchRowFocused,
+          { borderColor: focused ? colors.primary : colors.border },
+        ]}
+      >
+        <Ionicons name="search" size={18} color={colors.primary} />
         <TextInput
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          onFocus={() => {
-            setIsFocused(true);
-            suggestions();
-          }}
-          onBlur={() => setTimeout(() => setIsFocused(false), 150)}
+          value={query}
+          onChangeText={setQuery}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
           onSubmitEditing={() => {
-            if (searchQuery.trim()) {
-              navigation.navigate('Booking', { initialSearch: searchQuery.trim() });
-            }
+            if (query.trim()) navigation.navigate('Booking', { initialSearch: query.trim() });
           }}
           placeholder="Search spaces or locations…"
           placeholderTextColor={colors.mutedForeground}
-          maxLength={50}
-          returnKeyType="search"
-          style={[styles.searchInput, isFocused && styles.searchInputFocused]}
+          style={[styles.searchInput, { color: colors.foreground }]}
         />
-        {searchQuery.length > 0 ? (
-          <Pressable
-            onPress={() => setSearchQuery('')}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            style={styles.searchCloseButton}
-          >
+        {query.length > 0 ? (
+          <Pressable onPress={() => setQuery('')} hitSlop={10}>
             <Ionicons name="close-circle" size={18} color={colors.mutedForeground} />
           </Pressable>
         ) : (
-          <Pressable
-            onPress={() => navigation.navigate('Booking')}
-            style={styles.searchButton}
-          >
+          <Pressable onPress={() => navigation.navigate('Booking')} style={styles.searchButton}>
             <Ionicons name="options-outline" size={16} color={colors.primary} />
           </Pressable>
         )}
+      </Animated.View>
+
+      <View style={styles.quickGrid}>
+        {quickSections.map(item => (
+          <Pressable
+            key={item.label}
+            onPress={() => {
+              if (['QuotationList', 'MyPayments', 'BookingHistory', 'Booking', 'Profile', 'AccessRequest'].includes(item.screen)) {
+                navigation.navigate(item.screen);
+              }
+            }}
+            style={[styles.quickCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+          >
+            <View style={[styles.quickIcon, { backgroundColor: colors.primaryMuted }]}>
+              <Ionicons name={item.icon as any} size={18} color={colors.primary} />
+            </View>
+            <Text style={[styles.quickText, { color: colors.foreground }]}>{item.label}</Text>
+          </Pressable>
+        ))}
       </View>
-
-      {/* Filter Chips */}
-      {filteredOptions.length > 0 && (
-        <View style={styles.filterContainer}>
-          {filteredOptions.map((option) => (
-            <Pressable
-              key={option.id}
-              onPress={() => handleFilterPress(option)}
-              style={[
-                styles.filterChip, 
-                activeFilter?.id === option.id && styles.filterChipActive
-              ]}
-            >
-              <Text style={[styles.filterChipText, activeFilter?.id === option.id && styles.filterChipTextActive]}>
-                {option.label}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-      )}
-
-      {/* Animated Focus State */}
-      <Animated.View style={[styles.focusOverlay, isFocused && styles.focusOverlayActive]} />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 16,
     width: '100%',
+    gap: 12,
+    marginBottom: 16,
   },
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 10,
     backgroundColor: '#F5F8FA',
     borderRadius: 12,
+    borderWidth: 1,
     paddingHorizontal: 16,
     paddingVertical: 12,
     shadowColor: '#000',
@@ -124,31 +102,13 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   searchRowFocused: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 4,
   },
-  searchIconWrapper: {
-    marginRight: 12,
-  },
   searchInput: {
     flex: 1,
-    color: '#333',
     fontSize: 16,
-  },
-  searchInputFocused: {
-    borderColor: '#0d9488',
-    borderWidth: 2,
-  },
-  searchCloseButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#F5F8FA',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   searchButton: {
     width: 32,
@@ -158,39 +118,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  filterContainer: {
+  quickGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    gap: 10,
+  },
+  quickCard: {
+    width: '31.5%',
+    minHeight: 82,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 8,
-    marginTop: 8,
   },
-  filterChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    backgroundColor: '#E9ECEF',
+  quickIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  filterChipActive: {
-    backgroundColor: '#0d9488',
-  },
-  filterChipText: {
-    color: '#333',
-    fontWeight: '600',
-  },
-  filterChipTextActive: {
-    color: '#fff',
-    fontWeight: '600',
-  },
-  focusOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 2,
-    backgroundColor: '#0d9488',
-  },
-  focusOverlayActive: {
-    opacity: 1,
-    animated: true,
+  quickText: {
+    fontSize: 11,
+    fontWeight: '800',
+    textAlign: 'center',
   },
 });

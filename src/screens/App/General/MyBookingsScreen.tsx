@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { Header } from "../../../components/Header";
 import { Screen } from "../../../components/Screen";
 import { radii, shadows, useThemeColors, useThemedStyles } from "../../../theme";
+import type { AppStackParamList } from "../../../navigation/types";
 import { cancelBooking, getMyBookings } from "../../../services/workspaceService";
 
 type BookingItem = {
@@ -30,13 +33,19 @@ function getStatusConfig(status?: string | null) {
 }
 
 function isUpcoming(item: BookingItem) {
-  if (!item.startDateTime) return false;
-  return new Date(item.startDateTime) > new Date();
+  if (!item.endDateTime) return false;
+  return new Date(item.endDateTime) > new Date();
+}
+
+function isHistory(item: BookingItem) {
+  if (!item.endDateTime) return false;
+  return new Date(item.endDateTime) <= new Date();
 }
 
 export default function MyBookingsScreen() {
   const colors = useThemeColors();
   const styles = useThemedStyles(createStyles);
+  const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const [bookings, setBookings] = useState<BookingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
@@ -79,7 +88,7 @@ export default function MyBookingsScreen() {
   };
 
   const upcoming = bookings.filter(isUpcoming);
-  const history = bookings.filter((b) => !isUpcoming(b));
+  const history = bookings.filter(isHistory);
   const displayed = activeTab === "upcoming" ? upcoming : history;
 
   return (
@@ -139,8 +148,14 @@ export default function MyBookingsScreen() {
             const canCancel = !["cancel", "complet"].some((s) =>
               (booking.bookingStatus ?? "").toLowerCase().includes(s)
             );
+            console.log('--------------->',booking);
+            
             return (
-              <View key={String(booking.id)} style={styles.card}>
+              <Pressable
+                key={String(booking.id)}
+                style={styles.card}
+                onPress={() => navigation.navigate("BookingDetail", { bookingId: booking?.bookingId })}
+              >
                 {/* Header row */}
                 <View style={styles.cardHeader}>
                   <View style={styles.cardIconWell}>
@@ -161,14 +176,14 @@ export default function MyBookingsScreen() {
                 {/* Datetime row */}
                 <View style={styles.dateRow}>
                   <View style={styles.dateBlock}>
-                    <Text style={styles.dateLabel}>CHECK IN</Text>
+                    <Text style={styles.dateLabel}>Start Date</Text>
                     <Text style={styles.dateValue}>{formatDate(booking.startDateTime)}</Text>
                   </View>
                   <View style={styles.dateDivider}>
                     <Ionicons name="arrow-forward" size={14} color={colors.mutedForeground} />
                   </View>
                   <View style={styles.dateBlock}>
-                    <Text style={styles.dateLabel}>CHECK OUT</Text>
+                    <Text style={styles.dateLabel}>End Date</Text>
                     <Text style={styles.dateValue}>{formatDate(booking.endDateTime)}</Text>
                   </View>
                 </View>
@@ -190,7 +205,7 @@ export default function MyBookingsScreen() {
                     </Pressable>
                   )}
                 </View>
-              </View>
+              </Pressable>
             );
           })
         )}

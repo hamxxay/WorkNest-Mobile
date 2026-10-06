@@ -1,5 +1,5 @@
 import { API_ENDPOINTS } from "../config/api";
-import { apiRequest } from "./apiClient";
+import { ApiError, apiRequest } from "./apiClient";
 import { resolveMediaUrl } from "../utils/mediaUrl";
 import {
   INPUT_LIMITS,
@@ -70,6 +70,8 @@ type ApiBooking = {
   spaceId?: number | string;
   startDateTime?: string;
   endDateTime?: string;
+  startOn?: string;
+  endOn?: string;
   totalAmount?: number | null;
   paidAmount?: number | null;
   pricePerDay?: number | null;
@@ -134,43 +136,66 @@ function normalizeSpaceType(type?: string): Workspace["type"] {
   return "Private Office";
 }
 
+/** Fetch the raw list from one endpoint, throws on failure. */
+async function fetchSpaceList(path: string): Promise<ApiWorkspace[]> {
+  const payload = await apiRequest<ApiListResponse<ApiWorkspace>>(path, {
+    requiresAuth: true,
+  });
+  return payload ? extractList(payload) : [];
+}
+
+/** Build the deduped, counted Workspace[] from a raw list. */
+function buildWorkspaceList(items: ApiWorkspace[]): Workspace[] {
+  const counts = new Map<string, { avail: number; total: number }>();
+  for (const item of items) {
+    const key = `${item.locationName ?? ""}||${normalizeSpaceType(item.spaceTypeName)}`;
+    const entry = counts.get(key) ?? { avail: 0, total: 0 };
+    entry.total += 1;
+    if (isAvailable(item)) entry.avail += 1;
+    counts.set(key, entry);
+  }
+
+  const seen = new Set<string>();
+  const result: Workspace[] = [];
+  for (const item of items) {
+    const key = `${item.locationName ?? ""}||${normalizeSpaceType(item.spaceTypeName)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const { avail, total } = counts.get(key)!;
+    result.push(mapWorkspace(item, avail, total));
+  }
+  return result;
+}
+
 export async function getWorkspaces(): Promise<Workspace[]> {
+  // 1️⃣ Try the primary endpoint
   try {
-    const payload = await apiRequest<ApiListResponse<ApiWorkspace>>(
-      API_ENDPOINTS.workspaces.list,
-      { requiresAuth: true }
+    const items = await fetchSpaceList(API_ENDPOINTS.workspaces.list);
+    return buildWorkspaceList(items);
+  } catch (primaryErr) {
+    if (!(primaryErr instanceof ApiError)) {
+      // Genuine network / parse error — not a server-side 4xx/5xx
+      console.warn("[workspaceService] getWorkspaces network error:", primaryErr);
+      return [];
+    }
+    console.warn(
+      `[workspaceService] ${API_ENDPOINTS.workspaces.list} failed (${primaryErr.status}), trying fallback.`
     );
+  }
 
-    if (!payload) return [];
-
-    const items = extractList(payload);
-
-    // Pre-compute available/total counts per location+type group (same as FE reference)
-    const counts = new Map<string, { avail: number; total: number }>();
-    for (const item of items) {
-      const key = `${item.locationName ?? ""}||${normalizeSpaceType(item.spaceTypeName)}`;
-      const entry = counts.get(key) ?? { avail: 0, total: 0 };
-      entry.total += 1;
-      if (isAvailable(item)) entry.avail += 1;
-      counts.set(key, entry);
-    }
-
-    // Deduplicate to one representative per group, carrying counts
-    const seen = new Set<string>();
-    const result: Workspace[] = [];
-    for (const item of items) {
-      const key = `${item.locationName ?? ""}||${normalizeSpaceType(item.spaceTypeName)}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      const { avail, total } = counts.get(key)!;
-      result.push(mapWorkspace(item, avail, total));
-    }
-    return result;
-  } catch (err) {
-    console.error("Error fetching workspaces:", err);
+  // 2️⃣ Fallback: /space/available-by-type
+  try {
+    const items = await fetchSpaceList(API_ENDPOINTS.workspaces.availableByType);
+    return buildWorkspaceList(items);
+  } catch (fallbackErr) {
+    const status = fallbackErr instanceof ApiError ? fallbackErr.status : "?";
+    console.warn(
+      `[workspaceService] Fallback ${API_ENDPOINTS.workspaces.availableByType} also failed (${status}). Returning [].`
+    );
     return [];
   }
 }
+
 
 export async function createBooking(
   workspaceId: number,
@@ -237,7 +262,11 @@ export async function getMyBookings() {
       API_ENDPOINTS.workspaces.myBookings,
       { requiresAuth: true }
     );
-    return extractList(payload);
+    return extractList(payload).map((item) => ({
+      ...item,
+      startDateTime: item.startDateTime ?? item.startOn ?? "",
+      endDateTime: item.endDateTime ?? item.endOn ?? "",
+    }));
   } catch {
     return [];
   }

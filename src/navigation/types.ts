@@ -10,7 +10,6 @@ export type MainTabParamList = {
       }
     | undefined;
   MyPayments: undefined;
-  Gallery: undefined;
   Profile: undefined;
 };
 
@@ -70,6 +69,10 @@ export type AppStackParamList = {
     };
   };
   Profile: undefined;
+  AccessRequest: undefined;
+  Attendees: undefined;
+  MyBookings: undefined;
+  BookingDetail: { bookingId: number | string };
   BookingHistory: undefined;
   PrivacyPolicy: undefined;
   AboutUs: undefined;

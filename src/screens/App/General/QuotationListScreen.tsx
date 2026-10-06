@@ -13,9 +13,9 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { Screen } from '../../../components/Screen';
 import { radii, shadows, useThemeColors, useThemedStyles } from '../../../theme';
-import { getAllQuotations } from '../../../services/mockQuotationService';
-import type { Quotation } from '../../../data/mockQuotationData';
+import { getMyQuotations, type QuotationRecord } from '../../../services/quotationService';
 import type { AppStackParamList } from '../../../navigation/types';
+import { useAuth } from '../../../context/AuthContext';
 
 // ─── Status config ────────────────────────────────────────────────────────────
 const STATUS_CONFIG: Record<
@@ -164,32 +164,46 @@ export default function QuotationListScreen() {
   const s = useThemedStyles(createStyles);
   const navigation =
     useNavigation<NativeStackNavigationProp<AppStackParamList>>();
+  const { user, isLoadingUser } = useAuth();
 
-  const [quotations, setQuotations] = useState<Quotation[]>([]);
+  const [quotations, setQuotations] = useState<QuotationRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+
+  // Redirect unauthenticated users to login
+  useEffect(() => {
+    if (!isLoadingUser && !user) {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'MainTabs', params: { screen: 'Home' } }],
+      });
+    }
+  }, [isLoadingUser, user, navigation]);
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
     setError('');
     try {
-      const data = await getAllQuotations();
-      console.log("Qutation",data);
-      
+      const data = await getMyQuotations();
+      console.log('[QuotationListScreen] Loaded', data.length, 'quotations from API');
       const order = [
         'active',
+        'sent',
         'pending',
         'approved',
+        'accepted',
         'rejected',
+        'declined',
         'expired',
         'inactive',
+        'draft',
       ];
       setQuotations(
         data.sort((a, b) => {
-          const ai = order.indexOf(a.status?.toLowerCase());
-          const bi = order.indexOf(b.status?.toLowerCase());
+          const ai = order.indexOf((a.status ?? '').toLowerCase());
+          const bi = order.indexOf((b.status ?? '').toLowerCase());
           return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
         }),
       );
@@ -206,11 +220,11 @@ export default function QuotationListScreen() {
   }, [load]);
 
   function handleAction(
-    quotationId: string,
+    quotationId: string | number | undefined,
     action: 'view' | 'challan' | 'modify' | 'payment',
   ) {
-    const normalizedId = String(quotationId ?? '').trim();
-    const routeId = normalizedId.match(/\d+/)?.[0] ?? normalizedId;
+    const raw = String(quotationId ?? '').trim();
+    const routeId = raw.match(/\d+/)?.[0] ?? raw;
     console.log('handleAction', { quotationId, routeId, action });
     switch (action) {
       case 'view':
@@ -238,7 +252,7 @@ export default function QuotationListScreen() {
   }
 
   const counts = quotations.reduce((acc, q) => {
-    const k = q.status?.toLowerCase();
+    const k = (q.status ?? '').toLowerCase();
     acc[k] = (acc[k] ?? 0) + 1;
     return acc;
   }, {} as Record<string, number>);
@@ -324,9 +338,10 @@ export default function QuotationListScreen() {
           </View>
         }
         renderItem={({ item }) => {
-          const cfg = getStatusCfg(item.status);
+          const cfg = getStatusCfg(item.status ?? '');
+          const statusKey = (item.status ?? '').toLowerCase();
           const actions =
-            STATUS_ACTIONS[item.status?.toLowerCase()] ?? STATUS_ACTIONS.active;
+            STATUS_ACTIONS[statusKey] ?? STATUS_ACTIONS.active;
 
           return (
             <Pressable
@@ -336,12 +351,14 @@ export default function QuotationListScreen() {
               {/* Header */}
               <View style={s.cardHeader}>
                 <View style={s.cardHeaderLeft}>
-                  <Text style={s.cardNumber}>{item.id}</Text>
+                <Text style={s.cardNumber}>
+                    {item.quotationNumber || String(item.id ?? '')}
+                  </Text>
                   <Text style={s.cardSpace}>
                     {item.customerName || 'Quotation'}
                   </Text>
                   <Text style={s.cardMeta2}>
-                    {item.items?.map(i => i.name).join(' · ') || 'Quotation'}
+                    {item.spaceName || item.locationName || ''}
                   </Text>
                 </View>
 
@@ -366,7 +383,7 @@ export default function QuotationListScreen() {
                   color={colors.mutedForeground}
                 />
 
-                <Text style={s.metaText}>{formatDate(item.quotationDate)}</Text>
+                <Text style={s.metaText}>{formatDate(item.quotationDate as string)}</Text>
 
                 <View style={s.metaDot} />
 
@@ -377,45 +394,39 @@ export default function QuotationListScreen() {
                 />
 
                 <Text style={s.metaText}>
-                  Valid till {formatDate(item.validUntil)}
+                  Valid till {formatDate(item.validUntil as string)}
                 </Text>
 
                 <View style={s.metaSpacer} />
 
                 <Text style={s.cardTotal}>
-                  PKR {(item.total ?? 0).toLocaleString()}
+                  PKR {Number(item.totalAmount ?? item.total ?? 0).toLocaleString()}
                 </Text>
               </View>
 
-              {/* Items */}
+              {/* Totals row */}
               <View style={s.metaRow}>
                 <Ionicons
-                  name="list-outline"
+                  name="cash-outline"
                   size={12}
                   color={colors.mutedForeground}
                 />
-
                 <Text style={s.metaText}>
-                  {item.items?.length || 0} item
-                  {item.items?.length === 1 ? '' : 's'}
+                  Total PKR {Number(item.totalAmount ?? item.total ?? 0).toLocaleString()}
                 </Text>
-
-                {item.subtotal !== undefined && (
+                {Number(item.subtotalAmount ?? 0) > 0 && (
                   <>
                     <View style={s.metaDot} />
-
                     <Text style={s.metaText}>
-                      Subtotal PKR {(item.subtotal ?? 0).toLocaleString()}
+                      Subtotal PKR {Number(item.subtotalAmount).toLocaleString()}
                     </Text>
                   </>
                 )}
-
-                {item.tax > 0 && (
+                {Number(item.taxAmount ?? 0) > 0 && (
                   <>
                     <View style={s.metaDot} />
-
                     <Text style={s.metaText}>
-                      Tax PKR {(item.tax ?? 0).toLocaleString()}
+                      Tax PKR {Number(item.taxAmount).toLocaleString()}
                     </Text>
                   </>
                 )}
@@ -423,7 +434,7 @@ export default function QuotationListScreen() {
 
               {/* Action chips */}
               <View style={s.actionsRow}>
-                {actions.map(a => {
+                {actions.map((a: { label: string; icon: string; action: 'view' | 'challan' | 'modify' | 'payment' }) => {
                   const isPrimary =
                     a.action === 'payment' || a.action === 'challan';
 

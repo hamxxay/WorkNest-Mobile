@@ -2,12 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   FlatList,
+  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -20,8 +22,12 @@ import type {
   MainTabParamList,
 } from '../../../navigation/types';
 import { useAuth } from '../../../context/AuthContext';
+import { getCustomerAttendants } from '../../../services/attendantService';
 import { getWorkspaces } from '../../../services/workspaceService';
-import { INPUT_LIMITS, sanitizeTextForState } from '../../../utils/inputSanitizer';
+import {
+  INPUT_LIMITS,
+  sanitizeTextForState,
+} from '../../../utils/inputSanitizer';
 import { shadows, useThemeColors } from '../../../theme';
 import { useAppSelector } from '../../../store/hooks';
 import { HOME_SPACING } from '../../Home/constants';
@@ -35,7 +41,7 @@ import {
   WorkspaceCard,
 } from '../../Home/components';
 import type { HomeFilter, Workspace } from '../../Home/types';
-
+import { Header, HOMEHEADER } from "../../../components/Header";
 type HomeNavigation = CompositeNavigationProp<
   BottomTabNavigationProp<MainTabParamList>,
   NativeStackNavigationProp<AppStackParamList>
@@ -45,13 +51,17 @@ export default function HomeScreen() {
   const navigation = useNavigation<HomeNavigation>();
   const colors = useThemeColors();
   const { user, isLoadingUser } = useAuth();
-  const unreadCount = useAppSelector(s => s.notifications.items.filter(n => !n.read).length);
+  const unreadCount = useAppSelector(
+    s => s.notifications.items.filter(n => !n.read).length,
+  );
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<HomeFilter | null>(null);
   const [focused, setFocused] = useState(false);
   const [chatVisible, setChatVisible] = useState(true);
+  const [attendeeCount, setAttendeeCount] = useState(0);
+  const [attendeeLoading, setAttendeeLoading] = useState(false);
   const heroOpacity = useRef(new Animated.Value(0)).current;
   const lastOffset = useRef(0);
 
@@ -71,6 +81,39 @@ export default function HomeScreen() {
       useNativeDriver: true,
     }).start();
   }, [heroOpacity]);
+
+  useEffect(() => {
+    const customerId = (user as any)?.customerId ?? (user as any)?.customerCode;
+    if (isLoadingUser || !customerId) {
+      setAttendeeCount(0);
+      setAttendeeLoading(false);
+      return;
+    }
+
+    let active = true;
+    setAttendeeLoading(true);
+
+    getCustomerAttendants(String(customerId))
+      .then(result => {
+        if (!active) return;
+        setAttendeeCount(Array.isArray(result?.items) ? result.items.length : 0);
+      })
+      .catch(() => {
+        if (!active) return;
+        setAttendeeCount(0);
+      })
+      .finally(() => {
+        if (active) setAttendeeLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [isLoadingUser, user]);
+
+  const attendanceCapacity = Math.max(10, attendeeCount + 5);
+  const attendancePercent = attendeeCount === 0 ? 0 : Math.min(100, Math.round((attendeeCount / attendanceCapacity) * 100));
+  const seatsFree = Math.max(0, attendanceCapacity - attendeeCount);
 
   const filtered = useMemo(
     () =>
@@ -115,12 +158,18 @@ export default function HomeScreen() {
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    getWorkspaces().then(items => setWorkspaces(Array.isArray(items) ? items : [])).catch(() => setWorkspaces([])).finally(() => setRefreshing(false));
+    getWorkspaces()
+      .then(items => setWorkspaces(Array.isArray(items) ? items : []))
+      .catch(() => setWorkspaces([]))
+      .finally(() => setRefreshing(false));
   }, []);
 
   const reload = useCallback(() => {
     setLoading(true);
-    getWorkspaces().then(items => setWorkspaces(Array.isArray(items) ? items : [])).catch(() => setWorkspaces([])).finally(() => setLoading(false));
+    getWorkspaces()
+      .then(items => setWorkspaces(Array.isArray(items) ? items : []))
+      .catch(() => setWorkspaces([]))
+      .finally(() => setLoading(false));
   }, []);
 
   const selectFilter = useCallback(
@@ -167,11 +216,13 @@ export default function HomeScreen() {
   }, []);
   const renderWorkspace = useCallback(
     ({ item }: { item: Workspace }) => (
-      <WorkspaceCard
-        workspace={item}
-        onDetails={viewDetails}
-        onBook={bookWorkspace}
-      />
+      <>
+        <WorkspaceCard
+          workspace={item}
+          onDetails={viewDetails}
+          onBook={bookWorkspace}
+        />
+      </>
     ),
     [bookWorkspace, viewDetails],
   );
@@ -179,6 +230,8 @@ export default function HomeScreen() {
 
   return (
     <Screen>
+      <HOMEHEADER />
+
       <HomeHeader
         userName={user?.name?.split(' ')[0]}
         location={workspaces[0]?.location || 'Your current location'}
@@ -187,6 +240,7 @@ export default function HomeScreen() {
         onNotifications={() => navigation.navigate('Notifications' as any)}
         unreadCount={unreadCount}
         onMenu={() => drawerNavRef.open()}
+        onBookings={() => navigation.navigate('MyBookings')}
       />
 
       <ScrollView
@@ -195,34 +249,14 @@ export default function HomeScreen() {
         onScroll={onScroll}
         scrollEventThrottle={16}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
         }
       >
-        <Animated.View
-          style={[
-            styles.hero,
-            {
-              opacity: heroOpacity,
-              backgroundColor: colors.successMuted,
-              transform: [
-                {
-                  translateY: heroOpacity.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [12, 0],
-                  }),
-                },
-              ],
-            },
-          ]}
-        >
-          <Text style={[styles.heroTitle, { color: colors.foreground }]}>
-            Find Your Perfect{`\n`}
-            <Text style={{ color: colors.primary }}>Workspace</Text>
-          </Text>
-          <Text style={[styles.heroSubtitle, { color: colors.mutedForeground }]}>
-            Book private offices, meeting rooms, and coworking spaces instantly.
-          </Text>
-        </Animated.View>
         <SearchSection
           value={query}
           focused={focused}
@@ -236,8 +270,85 @@ export default function HomeScreen() {
           onSubmit={showAll}
           onFilter={showAll}
         />
-        <FilterChips activeFilter={filter} onSelect={selectFilter} />
-        <View style={styles.featured}>
+
+        <View style={styles.quickAccessWrap}>
+          <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>Live occupancy</Text>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Open attendees"
+            onPress={() => navigation.navigate('Attendees')}
+          >
+            <View style={[styles.occupancyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={styles.occupancyHeaderRow}>
+                <Text style={[styles.occupancyTitle, { color: colors.foreground }]}>Attendance</Text>
+                <Text style={[styles.occupancyValue, { color: colors.foreground }]}>
+                  {attendeeLoading ? '…' : attendeeCount}
+                </Text>
+              </View>
+              <View style={styles.occupancyMetaRow}>
+                <Text style={[styles.occupancyMeta, { color: colors.mutedForeground }]}>
+                  {attendeeLoading ? 'Refreshing data…' : 'Active people on this account'}
+                </Text>
+                <Text style={[styles.occupancyMeta, { color: colors.mutedForeground }]}>
+                  {attendeeLoading ? 'API' : `of ${attendanceCapacity} seats`}
+                </Text>
+              </View>
+              <View style={[styles.progressTrack, { backgroundColor: colors.border }]}>
+                <View
+                  style={[
+                    styles.progressFill,
+                    {
+                      width: `${attendancePercent}%`,
+                      backgroundColor: colors.primary,
+                    },
+                  ]}
+                />
+              </View>
+              <View style={styles.occupancyFooterRow}>
+                <Text style={[styles.occupancyFooter, { color: colors.foreground }]}>
+                  {attendeeLoading ? 'Loading attendees' : `${attendeeCount} present now`}
+                </Text>
+                <Text style={[styles.occupancyFooter, { color: colors.mutedForeground }]}>
+                  {attendeeLoading ? '…' : `${seatsFree} seats free`}
+                </Text>
+              </View>
+            </View>
+          </Pressable>
+
+          <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>Quick access</Text>
+
+          <View style={styles.quickGrid}>
+            {[
+              { label: 'Quotation', icon: 'document-text-outline', screen: 'QuotationList' },
+              { label: 'Booking', icon: 'calendar-outline', screen: 'Booking' },
+              { label: 'Invoice', icon: 'receipt-outline', screen: 'MyPayments' },
+              { label: 'Access Request', icon: 'key-outline', screen: 'AccessRequest' },
+            ].map(item => (
+              <Pressable
+                key={item.label}
+                accessibilityRole="button"
+                accessibilityLabel={item.label}
+                onPress={() => navigation.navigate(item.screen as any)}
+                style={[
+                  styles.quickCard,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: colors.border,
+                    shadowColor: colors.primary,
+                  },
+                ]}
+              >
+                <View style={[styles.quickIcon, { backgroundColor: colors.primaryMuted }]}>
+                  <Ionicons name={item.icon as any} size={22} color={colors.primary} />
+                </View>
+                <Text style={[styles.quickLabel, { color: colors.foreground }]}>{item.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+        {/* <FilterChips activeFilter={filter} onSelect={selectFilter} /> */}
+        {/* <View style={styles.featured}>
           <SectionHeader
             title="Featured Spaces"
             subtitle="Flexible spaces, ready when you are"
@@ -302,8 +413,8 @@ export default function HomeScreen() {
             windowSize={3}
             removeClippedSubviews
           />
-        </View>
-        {sections.map(section => (
+        </View> */}
+        {/* {sections.map(section => (
           <View style={styles.listSection} key={section.title}>
             <SectionHeader
               title={section.title}
@@ -323,7 +434,7 @@ export default function HomeScreen() {
               removeClippedSubviews
             />
           </View>
-        ))}
+        ))} */}
       </ScrollView>
       <ChatBot visible={chatVisible} />
     </Screen>
@@ -335,9 +446,8 @@ function matchesWorkspace(
   query: string,
   filter: HomeFilter | null,
 ) {
-  const searchable = `${workspace.name} ${workspace.location} ${
-    workspace.type
-  } ${(workspace.amenities || []).join(' ')}`.toLowerCase();
+  const searchable = `${workspace.name} ${workspace.location} ${workspace.type
+    } ${(workspace.amenities || []).join(' ')}`.toLowerCase();
   if (query.trim() && !searchable.includes(query.trim().toLowerCase()))
     return false;
   if (!filter || filter === 'Daily' || filter === 'Monthly') return true;
@@ -353,7 +463,153 @@ function matchesWorkspace(
 }
 
 const styles = StyleSheet.create({
-  content: { paddingBottom: 16 , marginHorizontal: HOME_SPACING.sm, overflow: 'visible' },
+  content: {
+    paddingBottom: 16,
+    marginHorizontal: HOME_SPACING.sm,
+    overflow: 'visible',
+  },
+  quickAccessWrap: {
+    marginTop: HOME_SPACING.md,
+    gap: HOME_SPACING.sm,
+  },
+  sectionLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: HOME_SPACING.xs,
+  },
+  occupancyCard: {
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: HOME_SPACING.md,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  occupancyHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  occupancyTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    letterSpacing: -0.4,
+  },
+  occupancyValue: {
+    fontSize: 21,
+    fontWeight: '800',
+    letterSpacing: -0.4,
+  },
+  occupancyMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 6,
+  },
+  occupancyMeta: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  progressTrack: {
+    height: 8,
+    borderRadius: 999,
+    overflow: 'hidden',
+    marginTop: HOME_SPACING.sm,
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 999,
+  },
+  occupancyFooterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: HOME_SPACING.sm,
+  },
+  occupancyFooter: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  quickGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  quickCard: {
+    width: '48%',
+    minHeight: 126,
+    borderWidth: 1,
+    borderRadius: 18,
+    paddingVertical: HOME_SPACING.md,
+    paddingHorizontal: HOME_SPACING.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: HOME_SPACING.sm,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  quickIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: -0.3,
+    textAlign: 'center',
+  },
+  quickAccessRow: {
+    flexDirection: 'row',
+    gap: HOME_SPACING.sm,
+  },
+  quickAccessCard: {
+    borderWidth: 1,
+    borderRadius: 20,
+    paddingVertical: HOME_SPACING.md,
+    paddingHorizontal: HOME_SPACING.md,
+    justifyContent: 'center',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    elevation: 3,
+  },
+  fullWidthCard: {
+    width: '100%',
+    minHeight: 92,
+  },
+  halfWidthCard: {
+    flex: 1,
+    minHeight: 86,
+  },
+  quickAccessHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: HOME_SPACING.sm,
+  },
+  iconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickAccessTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+  },
+  quickAccessSubtitle: {
+    marginTop: HOME_SPACING.xs,
+    fontSize: 13,
+    fontWeight: '600',
+  },
   hero: {
     marginHorizontal: HOME_SPACING.md,
     padding: HOME_SPACING.lg,
@@ -373,12 +629,27 @@ const styles = StyleSheet.create({
     marginTop: HOME_SPACING.sm,
     maxWidth: 310,
   },
-  featured: { marginTop: HOME_SPACING.xl , overflow: 'visible', paddingVertical: HOME_SPACING.md, marginLeft: -HOME_SPACING.sm, width: '140%'},
-  premium: { marginTop: HOME_SPACING.xl , overflow: 'visible', paddingVertical: HOME_SPACING.md, marginLeft: -HOME_SPACING.sm, width: '140%'},
-  listSection: { marginTop: HOME_SPACING.xl,  overflow: 'visible', paddingVertical: HOME_SPACING.md, marginLeft: -HOME_SPACING.sm, width: '140%'},
+  featured: {
+    marginTop: HOME_SPACING.xl,
+    overflow: 'visible',
+    paddingVertical: HOME_SPACING.md,
+    width: '100%',
+  },
+  premium: {
+    marginTop: HOME_SPACING.xl,
+    overflow: 'visible',
+    paddingVertical: HOME_SPACING.md,
+    width: '100%',
+  },
+  listSection: {
+    marginTop: HOME_SPACING.xl,
+    overflow: 'visible',
+    paddingVertical: HOME_SPACING.md,
+    width: '100%',
+  },
   horizontalList: {
     paddingLeft: HOME_SPACING.md,
-    paddingRight: HOME_SPACING.xs,
+    paddingRight: HOME_SPACING.lg,
     paddingVertical: HOME_SPACING.md,
     marginBottom: HOME_SPACING.md,
   },

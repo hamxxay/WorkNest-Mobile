@@ -26,13 +26,15 @@ import BookingInfoScreen from "../screens/App/General/BookingInfoScreen";
 import PaymentScreen from "../screens/App/General/PaymentScreen";
 import ContactUsScreen from "../screens/App/General/ContactUsScreen";
 import PricingScreen from "../screens/App/General/PricingScreen";
-import GalleryScreen from "../screens/App/General/GalleryScreen";
 import SignupScreen from "../screens/Auth/SignupScreen";
 import SplashScreen from "../screens/Auth/SplashScreen";
 import LoginScreen from "../screens/Auth/LoginScreen";
 import OnboardingScreen from "../screens/Auth/OnboardingScreen";
 import ProfileScreen from "../screens/App/General/ProfileScreen";
+import AccessRequestScreen from "../screens/App/General/AccessRequestScreen";
+import AttendeesScreen from "../screens/App/General/AttendeesScreen";
 import MyBookingsScreen from "../screens/App/General/MyBookingsScreen";
+import BookingDetailScreen from "../screens/App/General/BookingDetailScreen";
 import PrivacyPolicyScreen from "../screens/App/General/PrivacyPolicyScreen";
 import AboutUsScreen from "../screens/App/General/AboutUsScreen";
 import UserManualScreen from "../screens/App/General/UserManualScreen";
@@ -93,8 +95,7 @@ export const drawerNavRef = {
 const TAB_ITEMS = [
   { name: "Home",       activeIcon: "home",     inactiveIcon: "home-outline"     },
   { name: "Booking",    activeIcon: "calendar", inactiveIcon: "calendar-outline" },
-  { name: "MyPayments", activeIcon: "card",     inactiveIcon: "card-outline"     },
-  { name: "Gallery",    activeIcon: "images",   inactiveIcon: "images-outline"   },
+  { name: "MyPayments", activeIcon: "receipt",  inactiveIcon: "receipt-outline"  },
   { name: "Profile",    activeIcon: "person",   inactiveIcon: "person-outline"   },
 ] as const;
 
@@ -188,7 +189,7 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
           focused={state.index === i}
           activeIcon={item.activeIcon}
           inactiveIcon={item.inactiveIcon}
-          label={item.name === "MyPayments" ? "Payments" : item.name}
+          label={item.name === "MyPayments" ? "Invoices" : item.name}
           onPress={() => {
             const isProtected = PROTECTED_TABS.includes(item.name);
             if (isProtected && !user) {
@@ -258,7 +259,6 @@ function MainTabs() {
       <Tab.Screen name="Home"       component={HomeScreen} />
       <Tab.Screen name="Booking"    component={BookingScreen} />
       <Tab.Screen name="MyPayments" component={MyPaymentsScreen} />
-      <Tab.Screen name="Gallery"    component={GalleryScreen} />
       <Tab.Screen name="Profile"    component={ProfileScreen} />
     </Tab.Navigator>
   );
@@ -268,13 +268,7 @@ function MainTabs() {
 // screen: null  → go to Home tab (stays in MainTabs)
 // screen: string → push that screen onto AppStack
 const MENU_ITEMS = [
-  { label: "Home",            icon: "grid-outline",               screen: null               },
-  { label: "Pricing",         icon: "pricetag-outline",           screen: "Pricing"          },
-  { label: "Quotation",       icon: "document-text-outline",      screen: "QuotationList",   protected: true },
-  { label: "Booking History", icon: "time-outline",               screen: "BookingHistory",  protected: true },
-  { label: "Privacy Policy",  icon: "shield-checkmark-outline",   screen: "PrivacyPolicy"    },
-  { label: "About Us",        icon: "information-circle-outline", screen: "AboutUs"          },
-  { label: "User Manual",     icon: "book-outline",               screen: "UserManual"       },
+  { label: "Home", icon: "grid-outline", screen: null },
 ] as const;
 
 function AppDrawerContent(props: DrawerContentComponentProps) {
@@ -456,6 +450,10 @@ function InnerStackNavigator() {
     >
       <InnerStack.Screen name="MainTabs"       component={MainTabs} />
       <InnerStack.Screen name="Profile"        component={ProfileScreen} />
+      <InnerStack.Screen name="AccessRequest"  component={AccessRequestScreen} />
+      <InnerStack.Screen name="Attendees"      component={AttendeesScreen} />
+      <InnerStack.Screen name="MyBookings"     component={MyBookingsScreen} />
+      <InnerStack.Screen name="BookingDetail"  component={BookingDetailScreen} />
       <InnerStack.Screen name="BookingHistory" component={MyBookingsScreen} />
       <InnerStack.Screen name="PrivacyPolicy"  component={PrivacyPolicyScreen} />
       <InnerStack.Screen name="AboutUs"        component={AboutUsScreen} />
@@ -513,6 +511,7 @@ function AuthStackNavigator() {
         headerShown: false,
         statusBarTranslucent: false,
         statusBarStyle: "dark",
+        gestureEnabled: false,
         contentStyle: { backgroundColor: colors.background },
       }}
     >

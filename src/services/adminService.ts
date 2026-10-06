@@ -169,12 +169,18 @@ function ensureSuccess<T>(response: ApiResponse<T>, fallbackMessage: string): T 
 type ArrayResponse = ApiResponse<unknown[]>;
 
 async function getCountFrom(path: string): Promise<number> {
-  const response = await apiRequest<ArrayResponse>(path, {
-    requiresAuth: true,
-    unwrapData: false,
-  });
-  const data = ensureSuccess(response, `Unable to load ${path}.`);
-  return Array.isArray(data) ? data.length : 0;
+  try {
+    const response = await apiRequest<ArrayResponse>(path, {
+      requiresAuth: true,
+      unwrapData: false,
+    });
+    const data = ensureSuccess(response, `Unable to load ${path}.`);
+    return Array.isArray(data) ? data.length : 0;
+  } catch (err) {
+    const status = err instanceof ApiError ? err.status : "?";
+    console.warn(`[adminService] getCountFrom(${path}) failed (${status}), returning 0.`);
+    return 0;
+  }
 }
 
 export async function getDashboardSummary(): Promise<DashboardSummary> {
@@ -185,9 +191,14 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
     );
     return ensureSuccess(response, "Unable to load dashboard summary.");
   } catch (error) {
-    if (!(error instanceof ApiError) || error.status !== 404) {
-      throw error;
+    // The summary endpoint may not be available (404) or may be broken (500).
+    // In either case, fall back to counting from individual endpoints.
+    if (!(error instanceof ApiError)) {
+      throw error; // re-throw genuine network / parse errors
     }
+    console.warn(
+      `[adminService] /dashboard/summary failed (${(error as ApiError).status}), falling back to individual counts.`
+    );
   }
 
   const [
