@@ -22,6 +22,8 @@ import type {
   MainTabParamList,
 } from '../../../navigation/types';
 import { useAuth } from '../../../context/AuthContext';
+import { useDoorAccess } from '../../../hooks/useDoorAccess';
+import { openDoor } from '../../../services/doorAccessService';
 import { getCustomerAttendants } from '../../../services/attendantService';
 import { getWorkspaces } from '../../../services/workspaceService';
 import {
@@ -51,6 +53,7 @@ export default function HomeScreen() {
   const navigation = useNavigation<HomeNavigation>();
   const colors = useThemeColors();
   const { user, isLoadingUser } = useAuth();
+  const doorAccess = useDoorAccess();
   const unreadCount = useAppSelector(
     s => s.notifications.items.filter(n => !n.read).length,
   );
@@ -323,13 +326,15 @@ export default function HomeScreen() {
               { label: 'Quotation', icon: 'document-text-outline', screen: 'QuotationList' },
               { label: 'Booking', icon: 'calendar-outline', screen: 'Booking' },
               { label: 'Invoice', icon: 'receipt-outline', screen: 'MyPayments' },
-              { label: 'Access Request', icon: 'key-outline', screen: 'AccessRequest' },
+              doorAccess?.canOpenDoor
+                ? { label: 'Open Door', icon: 'lock-open-outline', screen: '' }
+                : { label: 'Access Request', icon: 'key-outline', screen: 'AccessRequest' },
             ].map(item => (
               <Pressable
                 key={item.label}
                 accessibilityRole="button"
                 accessibilityLabel={item.label}
-                onPress={() => navigation.navigate(item.screen as any)}
+                onPress={() => (item.screen ? navigation.navigate(item.screen as any) : openDoor(doorAccess))}
                 style={[
                   styles.quickCard,
                   {

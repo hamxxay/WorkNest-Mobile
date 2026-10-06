@@ -113,7 +113,13 @@ export async function apiRequest<T>(
   const payload = await parsePayload(response);
 
   if (!response.ok) {
-    const message = extractMessage(payload);
+    let message = extractMessage(payload);
+    if (response.status === 429 && message === "Request failed") {
+      const wait = Number(response.headers.get("Retry-After"));
+      message = wait > 0
+        ? `Too many attempts. Please wait ${wait} seconds and try again.`
+        : "Too many attempts. Please wait a minute and try again.";
+    }
     if (__DEV__) console.warn(`[API ${response.status}] ${method} ${requestUrl} — ${message}`, payload);
     throw new ApiError(message, response.status, payload);
   }

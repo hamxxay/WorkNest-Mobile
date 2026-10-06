@@ -10,19 +10,24 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useThemeColors } from '../../../theme';
+import { useDoorAccess } from '../../../hooks/useDoorAccess';
+import { openDoor } from '../../../services/doorAccessService';
 
 export const SearchSection = () => {
   const colors = useThemeColors();
   const navigation = useNavigation<any>();
   const [query, setQuery] = useState('');
   const [focused, setFocused] = useState(false);
+  const doorAccess = useDoorAccess();
 
   const quickSections = [
     { label: 'Quotation', icon: 'document-text-outline', screen: 'QuotationList' },
     { label: 'Invoices', icon: 'receipt-outline', screen: 'MyPayments' },
     { label: 'Attendees', icon: 'people-outline', screen: 'Attendees' },
     { label: 'Booking', icon: 'calendar-outline', screen: 'Booking' },
-    { label: 'Access Request', icon: 'key-outline', screen: 'AccessRequest' },
+    doorAccess?.canOpenDoor
+      ? { label: 'Open Door', icon: 'lock-open-outline', screen: 'OpenDoor' }
+      : { label: 'Access Request', icon: 'key-outline', screen: 'AccessRequest' },
   ];
 
   return (
@@ -63,6 +68,10 @@ export const SearchSection = () => {
           <Pressable
             key={item.label}
             onPress={() => {
+              if (item.screen === 'OpenDoor') {
+                openDoor(doorAccess);
+                return;
+              }
               if (['QuotationList', 'MyPayments', 'BookingHistory', 'Booking', 'Profile', 'AccessRequest'].includes(item.screen)) {
                 navigation.navigate(item.screen);
               }

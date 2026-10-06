@@ -20,8 +20,9 @@ function resolveApiBaseUrl(): string {
   const normalized = normalizeApiBaseUrl(base);
 
   // Only remap localhost/127.0.0.1 for local development when the app is truly targeting a local API.
-  if (Platform.OS === "android" && /localhost|127\.0\.0\.1/.test(normalized)) {
-    return normalized.replace("localhost", "10.0.2.2").replace("127.0.0.1", "10.0.2.2");
+  // 127.0.0.1 is left untouched so a real device can reach the Mac via `adb reverse`.
+  if (Platform.OS === "android" && /localhost/.test(normalized)) {
+    return normalized.replace("localhost", "10.0.2.2");
   }
 
   return normalized;

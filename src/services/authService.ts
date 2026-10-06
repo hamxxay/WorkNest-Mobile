@@ -257,6 +257,12 @@ async function exchangeFirebaseTokenForJwt(
       return { token: response.token, roles: response.roles ?? null };
     }
   } catch (err) {
+    if (err instanceof ApiError && err.status === 429) {
+      // Rate limited: stop the sign-in and show the API's "please wait" message, instead of
+      // continuing on the Firebase token with only partial access.
+      await getFirebaseAuth().signOut().catch(() => undefined);
+      throw err;
+    }
     debugAuth("jwt exchange failed", {
       message: err instanceof Error ? err.message : "unknown",
     });
@@ -636,6 +642,7 @@ export async function requestPasswordReset(email: string): Promise<void> {
 }
 
 function mapFirebaseError(error: unknown, fallbackMessage: string): ApiError {
+  if (error instanceof ApiError && error.status === 429) return error;
   const code =
     error && typeof error === "object" && "code" in error
       ? String((error as { code?: unknown }).code)
@@ -657,6 +664,7 @@ function mapFirebaseError(error: unknown, fallbackMessage: string): ApiError {
 }
 
 function mapGoogleSigninError(error: unknown): ApiError {
+  if (error instanceof ApiError && error.status === 429) return error;
   const code =
     error && typeof error === "object" && "code" in error
       ? String((error as { code?: unknown }).code)
