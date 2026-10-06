@@ -12,7 +12,7 @@ import {
 } from "@react-native-google-signin/google-signin";
 import { FIREBASE_IOS_CLIENT_ID, FIREBASE_WEB_CLIENT_ID } from "@env";
 import { buildApiPath } from "../config/api";
-import { clearAuthStorage, removeToken, removeUser, saveToken, saveUser, getUser } from "../utils/authStorage";
+import { clearAuthStorage, removeToken, removeUser, saveToken, saveUser, getUser, getToken } from "../utils/authStorage";
 import { ApiError, apiRequest } from "./apiClient";
 import type { StoredUser } from "../utils/authStorage";
 
@@ -230,15 +230,23 @@ export async function triggerBackgroundSync(currentUser: StoredUser) {
   }
 }
 
+/**
+ * Exchanges the Firebase ID token for the API's JWT (which carries the user's roles).
+ * Throws an ApiError with a user-facing message on any failure; callers decide whether that
+ * stops a sign-in (login) or keeps the previous session (app start).
+ */
 async function exchangeFirebaseTokenForJwt(
   user: FirebaseAuthTypes.User,
   displayNameOverride?: string
-): Promise<{ token: string | null; roles: string[] | null }> {
-  if (!user.email) return { token: null, roles: null };
+): Promise<{ token: string; roles: string[] | null }> {
+  if (!user.email) {
+    throw new ApiError("This account has no email address, so it can't be used with WorkNest.", 400);
+  }
+  let response: { token?: string; id?: string; roles?: string[] } | null;
   try {
     const idToken = await getIdToken(user);
     const displayName = displayNameOverride ?? user.displayName ?? "";
-    const response = await apiRequest<{ token?: string; id?: string; roles?: string[] }>(
+    response = await apiRequest<{ token?: string; id?: string; roles?: string[] }>(
       buildApiPath("auth/google-login"),
       {
         method: "POST",
@@ -249,30 +257,40 @@ async function exchangeFirebaseTokenForJwt(
         },
       }
     );
-    if (response?.token) {
-      debugAuth("jwt exchange success", {
-        hasToken: true,
-        roles: response.roles ?? null,
-      });
-      return { token: response.token, roles: response.roles ?? null };
-    }
   } catch (err) {
-    if (err instanceof ApiError && err.status === 429) {
-      // Rate limited: stop the sign-in and show the API's "please wait" message, instead of
-      // continuing on the Firebase token with only partial access.
-      await getFirebaseAuth().signOut().catch(() => undefined);
-      throw err;
-    }
     debugAuth("jwt exchange failed", {
       message: err instanceof Error ? err.message : "unknown",
     });
+    if (err instanceof ApiError) {
+      if (err.status === 0) {
+        throw new ApiError("Can't reach WorkNest. Check your internet connection and try again.", 0, err);
+      }
+      // 429 and API messages (e.g. account disabled) are already user-facing.
+      throw err;
+    }
+    throw new ApiError("Couldn't sign you in to WorkNest. Please try again.", 0, err);
   }
-  return { token: null, roles: null };
+  if (!response?.token) {
+    debugAuth("jwt exchange failed", { message: "no token in response" });
+    throw new ApiError("Couldn't sign you in to WorkNest. Please try again.", 500);
+  }
+  debugAuth("jwt exchange success", {
+    hasToken: true,
+    roles: response.roles ?? null,
+  });
+  return { token: response.token, roles: response.roles ?? null };
 }
 
+/**
+ * Saves the session after Firebase sign-in. `strict` (login, sign-up, Google sign-in): if the API
+ * token can't be obtained, sign out and throw, so the user never lands in the app with only the
+ * Firebase token (API calls fail and the role is wrong). Not strict (app start / token refresh):
+ * keep the API token from the last successful login, e.g. when offline at startup.
+ */
 async function persistFirebaseSession(
   user: FirebaseAuthTypes.User,
-  displayNameOverride?: string
+  displayNameOverride?: string,
+  options: { strict?: boolean } = {}
 ): Promise<{ user: StoredUser; idToken: string }> {
   const firebaseUser = mapFirebaseUser(user);
   if (displayNameOverride) {
@@ -286,11 +304,22 @@ async function persistFirebaseSession(
   });
 
   // Exchange Firebase token for .NET JWT so API calls are authorized
-  const { token: dotnetJwt, roles } = await exchangeFirebaseTokenForJwt(
-    user,
-    displayNameOverride
-  );
-  const activeToken = dotnetJwt || idToken;
+  let dotnetJwt: string | null = null;
+  let roles: string[] | null = null;
+  try {
+    ({ token: dotnetJwt, roles } = await exchangeFirebaseTokenForJwt(user, displayNameOverride));
+  } catch (err) {
+    if (options.strict) {
+      await Promise.allSettled([
+        GoogleSignin.signOut(),
+        getFirebaseAuth().signOut(),
+        removeToken(),
+        removeUser(),
+      ]);
+      throw err;
+    }
+  }
+  const activeToken = dotnetJwt || (await getToken()) || idToken;
   await saveToken(activeToken);
 
   const existing = await getUser();
@@ -418,7 +447,7 @@ export async function loginUser(payload: LoginRequest): Promise<AuthResponse> {
       email,
       password
     );
-    const session = await persistFirebaseSession(credential.user);
+    const session = await persistFirebaseSession(credential.user, undefined, { strict: true });
     debugAuth("login success", {
       uid: credential.user.uid,
       email: maskEmail(credential.user.email),
@@ -466,7 +495,7 @@ export async function registerUser(payload: RegisterRequest): Promise<AuthRespon
       });
     }
 
-    const session = await persistFirebaseSession(credential.user, displayName);
+    const session = await persistFirebaseSession(credential.user, displayName, { strict: true });
     debugAuth("register success", {
       uid: credential.user.uid,
       email: maskEmail(credential.user.email),
@@ -562,7 +591,7 @@ async function completeGoogleAuth(idToken: string): Promise<GoogleAuthResult> {
     displayName: credentialResult.user.displayName ?? null,
     isNewUser: credentialResult.additionalUserInfo?.isNewUser ?? false,
   });
-  const session = await persistFirebaseSession(credentialResult.user);
+  const session = await persistFirebaseSession(credentialResult.user, undefined, { strict: true });
   return {
     user: session.user,
     isNewUser: credentialResult.additionalUserInfo?.isNewUser ?? false,
@@ -642,7 +671,7 @@ export async function requestPasswordReset(email: string): Promise<void> {
 }
 
 function mapFirebaseError(error: unknown, fallbackMessage: string): ApiError {
-  if (error instanceof ApiError && error.status === 429) return error;
+  if (error instanceof ApiError) return error;
   const code =
     error && typeof error === "object" && "code" in error
       ? String((error as { code?: unknown }).code)
@@ -664,7 +693,7 @@ function mapFirebaseError(error: unknown, fallbackMessage: string): ApiError {
 }
 
 function mapGoogleSigninError(error: unknown): ApiError {
-  if (error instanceof ApiError && error.status === 429) return error;
+  if (error instanceof ApiError) return error;
   const code =
     error && typeof error === "object" && "code" in error
       ? String((error as { code?: unknown }).code)
