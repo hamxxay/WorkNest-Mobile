@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated as RNAnimated,
-  Dimensions,
+  useWindowDimensions,
   Modal,
   Pressable,
   ScrollView,
@@ -31,7 +31,6 @@ import { GalleryImage, getGalleryImages } from "../../../services/galleryService
 import { SmartImage } from "../../../components/SmartImage";
 import Ionicons from "react-native-vector-icons/Ionicons";
 
-const { width: SW, height: SH } = Dimensions.get("window");
 const categories = ["All", "Offices", "Meeting Rooms", "Co-Working", "Lounges"];
 
 const SPRING = { damping: 22, stiffness: 280, mass: 0.8 };
@@ -45,6 +44,7 @@ type LightboxProps = {
 
 function Lightbox({ images, startIndex, onClose }: LightboxProps) {
   const colors = useThemeColors();
+  const { width: SW, height: SH } = useWindowDimensions();
   const [index, setIndex] = useState(startIndex);
   const image = images[index];
 
@@ -210,10 +210,10 @@ function Lightbox({ images, startIndex, onClose }: LightboxProps) {
       {/* Image card */}
       <Animated.View style={[styles.lbCard, cardStyle]}>
         <GestureDetector gesture={composed}>
-          <Animated.View style={styles.lbImageWrap}>
+          <Animated.View style={[styles.lbImageWrap, { width: SW, height: SH }]}>
             <Animated.Image
               source={{ uri: image.src }}
-              style={[styles.lbImage, imageStyle]}
+              style={[styles.lbImage, { width: SW, height: SH * 0.72 }, imageStyle]}
               resizeMode="contain"
             />
           </Animated.View>
@@ -420,16 +420,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   lbImageWrap: {
-    width: SW,
-    height: SH,
     overflow: "hidden",
     justifyContent: "center",
     alignItems: "center",
   },
-  lbImage: {
-    width: SW,
-    height: SH * 0.72,
-  },
+  lbImage: {},
   lbTopBar: {
     position: "absolute",
     top: 0,

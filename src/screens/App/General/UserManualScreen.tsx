@@ -1,11 +1,10 @@
-import { useState } from "react";
-import { Dimensions, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useState, useMemo } from "react";
+import { useWindowDimensions, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { Header } from "../../../components/Header";
 import { Screen } from "../../../components/Screen";
-import { radii, shadows, useThemeColors, useThemedStyles } from "../../../theme";
+import { radii, shadows, useThemeColors } from "../../../theme";
 
-const { width: SW } = Dimensions.get("window");
 
 const STEPS = [
   {
@@ -91,7 +90,8 @@ const TIPS = [
 
 export default function UserManualScreen() {
   const colors = useThemeColors();
-  const styles = useThemedStyles(createStyles);
+  const { width: SW } = useWindowDimensions();
+  const styles = useMemo(() => createStyles(colors, SW), [colors, SW]);
   const [expanded, setExpanded] = useState<number | null>(0);
 
   return (
@@ -193,7 +193,7 @@ export default function UserManualScreen() {
   );
 }
 
-const createStyles = (colors: ReturnType<typeof useThemeColors>) =>
+const createStyles = (colors: ReturnType<typeof useThemeColors>, SW: number) =>
   StyleSheet.create({
     scroll: { paddingBottom: 48 },
 

@@ -23,6 +23,7 @@ import {
   simulateChallanReadyNotification,
 } from "../../../services/mockNotificationService";
 import { isValidEmail } from "../../../utils/validation";
+import { cnicError, formatCnicInput } from "../../../utils/cnic";
 import type { AppStackParamList } from "../../../navigation/types";
 
 type Field = { value: string; error: string };
@@ -53,7 +54,7 @@ export default function CustomerInfoScreen() {
       if (msg) valid = false;
     };
     set(setFullName, fullName.value.trim() ? "" : "Full name is required.");
-    set(setCnic, cnic.value.trim() ? "" : "CNIC is required.");
+    set(setCnic, cnic.value.trim() ? cnicError(cnic.value) ?? "" : "CNIC is required.");
     set(setMobile, mobile.value.trim() ? "" : "Mobile number is required.");
     if (!sameAsWhatsApp) {
       set(setWhatsapp, whatsapp.value.trim() ? "" : "WhatsApp number is required.");
@@ -96,7 +97,7 @@ export default function CustomerInfoScreen() {
             <View style={s.challanReadyCard}>
               <Ionicons name="notifications" size={20} color={colors.primary} />
               <View style={{ flex: 1 }}>
-                <Text style={s.challanReadyTitle}>Your challan is ready 🎉</Text>
+                <Text style={s.challanReadyTitle}>Your challan is ready</Text>
                 <Text style={s.challanReadyBody}>Challan {challanId} has been generated. Proceed to payment.</Text>
               </View>
             </View>
@@ -148,8 +149,8 @@ export default function CustomerInfoScreen() {
               placeholder="e.g. Ali Khan" />
 
             <FormField label="CNIC" required value={cnic.value} error={cnic.error}
-              onChangeText={(v) => setCnic({ value: v, error: "" })}
-              placeholder="e.g. 35202-1234567-1" keyboardType="number-pad" />
+              onChangeText={(v) => setCnic({ value: formatCnicInput(v), error: "" })}
+              placeholder="e.g. 35202-1234567-1" keyboardType="number-pad" maxLength={15} />
 
             <FormField label="Mobile Number" required value={mobile.value} error={mobile.error}
               onChangeText={(v) => setMobile({ value: v, error: "" })}
@@ -191,12 +192,13 @@ export default function CustomerInfoScreen() {
 }
 
 function FormField({
-  label, required, value, error, onChangeText, placeholder, keyboardType, autoCapitalize,
+  label, required, value, error, onChangeText, placeholder, keyboardType, autoCapitalize, maxLength,
 }: {
   label: string; required?: boolean; value: string; error: string;
   onChangeText: (v: string) => void; placeholder?: string;
   keyboardType?: "default" | "number-pad" | "phone-pad" | "email-address";
   autoCapitalize?: "none" | "sentences";
+  maxLength?: number;
 }) {
   const colors = useThemeColors();
   return (
@@ -211,6 +213,7 @@ function FormField({
         placeholderTextColor={colors.mutedForeground}
         keyboardType={keyboardType ?? "default"}
         autoCapitalize={autoCapitalize ?? "words"}
+        maxLength={maxLength}
         style={{
           borderRadius: 12, borderWidth: 1,
           borderColor: error ? colors.danger : colors.border,

@@ -13,6 +13,7 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { Screen } from "../../../components/Screen";
+import { FadeInView, SkeletonBlock, SkeletonGroup } from "../../../components/Skeleton";
 import { DashboardHeader } from "../../../components/DashboardHeader";
 import { radii, shadows, useThemeColors, useThemedStyles } from "../../../theme";
 import {
@@ -194,6 +195,33 @@ function AgreementCard({
   );
 }
 
+// ─── Loading placeholder ──────────────────────────────────────────────────────
+
+/** Same shape as AgreementCard, shown (pulsing) while the list loads. */
+function AgreementCardSkeleton({ colors }: { colors: ReturnType<typeof useThemeColors> }) {
+  return (
+    <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View style={styles.cardHeader}>
+        <SkeletonBlock width={38} height={38} radius={10} />
+        <View style={[styles.cardTitleBlock, { gap: 6 }]}>
+          <SkeletonBlock width="55%" height={14} />
+          <SkeletonBlock width="38%" height={10} />
+        </View>
+        <SkeletonBlock width={64} height={22} radius={8} />
+      </View>
+      <View style={styles.cardMeta}>
+        <SkeletonBlock width="60%" height={10} />
+        <SkeletonBlock width="72%" height={10} />
+        <SkeletonBlock width="35%" height={10} />
+      </View>
+      <View style={[styles.cardAction, { borderTopColor: colors.border }]}>
+        <SkeletonBlock width="42%" height={12} />
+        <SkeletonBlock width={14} height={14} radius={7} />
+      </View>
+    </View>
+  );
+}
+
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 type Nav = NativeStackNavigationProp<AppStackParamList>;
@@ -250,14 +278,15 @@ export default function AgreementListScreen() {
       <DashboardHeader role="Customer" title="My Agreements" />
 
       {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.loadingText, { color: colors.mutedForeground }]}>
-            Loading agreements…
-          </Text>
-        </View>
+        <SkeletonGroup style={styles.list}>
+          {[0, 1, 2].map((i) => (
+            <View key={i} style={i > 0 ? { marginTop: 12 } : undefined}>
+              <AgreementCardSkeleton colors={colors} />
+            </View>
+          ))}
+        </SkeletonGroup>
       ) : error ? (
-        <View style={styles.center}>
+        <FadeInView style={styles.center}>
           <Ionicons name="alert-circle-outline" size={40} color="#ef4444" />
           <Text style={[styles.errorText, { color: "#ef4444" }]}>{error}</Text>
           <Pressable
@@ -266,15 +295,15 @@ export default function AgreementListScreen() {
           >
             <Text style={styles.retryBtnText}>Retry</Text>
           </Pressable>
-        </View>
+        </FadeInView>
       ) : agreements.length === 0 ? (
-        <View style={styles.center}>
+        <FadeInView style={styles.center}>
           <Ionicons name="document-text-outline" size={52} color={colors.mutedForeground} />
           <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No Agreements Yet</Text>
           <Text style={[styles.emptyBody, { color: colors.mutedForeground }]}>
             When a sales agent sends you a lease agreement it will appear here.
           </Text>
-        </View>
+        </FadeInView>
       ) : (
         <FlatList
           data={agreements}
@@ -290,20 +319,22 @@ export default function AgreementListScreen() {
             />
           }
           ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
-          renderItem={({ item }) => (
-            <AgreementCard
-              agreement={item}
-              colors={colors}
-              opening={openingId !== null && openingId === item.id}
-              onPress={() => viewAgreement(item)}
-              onSign={() =>
-                navigation.navigate("ESignAgreement", {
-                  agreementId: item.id!,
-                  quotationNumber: item.quotationNumber || undefined,
-                  customerName: item.customerName || undefined,
-                })
-              }
-            />
+          renderItem={({ item, index }) => (
+            <FadeInView index={index}>
+              <AgreementCard
+                agreement={item}
+                colors={colors}
+                opening={openingId !== null && openingId === item.id}
+                onPress={() => viewAgreement(item)}
+                onSign={() =>
+                  navigation.navigate("ESignAgreement", {
+                    agreementId: item.id!,
+                    quotationNumber: item.quotationNumber || undefined,
+                    customerName: item.customerName || undefined,
+                  })
+                }
+              />
+            </FadeInView>
           )}
         />
       )}
@@ -321,7 +352,6 @@ const styles = StyleSheet.create({
     padding: 32,
     gap: 12,
   },
-  loadingText: { fontSize: 14, marginTop: 8 },
   errorText: { fontSize: 14, textAlign: "center" },
   retryBtn: {
     paddingHorizontal: 24,

@@ -19,11 +19,13 @@ import { useThemeColors, useThemedStyles } from '../../../theme';
 import { useAuth } from '../../../context/AuthContext';
 import {
   allowedSpaces,
+  confirmDoorAccess,
   saveDoorAccess,
   verifyDoorAccess,
   type DoorAccessDetails,
   type DoorAccessResult,
 } from '../../../services/doorAccessService';
+import { cnicError, formatCnicInput } from '../../../utils/cnic';
 
 type FormState = { name: string; email: string; cnic: string; phone: string };
 
@@ -64,11 +66,17 @@ export default function AccessRequestScreen({
   };
 
   const finish = async (details: DoorAccessDetails, result: DoorAccessResult, bookingDetailId: number) => {
+    // Record it on the server first (the web shows "App verified"); refuses if this login isn't the person's account.
+    try {
+      await confirmDoorAccess(details, bookingDetailId);
+    } catch (err) {
+      Alert.alert('Could not verify access', err instanceof Error ? err.message : 'Please try again.');
+      return;
+    }
     if (user?.email) await saveDoorAccess(user.email, details, result, bookingDetailId);
     const room = allowedSpaces(result).find(sp => sp.bookingDetailId === bookingDetailId)?.spaceName;
-    Alert.alert('Access verified', `${room ? `Room: ${room}. ` : ''}You can now unlock your doors from the app.`, [
-      { text: 'Later', style: 'cancel', onPress: () => navigation.goBack() },
-      { text: 'Unlock Door', onPress: () => navigation.replace('UnlockDoor') },
+    Alert.alert('Access verified', `${room ? `Room: ${room}. ` : ''}Use Unlock Door on the home screen to open your room door.`, [
+      { text: 'OK', onPress: () => navigation.goBack() },
     ]);
   };
 
@@ -83,6 +91,11 @@ export default function AccessRequestScreen({
     }
     if (!canSubmit || submitting) {
       Alert.alert('More information needed', 'Fill in at least two of Name, Email, CNIC and Phone, including your CNIC or Email.');
+      return;
+    }
+    const cnicMessage = cnicError(form.cnic);
+    if (cnicMessage) {
+      Alert.alert('Invalid CNIC', cnicMessage);
       return;
     }
     const details = {
@@ -151,10 +164,12 @@ export default function AccessRequestScreen({
               keyboardType="email-address"
             />
             <Field
-              label="CNIC / Passport"
-              placeholder="Enter CNIC or passport number"
+              label="CNIC"
+              placeholder="e.g. 35202-1234567-1"
               value={form.cnic}
-              onChangeText={value => updateField('cnic', value)}
+              onChangeText={value => updateField('cnic', formatCnicInput(value))}
+              keyboardType="number-pad"
+              maxLength={15}
             />
             <Field
               label="Phone"
@@ -215,12 +230,14 @@ function Field({
   placeholder,
   onChangeText,
   keyboardType = 'default',
+  maxLength,
 }: {
   label: string;
   value: string;
   placeholder: string;
   onChangeText: (value: string) => void;
-  keyboardType?: 'default' | 'email-address' | 'phone-pad' | 'numeric';
+  keyboardType?: 'default' | 'email-address' | 'phone-pad' | 'numeric' | 'number-pad';
+  maxLength?: number;
 }) {
   const colors = useThemeColors();
   const styles = useThemedStyles(createStyles);
@@ -236,6 +253,7 @@ function Field({
         placeholder={placeholder}
         placeholderTextColor={colors.mutedForeground}
         keyboardType={keyboardType}
+        maxLength={maxLength}
         style={[styles.input, { borderColor: colors.border, color: colors.foreground, backgroundColor: colors.card }]}
       />
     </View>

@@ -9,6 +9,7 @@ import AdminUsersScreen from "./AdminUsersScreen";
 import AdminManageScreen, { type AdminEntity } from "./AdminManageScreen";
 import { radii, useThemeColors, useThemedStyles } from "../../../theme";
 import type { RootStackParamList } from "../../../navigation/types";
+import { MAX_CONTENT_WIDTH } from "../../../utils/responsive";
 import { logoutUser } from "../../../services/authService";
 import { useAuth } from "../../../context/AuthContext";
 
@@ -125,6 +126,9 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
     backgroundColor: colors.muted,
   },
   topBar: {
+    width: "100%",
+    maxWidth: MAX_CONTENT_WIDTH,
+    alignSelf: "center",
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
@@ -176,6 +180,10 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
   },
   body: {
     flex: 1,
+    // Tablets / unfolded phones: a centred column like the other screens.
+    width: "100%",
+    maxWidth: MAX_CONTENT_WIDTH,
+    alignSelf: "center",
     paddingHorizontal: 12,
     paddingTop: 12,
     paddingBottom: 8,

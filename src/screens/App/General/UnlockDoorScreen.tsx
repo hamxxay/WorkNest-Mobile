@@ -17,8 +17,8 @@ import {
 type Status = { kind: 'ok' | 'error'; text: string } | null;
 
 /**
- * Unlock Door: the doors of the verified access user's room (room door first, then the entrances of that location).
- * Tapping a door asks the API to open it on the machine; the result shows under the door.
+ * Unlock Door: opens the verified access user's room door only (entrances use card, fingerprint or face).
+ * Tapping Unlock asks the API to open it on the machine; the result shows under the door.
  */
 export default function UnlockDoorScreen({ navigation }: { navigation: any }) {
   const colors = useThemeColors();
@@ -127,8 +127,7 @@ export default function UnlockDoorScreen({ navigation }: { navigation: any }) {
                   <View style={styles.flex}>
                     <Text style={styles.doorName}>{door.name}</Text>
                     <Text style={styles.muted}>
-                      {door.kind === 'room' ? 'Your room' : 'Entrance'}
-                      {door.online ? '' : ' · may be offline'}
+                      Your room door{door.online ? '' : ' · may be offline'}
                     </Text>
                   </View>
                   <Pressable
@@ -143,7 +142,6 @@ export default function UnlockDoorScreen({ navigation }: { navigation: any }) {
                 </View>
                 {s ? (
                   <Text style={[styles.status, { color: s.kind === 'ok' ? colors.success : colors.danger }]}>
-                    {s.kind === 'ok' ? '✓ ' : ''}
                     {s.text}
                   </Text>
                 ) : null}
@@ -152,7 +150,7 @@ export default function UnlockDoorScreen({ navigation }: { navigation: any }) {
           })
         )}
 
-        <Text style={styles.note}>Every unlock is recorded with your name. If a door doesn't open, use your card, fingerprint or face, or ask reception.</Text>
+        <Text style={styles.note}>The app unlocks your room door only. Use your card, fingerprint or face at the building entrances. Every unlock is recorded with your name.</Text>
       </ScrollView>
     </Screen>
   );
@@ -189,8 +187,8 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) =>
     errorText: { fontSize: 14, color: colors.foreground, lineHeight: 20 },
     row: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
     primaryBtn: {
-      minHeight: 44,
-      minWidth: 96,
+      minHeight: 48,
+      minWidth: 110,
       paddingHorizontal: 16,
       borderRadius: 12,
       backgroundColor: colors.primary,

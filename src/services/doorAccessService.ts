@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { DeviceEventEmitter } from "react-native";
 import { buildApiPath } from "../config/api";
 import { apiRequest } from "./apiClient";
 
@@ -32,6 +33,8 @@ type StoredDoorAccess = {
   checkedAt: number;
   /** When the user filled in Access Request; the verification lasts VERIFY_VALID_DAYS from then. */
   verifiedAt?: number;
+  /** Saved on the server (the web shows "App verified"); older installs verified before this existed. */
+  serverConfirmed?: boolean;
 };
 
 export type DoorAccess = DoorAccessResult & {
@@ -82,8 +85,9 @@ export async function saveDoorAccess(
   result: DoorAccessResult,
   selectedBookingDetailId: number | null,
   verifiedAt: number = Date.now(),
+  serverConfirmed: boolean = true,
 ) {
-  const value: StoredDoorAccess = { details, result, selectedBookingDetailId, checkedAt: Date.now(), verifiedAt };
+  const value: StoredDoorAccess = { details, result, selectedBookingDetailId, checkedAt: Date.now(), verifiedAt, serverConfirmed };
   try {
     await AsyncStorage.setItem(storageKey(accountEmail), JSON.stringify(value));
   } catch {}
@@ -99,7 +103,13 @@ export async function clearDoorAccess(accountEmail: string) {
  * Stored access for this account, re-verified when stale so removed or blocked users lose Open Door.
  * Keeps the last known result if the API can't be reached.
  */
-export async function getDoorAccess(accountEmail: string): Promise<DoorAccess | null> {
+/** Tell every useDoorAccess on screen to re-check with the server now (e.g. after an unlock was refused). */
+export const DOOR_ACCESS_CHANGED = "doorAccessChanged";
+export function notifyDoorAccessChanged() {
+  DeviceEventEmitter.emit(DOOR_ACCESS_CHANGED);
+}
+
+export async function getDoorAccess(accountEmail: string, forceRecheck = false): Promise<DoorAccess | null> {
   let stored: StoredDoorAccess | null = null;
   try {
     const raw = await AsyncStorage.getItem(storageKey(accountEmail));
@@ -115,7 +125,17 @@ export async function getDoorAccess(accountEmail: string): Promise<DoorAccess | 
     return null;
   }
   const selected = stored.selectedBookingDetailId ?? null;
-  if (Date.now() - stored.checkedAt < RECHECK_MS) return withSelection(stored.result, selected, stored.details);
+  // Verified before the server kept a record: save it once now so the web shows "App verified".
+  if (!stored.serverConfirmed && selected != null) {
+    try {
+      await confirmDoorAccess(stored.details, selected);
+      stored = { ...stored, serverConfirmed: true };
+      await AsyncStorage.setItem(storageKey(accountEmail), JSON.stringify(stored));
+    } catch {
+      // Not saved (offline, or this login isn't the person's account): try again next time.
+    }
+  }
+  if (!forceRecheck && Date.now() - stored.checkedAt < RECHECK_MS) return withSelection(stored.result, selected, stored.details);
 
   try {
     const result = await verifyDoorAccess(stored.details);
@@ -124,7 +144,7 @@ export async function getDoorAccess(accountEmail: string): Promise<DoorAccess | 
       return null;
     }
     // If the chosen room was removed, withSelection falls back to another allowed room.
-    await saveDoorAccess(accountEmail, stored.details, result, selected, verifiedAt); // a re-check doesn't extend the 30 days
+    await saveDoorAccess(accountEmail, stored.details, result, selected, verifiedAt, stored.serverConfirmed ?? false); // a re-check doesn't extend the 30 days
     return withSelection(result, selected, stored.details);
   } catch {
     return withSelection(stored.result, selected, stored.details);
@@ -139,7 +159,7 @@ function unwrap<T>(response: any): T {
   return response as T;
 }
 
-/** Doors this verified access user may unlock for the selected room (room door first, then entrances). */
+/** The room door this verified access user may unlock from the app (entrances use card / fingerprint / face). */
 export async function getDoors(access: DoorAccess): Promise<DoorsResult> {
   if (!access.selectedSpace) throw new Error("Verify your access first.");
   const response = await apiRequest<any>(buildApiPath("mobile/access/doors"), {
@@ -147,7 +167,9 @@ export async function getDoors(access: DoorAccess): Promise<DoorsResult> {
     requiresAuth: true,
     body: { ...access.details, bookingDetailId: access.selectedSpace.bookingDetailId },
   });
-  return unwrap<DoorsResult>(response);
+  const result = unwrap<DoorsResult | null>(response);
+  if (!result) throw new Error("Could not load your door. Please try again.");
+  return result;
 }
 
 /** Unlocks one door now; resolves with the API's message ("Main Entrance 1 is unlocked."). */
@@ -158,6 +180,24 @@ export async function unlockDoor(access: DoorAccess, deviceId: number): Promise<
     requiresAuth: true,
     body: { ...access.details, bookingDetailId: access.selectedSpace.bookingDetailId, deviceId },
   });
-  const result = unwrap<{ ok: boolean; message: string }>(response);
+  const result = unwrap<{ ok: boolean; message: string } | null>(response);
   return result?.message || "Door unlocked.";
+}
+
+/** Access Request completed: the server records it (the web shows "App verified") for the next 30 days. */
+export async function confirmDoorAccess(details: DoorAccessDetails, bookingDetailId: number): Promise<void> {
+  const response = await apiRequest<any>(buildApiPath("mobile/access/confirm"), {
+    method: "POST",
+    requiresAuth: true,
+    body: { ...details, bookingDetailId },
+  });
+  unwrap(response);
+}
+
+/** Home "Unlock Door": opens the room door straight away and resolves with the message to show. */
+export async function unlockMyRoomDoor(access: DoorAccess): Promise<string> {
+  const doors = await getDoors(access);
+  const door = doors?.doors?.[0];
+  if (!door) throw new Error(doors?.message || "No door machine is set up for your room yet.");
+  return unlockDoor(access, door.deviceId);
 }

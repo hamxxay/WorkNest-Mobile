@@ -18,6 +18,7 @@ import {
   createCustomer,
   normalizeCustomerPayload,
 } from '../../../services/customerService';
+import { cnicError, formatCnicInput } from '../../../utils/cnic';
 
 const EMPTY_FORM = {
   firstName: '',
@@ -66,6 +67,11 @@ export default function CustomerCreateScreen({
         'Missing fields',
         'Please complete the required customer information.',
       );
+      return;
+    }
+    const cnicMessage = cnicError(form.cnicOrPassport);
+    if (cnicMessage) {
+      Alert.alert('Invalid CNIC', cnicMessage);
       return;
     }
 
@@ -148,9 +154,11 @@ export default function CustomerCreateScreen({
               keyboardType="phone-pad"
             />
             <Field
-              label="CNIC / Passport"
+              label="CNIC"
               value={form.cnicOrPassport}
-              onChangeText={value => updateField('cnicOrPassport', value)}
+              onChangeText={value => updateField('cnicOrPassport', formatCnicInput(value))}
+              keyboardType="number-pad"
+              maxLength={15}
             />
             <Field
               label="Address*"
@@ -212,13 +220,15 @@ function Field({
   keyboardType,
   autoCapitalize,
   multiline,
+  maxLength,
 }: {
   label: string;
   value: string;
   onChangeText: (value: string) => void;
-  keyboardType?: 'default' | 'email-address' | 'phone-pad' | 'numeric';
+  keyboardType?: 'default' | 'email-address' | 'phone-pad' | 'numeric' | 'number-pad';
   autoCapitalize?: 'none' | 'sentences' | 'words';
   multiline?: boolean;
+  maxLength?: number;
 }) {
   const colors = useThemeColors();
   const fieldStyles = useThemedStyles(createStyles);
@@ -241,6 +251,7 @@ function Field({
         keyboardType={keyboardType ?? 'default'}
         autoCapitalize={autoCapitalize ?? 'sentences'}
         multiline={multiline}
+        maxLength={maxLength}
         numberOfLines={multiline ? 4 : 1}
         style={[
           fieldStyles.input,
