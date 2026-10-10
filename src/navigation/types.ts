@@ -70,6 +70,7 @@ export type AppStackParamList = {
   };
   Profile: undefined;
   AccessRequest: undefined;
+  UnlockDoor: undefined;
   Attendees: undefined;
   MyBookings: undefined;
   BookingDetail: { bookingId: number | string };
@@ -85,9 +86,12 @@ export type AppStackParamList = {
   CustomerInfo: { quotationId: string };
   CustomerCreate: undefined;
   CustomerList: undefined;
+  KycDocuments: { customerId: number | string; customerName?: string };
   ModifyOrder: { quotationId: string };
   QuotationPayment: { quotationId: string };
   ShareQuotation: { quotationId: string };
+  AgreementList: undefined;
+  ESignAgreement: { agreementId: number | string; quotationNumber?: string; customerName?: string };
   InvoiceList: undefined;
   InvoiceDetail: { invoiceId: number | string };
   Login: { redirectAfterLogin?: { screen: keyof AppStackParamList; params?: any } } | undefined;

@@ -29,7 +29,7 @@ function resolveApiBaseUrl(): string {
 }
 
 export const API_BASE_URL = resolveApiBaseUrl();
-console.log("[API CONFIG] Resolved API_BASE_URL:", API_BASE_URL);
+if (__DEV__) console.log("[API CONFIG] Resolved API_BASE_URL:", API_BASE_URL);
 
 export function buildApiPath(path: string): string {
   const trimmed = path.trim();
@@ -65,6 +65,15 @@ export const API_ENDPOINTS = {
   contact: {
     create: "/contact",
     bookTour: "/book-tour",
+    // Staff (admin / sales executive): tour inquiries with their latest feedback
+    list: (page: number, limit: number, search?: string) => {
+      const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("limit", String(limit));
+      if (search) params.set("search", search);
+      return `/contact?${params.toString()}`;
+    },
+    feedback: (id: number | string) => `/contact/${encodeURIComponent(String(id))}/feedback`,
   },
   payments: {
     my: "/payment/my",
@@ -175,6 +184,20 @@ export const API_ENDPOINTS = {
     list: "/customer",
     search: "/customer/search",
   },
+  kyc: {
+    /** GET /api/kyc — staff: customers with KYC counts (admin, super admin, sales executive) */
+    list: (page = 1, limit = 20, search?: string) => {
+      const p = new URLSearchParams();
+      p.set("page", String(page));
+      p.set("limit", String(limit));
+      if (search) p.set("search", search);
+      return `/kyc?${p.toString()}`;
+    },
+    /** GET /api/kyc/{customerId or guid} — checklist, document types, uploaded documents */
+    customer: (customerIdOrGuid: number | string) => `/kyc/${encodeURIComponent(String(customerIdOrGuid))}`,
+    /** POST /api/kyc/upload  multipart/form-data: CustomerId, DocumentTypeId, SlotNo, HolderName?, ExpiryDate?, File */
+    upload: "/kyc/upload",
+  },
   agreement: {
     /** GET /api/Agreement — admin paginated list */
     list: (page = 1, limit = 10, search?: string, status?: string) => {
@@ -193,6 +216,8 @@ export const API_ENDPOINTS = {
     mySignedPdf: (id: number | string) => `/Agreement/my/${id}/signed-pdf`,
     /** POST /api/Agreement/my/{id}/upload-signed  multipart/form-data */
     myUploadSigned: (id: number | string) => `/Agreement/my/${id}/upload-signed`,
+    /** POST /api/Agreement/my/{id}/esign — customer signs electronically */
+    myESign: (id: number | string) => `/Agreement/my/${id}/esign`,
     /** GET /api/Agreement/{id}/pdf — admin download */
     pdf: (id: number | string) => `/Agreement/${id}/pdf`,
     /** POST /api/Agreement/{id}/mark-signed — admin mark as signed */

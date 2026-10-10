@@ -23,6 +23,16 @@ import {
   getCustomers,
   type CustomerRecord,
 } from '../../../services/customerService';
+import { saveInquiryFeedback } from '../../../services/contactService';
+
+/** Set when Create Quotation is opened from a tour inquiry ("Conversion into quotation"). */
+export type QuotationFromInquiry = {
+  id: number | null;
+  publicId?: string | null;
+  name?: string;
+  email?: string;
+  phone?: string;
+};
 
 const EMPTY_FORM = {
   customerId: '',
@@ -46,14 +56,20 @@ const EMPTY_FORM = {
 
 export default function SaleQuotationCreateScreen({
   navigation,
+  route,
 }: {
   navigation: any;
+  route?: any;
 }) {
   const colors = useThemeColors();
   const styles = useThemedStyles(createStyles);
+  const fromInquiry: QuotationFromInquiry | undefined = route?.params?.fromInquiry;
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
-  const [customerQuery, setCustomerQuery] = useState('');
+  // From an inquiry: search the customer by its email (or name / phone) straight away.
+  const [customerQuery, setCustomerQuery] = useState(
+    fromInquiry?.email || fromInquiry?.name || fromInquiry?.phone || '',
+  );
   const [customerOptions, setCustomerOptions] = useState<CustomerRecord[]>([]);
   const [customerSearchLoading, setCustomerSearchLoading] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerRecord | null>(null);
@@ -118,6 +134,7 @@ export default function SaleQuotationCreateScreen({
       return;
     }
 
+    if (saving) return;
     try {
       setSaving(true);
       const payload = normalizeQuotationPayload({
@@ -130,10 +147,28 @@ export default function SaleQuotationCreateScreen({
         floorId: form.floorId || '0',
         remarks: form.remarks || '',
       });
-      await createQuotation(payload);
+      const created = await createQuotation(payload);
+      let note = '';
+      if (fromInquiry && (fromInquiry.id || fromInquiry.publicId)) {
+        // Record the inquiry as converted and link this quotation (as the website does).
+        const quotationId = Number(created?.id) || null;
+        try {
+          await saveInquiryFeedback(
+            { id: fromInquiry.id ?? null, publicId: fromInquiry.publicId ?? null },
+            { outcome: 'converted', quotationId },
+          );
+          note = quotationId
+            ? ` The tour inquiry is marked as converted (quotation #${quotationId}).`
+            : ' The tour inquiry is marked as converted.';
+        } catch (feedbackError) {
+          const reason =
+            feedbackError instanceof Error ? ` ${feedbackError.message}` : '';
+          note = ` But the tour inquiry could not be marked as converted.${reason}`;
+        }
+      }
       Alert.alert(
         'Quotation created',
-        'The quotation was saved successfully.',
+        `The quotation was saved successfully.${note}`,
         [{ text: 'OK', onPress: () => navigation.goBack() }],
       );
     } catch (error) {
@@ -170,6 +205,17 @@ export default function SaleQuotationCreateScreen({
               <Text style={styles.title}>Create Quotation</Text>
             </View>
           </View>
+
+          {fromInquiry ? (
+            <View style={styles.inquiryBanner}>
+              <Ionicons name="walk-outline" size={18} color={colors.primary} />
+              <Text style={styles.inquiryBannerText}>
+                From tour inquiry: {fromInquiry.name || fromInquiry.email || 'customer'}
+                {fromInquiry.phone ? ` · ${fromInquiry.phone}` : ''}. Select or create the
+                customer below; the inquiry is marked converted when this quotation is saved.
+              </Text>
+            </View>
+          ) : null}
 
           <View style={styles.formCard}>
             <Text style={styles.sectionLabel}>Customer</Text>
@@ -488,6 +534,22 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) =>
       fontWeight: '900',
       color: colors.foreground,
       letterSpacing: -0.5,
+    },
+    inquiryBanner: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 10,
+      backgroundColor: colors.accentMuted,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 12,
+    },
+    inquiryBannerText: {
+      flex: 1,
+      color: colors.foreground,
+      fontSize: 13,
+      lineHeight: 19,
     },
     formCard: {
       backgroundColor: colors.card,

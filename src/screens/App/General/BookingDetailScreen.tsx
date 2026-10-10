@@ -89,7 +89,6 @@ export default function BookingDetailScreen() {
   const [booking, setBooking] = useState<BookingDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-console.log(route, "bookingId");
 
   useEffect(() => {
     if (!bookingId) {

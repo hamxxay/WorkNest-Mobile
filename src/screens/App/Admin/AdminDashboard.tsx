@@ -56,11 +56,13 @@ const STAT_CARDS: StatCard[] = [
   { label: "Gallery",       key: "gallery",      icon: "images-outline"        },
 ];
 
+// Every action opens a screen registered in AdminStack (unregistered routes did nothing when tapped).
 const QUICK_ACTIONS = [
-  { label: "Manage Users",   icon: "person-circle-outline", screen: "UserList"    },
-  { label: "Manage Spaces",  icon: "grid-outline",          screen: "SpaceList"   },
-  { label: "View Bookings",  icon: "list-outline",          screen: "BookingList" },
-  { label: "Payments",       icon: "card-outline",          screen: "PaymentList" },
+  { label: "Tour Inquiries", icon: "walk-outline",          screen: "TourInquiries" },
+  { label: "Customers",      icon: "people-outline",        screen: "CustomerList"  },
+  { label: "Quotations",     icon: "document-text-outline", screen: "QuotationList" },
+  { label: "Bookings",       icon: "list-outline",          screen: "BookingList"   },
+  { label: "New Booking",    icon: "add-circle-outline",    screen: "BookingCreate" },
 ];
 
 export default function AdminDashboard({ navigation }: { navigation: any }) {

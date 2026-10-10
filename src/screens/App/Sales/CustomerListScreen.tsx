@@ -1,16 +1,19 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
+import { useFocusEffect } from "@react-navigation/native";
 import { Screen } from "../../../components/Screen";
 import { Header } from "../../../components/Header";
 import { useThemeColors, useThemedStyles } from "../../../theme";
 import { getCustomers, type CustomerRecord } from "../../../services/customerService";
+import { getKycCustomers, type KycCustomerListItem } from "../../../services/kycService";
 
 export default function CustomerListScreen({ navigation }: { navigation: any }) {
   const colors = useThemeColors();
   const styles = useThemedStyles(createStyles);
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [kycById, setKycById] = useState<Record<string, KycCustomerListItem>>({});
 
   const loadCustomers = useCallback(async () => {
     try {
@@ -25,9 +28,29 @@ export default function CustomerListScreen({ navigation }: { navigation: any }) 
     }
   }, []);
 
+  // KYC counts for the badges; the list still works if this call fails.
+  const loadKyc = useCallback(async () => {
+    try {
+      const items = await getKycCustomers();
+      const map: Record<string, KycCustomerListItem> = {};
+      items.forEach((item) => {
+        map[String(item.id)] = item;
+      });
+      setKycById(map);
+    } catch {
+      setKycById({});
+    }
+  }, []);
+
   useEffect(() => {
     loadCustomers();
   }, [loadCustomers]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadKyc();
+    }, [loadKyc]),
+  );
 
   return (
     <Screen>
@@ -64,22 +87,52 @@ export default function CustomerListScreen({ navigation }: { navigation: any }) 
               </TouchableOpacity>
             </View>
           ) : (
-            customers.map((customer, index) => (
-              <View key={customer.id ?? `${customer.email ?? "customer"}-${index}`} style={styles.customerCard}>
-                <View style={styles.cardHeader}>
-                  <Text style={styles.nameText}>
-                    {customer.firstName ?? "Customer"} {customer.lastName ?? ""}
-                  </Text>
-                  <View style={[styles.statusDot, { backgroundColor: customer.isActive === false ? colors.mutedForeground : colors.primary }]} />
-                </View>
+            customers.map((customer, index) => {
+              const customerId = customer.id ?? customer.customerId;
+              const fullName = `${customer.firstName ?? "Customer"} ${customer.lastName ?? ""}`.trim();
+              const kyc = customerId != null ? kycById[String(customerId)] : undefined;
+              const kycNeedsAction = !!kyc && (kyc.rejectedDocsCount > 0 || kyc.completenessPercentage < 100);
+              return (
+                <View key={customer.id ?? `${customer.email ?? "customer"}-${index}`} style={styles.customerCard}>
+                  <View style={styles.cardHeader}>
+                    <Text style={styles.nameText}>
+                      {customer.firstName ?? "Customer"} {customer.lastName ?? ""}
+                    </Text>
+                    <View style={[styles.statusDot, { backgroundColor: customer.isActive === false ? colors.mutedForeground : colors.primary }]} />
+                  </View>
 
-                {customer.company ? <Text style={styles.metaText}>{customer.company}</Text> : null}
-                {customer.email ? <Text style={styles.metaText}>Email: {customer.email}</Text> : null}
-                {customer.phoneNumber ? <Text style={styles.metaText}>Phone: {customer.phoneNumber}</Text> : null}
-                {customer.cnicOrPassport ? <Text style={styles.metaText}>CNIC / Passport: {customer.cnicOrPassport}</Text> : null}
-                {customer.address ? <Text style={styles.metaText}>Address: {customer.address}</Text> : null}
-              </View>
-            ))
+                  {customer.company ? <Text style={styles.metaText}>{customer.company}</Text> : null}
+                  {customer.email ? <Text style={styles.metaText}>Email: {customer.email}</Text> : null}
+                  {customer.phoneNumber ? <Text style={styles.metaText}>Phone: {customer.phoneNumber}</Text> : null}
+                  {customer.cnicOrPassport ? <Text style={styles.metaText}>CNIC / Passport: {customer.cnicOrPassport}</Text> : null}
+                  {customer.address ? <Text style={styles.metaText}>Address: {customer.address}</Text> : null}
+
+                  {customerId != null ? (
+                    <TouchableOpacity
+                      style={styles.kycBtn}
+                      accessibilityRole="button"
+                      accessibilityLabel={`KYC documents for ${fullName}`}
+                      onPress={() => navigation.navigate("KycDocuments", { customerId, customerName: fullName })}
+                    >
+                      <Ionicons name="id-card-outline" size={16} color={colors.primary} />
+                      <Text style={styles.kycBtnText}>KYC documents</Text>
+                      {kyc ? (
+                        <View style={[styles.kycBadge, { backgroundColor: kycNeedsAction ? colors.dangerMuted : colors.successMuted }]}>
+                          <Text style={[styles.kycBadgeText, { color: kycNeedsAction ? colors.danger : colors.success }]}>
+                            {kyc.rejectedDocsCount > 0
+                              ? `${kyc.rejectedDocsCount} rejected`
+                              : kyc.completenessPercentage < 100
+                                ? "Missing"
+                                : "Complete"}
+                          </Text>
+                        </View>
+                      ) : null}
+                      <Ionicons name="chevron-forward" size={14} color={colors.mutedForeground} style={styles.kycChevron} />
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              );
+            })
           )}
         </ScrollView>
       )}
@@ -164,6 +217,19 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) =>
       color: colors.mutedForeground,
       fontSize: 12,
     },
+    kycBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      marginTop: 6,
+      paddingTop: 10,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+    },
+    kycBtnText: { color: colors.primary, fontWeight: "700", fontSize: 13 },
+    kycBadge: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
+    kycBadgeText: { fontSize: 11, fontWeight: "800" },
+    kycChevron: { marginLeft: "auto" },
     emptyCard: {
       backgroundColor: colors.card,
       borderRadius: 16,

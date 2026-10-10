@@ -68,5 +68,9 @@
 			</array>
 		</dict>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>WorkNest uses the camera to photograph your CNIC and documents for KYC.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>WorkNest lets you choose photos of your CNIC and documents for KYC.</string>
 </dict>
 </plist>

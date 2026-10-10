@@ -13,7 +13,7 @@ import {
   type DrawerContentComponentProps,
 } from "@react-navigation/drawer";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { Animated, InteractionManager, Pressable } from "react-native";
+import { Animated, InteractionManager, Pressable, useWindowDimensions } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { StyleSheet, View, Text, Image, StatusBar } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -32,6 +32,7 @@ import LoginScreen from "../screens/Auth/LoginScreen";
 import OnboardingScreen from "../screens/Auth/OnboardingScreen";
 import ProfileScreen from "../screens/App/General/ProfileScreen";
 import AccessRequestScreen from "../screens/App/General/AccessRequestScreen";
+import UnlockDoorScreen from "../screens/App/General/UnlockDoorScreen";
 import AttendeesScreen from "../screens/App/General/AttendeesScreen";
 import MyBookingsScreen from "../screens/App/General/MyBookingsScreen";
 import BookingDetailScreen from "../screens/App/General/BookingDetailScreen";
@@ -46,9 +47,12 @@ import QuotationListScreen from "../screens/App/General/QuotationListScreen";
 import CustomerInfoScreen from "../screens/App/General/CustomerInfoScreen";
 import CustomerCreateScreen from "../screens/App/Sales/CustomerCreateScreen";
 import CustomerListScreen from "../screens/App/Sales/CustomerListScreen";
+import KycDocumentsScreen from "../screens/App/Sales/KycDocumentsScreen";
 import ModifyOrderScreen from "../screens/App/General/ModifyOrderScreen";
 import QuotationPaymentScreen from "../screens/App/General/QuotationPaymentScreen";
 import ShareQuotationScreen from "../screens/App/General/ShareQuotationScreen";
+import AgreementListScreen from "../screens/App/General/AgreementListScreen";
+import ESignAgreementScreen from "../screens/App/General/ESignAgreementScreen";
 
 import { logoutUser } from "../services/authService";
 import { setupPushNotifications, registerFCMToken } from "../services/notificationService";
@@ -58,7 +62,8 @@ import { useAuth } from "../context/AuthContext";
 import { useThemeColors, useThemedStyles } from "../theme";
 import { ConfirmModal } from "../components/ConfirmModal";
 import { linking } from "./linking";
-import packageLock from "../../package-lock.json";
+// Only the version: importing package-lock.json put ~700 KB into the app bundle.
+import { version as appPackageVersion } from "../../package.json";
 
 import type {
   AppStackParamList,
@@ -276,7 +281,7 @@ function AppDrawerContent(props: DrawerContentComponentProps) {
   const colors  = useThemeColors();
   const styles  = useThemedStyles(makeDrawerStyles);
   const [showLogout, setShowLogout] = useState(false);
-  const appVersion = (packageLock as any)?.version ?? "";
+  const appVersion = appPackageVersion ?? "";
 
   const goTo = (screen: string | null, isProtected?: boolean, params?: Record<string, any>) => {
     if (isProtected && !user) {
@@ -451,6 +456,7 @@ function InnerStackNavigator() {
       <InnerStack.Screen name="MainTabs"       component={MainTabs} />
       <InnerStack.Screen name="Profile"        component={ProfileScreen} />
       <InnerStack.Screen name="AccessRequest"  component={AccessRequestScreen} />
+      <InnerStack.Screen name="UnlockDoor"     component={UnlockDoorScreen} />
       <InnerStack.Screen name="Attendees"      component={AttendeesScreen} />
       <InnerStack.Screen name="MyBookings"     component={MyBookingsScreen} />
       <InnerStack.Screen name="BookingDetail"  component={BookingDetailScreen} />
@@ -473,9 +479,12 @@ function InnerStackNavigator() {
       <InnerStack.Screen name="CustomerInfo"    component={CustomerInfoScreen} />
       <InnerStack.Screen name="CustomerCreate"  component={CustomerCreateScreen} />
       <InnerStack.Screen name="CustomerList"    component={CustomerListScreen} />
+      <InnerStack.Screen name="KycDocuments"    component={KycDocumentsScreen} />
       <InnerStack.Screen name="ModifyOrder"     component={ModifyOrderScreen} />
       <InnerStack.Screen name="QuotationPayment" component={QuotationPaymentScreen} />
       <InnerStack.Screen name="ShareQuotation"   component={ShareQuotationScreen} />
+      <InnerStack.Screen name="AgreementList"    component={AgreementListScreen} />
+      <InnerStack.Screen name="ESignAgreement"   component={ESignAgreementScreen} />
     </InnerStack.Navigator>
   );
 }
@@ -483,6 +492,7 @@ function InnerStackNavigator() {
 // ─── Drawer navigator ──────────────────────────────────────────────────────────
 function AppDrawerNavigator() {
   const colors = useThemeColors();
+  const { width: windowWidth } = useWindowDimensions(); // drawer width follows the screen
   return (
     <Drawer.Navigator
       drawerContent={(p) => <AppDrawerContent {...p} />}
@@ -492,7 +502,7 @@ function AppDrawerNavigator() {
         drawerType: "front",
         swipeEnabled: false,
         overlayColor: "rgba(0,0,0,0.45)",
-        drawerStyle: { backgroundColor: colors.card, width: 290 },
+        drawerStyle: { backgroundColor: colors.card, width: Math.min(290, Math.round(windowWidth * 0.82)) },
       }}
     >
       <Drawer.Screen name="Workspace" component={InnerStackNavigator} />

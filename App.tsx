@@ -8,7 +8,6 @@ import { AuthProvider } from "./src/context/AuthContext";
 import { colors } from "./src/theme";
 
 function App() {
-  console.log("App.tsx: App()");
   return (
     <GestureHandlerRootView style={styles.root}>
       <Provider store={store}>

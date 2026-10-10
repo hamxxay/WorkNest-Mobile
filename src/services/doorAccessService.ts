@@ -1,4 +1,3 @@
-import { Alert } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { buildApiPath } from "../config/api";
 import { apiRequest } from "./apiClient";
@@ -31,21 +30,40 @@ type StoredDoorAccess = {
   /** Room the user picked (BookingDetailId); the door Open Door will unlock. */
   selectedBookingDetailId: number | null;
   checkedAt: number;
+  /** When the user filled in Access Request; the verification lasts VERIFY_VALID_DAYS from then. */
+  verifiedAt?: number;
 };
 
-export type DoorAccess = DoorAccessResult & { selectedSpace: DoorAccessSpace | null };
+export type DoorAccess = DoorAccessResult & {
+  selectedSpace: DoorAccessSpace | null;
+  /** The verified details, sent again when listing / unlocking doors (the API re-checks them). */
+  details: DoorAccessDetails;
+};
+
+export type DoorInfo = {
+  deviceId: number;
+  name: string;
+  /** "room" = the booked office's door, "entrance" = building / floor entrance. */
+  kind: "room" | "entrance";
+  online: boolean;
+};
+
+export type DoorsResult = { ok: boolean; message: string; spaceName?: string | null; doors: DoorInfo[] };
 
 /** Rooms the user may open: matched bookings with access allowed. */
 export const allowedSpaces = (result: DoorAccessResult) => result.spaces.filter(sp => sp.isEnabled);
 
-function withSelection(result: DoorAccessResult, selectedBookingDetailId: number | null): DoorAccess {
+function withSelection(result: DoorAccessResult, selectedBookingDetailId: number | null, details: DoorAccessDetails): DoorAccess {
   const allowed = allowedSpaces(result);
   const selectedSpace = allowed.find(sp => sp.bookingDetailId === selectedBookingDetailId) ?? allowed[0] ?? null;
-  return { ...result, selectedSpace };
+  return { ...result, selectedSpace, details };
 }
 
 // Re-check with the API at most this often; the verify endpoint shares the login rate limit.
 const RECHECK_MS = 10 * 60 * 1000;
+// Access Request is filled in once and lasts this long; after that the user verifies again.
+export const VERIFY_VALID_DAYS = 30;
+const VERIFY_VALID_MS = VERIFY_VALID_DAYS * 24 * 60 * 60 * 1000;
 
 const storageKey = (accountEmail: string) => `door_access:${accountEmail.trim().toLowerCase()}`;
 
@@ -63,8 +81,9 @@ export async function saveDoorAccess(
   details: DoorAccessDetails,
   result: DoorAccessResult,
   selectedBookingDetailId: number | null,
+  verifiedAt: number = Date.now(),
 ) {
-  const value: StoredDoorAccess = { details, result, selectedBookingDetailId, checkedAt: Date.now() };
+  const value: StoredDoorAccess = { details, result, selectedBookingDetailId, checkedAt: Date.now(), verifiedAt };
   try {
     await AsyncStorage.setItem(storageKey(accountEmail), JSON.stringify(value));
   } catch {}
@@ -89,8 +108,14 @@ export async function getDoorAccess(accountEmail: string): Promise<DoorAccess | 
     return null;
   }
   if (!stored) return null;
+  // The verification expires: after VERIFY_VALID_DAYS the user fills in Access Request again.
+  const verifiedAt = stored.verifiedAt ?? stored.checkedAt;
+  if (Date.now() - verifiedAt > VERIFY_VALID_MS) {
+    await clearDoorAccess(accountEmail);
+    return null;
+  }
   const selected = stored.selectedBookingDetailId ?? null;
-  if (Date.now() - stored.checkedAt < RECHECK_MS) return withSelection(stored.result, selected);
+  if (Date.now() - stored.checkedAt < RECHECK_MS) return withSelection(stored.result, selected, stored.details);
 
   try {
     const result = await verifyDoorAccess(stored.details);
@@ -99,15 +124,40 @@ export async function getDoorAccess(accountEmail: string): Promise<DoorAccess | 
       return null;
     }
     // If the chosen room was removed, withSelection falls back to another allowed room.
-    await saveDoorAccess(accountEmail, stored.details, result, selected);
-    return withSelection(result, selected);
+    await saveDoorAccess(accountEmail, stored.details, result, selected, verifiedAt); // a re-check doesn't extend the 30 days
+    return withSelection(result, selected, stored.details);
   } catch {
-    return withSelection(stored.result, selected);
+    return withSelection(stored.result, selected, stored.details);
   }
 }
 
-/** Placeholder until door unlocking through the access machines is built. */
-export function openDoor(access?: DoorAccess | null) {
-  const room = access?.selectedSpace?.spaceName ? ` for ${access.selectedSpace.spaceName}` : "";
-  Alert.alert("Open Door", `Opening doors${room} from the app is coming soon. Use your card, fingerprint or face at the door for now.`);
+/** API answers { isSuccessful: false, message } when it refuses: turn that into an error with the message. */
+function unwrap<T>(response: any): T {
+  if (response && typeof response === "object" && response.isSuccessful === false) {
+    throw new Error(response.message || "Please try again.");
+  }
+  return response as T;
+}
+
+/** Doors this verified access user may unlock for the selected room (room door first, then entrances). */
+export async function getDoors(access: DoorAccess): Promise<DoorsResult> {
+  if (!access.selectedSpace) throw new Error("Verify your access first.");
+  const response = await apiRequest<any>(buildApiPath("mobile/access/doors"), {
+    method: "POST",
+    requiresAuth: true,
+    body: { ...access.details, bookingDetailId: access.selectedSpace.bookingDetailId },
+  });
+  return unwrap<DoorsResult>(response);
+}
+
+/** Unlocks one door now; resolves with the API's message ("Main Entrance 1 is unlocked."). */
+export async function unlockDoor(access: DoorAccess, deviceId: number): Promise<string> {
+  if (!access.selectedSpace) throw new Error("Verify your access first.");
+  const response = await apiRequest<any>(buildApiPath("mobile/access/open"), {
+    method: "POST",
+    requiresAuth: true,
+    body: { ...access.details, bookingDetailId: access.selectedSpace.bookingDetailId, deviceId },
+  });
+  const result = unwrap<{ ok: boolean; message: string }>(response);
+  return result?.message || "Door unlocked.";
 }

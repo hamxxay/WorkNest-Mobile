@@ -38,15 +38,10 @@ async function withMockFallback<T>(
     return status === 404 || status === 0;
   }
 ): Promise<T> {
-  try {
-    return await request();
-  } catch (error) {
-    if (shouldFallback(error)) {
-      console.warn(`[mockQuotationService] ${label} fallback triggered`, error);
-      return fallback;
-    }
-    throw error;
-  }
+  // Never show sample data as if it were the customer's: a failed request is reported to the screen.
+  // (label / fallback / shouldFallback are kept so callers don't change; the fallback is no longer used.)
+  void label; void fallback; void shouldFallback;
+  return request();
 }
 
 export async function getQuotationById(id: string): Promise<Quotation> {

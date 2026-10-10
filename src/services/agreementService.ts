@@ -1,13 +1,15 @@
 
 import { API_BASE_URL, API_ENDPOINTS } from "../config/api";
-import { apiRequest } from "./apiClient";
+import { ApiError, apiRequest } from "./apiClient";
 import { getToken, getUser } from "../utils/authStorage";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type AgreementStatus =
   | "Pending"
+  | "AgreementSent"
   | "Sent"
+  | "EmailFailed"
   | "SignedUploaded"
   | "Signed"
   | "Expired"
@@ -18,6 +20,7 @@ export type AgreementRecord = {
   id?: number | string;
   quotationId?: number | string;
   quotationNumber?: string;
+  bookingId?: number | string | null;
   customerId?: number | string;
   customerName?: string;
   customerEmail?: string;
@@ -62,6 +65,22 @@ export type SendAgreementPayload = {
   vendorNtn?: string;
 };
 
+export type ESignAgreementPayload = {
+  signerName: string;
+  /** "data:image/png;base64,..." */
+  signatureImage: string;
+  consent: boolean;
+};
+
+export type ESignAgreementResult = {
+  agreementId?: number;
+  /** true → booking created; false → signed copy kept for staff to confirm */
+  completed: boolean;
+  bookingId?: number | null;
+  status?: string;
+  message: string;
+};
+
 export type MarkAgreementSignedPayload = {
   agreementId: number;
   quotationId?: number;
@@ -76,6 +95,7 @@ export function normalizeAgreement(raw: any): AgreementRecord {
     quotationId: raw?.quotationId ?? raw?.QuotationId,
     quotationNumber:
       raw?.quotationNumber ?? raw?.QuotationNumber ?? String(raw?.quotationId ?? ""),
+    bookingId: raw?.bookingId ?? raw?.BookingId ?? null,
     customerId: raw?.customerId ?? raw?.CustomerId,
     customerName: raw?.customerName ?? raw?.CustomerName ?? "",
     customerEmail: raw?.customerEmail ?? raw?.CustomerEmail ?? "",
@@ -215,3 +235,99 @@ export function getSignedPdfUrl(id: number | string): string {
   return `${API_BASE_URL}${API_ENDPOINTS.agreement.mySignedPdf(id)}`;
 }
 
+
+// ─── E-signature ──────────────────────────────────────────────────────────────
+
+/** Statuses the API accepts for e-signing (see AgreementController.ESignMyAgreement). */
+const SIGNABLE_STATUSES = ["agreementsent", "sent", "emailfailed"];
+
+/** True when the customer can still sign this agreement in the app. */
+export function isAgreementSignable(agreement: AgreementRecord): boolean {
+  if (agreement.bookingId !== undefined && agreement.bookingId !== null && agreement.bookingId !== "") return false;
+  const status = String(agreement.status ?? "").toLowerCase().replace(/\s/g, "");
+  return SIGNABLE_STATUSES.includes(status);
+}
+
+/**
+ * POST /api/Agreement/my/{id}/esign
+ * Signs the agreement electronically. Resolves with the API message
+ * (booking created, or "our team will confirm"); throws with the API message on refusal.
+ */
+export async function eSignMyAgreement(
+  id: number | string,
+  payload: ESignAgreementPayload,
+): Promise<ESignAgreementResult> {
+  const raw = await apiRequest<any>(API_ENDPOINTS.agreement.myESign(id), {
+    method: "POST",
+    requiresAuth: true,
+    body: payload,
+    unwrapData: false,
+  });
+  if (!raw || raw.isSuccessful === false) {
+    throw new ApiError(
+      (typeof raw?.message === "string" && raw.message) || "We could not complete your signature. Please try again.",
+      200,
+      raw,
+    );
+  }
+  const data = raw.data ?? {};
+  const completed = Boolean(data.completed ?? data.Completed);
+  return {
+    agreementId: data.agreementId ?? data.AgreementId,
+    completed,
+    bookingId: data.bookingId ?? data.BookingId ?? null,
+    status: data.status ?? data.Status,
+    message:
+      (typeof raw.message === "string" && raw.message) ||
+      (completed
+        ? "Your agreement is signed and your booking has been created."
+        : "Signed. Our team will confirm your booking shortly."),
+  };
+}
+
+/**
+ * GET /api/Agreement/my/{id}/pdf
+ * Downloads the agreement PDF (authenticated) and returns it as a
+ * "data:application/pdf;base64,..." URL that react-native-share can open.
+ */
+export async function downloadMyAgreementPdf(id: number | string): Promise<string> {
+  const token = await getToken();
+  const user = await getUser();
+  const headers: Record<string, string> = { Accept: "application/pdf, application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  if (user?.email) {
+    headers["X-User-Email"] = user.email;
+    headers["x-user-email"] = user.email;
+  }
+
+  let res: Response;
+  try {
+    res = await fetch(getAgreementPdfUrl(id), { method: "GET", headers, credentials: "omit" });
+  } catch {
+    throw new Error("Could not download the agreement. Check your connection and try again.");
+  }
+  if (!res.ok) {
+    let message = res.status === 429
+      ? "Too many downloads. Please wait a minute and try again."
+      : `Could not download the agreement (${res.status}).`;
+    try {
+      const body = await res.json();
+      if (typeof body?.message === "string" && body.message.trim()) message = body.message;
+    } catch {
+      // not JSON — keep the default message
+    }
+    throw new Error(message);
+  }
+
+  const blob = await res.blob();
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(new Error("Could not read the agreement PDF."));
+    reader.readAsDataURL(blob);
+  });
+  const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+  if (!base64) throw new Error("The agreement PDF is empty.");
+  // Normalise the MIME type (some servers send application/octet-stream).
+  return `data:application/pdf;base64,${base64}`;
+}

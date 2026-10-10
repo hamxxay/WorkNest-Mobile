@@ -533,7 +533,7 @@ export default function BookingScreen() {
           <Pressable
             key={`workspace-${String(workspace.id ?? "missing")}-${index}`}
             style={({ pressed }) => [styles.workspaceCard, pressed && { opacity: 0.94, transform: [{ scale: 0.99 }] }]}
-            onPress={() => navigation.navigate("SpaceDetail", { workspace })}
+            onPress={() => navigation.navigate("SpaceDetail", { workspace: { ...workspace, capacity: String((workspace as any).capacity ?? "") } })}
           >
             <SmartImage uri={workspace.image} style={styles.image} />
             {/* Availability badge */}
@@ -1027,7 +1027,7 @@ function BookingSkeletonCard() {
         </View>
         {/* amenity chips */}
         <View style={{ flexDirection: "row", gap: 6 }}>
-          {["40%", "28%", "22%"].map((w, i) => (
+          {(["40%", "28%", "22%"] as const).map((w, i) => (
             <View key={i} style={{ height: 20, width: w, borderRadius: 999, backgroundColor: colors.muted }} />
           ))}
         </View>

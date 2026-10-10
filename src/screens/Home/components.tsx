@@ -19,6 +19,13 @@ import {
   PREMIUM_COPY,
 } from './constants';
 import type { HomeFilter, Workspace } from './types';
+import { useResponsive } from '../../utils/responsive';
+
+/** Horizontal card width: most of the screen on phones (the next card peeks in), fixed on tablets. */
+function useCardWidth() {
+  const { width, isTablet } = useResponsive();
+  return isTablet ? 300 : Math.round(Math.min(320, Math.max(240, width * 0.78)));
+}
 
 type PressHandler = (workspace: Workspace) => void;
 
@@ -289,12 +296,13 @@ export const WorkspaceCard = memo(function WorkspaceCard({
   premium?: boolean;
 }) {
   const colors = useThemeColors();
+  const cardWidth = useCardWidth();
   const availability = getAvailability(workspace);
   const amenities = workspace.amenities?.length
     ? workspace.amenities.slice(0, 4)
     : DEFAULT_AMENITIES;
   return (
-    <View style={[styles.workspaceCardShadow, shadows.md]}>
+    <View style={[styles.workspaceCardShadow, shadows.md, { width: cardWidth }]}>
       <View style={[styles.workspaceCard, { backgroundColor: colors.card }]}>
         <Pressable
           accessibilityRole="button"
@@ -449,8 +457,9 @@ export const WorkspaceCard = memo(function WorkspaceCard({
 
 export const SkeletonCard = memo(function SkeletonCard() {
   const colors = useThemeColors();
+  const cardWidth = useCardWidth();
   return (
-    <View style={[styles.skeleton, { backgroundColor: colors.card }]}>
+    <View style={[styles.skeleton, { backgroundColor: colors.card, width: cardWidth }]}>
       <View
         style={[styles.skeletonImage, { backgroundColor: colors.primaryMuted }]}
       />
@@ -476,8 +485,9 @@ export const EmptyState = memo(function EmptyState({
   onClear: () => void;
 }) {
   const colors = useThemeColors();
+  const cardWidth = useCardWidth();
   return (
-    <View style={[styles.empty, { backgroundColor: colors.primaryMuted }]}>
+    <View style={[styles.empty, { backgroundColor: colors.primaryMuted, width: cardWidth }]}>
       <Ionicons name="search-outline" size={28} color={colors.primary} />
       <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
         No spaces found
