@@ -11,7 +11,6 @@ import { useNavigation } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useThemeColors } from '../../../theme';
 import { useDoorAccess } from '../../../hooks/useDoorAccess';
-import { openDoor } from '../../../services/doorAccessService';
 
 export const SearchSection = () => {
   const colors = useThemeColors();
@@ -26,7 +25,7 @@ export const SearchSection = () => {
     { label: 'Attendees', icon: 'people-outline', screen: 'Attendees' },
     { label: 'Booking', icon: 'calendar-outline', screen: 'Booking' },
     doorAccess?.canOpenDoor
-      ? { label: 'Open Door', icon: 'lock-open-outline', screen: 'OpenDoor' }
+      ? { label: 'Unlock Door', icon: 'lock-open-outline', screen: 'UnlockDoor' }
       : { label: 'Access Request', icon: 'key-outline', screen: 'AccessRequest' },
   ];
 
@@ -68,11 +67,7 @@ export const SearchSection = () => {
           <Pressable
             key={item.label}
             onPress={() => {
-              if (item.screen === 'OpenDoor') {
-                openDoor(doorAccess);
-                return;
-              }
-              if (['QuotationList', 'MyPayments', 'BookingHistory', 'Booking', 'Profile', 'AccessRequest'].includes(item.screen)) {
+              if (['QuotationList', 'MyPayments', 'BookingHistory', 'Booking', 'Profile', 'AccessRequest', 'UnlockDoor'].includes(item.screen)) {
                 navigation.navigate(item.screen);
               }
             }}

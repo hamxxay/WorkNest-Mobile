@@ -66,8 +66,9 @@ export default function AccessRequestScreen({
   const finish = async (details: DoorAccessDetails, result: DoorAccessResult, bookingDetailId: number) => {
     if (user?.email) await saveDoorAccess(user.email, details, result, bookingDetailId);
     const room = allowedSpaces(result).find(sp => sp.bookingDetailId === bookingDetailId)?.spaceName;
-    Alert.alert('Access verified', `${room ? `Room: ${room}. ` : ''}You can now use Open Door from the home screen.`, [
-      { text: 'OK', onPress: () => navigation.goBack() },
+    Alert.alert('Access verified', `${room ? `Room: ${room}. ` : ''}You can now unlock your doors from the app.`, [
+      { text: 'Later', style: 'cancel', onPress: () => navigation.goBack() },
+      { text: 'Unlock Door', onPress: () => navigation.replace('UnlockDoor') },
     ]);
   };
 

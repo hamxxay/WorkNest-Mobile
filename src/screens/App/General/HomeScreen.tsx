@@ -23,7 +23,6 @@ import type {
 } from '../../../navigation/types';
 import { useAuth } from '../../../context/AuthContext';
 import { useDoorAccess } from '../../../hooks/useDoorAccess';
-import { openDoor } from '../../../services/doorAccessService';
 import { getCustomerAttendants } from '../../../services/attendantService';
 import { getWorkspaces } from '../../../services/workspaceService';
 import {
@@ -327,14 +326,14 @@ export default function HomeScreen() {
               { label: 'Booking', icon: 'calendar-outline', screen: 'Booking' },
               { label: 'Invoice', icon: 'receipt-outline', screen: 'MyPayments' },
               doorAccess?.canOpenDoor
-                ? { label: 'Open Door', icon: 'lock-open-outline', screen: '' }
+                ? { label: 'Unlock Door', icon: 'lock-open-outline', screen: 'UnlockDoor' }
                 : { label: 'Access Request', icon: 'key-outline', screen: 'AccessRequest' },
             ].map(item => (
               <Pressable
                 key={item.label}
                 accessibilityRole="button"
                 accessibilityLabel={item.label}
-                onPress={() => (item.screen ? navigation.navigate(item.screen as any) : openDoor(doorAccess))}
+                onPress={() => navigation.navigate(item.screen as any)}
                 style={[
                   styles.quickCard,
                   {

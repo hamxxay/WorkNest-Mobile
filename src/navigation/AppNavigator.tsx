@@ -32,6 +32,7 @@ import LoginScreen from "../screens/Auth/LoginScreen";
 import OnboardingScreen from "../screens/Auth/OnboardingScreen";
 import ProfileScreen from "../screens/App/General/ProfileScreen";
 import AccessRequestScreen from "../screens/App/General/AccessRequestScreen";
+import UnlockDoorScreen from "../screens/App/General/UnlockDoorScreen";
 import AttendeesScreen from "../screens/App/General/AttendeesScreen";
 import MyBookingsScreen from "../screens/App/General/MyBookingsScreen";
 import BookingDetailScreen from "../screens/App/General/BookingDetailScreen";
@@ -451,6 +452,7 @@ function InnerStackNavigator() {
       <InnerStack.Screen name="MainTabs"       component={MainTabs} />
       <InnerStack.Screen name="Profile"        component={ProfileScreen} />
       <InnerStack.Screen name="AccessRequest"  component={AccessRequestScreen} />
+      <InnerStack.Screen name="UnlockDoor"     component={UnlockDoorScreen} />
       <InnerStack.Screen name="Attendees"      component={AttendeesScreen} />
       <InnerStack.Screen name="MyBookings"     component={MyBookingsScreen} />
       <InnerStack.Screen name="BookingDetail"  component={BookingDetailScreen} />

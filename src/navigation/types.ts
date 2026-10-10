@@ -70,6 +70,7 @@ export type AppStackParamList = {
   };
   Profile: undefined;
   AccessRequest: undefined;
+  UnlockDoor: undefined;
   Attendees: undefined;
   MyBookings: undefined;
   BookingDetail: { bookingId: number | string };
