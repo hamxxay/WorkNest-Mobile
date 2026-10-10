@@ -61,6 +61,7 @@ const QUICK_ACTIONS = [
   { label: "Manage Spaces",  icon: "grid-outline",          screen: "SpaceList"   },
   { label: "View Bookings",  icon: "list-outline",          screen: "BookingList" },
   { label: "Payments",       icon: "card-outline",          screen: "PaymentList" },
+  { label: "Tour Inquiries", icon: "walk-outline",          screen: "TourInquiries" },
 ];
 
 export default function AdminDashboard({ navigation }: { navigation: any }) {

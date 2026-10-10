@@ -12,11 +12,17 @@ import { ConfirmModal } from "../components/ConfirmModal";
 import AdminDashboard from "../screens/App/Admin/AdminDashboard";
 import CustomerCreateScreen from "../screens/App/Sales/CustomerCreateScreen";
 import CustomerListScreen from "../screens/App/Sales/CustomerListScreen";
+import TourInquiriesScreen, { type InquiryFilter } from "../screens/App/Sales/TourInquiriesScreen";
+import SaleQuotationCreateScreen, {
+  type QuotationFromInquiry,
+} from "../screens/App/Sales/SaleQuotationCreateScreen";
 
 export type AdminStackParamList = {
   AdminDashboard: undefined;
   CustomerCreate: undefined;
   CustomerList: undefined;
+  TourInquiries: { filter?: InquiryFilter } | undefined;
+  QuotationCreate: { fromInquiry?: QuotationFromInquiry } | undefined;
 };
 
 const Stack = createNativeStackNavigator<AdminStackParamList>();
@@ -45,6 +51,14 @@ function AdminDrawerContent(props: any) {
           onPress={() => {
             props.navigation.closeDrawer();
             props.navigation.navigate("Workspace", { screen: "AdminDashboard" });
+          }}
+        />
+        <DrawerItem
+          label="Tour Inquiries"
+          labelStyle={{ color: colors.foreground, fontWeight: "600" }}
+          onPress={() => {
+            props.navigation.closeDrawer();
+            props.navigation.navigate("Workspace", { screen: "TourInquiries" });
           }}
         />
         <DrawerItem
@@ -89,6 +103,8 @@ function AdminDashboardStack() {
       <Stack.Screen name="AdminDashboard" component={AdminDashboard} />
       <Stack.Screen name="CustomerCreate" component={CustomerCreateScreen} />
       <Stack.Screen name="CustomerList" component={CustomerListScreen} />
+      <Stack.Screen name="TourInquiries" component={TourInquiriesScreen} />
+      <Stack.Screen name="QuotationCreate" component={SaleQuotationCreateScreen} />
     </Stack.Navigator>
   );
 }
