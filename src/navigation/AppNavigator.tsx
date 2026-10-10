@@ -47,6 +47,7 @@ import QuotationListScreen from "../screens/App/General/QuotationListScreen";
 import CustomerInfoScreen from "../screens/App/General/CustomerInfoScreen";
 import CustomerCreateScreen from "../screens/App/Sales/CustomerCreateScreen";
 import CustomerListScreen from "../screens/App/Sales/CustomerListScreen";
+import KycDocumentsScreen from "../screens/App/Sales/KycDocumentsScreen";
 import ModifyOrderScreen from "../screens/App/General/ModifyOrderScreen";
 import QuotationPaymentScreen from "../screens/App/General/QuotationPaymentScreen";
 import ShareQuotationScreen from "../screens/App/General/ShareQuotationScreen";
@@ -475,6 +476,7 @@ function InnerStackNavigator() {
       <InnerStack.Screen name="CustomerInfo"    component={CustomerInfoScreen} />
       <InnerStack.Screen name="CustomerCreate"  component={CustomerCreateScreen} />
       <InnerStack.Screen name="CustomerList"    component={CustomerListScreen} />
+      <InnerStack.Screen name="KycDocuments"    component={KycDocumentsScreen} />
       <InnerStack.Screen name="ModifyOrder"     component={ModifyOrderScreen} />
       <InnerStack.Screen name="QuotationPayment" component={QuotationPaymentScreen} />
       <InnerStack.Screen name="ShareQuotation"   component={ShareQuotationScreen} />

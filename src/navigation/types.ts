@@ -86,6 +86,7 @@ export type AppStackParamList = {
   CustomerInfo: { quotationId: string };
   CustomerCreate: undefined;
   CustomerList: undefined;
+  KycDocuments: { customerId: number | string; customerName?: string };
   ModifyOrder: { quotationId: string };
   QuotationPayment: { quotationId: string };
   ShareQuotation: { quotationId: string };
