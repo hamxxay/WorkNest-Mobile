@@ -148,13 +148,11 @@ export default function MyBookingsScreen() {
             const canCancel = !["cancel", "complet"].some((s) =>
               (booking.bookingStatus ?? "").toLowerCase().includes(s)
             );
-            console.log('--------------->',booking);
-            
             return (
               <Pressable
                 key={String(booking.id)}
                 style={styles.card}
-                onPress={() => navigation.navigate("BookingDetail", { bookingId: booking?.bookingId })}
+                onPress={() => navigation.navigate("BookingDetail", { bookingId: booking.idGuid ?? booking.id })}
               >
                 {/* Header row */}
                 <View style={styles.cardHeader}>

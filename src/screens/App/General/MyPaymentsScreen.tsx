@@ -67,6 +67,31 @@ export default function MyPaymentsScreen() {
     fetchInvoices();
   }, [user]);
 
+  // Hooks run before the guest wall: the tab stays mounted across sign in / out (hooks must not change count).
+  const totalPaid = useMemo(
+    () =>
+      invoices
+        .filter(invoice => getInvoiceStatus(invoice) === 'Paid')
+        .reduce(
+          (sum, invoice) =>
+            sum + Number(invoice.paidTotal ?? invoice.grandTotal ?? 0),
+          0,
+        ),
+    [invoices],
+  );
+
+  const totalUnpaid = useMemo(
+    () =>
+      invoices
+        .filter(invoice => getInvoiceStatus(invoice) !== 'Paid')
+        .reduce(
+          (sum, invoice) =>
+            sum + Number(invoice.balanceDue ?? invoice.grandTotal ?? 0),
+          0,
+        ),
+    [invoices],
+  );
+
   if (!user) {
     return (
       <Screen>
@@ -94,30 +119,6 @@ export default function MyPaymentsScreen() {
       </Screen>
     );
   }
-
-  const totalPaid = useMemo(
-    () =>
-      invoices
-        .filter(invoice => getInvoiceStatus(invoice) === 'Paid')
-        .reduce(
-          (sum, invoice) =>
-            sum + Number(invoice.paidTotal ?? invoice.grandTotal ?? 0),
-          0,
-        ),
-    [invoices],
-  );
-
-  const totalUnpaid = useMemo(
-    () =>
-      invoices
-        .filter(invoice => getInvoiceStatus(invoice) !== 'Paid')
-        .reduce(
-          (sum, invoice) =>
-            sum + Number(invoice.balanceDue ?? invoice.grandTotal ?? 0),
-          0,
-        ),
-    [invoices],
-  );
 
   return (
     <Screen>

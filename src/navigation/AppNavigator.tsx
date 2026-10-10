@@ -13,7 +13,7 @@ import {
   type DrawerContentComponentProps,
 } from "@react-navigation/drawer";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { Animated, InteractionManager, Pressable } from "react-native";
+import { Animated, InteractionManager, Pressable, useWindowDimensions } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { StyleSheet, View, Text, Image, StatusBar } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -62,7 +62,8 @@ import { useAuth } from "../context/AuthContext";
 import { useThemeColors, useThemedStyles } from "../theme";
 import { ConfirmModal } from "../components/ConfirmModal";
 import { linking } from "./linking";
-import packageLock from "../../package-lock.json";
+// Only the version: importing package-lock.json put ~700 KB into the app bundle.
+import { version as appPackageVersion } from "../../package.json";
 
 import type {
   AppStackParamList,
@@ -280,7 +281,7 @@ function AppDrawerContent(props: DrawerContentComponentProps) {
   const colors  = useThemeColors();
   const styles  = useThemedStyles(makeDrawerStyles);
   const [showLogout, setShowLogout] = useState(false);
-  const appVersion = (packageLock as any)?.version ?? "";
+  const appVersion = appPackageVersion ?? "";
 
   const goTo = (screen: string | null, isProtected?: boolean, params?: Record<string, any>) => {
     if (isProtected && !user) {
@@ -491,6 +492,7 @@ function InnerStackNavigator() {
 // ─── Drawer navigator ──────────────────────────────────────────────────────────
 function AppDrawerNavigator() {
   const colors = useThemeColors();
+  const { width: windowWidth } = useWindowDimensions(); // drawer width follows the screen
   return (
     <Drawer.Navigator
       drawerContent={(p) => <AppDrawerContent {...p} />}
@@ -500,7 +502,7 @@ function AppDrawerNavigator() {
         drawerType: "front",
         swipeEnabled: false,
         overlayColor: "rgba(0,0,0,0.45)",
-        drawerStyle: { backgroundColor: colors.card, width: 290 },
+        drawerStyle: { backgroundColor: colors.card, width: Math.min(290, Math.round(windowWidth * 0.82)) },
       }}
     >
       <Drawer.Screen name="Workspace" component={InnerStackNavigator} />

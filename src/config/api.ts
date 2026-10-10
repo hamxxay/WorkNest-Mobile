@@ -29,7 +29,7 @@ function resolveApiBaseUrl(): string {
 }
 
 export const API_BASE_URL = resolveApiBaseUrl();
-console.log("[API CONFIG] Resolved API_BASE_URL:", API_BASE_URL);
+if (__DEV__) console.log("[API CONFIG] Resolved API_BASE_URL:", API_BASE_URL);
 
 export function buildApiPath(path: string): string {
   const trimmed = path.trim();
