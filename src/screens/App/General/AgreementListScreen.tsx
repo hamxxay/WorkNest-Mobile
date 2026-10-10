@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Pressable,
   RefreshControl,
@@ -8,13 +9,19 @@ import {
   Text,
   View,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { Screen } from "../../../components/Screen";
 import { DashboardHeader } from "../../../components/DashboardHeader";
 import { radii, shadows, useThemeColors, useThemedStyles } from "../../../theme";
-import { getMyAgreements, type AgreementRecord, type AgreementStatus } from "../../../services/agreementService";
+import {
+  getMyAgreements,
+  isAgreementSignable,
+  type AgreementRecord,
+  type AgreementStatus,
+} from "../../../services/agreementService";
+import { openAgreementPdf } from "../../../utils/openAgreementPdf";
 import type { AppStackParamList } from "../../../navigation/types";
 
 // ─── Status config ────────────────────────────────────────────────────────────
@@ -67,6 +74,10 @@ const STATUS_CONFIG: Record<
   },
 };
 
+// The API also reports "AgreementSent" / "EmailFailed" for agreements that are out for signature.
+STATUS_CONFIG.agreementsent = STATUS_CONFIG.sent;
+STATUS_CONFIG.emailfailed = STATUS_CONFIG.sent;
+
 function getStatusConfig(status?: AgreementStatus) {
   const key = (status ?? "pending").toLowerCase().replace(/\s/g, "");
   return STATUS_CONFIG[key] ?? STATUS_CONFIG.pending;
@@ -77,13 +88,18 @@ function getStatusConfig(status?: AgreementStatus) {
 function AgreementCard({
   agreement,
   onPress,
+  onSign,
+  opening,
   colors,
 }: {
   agreement: AgreementRecord;
   onPress: () => void;
+  onSign: () => void;
+  opening: boolean;
   colors: ReturnType<typeof useThemeColors>;
 }) {
   const sc = getStatusConfig(agreement.status);
+  const signable = isAgreementSignable(agreement);
 
   const fmt = (iso: string | undefined) => {
     if (!iso) return "—";
@@ -147,14 +163,32 @@ function AgreementCard({
         ) : null}
       </View>
 
+      {/* Sign in app (agreements still awaiting signature) */}
+      {signable ? (
+        <View style={styles.signRow}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Sign agreement ${agreement.id ?? ""} in app`}
+            onPress={onSign}
+            android_ripple={{ color: "rgba(255,255,255,0.2)" }}
+            style={({ pressed }) => [styles.signBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}
+          >
+            <Ionicons name="create-outline" size={16} color="#fff" />
+            <Text style={styles.signBtnText}>Sign in app</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
       {/* Action hint */}
       <View style={[styles.cardAction, { borderTopColor: colors.border }]}>
         <Text style={[styles.cardActionText, { color: colors.primary }]}>
-          {agreement.status?.toLowerCase() === "sent"
-            ? "Review & Upload Signed Copy"
-            : "View Details"}
+          {opening ? "Opening agreement…" : "View Agreement (PDF)"}
         </Text>
-        <Ionicons name="chevron-forward" size={14} color={colors.primary} />
+        {opening ? (
+          <ActivityIndicator size="small" color={colors.primary} />
+        ) : (
+          <Ionicons name="chevron-forward" size={14} color={colors.primary} />
+        )}
       </View>
     </Pressable>
   );
@@ -173,6 +207,8 @@ export default function AgreementListScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [openingId, setOpeningId] = useState<number | string | null>(null);
+  const loadedOnce = useRef(false);
 
   const load = useCallback(async (isRefresh = false) => {
     try {
@@ -181,6 +217,7 @@ export default function AgreementListScreen() {
       setError(null);
       const data = await getMyAgreements();
       setAgreements(data);
+      loadedOnce.current = true;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load agreements.");
     } finally {
@@ -189,7 +226,24 @@ export default function AgreementListScreen() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  // Reload whenever the list comes back into view (e.g. after signing an agreement).
+  useFocusEffect(
+    useCallback(() => {
+      load(loadedOnce.current);
+    }, [load]),
+  );
+
+  const viewAgreement = async (item: AgreementRecord) => {
+    if (item.id === undefined || openingId !== null) return;
+    setOpeningId(item.id);
+    try {
+      await openAgreementPdf(item.id);
+    } catch (err) {
+      Alert.alert("Could not open agreement", err instanceof Error ? err.message : "Please try again.");
+    } finally {
+      setOpeningId(null);
+    }
+  };
 
   return (
     <Screen>
@@ -240,8 +294,14 @@ export default function AgreementListScreen() {
             <AgreementCard
               agreement={item}
               colors={colors}
-              onPress={() =>
-                navigation.navigate("AgreementDetail", { agreementId: item.id! })
+              opening={openingId !== null && openingId === item.id}
+              onPress={() => viewAgreement(item)}
+              onSign={() =>
+                navigation.navigate("ESignAgreement", {
+                  agreementId: item.id!,
+                  quotationNumber: item.quotationNumber || undefined,
+                  customerName: item.customerName || undefined,
+                })
               }
             />
           )}
@@ -310,6 +370,16 @@ const styles = StyleSheet.create({
   cardMeta: { gap: 6, paddingHorizontal: 14, paddingBottom: 12 },
   metaItem: { flexDirection: "row", alignItems: "center", gap: 6 },
   metaText: { fontSize: 12 },
+  signRow: { paddingHorizontal: 14, paddingBottom: 12 },
+  signBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    minHeight: 42,
+    borderRadius: 10,
+  },
+  signBtnText: { color: "#fff", fontWeight: "800", fontSize: 14 },
   cardAction: {
     flexDirection: "row",
     alignItems: "center",

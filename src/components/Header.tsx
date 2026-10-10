@@ -22,6 +22,8 @@ const SCREEN_LABELS: Record<string, string> = {
   Payment: 'Payment',
   Attendees: 'Attendees',
   AdminPanel: 'Admin Panel',
+  AgreementList: 'My Agreements',
+  ESignAgreement: 'Sign Agreement',
 };
 
 function getGreeting() {

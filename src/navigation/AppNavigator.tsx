@@ -50,6 +50,8 @@ import CustomerListScreen from "../screens/App/Sales/CustomerListScreen";
 import ModifyOrderScreen from "../screens/App/General/ModifyOrderScreen";
 import QuotationPaymentScreen from "../screens/App/General/QuotationPaymentScreen";
 import ShareQuotationScreen from "../screens/App/General/ShareQuotationScreen";
+import AgreementListScreen from "../screens/App/General/AgreementListScreen";
+import ESignAgreementScreen from "../screens/App/General/ESignAgreementScreen";
 
 import { logoutUser } from "../services/authService";
 import { setupPushNotifications, registerFCMToken } from "../services/notificationService";
@@ -478,6 +480,8 @@ function InnerStackNavigator() {
       <InnerStack.Screen name="ModifyOrder"     component={ModifyOrderScreen} />
       <InnerStack.Screen name="QuotationPayment" component={QuotationPaymentScreen} />
       <InnerStack.Screen name="ShareQuotation"   component={ShareQuotationScreen} />
+      <InnerStack.Screen name="AgreementList"    component={AgreementListScreen} />
+      <InnerStack.Screen name="ESignAgreement"   component={ESignAgreementScreen} />
     </InnerStack.Navigator>
   );
 }

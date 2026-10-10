@@ -193,6 +193,8 @@ export const API_ENDPOINTS = {
     mySignedPdf: (id: number | string) => `/Agreement/my/${id}/signed-pdf`,
     /** POST /api/Agreement/my/{id}/upload-signed  multipart/form-data */
     myUploadSigned: (id: number | string) => `/Agreement/my/${id}/upload-signed`,
+    /** POST /api/Agreement/my/{id}/esign — customer signs electronically */
+    myESign: (id: number | string) => `/Agreement/my/${id}/esign`,
     /** GET /api/Agreement/{id}/pdf — admin download */
     pdf: (id: number | string) => `/Agreement/${id}/pdf`,
     /** POST /api/Agreement/{id}/mark-signed — admin mark as signed */
