@@ -30,6 +30,8 @@ type StoredDoorAccess = {
   /** Room the user picked (BookingDetailId); the door Open Door will unlock. */
   selectedBookingDetailId: number | null;
   checkedAt: number;
+  /** When the user filled in Access Request; the verification lasts VERIFY_VALID_DAYS from then. */
+  verifiedAt?: number;
 };
 
 export type DoorAccess = DoorAccessResult & {
@@ -59,6 +61,9 @@ function withSelection(result: DoorAccessResult, selectedBookingDetailId: number
 
 // Re-check with the API at most this often; the verify endpoint shares the login rate limit.
 const RECHECK_MS = 10 * 60 * 1000;
+// Access Request is filled in once and lasts this long; after that the user verifies again.
+export const VERIFY_VALID_DAYS = 30;
+const VERIFY_VALID_MS = VERIFY_VALID_DAYS * 24 * 60 * 60 * 1000;
 
 const storageKey = (accountEmail: string) => `door_access:${accountEmail.trim().toLowerCase()}`;
 
@@ -76,8 +81,9 @@ export async function saveDoorAccess(
   details: DoorAccessDetails,
   result: DoorAccessResult,
   selectedBookingDetailId: number | null,
+  verifiedAt: number = Date.now(),
 ) {
-  const value: StoredDoorAccess = { details, result, selectedBookingDetailId, checkedAt: Date.now() };
+  const value: StoredDoorAccess = { details, result, selectedBookingDetailId, checkedAt: Date.now(), verifiedAt };
   try {
     await AsyncStorage.setItem(storageKey(accountEmail), JSON.stringify(value));
   } catch {}
@@ -102,6 +108,12 @@ export async function getDoorAccess(accountEmail: string): Promise<DoorAccess | 
     return null;
   }
   if (!stored) return null;
+  // The verification expires: after VERIFY_VALID_DAYS the user fills in Access Request again.
+  const verifiedAt = stored.verifiedAt ?? stored.checkedAt;
+  if (Date.now() - verifiedAt > VERIFY_VALID_MS) {
+    await clearDoorAccess(accountEmail);
+    return null;
+  }
   const selected = stored.selectedBookingDetailId ?? null;
   if (Date.now() - stored.checkedAt < RECHECK_MS) return withSelection(stored.result, selected, stored.details);
 
@@ -112,7 +124,7 @@ export async function getDoorAccess(accountEmail: string): Promise<DoorAccess | 
       return null;
     }
     // If the chosen room was removed, withSelection falls back to another allowed room.
-    await saveDoorAccess(accountEmail, stored.details, result, selected);
+    await saveDoorAccess(accountEmail, stored.details, result, selected, verifiedAt); // a re-check doesn't extend the 30 days
     return withSelection(result, selected, stored.details);
   } catch {
     return withSelection(stored.result, selected, stored.details);
