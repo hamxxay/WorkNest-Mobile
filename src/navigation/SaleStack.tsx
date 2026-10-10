@@ -16,15 +16,18 @@ import SaleQuotationCreateScreen from "../screens/App/Sales/SaleQuotationCreateS
 import SaleQuotationListScreen from "../screens/App/Sales/SaleQuotationListScreen";
 import SaleBookingCreateScreen from "../screens/App/Sales/SaleBookingCreateScreen";
 import SaleBookingListScreen from "../screens/App/Sales/SaleBookingListScreen";
+import TourInquiriesScreen, { type InquiryFilter } from "../screens/App/Sales/TourInquiriesScreen";
+import type { QuotationFromInquiry } from "../screens/App/Sales/SaleQuotationCreateScreen";
 
 export type SaleStackParamList = {
   SaleDashboard: undefined;
   CustomerCreate: undefined;
   CustomerList: undefined;
-  QuotationCreate: undefined;
+  QuotationCreate: { fromInquiry?: QuotationFromInquiry } | undefined;
   QuotationList: undefined;
   BookingCreate: undefined;
   BookingList: undefined;
+  TourInquiries: { filter?: InquiryFilter } | undefined;
 };
 
 const Stack = createNativeStackNavigator<SaleStackParamList>();
@@ -53,6 +56,14 @@ function SaleDrawerContent(props: any) {
           onPress={() => {
             props.navigation.closeDrawer();
             props.navigation.navigate("Workspace", { screen: "SaleDashboard" });
+          }}
+        />
+        <DrawerItem
+          label="Tour Inquiries"
+          labelStyle={{ color: colors.foreground, fontWeight: "600" }}
+          onPress={() => {
+            props.navigation.closeDrawer();
+            props.navigation.navigate("Workspace", { screen: "TourInquiries" });
           }}
         />
         <DrawerItem
@@ -101,6 +112,7 @@ function SaleDashboardStack() {
       <Stack.Screen name="QuotationList" component={SaleQuotationListScreen} />
       <Stack.Screen name="BookingCreate" component={SaleBookingCreateScreen} />
       <Stack.Screen name="BookingList" component={SaleBookingListScreen} />
+      <Stack.Screen name="TourInquiries" component={TourInquiriesScreen} />
     </Stack.Navigator>
   );
 }

@@ -65,6 +65,15 @@ export const API_ENDPOINTS = {
   contact: {
     create: "/contact",
     bookTour: "/book-tour",
+    // Staff (admin / sales executive): tour inquiries with their latest feedback
+    list: (page: number, limit: number, search?: string) => {
+      const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("limit", String(limit));
+      if (search) params.set("search", search);
+      return `/contact?${params.toString()}`;
+    },
+    feedback: (id: number | string) => `/contact/${encodeURIComponent(String(id))}/feedback`,
   },
   payments: {
     my: "/payment/my",

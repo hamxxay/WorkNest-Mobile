@@ -15,6 +15,7 @@ import { radii, shadows, useThemeColors, useThemedStyles } from "../../../theme"
 import { getQuotations, type QuotationRecord } from "../../../services/quotationService";
 import { getBookings, type BookingRecord } from "../../../services/bookingService";
 import { getCustomers, type CustomerRecord } from "../../../services/customerService";
+import { getTourInquiries } from "../../../services/contactService";
 
 // ─── Status helpers ───────────────────────────────────────────────────────────
 function statusColor(status: string | undefined): string {
@@ -65,6 +66,8 @@ export default function SaleDashboard({ navigation }: { navigation: any }) {
   const [loading, setLoading]         = useState(true);
   const [refreshing, setRefreshing]   = useState(false);
   const [error, setError]             = useState<string | null>(null);
+  // Tour inquiries whose follow-up date has come (null = could not be loaded).
+  const [followUpsDue, setFollowUpsDue] = useState<number | null>(null);
 
   const load = useCallback(async (isRefresh = false) => {
     try {
@@ -72,15 +75,17 @@ export default function SaleDashboard({ navigation }: { navigation: any }) {
       else setLoading(true);
       setError(null);
 
-      const [quotRes, bookRes, custRes] = await Promise.all([
+      const [quotRes, bookRes, custRes, inquiries] = await Promise.all([
         getQuotations(1, 100).catch(() => ({ data: [] as QuotationRecord[], total: 0, page: 1, limit: 100 })),
         getBookings().catch(() => [] as BookingRecord[]),
         getCustomers().catch(() => [] as CustomerRecord[]),
+        getTourInquiries(1, 200).catch(() => null),
       ]);
 
       setQuotations(quotRes.data);
       setBookings(Array.isArray(bookRes) ? bookRes : []);
       setCustomers(Array.isArray(custRes) ? custRes : []);
+      setFollowUpsDue(inquiries ? inquiries.items.filter((i) => i.followUpDue).length : null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load dashboard data.");
     } finally {
@@ -140,6 +145,30 @@ export default function SaleDashboard({ navigation }: { navigation: any }) {
             </TouchableOpacity>
           </View>
         )}
+
+        {/* ── Tour inquiry follow-ups ── */}
+        {!loading && followUpsDue !== null ? (
+          <TouchableOpacity
+            style={[styles.followUpCard, followUpsDue > 0 && styles.followUpCardDue]}
+            activeOpacity={0.8}
+            onPress={() => navigation.navigate("TourInquiries", followUpsDue > 0 ? { filter: "due" } : undefined)}
+          >
+            <View style={[styles.kpiIconWell, followUpsDue > 0 && { backgroundColor: colors.dangerMuted }]}>
+              <Ionicons
+                name="alarm-outline"
+                size={18}
+                color={followUpsDue > 0 ? colors.danger : colors.primary}
+              />
+            </View>
+            <View style={styles.followUpBody}>
+              <Text style={styles.followUpTitle}>Follow-ups due today: {followUpsDue}</Text>
+              <Text style={styles.followUpHint}>
+                {followUpsDue > 0 ? "Tour inquiries to call back now" : "Tour inquiries and follow-ups"}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.mutedForeground} />
+          </TouchableOpacity>
+        ) : null}
 
         {/* ── KPI cards ── */}
         <Text style={styles.sectionLabel}>Key Metrics</Text>
@@ -213,6 +242,18 @@ export default function SaleDashboard({ navigation }: { navigation: any }) {
           >
             <Ionicons name="list-outline" size={20} color={colors.primary} />
             <Text style={styles.secondaryActionText}>Quotation List</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ── Tour Inquiries ── */}
+        <Text style={styles.sectionLabel}>Tour Inquiries</Text>
+        <View style={styles.actionRow}>
+          <TouchableOpacity
+            style={styles.secondaryAction}
+            onPress={() => navigation.navigate("TourInquiries")}
+          >
+            <Ionicons name="walk-outline" size={20} color={colors.primary} />
+            <Text style={styles.secondaryActionText}>Tour Inquiries</Text>
           </TouchableOpacity>
         </View>
 
@@ -354,6 +395,35 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) =>
       textTransform: "uppercase",
       marginTop: 16,
       marginBottom: 10,
+    },
+
+    // Follow-ups due card
+    followUpCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      backgroundColor: colors.card,
+      borderRadius: radii.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 14,
+      marginBottom: 4,
+      ...shadows.sm,
+    },
+    followUpCardDue: {
+      borderColor: colors.danger,
+      backgroundColor: colors.dangerMuted,
+    },
+    followUpBody: { flex: 1 },
+    followUpTitle: {
+      fontSize: 15,
+      fontWeight: "800",
+      color: colors.foreground,
+    },
+    followUpHint: {
+      fontSize: 12,
+      color: colors.mutedForeground,
+      marginTop: 2,
     },
 
     // KPI cards
