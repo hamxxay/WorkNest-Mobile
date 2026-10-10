@@ -211,7 +211,10 @@ export default function ESignAgreementScreen({ navigation, route }: Props) {
             onPress={onViewAgreement}
           >
             {opening ? (
-              <ActivityIndicator color={colors.primary} />
+              <>
+                <ActivityIndicator color={colors.primary} />
+                <Text style={styles.secondaryText}>Opening agreement…</Text>
+              </>
             ) : (
               <>
                 <Ionicons name={viewed ? 'checkmark-circle' : 'document-text-outline'} size={18} color={viewed ? colors.success : colors.primary} />
@@ -307,7 +310,10 @@ export default function ESignAgreementScreen({ navigation, route }: Props) {
           onPress={onSign}
         >
           {submitting ? (
-            <ActivityIndicator color={colors.white} />
+            <View style={styles.busyRow}>
+              <ActivityIndicator color={colors.white} />
+              <Text style={styles.primaryText}>Signing…</Text>
+            </View>
           ) : (
             <Text style={styles.primaryText}>Sign agreement</Text>
           )}
@@ -317,6 +323,17 @@ export default function ESignAgreementScreen({ navigation, route }: Props) {
           Your name, email, the time and your device are recorded with your signature and added to the signed agreement.
         </Text>
       </ScrollView>
+
+      {/* While the signature uploads: block the form and say what is happening. */}
+      {submitting ? (
+        <View style={styles.overlay} accessibilityLiveRegion="polite">
+          <View style={styles.overlayCard}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={styles.overlayTitle}>Signing your agreement</Text>
+            <Text style={styles.overlayText}>Saving your signature and preparing the signed copy. This takes a few seconds.</Text>
+          </View>
+        </View>
+      ) : null}
     </Screen>
   );
 }
@@ -324,6 +341,29 @@ export default function ESignAgreementScreen({ navigation, route }: Props) {
 const createStyles = (colors: ReturnType<typeof useThemeColors>) =>
   StyleSheet.create({
     flex: { flex: 1 },
+    busyRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    overlay: {
+      position: 'absolute',
+      top: 0,
+      right: 0,
+      bottom: 0,
+      left: 0,
+      backgroundColor: 'rgba(10,22,40,0.45)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 24,
+    },
+    overlayCard: {
+      width: '100%',
+      maxWidth: 340,
+      backgroundColor: colors.card,
+      borderRadius: 18,
+      padding: 24,
+      alignItems: 'center',
+      gap: 10,
+    },
+    overlayTitle: { fontSize: 16, fontWeight: '800', color: colors.foreground },
+    overlayText: { fontSize: 13, lineHeight: 19, color: colors.mutedForeground, textAlign: 'center' },
     container: { paddingHorizontal: 18, paddingTop: 18, paddingBottom: 40, gap: 12 },
     titleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 6 },
     iconBox: {

@@ -147,7 +147,7 @@ export default function QuotationPaymentScreen() {
                 <Text style={s.receiptTitle}>Payment Receipt</Text>
                 <InfoRow label="Transaction ID" value={transactionId} />
                 <InfoRow label="Paid At" value={paidAt} />
-                <InfoRow label="Status" value="Approved ✓" />
+                <InfoRow label="Status" value="Approved" />
               </View>
             )}
           </View>

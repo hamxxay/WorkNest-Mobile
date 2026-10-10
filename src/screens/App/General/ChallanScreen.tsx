@@ -173,7 +173,7 @@ export default function ChallanScreen() {
     <div><div class="brand">WORKNEST</div><div class="brand-sub">Payment Challan</div></div>
     <div class="challan-no"><div class="challan-no-label">Challan No.</div><div class="challan-no-val">${c.challanNumber ?? "N/A"}</div></div>
   </div>
-  <div class="validity"><span>⚠ Valid until: <strong>${formatDate(c.validityDate)}</strong></span><span>Pay before expiry</span></div>
+  <div class="validity"><span>Valid until: <strong>${formatDate(c.validityDate)}</strong></span><span>Pay before expiry</span></div>
   <div class="status"><span class="badge ${statusLabel(c.bookingStatus) === "Confirmed" || statusLabel(c.bookingStatus) === "Completed" ? "confirmed" : "pending"}"><span class="dot" style="background:${statusLabel(c.bookingStatus) === "Confirmed" || statusLabel(c.bookingStatus) === "Completed" ? "#10b981" : "#f59e0b"}"></span>${statusLabel(c.bookingStatus)}</span></div>
   <div class="block">
     <div class="row"><span class="row-label">Space</span><span class="row-val">${c.spaceName ?? "—"}${c.spaceCode ? ` (${c.spaceCode})` : ""}</span></div>
@@ -328,7 +328,7 @@ export default function ChallanScreen() {
           {/* Validity banner — amber like web */}
           <View style={styles.validityBanner}>
             <Text style={styles.validityText}>
-              ⚠ Valid until: <Text style={styles.validityDate}>{formatDate(challan.validityDate)}</Text>
+              <Ionicons name="warning-outline" size={13} /> Valid until: <Text style={styles.validityDate}>{formatDate(challan.validityDate)}</Text>
             </Text>
             <Text style={styles.validityRight}>Pay before expiry</Text>
           </View>

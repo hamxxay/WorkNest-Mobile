@@ -6,11 +6,13 @@ import {
   Text,
   TextInput,
   View,
+  ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useThemeColors } from '../../../theme';
 import { useDoorAccess } from '../../../hooks/useDoorAccess';
+import { useUnlockRoomDoor } from '../../../hooks/useUnlockRoomDoor';
 
 export const SearchSection = () => {
   const colors = useThemeColors();
@@ -18,6 +20,7 @@ export const SearchSection = () => {
   const [query, setQuery] = useState('');
   const [focused, setFocused] = useState(false);
   const doorAccess = useDoorAccess();
+  const { unlock, unlocking } = useUnlockRoomDoor(doorAccess);
 
   const quickSections = [
     { label: 'Quotation', icon: 'document-text-outline', screen: 'QuotationList' },
@@ -66,17 +69,29 @@ export const SearchSection = () => {
         {quickSections.map(item => (
           <Pressable
             key={item.label}
+            disabled={item.screen === 'UnlockDoor' && unlocking}
             onPress={() => {
-              if (['QuotationList', 'MyPayments', 'BookingHistory', 'Booking', 'Profile', 'AccessRequest', 'UnlockDoor'].includes(item.screen)) {
+              // Unlock Door opens the room door right away (no extra screen).
+              if (item.screen === 'UnlockDoor') {
+                unlock();
+                return;
+              }
+              if (['QuotationList', 'MyPayments', 'BookingHistory', 'Booking', 'Profile', 'AccessRequest'].includes(item.screen)) {
                 navigation.navigate(item.screen);
               }
             }}
             style={[styles.quickCard, { backgroundColor: colors.card, borderColor: colors.border }]}
           >
             <View style={[styles.quickIcon, { backgroundColor: colors.primaryMuted }]}>
-              <Ionicons name={item.icon as any} size={18} color={colors.primary} />
+              {item.screen === 'UnlockDoor' && unlocking ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : (
+                <Ionicons name={item.icon as any} size={18} color={colors.primary} />
+              )}
             </View>
-            <Text style={[styles.quickText, { color: colors.foreground }]}>{item.label}</Text>
+            <Text style={[styles.quickText, { color: colors.foreground }]}>
+              {item.screen === 'UnlockDoor' && unlocking ? 'Unlocking…' : item.label}
+            </Text>
           </Pressable>
         ))}
       </View>

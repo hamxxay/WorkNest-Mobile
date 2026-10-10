@@ -23,7 +23,7 @@ const RULES: { keywords: string[]; answer: string }[] = [
   {
     keywords: ["book", "booking", "reserve", "how to book"],
     answer:
-      "To book a workspace:\n1. Go to the Booking tab\n2. Search or filter spaces\n3. Tap a card → Book Now\n4. Pick your dates & slot\n5. Fill in your details\n6. Confirm & Pay ✅",
+      "To book a workspace:\n1. Go to the Booking tab\n2. Search or filter spaces\n3. Tap a card, then Book Now\n4. Pick your dates & slot\n5. Fill in your details\n6. Confirm & Pay",
   },
   {
     keywords: ["payment", "pay", "price", "cost", "pkr", "fee"],
@@ -77,7 +77,7 @@ const RULES: { keywords: string[]; answer: string }[] = [
   {
     keywords: ["contact", "support", "help", "issue", "problem"],
     answer:
-      "For support, go to Profile → Contact Us. Our team will get back to you as soon as possible.",
+      "For support, go to Profile > Contact Us. Our team will get back to you as soon as possible.",
   },
   {
     keywords: ["gallery", "photo", "image", "picture"],
@@ -87,15 +87,15 @@ const RULES: { keywords: string[]; answer: string }[] = [
   {
     keywords: ["history", "past booking", "my booking"],
     answer:
-      "View all your bookings in the My Bookings tab or via Profile → Booking History.",
+      "View all your bookings in the My Bookings tab or via Profile > Booking History.",
   },
   {
     keywords: ["hello", "hi", "hey", "greet"],
-    answer: "Hey there! 👋 I'm the WorkNest assistant. Ask me anything about booking, payments, spaces, or plans!",
+    answer: "Hey there! I'm the WorkNest assistant. Ask me anything about booking, payments, spaces, or plans!",
   },
   {
     keywords: ["thank", "thanks", "great", "awesome"],
-    answer: "You're welcome! 😊 Let me know if there's anything else I can help with.",
+    answer: "You're welcome! Let me know if there's anything else I can help with.",
   },
 ];
 
@@ -109,7 +109,7 @@ const QUICK_QUESTIONS = [
 ];
 
 const FALLBACK =
-  "I'm not sure about that one. Try rephrasing, or contact our support team via Profile → Contact Us for detailed help.";
+  "I'm not sure about that one. Try rephrasing, or contact our support team via Profile > Contact Us for detailed help.";
 
 function getBotReply(input: string): string {
   const lower = input.toLowerCase();
@@ -129,7 +129,7 @@ export function ChatBot({ visible = true }: { visible?: boolean }) {
     {
       id: "0",
       from: "bot",
-      text: "Hi! 👋 I'm your WorkNest assistant. Ask me about booking, payments, spaces, or plans — or pick a quick question below.",
+      text: "Hi! I'm your WorkNest assistant. Ask me about booking, payments, spaces, or plans — or pick a quick question below.",
     },
   ]);
   const [input, setInput] = useState("");

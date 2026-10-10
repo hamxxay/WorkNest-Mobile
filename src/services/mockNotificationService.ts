@@ -31,7 +31,7 @@ export async function simulateChallanReadyNotification(
     challanId,
     amount,
     status: "pending_payment",
-    title: "Your challan is ready 🎉",
+    title: "Your challan is ready",
     body: `Challan ${challanId} for PKR ${amount.toLocaleString()} is ready. Tap to proceed with payment.`,
   };
   console.log("[mockNotificationService] Customer notified:", notification);

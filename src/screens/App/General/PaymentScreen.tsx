@@ -10,6 +10,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import Ionicons from "react-native-vector-icons/Ionicons";
 import { useRoute, useNavigation } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -435,7 +436,7 @@ export default function PaymentScreen() {
                   style={[styles.tncCheckbox, tncAccepted && styles.tncCheckboxChecked]}
                   onPress={() => setTncAccepted((v) => !v)}
                 >
-                  {tncAccepted && <Text style={styles.tncCheckmark}>✓</Text>}
+                  {tncAccepted && <Ionicons name="checkmark" size={14} color="#fff" />}
                 </Pressable>
                 <Text style={styles.tncText}>
                   I agree to the{" "}
@@ -1134,7 +1135,6 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
     backgroundColor: colors.primary,
     borderColor: colors.primary,
   },
-  tncCheckmark: { color: colors.white, fontSize: 13, fontWeight: "800" },
   tncText: { flex: 1, color: colors.mutedForeground, fontSize: 13 },
   tncLink: { color: colors.primary, fontWeight: "700", textDecorationLine: "underline" },
   tncOverlay: {

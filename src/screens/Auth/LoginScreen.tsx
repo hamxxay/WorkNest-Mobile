@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   ActivityIndicator,
-  Dimensions,
+  useWindowDimensions,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -19,7 +19,7 @@ import type { RouteProp } from "@react-navigation/native";
 import type { AuthStackParamList, RootStackParamList, AppStackParamList } from "../../navigation/types";
 import { Screen } from "../../components/Screen";
 import { ConfirmModal } from "../../components/ConfirmModal";
-import { useThemeColors, useThemedStyles } from "../../theme";
+import { useThemeColors } from "../../theme";
 import { ApiError } from "../../services/apiClient";
 import {
   beginGoogleAuth,
@@ -35,11 +35,11 @@ import {
   sanitizeTextForState,
 } from "../../utils/inputSanitizer";
 
-const { width: SW } = Dimensions.get("window");
 
 export default function LoginScreen() {
   const colors = useThemeColors();
-  const styles = useThemedStyles(createStyles);
+  const { width: SW } = useWindowDimensions();
+  const styles = useMemo(() => createStyles(colors, SW), [colors, SW]);
   const navigation = useNavigation<NativeStackNavigationProp<AuthStackParamList & AppStackParamList>>();
   const route = useRoute<RouteProp<AuthStackParamList, "Login">>();
   const redirectAfterLogin = route.params?.redirectAfterLogin;
@@ -187,7 +187,7 @@ export default function LoginScreen() {
               />
             </View>
             <Text style={styles.brandTitle}>WorkNest</Text>
-            <Text style={styles.brandSubtitle}>Welcome back 👋</Text>
+            <Text style={styles.brandSubtitle}>Welcome back</Text>
           </View>
 
           <View style={styles.card}>
@@ -314,7 +314,7 @@ export default function LoginScreen() {
   );
 }
 
-const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.create({
+const createStyles = (colors: ReturnType<typeof useThemeColors>, SW: number) => StyleSheet.create({
   flex: { flex: 1 },
   bgDecor1: {
     position: "absolute",

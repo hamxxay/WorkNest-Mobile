@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Text,
   View,
+  ActivityIndicator,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
@@ -23,6 +24,7 @@ import type {
 } from '../../../navigation/types';
 import { useAuth } from '../../../context/AuthContext';
 import { useDoorAccess } from '../../../hooks/useDoorAccess';
+import { useUnlockRoomDoor } from '../../../hooks/useUnlockRoomDoor';
 import { getCustomerAttendants } from '../../../services/attendantService';
 import { getWorkspaces } from '../../../services/workspaceService';
 import {
@@ -53,6 +55,7 @@ export default function HomeScreen() {
   const colors = useThemeColors();
   const { user, isLoadingUser } = useAuth();
   const doorAccess = useDoorAccess();
+  const { unlock: unlockRoomDoor, unlocking } = useUnlockRoomDoor(doorAccess);
   const unreadCount = useAppSelector(
     s => s.notifications.items.filter(n => !n.read).length,
   );
@@ -333,7 +336,9 @@ export default function HomeScreen() {
                 key={item.label}
                 accessibilityRole="button"
                 accessibilityLabel={item.label}
-                onPress={() => navigation.navigate(item.screen as any)}
+                disabled={item.screen === 'UnlockDoor' && unlocking}
+                // Unlock Door opens the room door right away (no extra screen).
+                onPress={() => (item.screen === 'UnlockDoor' ? unlockRoomDoor() : navigation.navigate(item.screen as any))}
                 style={[
                   styles.quickCard,
                   {
@@ -344,9 +349,15 @@ export default function HomeScreen() {
                 ]}
               >
                 <View style={[styles.quickIcon, { backgroundColor: colors.primaryMuted }]}>
-                  <Ionicons name={item.icon as any} size={22} color={colors.primary} />
+                  {item.screen === 'UnlockDoor' && unlocking ? (
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  ) : (
+                    <Ionicons name={item.icon as any} size={22} color={colors.primary} />
+                  )}
                 </View>
-                <Text style={[styles.quickLabel, { color: colors.foreground }]}>{item.label}</Text>
+                <Text style={[styles.quickLabel, { color: colors.foreground }]}>
+                  {item.screen === 'UnlockDoor' && unlocking ? 'Unlocking…' : item.label}
+                </Text>
               </Pressable>
             ))}
           </View>

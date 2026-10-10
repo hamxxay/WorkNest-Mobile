@@ -558,7 +558,6 @@ function KycItemRow({ rowKey, item, docType, remarks, data, busyKey, runUpload }
 
       {message ? (
         <Text style={[styles.status, { color: message.kind === 'ok' ? colors.success : colors.danger }]}>
-          {message.kind === 'ok' ? '✓ ' : ''}
           {message.text}
         </Text>
       ) : null}

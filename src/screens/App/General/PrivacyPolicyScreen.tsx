@@ -1,10 +1,10 @@
-import { Dimensions, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useMemo } from "react";
+import { useWindowDimensions, ScrollView, StyleSheet, Text, View } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { Header } from "../../../components/Header";
 import { Screen } from "../../../components/Screen";
-import { radii, shadows, useThemeColors, useThemedStyles } from "../../../theme";
+import { radii, shadows, useThemeColors } from "../../../theme";
 
-const { width: SW } = Dimensions.get("window");
 
 type Section = {
   number: string;
@@ -113,7 +113,8 @@ const SECTIONS: Section[] = [
 
 export default function PrivacyPolicyScreen() {
   const colors = useThemeColors();
-  const styles = useThemedStyles(createStyles);
+  const { width: SW } = useWindowDimensions();
+  const styles = useMemo(() => createStyles(colors, SW), [colors, SW]);
 
   return (
     <Screen>
@@ -183,7 +184,7 @@ export default function PrivacyPolicyScreen() {
   );
 }
 
-const createStyles = (colors: ReturnType<typeof useThemeColors>) =>
+const createStyles = (colors: ReturnType<typeof useThemeColors>, SW: number) =>
   StyleSheet.create({
     scroll: { paddingBottom: 48 },
 
