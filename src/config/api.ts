@@ -175,6 +175,20 @@ export const API_ENDPOINTS = {
     list: "/customer",
     search: "/customer/search",
   },
+  kyc: {
+    /** GET /api/kyc — staff: customers with KYC counts (admin, super admin, sales executive) */
+    list: (page = 1, limit = 20, search?: string) => {
+      const p = new URLSearchParams();
+      p.set("page", String(page));
+      p.set("limit", String(limit));
+      if (search) p.set("search", search);
+      return `/kyc?${p.toString()}`;
+    },
+    /** GET /api/kyc/{customerId or guid} — checklist, document types, uploaded documents */
+    customer: (customerIdOrGuid: number | string) => `/kyc/${encodeURIComponent(String(customerIdOrGuid))}`,
+    /** POST /api/kyc/upload  multipart/form-data: CustomerId, DocumentTypeId, SlotNo, HolderName?, ExpiryDate?, File */
+    upload: "/kyc/upload",
+  },
   agreement: {
     /** GET /api/Agreement — admin paginated list */
     list: (page = 1, limit = 10, search?: string, status?: string) => {

@@ -24,6 +24,7 @@ const SCREEN_LABELS: Record<string, string> = {
   AdminPanel: 'Admin Panel',
   AgreementList: 'My Agreements',
   ESignAgreement: 'Sign Agreement',
+  KycDocuments: 'KYC Documents',
 };
 
 function getGreeting() {
