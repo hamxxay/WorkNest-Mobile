@@ -1,6 +1,6 @@
 
 import { API_BASE_URL, API_ENDPOINTS } from "../config/api";
-import { ApiError, apiRequest } from "./apiClient";
+import { ApiError, apiRequest, friendlyApiMessage } from "./apiClient";
 import { getToken, getUser } from "../utils/authStorage";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -199,15 +199,18 @@ export async function uploadSignedAgreement(
   }
 
   const url = `${API_BASE_URL}${API_ENDPOINTS.agreement.myUploadSigned(id)}`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers,
-    body: formData,
-    credentials: "omit",
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, { method: "POST", headers, body: formData, credentials: "omit" });
+  } catch {
+    throw new Error("Can't reach the server. Check your internet connection and try again.");
+  }
   if (!res.ok) {
-    const text = await res.text().catch(() => "Upload failed");
-    throw new Error(text || `Upload failed (${res.status})`);
+    // Never show the raw response (it can be an HTML error page): use the API's message or a plain one.
+    const text = await res.text().catch(() => "");
+    let payload: unknown = text;
+    try { payload = JSON.parse(text); } catch {}
+    throw new Error(friendlyApiMessage(res.status, payload));
   }
 }
 
@@ -307,16 +310,11 @@ export async function downloadMyAgreementPdf(id: number | string): Promise<strin
     throw new Error("Could not download the agreement. Check your connection and try again.");
   }
   if (!res.ok) {
-    let message = res.status === 429
-      ? "Too many downloads. Please wait a minute and try again."
-      : `Could not download the agreement (${res.status}).`;
-    try {
-      const body = await res.json();
-      if (typeof body?.message === "string" && body.message.trim()) message = body.message;
-    } catch {
-      // not JSON — keep the default message
-    }
-    throw new Error(message);
+    let body: unknown = null;
+    try { body = await res.json(); } catch {}
+    throw new Error(
+      res.status === 429 ? "Too many downloads. Please wait a minute and try again." : friendlyApiMessage(res.status, body),
+    );
   }
 
   const blob = await res.blob();

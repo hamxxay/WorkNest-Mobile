@@ -29,6 +29,7 @@ import {
   sanitizePhoneInput,
   sanitizeTextForState,
 } from "../../../utils/inputSanitizer";
+import { formatPhoneInput } from "../../../utils/phone";
 import { useAuth } from "../../../context/AuthContext";
 
 const WHATSAPP_NUMBER = "923160577702";
@@ -181,7 +182,7 @@ export default function ContactUsScreen() {
               <TextInput
                 value={phone}
                 onChangeText={(value) =>
-                  setPhone(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.phone }))
+                  setPhone(formatPhoneInput(value))
                 }
                 placeholder="Enter your phone number"
                 placeholderTextColor={colors.mutedForeground}

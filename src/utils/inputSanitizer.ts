@@ -5,6 +5,7 @@ import {
   isValidExpiry,
   isValidPassword,
 } from "./validation";
+import { isValidPhone, PHONE_ERROR } from "./phone";
 
 const MULTI_SPACE_REGEX = /\s+/g;
 
@@ -125,15 +126,8 @@ export function sanitizePhoneInput(value: string, fieldLabel = "Phone number"): 
   const compact = removeControls(value).trim();
   ensurePresent(compact, fieldLabel);
   ensureMaxLength(compact, fieldLabel, INPUT_LIMITS.phone);
-  ensurePattern(
-    compact,
-    fieldLabel,
-    /^[0-9+()\-\s]{7,20}$/,
-    "Please enter a valid phone number."
-  );
-  const digits = compact.replace(/\D/g, "");
-  if (digits.length < 7 || digits.length > 15) {
-    throw new Error("Please enter a valid phone number.");
+  if (!isValidPhone(compact)) {
+    throw new Error(PHONE_ERROR);
   }
   return compact.replace(/\s+/g, " ");
 }

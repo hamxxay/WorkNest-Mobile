@@ -15,6 +15,7 @@ import { Header } from "../../../components/Header";
 import { Screen } from "../../../components/Screen";
 import { useThemeColors, useThemedStyles } from "../../../theme";
 import { createAdminBooking, normalizeBookingPayload } from "../../../services/bookingService";
+import { formatPhoneInput, phoneError, PHONE_MAX_LENGTH } from "../../../utils/phone";
 
 const EMPTY_FORM = {
   userIdGuid: "",
@@ -64,6 +65,11 @@ export default function SaleBookingCreateScreen({ navigation }: { navigation: an
   const handleSubmit = async () => {
     if (!canSubmit) {
       Alert.alert("Missing fields", "Please complete the required booking information.");
+      return;
+    }
+    const phoneMessage = phoneError(form.phone);
+    if (phoneMessage) {
+      Alert.alert("Invalid phone number", phoneMessage);
       return;
     }
 
@@ -121,7 +127,7 @@ export default function SaleBookingCreateScreen({ navigation }: { navigation: an
             <Field label="User Id" value={form.userId} onChangeText={(value) => updateField("userId", value)} keyboardType="numeric" />
             <Field label="Customer Name" value={form.customerName} onChangeText={(value) => updateField("customerName", value)} />
             <Field label="Customer Email" value={form.customerEmail} onChangeText={(value) => updateField("customerEmail", value)} keyboardType="email-address" autoCapitalize="none" />
-            <Field label="Phone" value={form.phone} onChangeText={(value) => updateField("phone", value)} keyboardType="phone-pad" />
+            <Field label="Phone" value={form.phone} onChangeText={(value) => updateField("phone", formatPhoneInput(value))} keyboardType="phone-pad" maxLength={PHONE_MAX_LENGTH} />
 
             <Text style={styles.sectionLabel}>Space & schedule</Text>
             <Field label="Space Guid" value={form.spaceIdGuid} onChangeText={(value) => updateField("spaceIdGuid", value)} />
@@ -173,6 +179,7 @@ function Field({
   autoCapitalize,
   multiline,
   placeholder,
+  maxLength,
 }: {
   label: string;
   value: string;
@@ -181,6 +188,7 @@ function Field({
   autoCapitalize?: "none" | "sentences" | "words";
   multiline?: boolean;
   placeholder?: string;
+  maxLength?: number;
 }) {
   const colors = useThemeColors();
   const fieldStyles = useThemedStyles(createStyles);
@@ -199,6 +207,7 @@ function Field({
         numberOfLines={multiline ? 4 : 1}
         placeholder={placeholder}
         placeholderTextColor={colors.mutedForeground}
+        maxLength={maxLength}
         style={[
           fieldStyles.input,
           multiline && fieldStyles.textarea,

@@ -19,6 +19,7 @@ import {
   normalizeCustomerPayload,
 } from '../../../services/customerService';
 import { cnicError, formatCnicInput } from '../../../utils/cnic';
+import { formatPhoneInput, phoneError, PHONE_MAX_LENGTH } from '../../../utils/phone';
 
 const EMPTY_FORM = {
   firstName: '',
@@ -67,6 +68,11 @@ export default function CustomerCreateScreen({
         'Missing fields',
         'Please complete the required customer information.',
       );
+      return;
+    }
+    const phoneMessage = phoneError(form.phoneNumber);
+    if (phoneMessage) {
+      Alert.alert('Invalid phone number', phoneMessage);
       return;
     }
     const cnicMessage = cnicError(form.cnicOrPassport);
@@ -150,8 +156,9 @@ export default function CustomerCreateScreen({
             <Field
               label="Phone Number*"
               value={form.phoneNumber}
-              onChangeText={value => updateField('phoneNumber', value)}
+              onChangeText={value => updateField('phoneNumber', formatPhoneInput(value))}
               keyboardType="phone-pad"
+              maxLength={PHONE_MAX_LENGTH}
             />
             <Field
               label="CNIC"

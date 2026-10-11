@@ -25,6 +25,7 @@ import {
   sanitizePhoneInput,
   sanitizeTextForState,
 } from "../../../utils/inputSanitizer";
+import { formatPhoneInput } from "../../../utils/phone";
 import { useAuth } from "../../../context/AuthContext";
 import {
   BookingProgress,
@@ -248,7 +249,7 @@ export default function BookingInfoScreen() {
             <View><Text style={styles.sectionTitle}>Guest details</Text><Text style={styles.helperText}>These details are used for your booking confirmation.</Text></View>
             <View style={styles.textField}><Ionicons name="person-outline" size={18} color={colors.primary} /><TextInput accessibilityLabel="Guest name" value={name} onChangeText={(value) => setName(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.name }))} placeholder="Full name" placeholderTextColor={colors.mutedForeground} maxLength={INPUT_LIMITS.name} style={styles.textInput} /></View>
             <View style={styles.textField}><Ionicons name="mail-outline" size={18} color={colors.primary} /><TextInput accessibilityLabel="Email address" value={email} onChangeText={(value) => setEmail(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.email }))} placeholder="Email address" placeholderTextColor={colors.mutedForeground} keyboardType="email-address" autoCapitalize="none" maxLength={INPUT_LIMITS.email} style={styles.textInput} /></View>
-            <View style={styles.textField}><Ionicons name="call-outline" size={18} color={colors.primary} /><TextInput accessibilityLabel="Phone number" value={phone} onChangeText={(value) => setPhone(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.phone }))} placeholder="Phone number" placeholderTextColor={colors.mutedForeground} keyboardType="phone-pad" maxLength={INPUT_LIMITS.phone} style={styles.textInput} /></View>
+            <View style={styles.textField}><Ionicons name="call-outline" size={18} color={colors.primary} /><TextInput accessibilityLabel="Phone number" value={phone} onChangeText={(value) => setPhone(formatPhoneInput(value))} placeholder="Phone number" placeholderTextColor={colors.mutedForeground} keyboardType="phone-pad" maxLength={INPUT_LIMITS.phone} style={styles.textInput} /></View>
             <View style={styles.trustRow}><Ionicons name="shield-checkmark-outline" size={17} color={colors.primary} /><Text style={styles.trustText}>Your details are kept secure and used only to process this booking.</Text></View>
             <BookingSummaryCard workspace={workspace} dateLabel={selectedDatesLabel} timeLabel={isOffice ? "Monthly booking" : selectedTime || "Select a time"} />
           </View>

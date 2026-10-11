@@ -26,6 +26,7 @@ import {
   type DoorAccessResult,
 } from '../../../services/doorAccessService';
 import { cnicError, formatCnicInput } from '../../../utils/cnic';
+import { formatPhoneInput, phoneError, PHONE_MAX_LENGTH } from '../../../utils/phone';
 
 type FormState = { name: string; email: string; cnic: string; phone: string };
 
@@ -96,6 +97,11 @@ export default function AccessRequestScreen({
     const cnicMessage = cnicError(form.cnic);
     if (cnicMessage) {
       Alert.alert('Invalid CNIC', cnicMessage);
+      return;
+    }
+    const phoneMessage = phoneError(form.phone);
+    if (phoneMessage) {
+      Alert.alert('Invalid phone number', phoneMessage);
       return;
     }
     const details = {
@@ -175,8 +181,9 @@ export default function AccessRequestScreen({
               label="Phone"
               placeholder="Enter phone number"
               value={form.phone}
-              onChangeText={value => updateField('phone', value)}
+              onChangeText={value => updateField('phone', formatPhoneInput(value))}
               keyboardType="phone-pad"
+              maxLength={PHONE_MAX_LENGTH}
             />
 
             <View style={styles.fieldWrap}>

@@ -32,6 +32,7 @@ import {
   isNewInquiry,
   whatsappNumber,
 } from '../../../utils/inquiry';
+import { formatPhoneInput, phoneError, PHONE_MAX_LENGTH } from '../../../utils/phone';
 
 export type InquiryFilter = 'due' | 'new' | 'all';
 
@@ -480,6 +481,8 @@ function AddInquirySheet({
     if (savingRef.current) return;
     if (!form.fullName.trim()) return setError('Enter the name.');
     if (!form.phone.trim()) return setError('Enter the phone number.');
+    const phoneMessage = phoneError(form.phone);
+    if (phoneMessage) return setError(phoneMessage);
     savingRef.current = true;
     setSaving(true);
     setError('');
@@ -503,7 +506,7 @@ function AddInquirySheet({
       <Text style={styles.fieldLabel}>{label}</Text>
       <TextInput
         value={form[key]}
-        onChangeText={value => update(key, value)}
+        onChangeText={value => update(key, key === 'phone' ? formatPhoneInput(value) : value)}
         placeholderTextColor={colors.mutedForeground}
         style={[styles.input, props.multiline && styles.textarea]}
         {...props}
@@ -530,7 +533,11 @@ function AddInquirySheet({
           </View>
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.sheetBody}>
             {field('fullName', 'Full name *', { placeholder: 'Customer name', autoCapitalize: 'words' })}
-            {field('phone', 'Phone *', { placeholder: '03xx xxxxxxx', keyboardType: 'phone-pad' })}
+            {field('phone', 'Phone *', {
+              placeholder: '03xx xxxxxxx',
+              keyboardType: 'phone-pad',
+              maxLength: PHONE_MAX_LENGTH,
+            })}
             {field('email', 'Email', {
               placeholder: 'name@example.com',
               keyboardType: 'email-address',

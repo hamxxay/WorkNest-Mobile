@@ -6,6 +6,7 @@ import RootNavigator from "./src/navigation/RootNavigator";
 import { store } from "./src/store/store";
 import { AuthProvider } from "./src/context/AuthContext";
 import { colors } from "./src/theme";
+import { ErrorBoundary } from "./src/components/ErrorBoundary";
 
 function App() {
   return (
@@ -18,7 +19,9 @@ function App() {
               backgroundColor={colors.background}
               translucent={false}
             />
-            <RootNavigator />
+            <ErrorBoundary>
+              <RootNavigator />
+            </ErrorBoundary>
           </SafeAreaProvider>
         </AuthProvider>
       </Provider>
