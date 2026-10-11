@@ -24,6 +24,7 @@ import {
 } from "../../../services/mockNotificationService";
 import { isValidEmail } from "../../../utils/validation";
 import { cnicError, formatCnicInput } from "../../../utils/cnic";
+import { formatPhoneInput, phoneError, PHONE_MAX_LENGTH } from "../../../utils/phone";
 import type { AppStackParamList } from "../../../navigation/types";
 
 type Field = { value: string; error: string };
@@ -55,9 +56,9 @@ export default function CustomerInfoScreen() {
     };
     set(setFullName, fullName.value.trim() ? "" : "Full name is required.");
     set(setCnic, cnic.value.trim() ? cnicError(cnic.value) ?? "" : "CNIC is required.");
-    set(setMobile, mobile.value.trim() ? "" : "Mobile number is required.");
+    set(setMobile, mobile.value.trim() ? phoneError(mobile.value) ?? "" : "Mobile number is required.");
     if (!sameAsWhatsApp) {
-      set(setWhatsapp, whatsapp.value.trim() ? "" : "WhatsApp number is required.");
+      set(setWhatsapp, whatsapp.value.trim() ? phoneError(whatsapp.value) ?? "" : "WhatsApp number is required.");
     }
     set(setEmail, !email.value.trim() ? "Email is required." : !isValidEmail(email.value) ? "Enter a valid email address." : "");
     return valid;
@@ -153,8 +154,8 @@ export default function CustomerInfoScreen() {
               placeholder="e.g. 35202-1234567-1" keyboardType="number-pad" maxLength={15} />
 
             <FormField label="Mobile Number" required value={mobile.value} error={mobile.error}
-              onChangeText={(v) => setMobile({ value: v, error: "" })}
-              placeholder="e.g. 0300 1234567" keyboardType="phone-pad" />
+              onChangeText={(v) => setMobile({ value: formatPhoneInput(v), error: "" })}
+              placeholder="e.g. 0300 1234567" keyboardType="phone-pad" maxLength={PHONE_MAX_LENGTH} />
 
             {/* WhatsApp toggle */}
             <View style={s.switchRow}>
@@ -169,8 +170,8 @@ export default function CustomerInfoScreen() {
 
             {!sameAsWhatsApp && (
               <FormField label="WhatsApp Number" required value={whatsapp.value} error={whatsapp.error}
-                onChangeText={(v) => setWhatsapp({ value: v, error: "" })}
-                placeholder="e.g. 0300 1234567" keyboardType="phone-pad" />
+                onChangeText={(v) => setWhatsapp({ value: formatPhoneInput(v), error: "" })}
+                placeholder="e.g. 0300 1234567" keyboardType="phone-pad" maxLength={PHONE_MAX_LENGTH} />
             )}
 
             <FormField label="Email Address" required value={email.value} error={email.error}

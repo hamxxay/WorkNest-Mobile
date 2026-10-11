@@ -1,5 +1,5 @@
 import { API_BASE_URL, API_ENDPOINTS, buildApiPath } from "../config/api";
-import { ApiError, apiRequest } from "./apiClient";
+import { ApiError, apiRequest, friendlyApiMessage, serverMessage } from "./apiClient";
 import { getToken, getUser } from "../utils/authStorage";
 
 // Same shapes the website's KYC page uses (WorkNest_FE src/app/services/kyc.service.ts).
@@ -188,8 +188,7 @@ export async function uploadKycDocument(
       } catch {
         payload = null;
       }
-      const message: string | undefined =
-        typeof payload?.message === "string" && payload.message.trim() ? payload.message : undefined;
+      const message = serverMessage(payload) ?? undefined;
       if (xhr.status >= 200 && xhr.status < 300 && payload?.success !== false) {
         resolve(message ?? "Document uploaded.");
         return;
@@ -197,7 +196,7 @@ export async function uploadKycDocument(
       if (xhr.status === 401) return reject(new Error("Your session has expired. Please log in again."));
       if (xhr.status === 403) return reject(new Error("Your account isn't allowed to upload KYC documents."));
       if (xhr.status === 413) return reject(new Error("The file is too large. Please retake the photo."));
-      reject(new Error(message ?? `Upload failed (${xhr.status}). Please try again.`));
+      reject(new Error(friendlyApiMessage(xhr.status, payload)));
     };
     xhr.onerror = () => reject(new Error("Network error. Check your connection and try again."));
     xhr.ontimeout = () => reject(new Error("The upload timed out. Please try again."));

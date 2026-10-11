@@ -12,6 +12,7 @@ import { useAuth } from "../../../context/AuthContext";
 import type { AppStackParamList } from "../../../navigation/types";
 import { rootNavRef } from "../../../navigation/AppNavigator";
 import { getMyBookings } from "../../../services/workspaceService";
+import { formatPhoneInput, phoneError, PHONE_MAX_LENGTH } from "../../../utils/phone";
 
 type BookingItem = {
   id: number;
@@ -55,6 +56,11 @@ export default function ProfileScreen() {
   const handleSaveProfile = async () => {
     if (!editName.trim()) {
       setErrorMessage("Name cannot be empty.");
+      return;
+    }
+    const phoneMessage = phoneError(editPhone);
+    if (phoneMessage) {
+      setErrorMessage(phoneMessage);
       return;
     }
     try {
@@ -294,10 +300,11 @@ export default function ProfileScreen() {
             <TextInput
               style={styles.textInput}
               value={editPhone}
-              onChangeText={setEditPhone}
+              onChangeText={(value) => setEditPhone(formatPhoneInput(value))}
               placeholder="Enter your contact number"
               placeholderTextColor={colors.mutedForeground}
               keyboardType="phone-pad"
+              maxLength={PHONE_MAX_LENGTH}
             />
 
             <View style={styles.modalButtons}>

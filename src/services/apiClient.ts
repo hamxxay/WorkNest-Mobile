@@ -57,6 +57,61 @@ async function buildHeaders(
   return headers;
 }
 
+/** Plain-language message per HTTP status, used when the API sent no readable message of its own. */
+const STATUS_MESSAGES: Record<number, string> = {
+  400: "Some of the details aren't valid. Please check them and try again.",
+  401: "Your session has expired. Please sign in again.",
+  403: "You don't have permission to do this.",
+  404: "This isn't available right now. Please try again later.",
+  405: "This isn't available right now. Please try again later.",
+  408: "The server took too long to respond. Please try again.",
+  409: "This was changed by someone else. Refresh and try again.",
+  413: "The file is too large. Please choose a smaller file.",
+  415: "This file type isn't supported.",
+  422: "Some of the details aren't valid. Please check them and try again.",
+  429: "Too many attempts. Please wait a minute and try again.",
+  500: "Something went wrong on our side. Please try again in a moment.",
+  502: "The service is temporarily unavailable. Please try again in a few minutes.",
+  503: "The service is temporarily unavailable. Please try again in a few minutes.",
+  504: "The server took too long to respond. Please try again.",
+};
+const FALLBACK_MESSAGE = "Something went wrong. Please try again.";
+
+/** Text that must never reach the screen: framework errors, stack traces, SQL, HTML pages, URLs. */
+const TECHNICAL_TEXT = /http failure|exception|stack ?trace|\bat [A-Z][\w.]+\(|\bsql\b|object reference|timeout expired|<!doctype|<html|https?:\/\/|\bnull\b|undefined/i;
+
+const isShowable = (text: unknown): text is string =>
+  typeof text === "string" && text.trim().length > 0 && text.length <= 300 && !TECHNICAL_TEXT.test(text);
+
+/** The API's own message, if it sent a readable one ({ message }, ProblemDetails, validation errors, plain text). */
+export function serverMessage(payload: unknown): string | null {
+  if (isShowable(payload)) return payload.trim();
+  if (!payload || typeof payload !== "object") return null;
+  const p = payload as Record<string, any>;
+  for (const key of ["message", "Message", "errorMessage", "ErrorMessage", "error", "detail", "title"]) {
+    if (isShowable(p[key])) return p[key].trim();
+  }
+  if (p.errors && typeof p.errors === "object") {
+    for (const value of Object.values(p.errors)) {
+      const first = Array.isArray(value) ? value[0] : value;
+      if (isShowable(first)) return first.trim();
+    }
+  }
+  return null;
+}
+
+/** A message that is safe and useful to show the user for a failed request. */
+export function friendlyApiMessage(status: number, payload: unknown): string {
+  return serverMessage(payload) ?? STATUS_MESSAGES[status] ?? (status >= 500 ? STATUS_MESSAGES[500] : FALLBACK_MESSAGE);
+}
+
+/** Readable text for any error a screen catches (API errors are already readable; others get a generic line). */
+export function errorMessage(error: unknown, fallback = FALLBACK_MESSAGE): string {
+  if (error instanceof ApiError) return error.message;
+  const text = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  return isShowable(text) ? text : fallback;
+}
+
 /** How long a request may take before the app gives up and shows an error. */
 const REQUEST_TIMEOUT_MS = 20000;
 
@@ -100,15 +155,6 @@ export async function apiRequest<T>(
     try { return JSON.parse(text); } catch { return text; }
   };
 
-  const extractMessage = (payload: unknown): string => {
-    if (payload && typeof payload === "object") {
-      const p = payload as Record<string, unknown>;
-      const candidate = p["message"] ?? p["Message"] ?? p["title"] ?? p["detail"] ?? p["error"];
-      if (typeof candidate === "string" && candidate.trim()) return candidate;
-    }
-    return "Request failed";
-  };
-
   let headers = await buildHeaders(options);
   let response = await doFetch(headers);
 
@@ -129,12 +175,10 @@ export async function apiRequest<T>(
   const payload = await parsePayload(response);
 
   if (!response.ok) {
-    let message = extractMessage(payload);
-    if (response.status === 429 && message === "Request failed") {
+    let message = friendlyApiMessage(response.status, payload);
+    if (response.status === 429 && !serverMessage(payload)) {
       const wait = Number(response.headers.get("Retry-After"));
-      message = wait > 0
-        ? `Too many attempts. Please wait ${wait} seconds and try again.`
-        : "Too many attempts. Please wait a minute and try again.";
+      if (wait > 0) message = `Too many attempts. Please wait ${wait} seconds and try again.`;
     }
     if (__DEV__) console.warn(`[API ${response.status}] ${method} ${requestUrl} — ${message}`, payload);
     throw new ApiError(message, response.status, payload);
@@ -145,7 +189,7 @@ export async function apiRequest<T>(
   if (payload && typeof payload === "object") {
     const p = payload as Record<string, unknown>;
     if (p["isSuccessful"] === false || p["IsSuccessful"] === false || p["success"] === false) {
-      throw new ApiError(extractMessage(payload) === "Request failed" ? "Something went wrong. Please try again." : extractMessage(payload), response.status, payload);
+      throw new ApiError(serverMessage(payload) ?? FALLBACK_MESSAGE, response.status, payload);
     }
   }
 
