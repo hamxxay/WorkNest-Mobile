@@ -13,7 +13,6 @@ type MessagingModule = typeof import("@react-native-firebase/messaging");
 /** Firebase Messaging, or null when the native module is unavailable (tests, misconfigured builds). */
 function messagingModule(): MessagingModule | null {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     return require("@react-native-firebase/messaging") as MessagingModule;
   } catch {
     return null;

@@ -67,7 +67,7 @@ export const markAllAnnouncementsRead = createAsyncThunk<
 >("notifications/markAllRead", async (_, { getState, rejectWithValue }) => {
   const unread = getState().notifications.items.filter((n) => !n.isRead).map((n) => n.id);
   const results = await Promise.allSettled(unread.map((id) => markAnnouncementRead(id)));
-  const done = unread.filter((_, i) => results[i].status === "fulfilled");
+  const done = unread.filter((_id, i) => results[i].status === "fulfilled");
   if (unread.length > 0 && done.length === 0) {
     return rejectWithValue("Could not mark the notifications as read. Please try again.");
   }
