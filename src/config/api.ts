@@ -48,9 +48,13 @@ export const API_ENDPOINTS = {
   },
   workspaces: {
     list: "/space/available",
+    /** POST /api/booking — book a specific space (customer). */
     book: "/booking",
+    /** GET /api/booking/my — the signed-in customer's bookings. */
     myBookings: "/booking/my",
+    /** PATCH /api/booking/{id}/cancel — customer cancels their own booking (app: Pending only, like the website). */
     cancelBooking: (id: number | string) => `/booking/${id}/cancel`,
+    /** PUT /api/booking/{id} — staff only. */
     updateBooking: (id: number | string) => `/booking/${id}`,
     availableByType: "/space/available-by-type",
     availabilityCounts: "/space/availability-counts",
@@ -72,15 +76,17 @@ export const API_ENDPOINTS = {
     },
     feedback: (id: number | string) => `/contact/${encodeURIComponent(String(id))}/feedback`,
   },
+  // Customers pay by bank challan only (1Bill / HBL), like worknestpk.com: the app never creates or
+  // approves payments itself. Payment status always comes from the API.
   payments: {
+    /** GET /api/payment/my — the signed-in customer's payments (status set by the API). */
     my: "/payment/my",
+    /** Staff only. */
     create: "/payment",
+    /** Staff only. */
     approve: (id: number | string) => `/payment/${id}/approve`,
+    /** Staff only. */
     updateStatus: (id: number | string) => `/payment/${id}/status`,
-    card: "/payment/card",
-    voucherGenerate: "/payment/voucher/generate",
-    payfastInitiate: "/payment/payfast/initiate",
-    payfastNotify: "/payment/payfast/notify",
   },
   locations: {
     list: "/location/all",
@@ -91,13 +97,18 @@ export const API_ENDPOINTS = {
     deposit: (category: string) => `/space-config/deposit/${category}`,
   },
   smartBooking: {
+    /** POST /api/booking/smart — customer books a category; the API picks the space and issues the challan. */
     create: "/booking/smart",
   },
   booking: {
+    /** GET /api/booking — staff only (paginated). */
     list: "/booking",
+    /** GET /api/booking/{id or publicId} — staff: any booking; customer: their own. */
     byId: (id: number | string) => `/booking/${id}`,
-    details: (id: number | string) => `/booking/${id}/details`,
-    challan: (challanNumber: string) => `/booking/challan/${challanNumber}`,
+    /** GET /api/booking/{id}/challan — bank challan of a booking (customer: own bookings only). */
+    challan: (bookingId: number | string) => `/booking/${bookingId}/challan`,
+    /** GET /api/booking/{id}/challan-pdf — challan as PDF (needs the sign-in token). */
+    challanPdf: (bookingId: number | string) => `/booking/${bookingId}/challan-pdf`,
     calendar: (spaceId: number, year: number, month: number) =>
       `/booking/calendar?spaceId=${spaceId}&year=${year}&month=${month}`,
     updateStatus: (id: number | string) => `/booking/${id}/status`,
@@ -131,6 +142,8 @@ export const API_ENDPOINTS = {
         ? `/quotation/activities?quotationId=${quotationId}`
         : "/quotation/activities",
     send: (id: string) => `/quotation/${id}/send`,
+    /** GET /api/quotation/{id}/pdf — staff, or the customer the quotation was issued to. */
+    pdf: (id: string) => `/quotation/${id}/pdf`,
     sendEmail: (id: string) => `/quotation/${id}/send-email`,
     convertToBooking: (id: string) => `/quotation/${id}/convert`,
     versionAccept: (id: string, version: number | string) =>
@@ -139,11 +152,15 @@ export const API_ENDPOINTS = {
       `/quotation/${id}/versions/${version}/decline`,
     versionCreate: (id: string) => `/quotation/${id}/versions`,
   },
+  // There is no "my invoices" list for customers yet: the customer area uses /payment/my + booking challans.
   invoices: {
-    list: "/invoices",
-    byId: (id: number | string) => `/invoices/${id}`,
-    byCustomer: (customerId: number | string) => `/invoice/customer/${customerId}`,
+    /** GET /api/invoice — staff only. */
+    list: "/invoice",
+    /** GET /api/invoice/{id} — staff only. */
+    byId: (id: number | string) => `/invoice/${id}`,
+    /** GET /api/customers/{customerId}/invoices — staff only. */
     customerInvoices: (customerId: number | string) => `/customers/${customerId}/invoices`,
+    /** GET /api/invoice/{id}/pdf — staff, or the customer the invoice belongs to (needs the sign-in token). */
     pdf: (id: number | string) => `/invoice/${id}/pdf`,
     statementPdf: (id: number | string) => `/invoice/${id}/statement-pdf`,
   },
@@ -158,6 +175,15 @@ export const API_ENDPOINTS = {
       `/bookings/${bookingDetailId}/attendants/${personId}`,
     capacityCheck: (bookingDetailId: number | string) => `/bookings/${bookingDetailId}/capacity-check`,
     activeSpaces: (customerId: number | string) => `/customers/${customerId}/active-spaces`,
+  },
+  // Signed-in app users (MobileAnnouncementController).
+  mobile: {
+    /** POST /api/mobile/device-token { token, platform } — FCM token for push notifications. */
+    deviceToken: "/mobile/device-token",
+    /** GET /api/mobile/announcements?page=&limit= — the user's announcements (isRead per user). */
+    announcements: (page = 1, limit = 20) => `/mobile/announcements?page=${page}&limit=${limit}`,
+    /** POST /api/mobile/announcements/{id}/read */
+    announcementRead: (id: string) => `/mobile/announcements/${encodeURIComponent(id)}/read`,
   },
   admin: {
     dashboardSummary: "/dashboard/summary",

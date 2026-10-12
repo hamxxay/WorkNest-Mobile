@@ -1,799 +1,302 @@
-import { useEffect, useMemo, useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, ActivityIndicator } from "react-native";
-import Ionicons from "react-native-vector-icons/Ionicons";
-import { useNavigation, useIsFocused } from "@react-navigation/native";
+import { useCallback, useRef, useState } from "react";
+import { ScrollView, StyleSheet, View, type TextInput } from "react-native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { ConfirmModal } from "../../../components/ConfirmModal";
-import { Header } from "../../../components/Header";
-import { Screen } from "../../../components/Screen";
-import { radii, useThemeColors, useThemedStyles } from "../../../theme";
-import { logoutUser, updateUserProfile } from "../../../services/authService";
+import {
+  AppearanceSetting,
+  AppHeader,
+  AppText,
+  Avatar,
+  BottomSheet,
+  Button,
+  Card,
+  Divider,
+  ListRow,
+  Screen,
+  SectionHeader,
+  StatCard,
+  TextField,
+  useConfirm,
+  useToast,
+} from "../../../components/ui";
+import { useThemedStyles, type AppColors, type Theme } from "../../../theme";
 import { useAuth } from "../../../context/AuthContext";
-import type { AppStackParamList } from "../../../navigation/types";
-import { rootNavRef } from "../../../navigation/AppNavigator";
-import { getMyBookings } from "../../../services/workspaceService";
+import { useNotificationsAction } from "../../../hooks/useHeaderActions";
+import { useDoorAccess } from "../../../hooks/useDoorAccess";
+import { logoutUser, updateUserProfile } from "../../../services/authService";
+import { errorMessage } from "../../../services/apiClient";
+import { getMyBookings, type MyBooking } from "../../../services/bookingService";
 import { formatPhoneInput, phoneError, PHONE_MAX_LENGTH } from "../../../utils/phone";
+import { rootNavRef } from "../../../navigation/AppNavigator";
+import type { AppStackParamList } from "../../../navigation/types";
+import { version as appVersion } from "../../../../package.json";
 
-type BookingItem = {
-  id: number;
-  startDateTime?: string;
-  endDateTime?: string;
-  bookingStatus?: string;
-};
+type Nav = NativeStackNavigationProp<AppStackParamList>;
+type Summary = { upcoming: number; completed: number; cancelled: number };
 
-type BookingSummary = {
-  upcoming: number;
-  completed: number;
-  cancelled: number;
-};
+function summarize(bookings: MyBooking[]): Summary {
+  const now = Date.now();
+  return bookings.reduce<Summary>(
+    (acc, b) => {
+      const status = b.status.toLowerCase();
+      if (status.includes("cancel")) acc.cancelled += 1;
+      else if (status.includes("complet") || (b.endOn && new Date(b.endOn).getTime() < now)) acc.completed += 1;
+      else acc.upcoming += 1;
+      return acc;
+    },
+    { upcoming: 0, completed: 0, cancelled: 0 },
+  );
+}
 
+/**
+ * Profile (tab): account details (edit name and phone via PUT /auth/me), booking counts, appearance
+ * (System / Light / Dark), shortcuts and sign out. Guests get sign in / sign up and the public pages.
+ */
 export default function ProfileScreen() {
-  const colors = useThemeColors();
+  const navigation = useNavigation<Nav>();
   const styles = useThemedStyles(createStyles);
-  const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
-  const { clearSession, user, setUser } = useAuth();
-  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [summary, setSummary] = useState<BookingSummary>({
-    upcoming: 0,
-    completed: 0,
-    cancelled: 0,
-  });
+  const { user, setUser, clearSession } = useAuth();
+  const bell = useNotificationsAction();
+  const doorAccess = useDoorAccess();
+  const toast = useToast();
+  const confirm = useConfirm();
 
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [showComingSoon, setShowComingSoon] = useState(false);
-  const [editName, setEditName] = useState("");
-  const [editPhone, setEditPhone] = useState("");
-  const [isSavingProfile, setIsSavingProfile] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [summary, setSummary] = useState<Summary | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [errors, setErrors] = useState<{ name?: string; phone?: string; form?: string }>({});
+  const [saving, setSaving] = useState(false);
+  const phoneRef = useRef<TextInput>(null);
 
-  const handleOpenEdit = () => {
-    setEditName(user?.name || "");
-    setEditPhone((user?.phoneNumber as string) || "");
-    setErrorMessage("");
-    setShowEditModal(true);
-  };
+  const displayName = typeof user?.name === "string" && user.name.trim() ? user.name.trim() : "WorkNest member";
+  const email = typeof user?.email === "string" ? user.email : "";
+  const userPhone = typeof user?.phoneNumber === "string" ? user.phoneNumber : "";
 
-  const handleSaveProfile = async () => {
-    if (!editName.trim()) {
-      setErrorMessage("Name cannot be empty.");
-      return;
-    }
-    const phoneMessage = phoneError(editPhone);
-    if (phoneMessage) {
-      setErrorMessage(phoneMessage);
-      return;
-    }
-    try {
-      setIsSavingProfile(true);
-      setErrorMessage("");
-      const updatedUser = await updateUserProfile(editName.trim(), editPhone.trim());
-      setUser(updatedUser);
-      setShowEditModal(false);
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Failed to update profile.");
-    } finally {
-      setIsSavingProfile(false);
-    }
-  };
-
-  const handleLogout = async () => {
-    setShowLogoutConfirm(false);
-    await logoutUser();
-    await clearSession();
-    rootNavRef.current?.reset({ index: 0, routes: [{ name: "AuthStack", params: { screen: "Login" } }] });
-  };
-
-  const isFocused = useIsFocused();
-
-  useEffect(() => {
-    let active = true;
-    getMyBookings()
-      .then((items) => {
-        if (!active) return;
-        setSummary(buildSummary(items as BookingItem[]));
-      })
-      .catch(() => {
-        if (!active) return;
-        setSummary({ upcoming: 0, completed: 0, cancelled: 0 });
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [isFocused]);
-
-  const summaryItems = useMemo(
-    () => [
-      { label: "Upcoming", value: summary.upcoming },
-      { label: "Completed", value: summary.completed },
-      { label: "Cancelled", value: summary.cancelled },
-    ],
-    [summary]
+  useFocusEffect(
+    useCallback(() => {
+      if (!user) return;
+      let active = true;
+      getMyBookings()
+        .then((items) => active && setSummary(summarize(items)))
+        .catch(() => {
+          // Counts stay hidden; Bookings shows the error with a retry.
+        });
+      return () => {
+        active = false;
+      };
+    }, [user]),
   );
 
-  const displayName = user?.name?.trim() || "WorkNest Member";
-  const displaySubtitle = user?.email?.trim() || "Signed in with Firebase";
+  const openEdit = () => {
+    setName(displayName === "WorkNest member" ? "" : displayName);
+    setPhone(userPhone);
+    setErrors({});
+    setEditOpen(true);
+  };
 
-  // Guest wall — user reached Profile tab without being authenticated
-  if (!user) {
-    return (
-      <Screen>
-        <Header />
-        <View style={styles.guestWall}>
-          <Ionicons name="person-circle-outline" size={72} color={colors.primary} style={{ opacity: 0.5 }} />
-          <Text style={styles.guestTitle}>Sign in to view your profile</Text>
-          <Text style={styles.guestSub}>Access your bookings, history, and account settings.</Text>
-          <Pressable
-            style={styles.guestBtn}
-            onPress={() => navigation.navigate("Login")}
-          >
-            <Ionicons name="log-in-outline" size={18} color="#fff" />
-            <Text style={styles.guestBtnText}>Sign In</Text>
-          </Pressable>
-        </View>
-      </Screen>
-    );
-  }
+  const saveProfile = async () => {
+    const next: typeof errors = {};
+    if (name.trim().length < 2) next.name = "Enter your full name.";
+    const p = phone.trim() ? phoneError(phone) : null;
+    if (p) next.phone = p;
+    setErrors(next);
+    if (Object.keys(next).length) return;
+    setSaving(true);
+    try {
+      const updated = await updateUserProfile(name.trim(), phone.trim());
+      setUser(updated);
+      setEditOpen(false);
+      toast.success("Profile updated.");
+    } catch (err) {
+      setErrors({ form: errorMessage(err, "Your profile could not be saved. Please try again.") });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const signOut = async () => {
+    const ok = await confirm({
+      title: "Sign out?",
+      message: "You can sign in again any time.",
+      confirmLabel: "Sign out",
+      destructive: true,
+      icon: "log-out-outline",
+      onConfirm: async () => {
+        await logoutUser();
+        await clearSession();
+      },
+    }).catch(() => true);
+    if (!ok) return;
+    rootNavRef.current?.reset({ index: 0, routes: [{ name: "AppStack", params: { screen: "MainTabs" } }] });
+  };
+
+  const exploreRows = (
+    <Card padding={0}>
+      <ListRow leftIcon="images-outline" title="Gallery" chevron onPress={() => navigation.navigate("Gallery")} />
+      <Divider inset={68} />
+      <ListRow leftIcon="walk-outline" title="Book a tour" chevron onPress={() => navigation.navigate("BookTour")} />
+      <Divider inset={68} />
+      <ListRow leftIcon="chatbubble-ellipses-outline" title="Contact us" chevron onPress={() => navigation.navigate("ContactUs")} />
+      <Divider inset={68} />
+      <ListRow leftIcon="information-circle-outline" title="About WorkNest" chevron onPress={() => navigation.navigate("AboutUs")} />
+      <Divider inset={68} />
+      <ListRow leftIcon="book-outline" title="User manual" chevron onPress={() => navigation.navigate("UserManual")} />
+      <Divider inset={68} />
+      <ListRow leftIcon="shield-checkmark-outline" title="Privacy policy" chevron onPress={() => navigation.navigate("PrivacyPolicy")} />
+    </Card>
+  );
 
   return (
-    <Screen>
+    <Screen edges={["top", "left", "right"]}>
+      <AppHeader variant="brand" title="Profile" actions={bell} />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Header />
-
-        {/* Hero profile card */}
-        <View style={styles.heroCard}>
-          <View style={styles.heroBg} />
-          <View style={styles.avatarWrap}>
-            <View style={styles.avatar}>
-              <Ionicons name="person" size={34} color={colors.white} />
-            </View>
-            <View style={styles.onlineDot} />
-          </View>
-          <Text style={styles.name} numberOfLines={1}>{displayName}</Text>
-          <Text style={styles.subText} numberOfLines={1}>{displaySubtitle}</Text>
-          {user?.phoneNumber ? (
-            <View style={styles.phoneRow}>
-              <Ionicons name="call-outline" size={13} color={colors.mutedForeground} />
-              <Text style={styles.phoneText} numberOfLines={1}>{user.phoneNumber as string}</Text>
-            </View>
-          ) : null}
-          {user?.customerCode ? (
-            <View style={styles.phoneRow}>
-              <Ionicons name="pricetag-outline" size={13} color={colors.mutedForeground} />
-              <Text style={styles.phoneText} numberOfLines={1}>Customer Code: {user.customerCode as string}</Text>
-            </View>
-          ) : null}
-          <Pressable style={styles.editButton} onPress={handleOpenEdit}>
-            <Ionicons name="create-outline" size={15} color={colors.white} />
-            <Text style={styles.editText}>Edit Profile</Text>
-          </Pressable>
-        </View>
-
-        {/* Booking stats */}
-        <View style={styles.statsRow}>
-          {summaryItems.map((item, i) => (
-            <View key={item.label} style={[styles.statCard, i === 1 && styles.statCardMiddle]}>
-              <Text style={[styles.statValue, i === 1 && styles.statValueAccent]}>{item.value}</Text>
-              <Text style={styles.statLabel}>{item.label}</Text>
-            </View>
-          ))}
-        </View>
-
-        {/* Membership card */}
-        <View style={styles.membershipCard}>
-          <View style={styles.membershipLeft}>
-            <View style={styles.membershipIconWell}>
-              <Ionicons name="ribbon" size={20} color="#F59E0B" />
-            </View>
-            <View>
-              <Text style={styles.membershipTitle}>WorkNest Plus</Text>
-              <Text style={styles.membershipSub}>Renews May 2026</Text>
-            </View>
-          </View>
-          <Pressable style={styles.manageBtn} onPress={() => setShowComingSoon(true)}>
-            <Text style={styles.manageBtnText}>Manage</Text>
-          </Pressable>
-        </View>
-
-        {/* Settings menu */}
-        <View style={styles.menuCard}>
-          {[
-            { icon: "person-outline" as const, label: "Edit Profile", onPress: handleOpenEdit },
-            { icon: "document-text-outline" as const, label: "Quotations", onPress: () => navigation.navigate("QuotationList") },
-            { icon: "create-outline" as const, label: "My Agreements", onPress: () => navigation.navigate("AgreementList") },
-            { icon: "time-outline" as const, label: "My Bookings", onPress: () => navigation.navigate("MyBookings") },
-            { icon: "time-outline" as const, label: "Booking History", onPress: () => navigation.navigate("BookingHistory") },
-            { icon: "shield-checkmark-outline" as const, label: "Privacy Policy", onPress: () => navigation.navigate("PrivacyPolicy") },
-            { icon: "information-circle-outline" as const, label: "About WorkNest", onPress: () => navigation.navigate("AboutUs") },
-            { icon: "book-outline" as const, label: "User Manual", onPress: () => navigation.navigate("UserManual") },
-          ].map((item, idx, arr) => (
-            <Pressable
-              key={item.label}
-              style={({ pressed }) => [
-                styles.menuItem,
-                idx < arr.length - 1 && styles.menuItemBorder,
-                pressed && { backgroundColor: colors.primaryMuted },
-              ]}
-              onPress={item.onPress}
-            >
-              <View style={styles.menuIconWell}>
-                <Ionicons name={item.icon} size={18} color={colors.primary} />
+        {user ? (
+          <>
+            <Card>
+              <View style={styles.identity}>
+                <Avatar name={displayName} size={56} />
+                <View style={styles.flex}>
+                  <AppText variant="heading" numberOfLines={1}>
+                    {displayName}
+                  </AppText>
+                  {email ? (
+                    <AppText variant="bodySmall" color="textMuted" numberOfLines={1}>
+                      {email}
+                    </AppText>
+                  ) : null}
+                  <AppText variant="bodySmall" color="textMuted">
+                    {userPhone || "No phone number yet"}
+                  </AppText>
+                </View>
               </View>
-              <Text style={styles.menuLabel}>{item.label}</Text>
-              <Ionicons name="chevron-forward" size={16} color={colors.mutedForeground} />
-            </Pressable>
-          ))}
-        </View>
+              <Button title="Edit profile" variant="outline" size="sm" leftIcon="create-outline" style={styles.editBtn} onPress={openEdit} />
+            </Card>
 
-        {/* Logout */}
-        <Pressable style={styles.logoutButton} onPress={() => setShowLogoutConfirm(true)}>
-          <Ionicons name="log-out-outline" size={18} color={colors.danger} />
-          <Text style={styles.logoutText}>Logout</Text>
-        </Pressable>
-      </ScrollView>
-
-      <ConfirmModal
-        visible={showLogoutConfirm}
-        title="Confirm Logout"
-        message="Are you sure you want to log out?"
-        confirmText="Log Out"
-        cancelText="Cancel"
-        onCancel={() => setShowLogoutConfirm(false)}
-        onConfirm={() => {
-          handleLogout().catch(() => {
-            setShowLogoutConfirm(false);
-          });
-        }}
-      />
-
-      <Modal
-        visible={showComingSoon}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowComingSoon(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.comingSoonCard}>
-            <View style={styles.comingSoonIconWell}>
-              <Ionicons name="rocket-outline" size={32} color={colors.primary} />
-            </View>
-            <Text style={styles.comingSoonTitle}>Coming Soon</Text>
-            <Text style={styles.comingSoonDesc}>
-              Membership management is on its way! Stay in touch with us for updates.
-            </Text>
-            <View style={styles.comingSoonContact}>
-              <Ionicons name="mail-outline" size={15} color={colors.primary} />
-              <Text style={styles.comingSoonEmail}>sales@worknestpk.com</Text>
-            </View>
-            <Pressable style={styles.comingSoonBtn} onPress={() => setShowComingSoon(false)}>
-              <Text style={styles.comingSoonBtnText}>Got it</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal
-        visible={showEditModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowEditModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Edit Profile</Text>
-            
-            {errorMessage ? (
-              <Text style={styles.errorText}>{errorMessage}</Text>
+            {summary ? (
+              <View style={styles.stats}>
+                <StatCard label="Upcoming" value={summary.upcoming} icon="calendar-outline" onPress={() => navigation.navigate("MainTabs", { screen: "Bookings", params: { tab: "upcoming" } })} />
+                <StatCard label="Completed" value={summary.completed} tone="success" icon="checkmark-done-outline" onPress={() => navigation.navigate("MainTabs", { screen: "Bookings", params: { tab: "history" } })} />
+              </View>
             ) : null}
 
-            <Text style={styles.inputLabel}>Name</Text>
-            <TextInput
-              style={styles.textInput}
-              value={editName}
-              onChangeText={setEditName}
-              placeholder="Enter your name"
-              placeholderTextColor={colors.mutedForeground}
-            />
-
-            <Text style={styles.inputLabel}>Contact Number</Text>
-            <TextInput
-              style={styles.textInput}
-              value={editPhone}
-              onChangeText={(value) => setEditPhone(formatPhoneInput(value))}
-              placeholder="Enter your contact number"
-              placeholderTextColor={colors.mutedForeground}
-              keyboardType="phone-pad"
-              maxLength={PHONE_MAX_LENGTH}
-            />
-
-            <View style={styles.modalButtons}>
-              <Pressable
-                style={[styles.modalButton, styles.cancelBtn]}
-                onPress={() => setShowEditModal(false)}
-                disabled={isSavingProfile}
-              >
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </Pressable>
-              
-              <Pressable
-                style={[styles.modalButton, styles.saveBtn]}
-                onPress={handleSaveProfile}
-                disabled={isSavingProfile}
-              >
-                {isSavingProfile ? (
-                  <ActivityIndicator size="small" color={colors.white} />
-                ) : (
-                  <Text style={styles.saveBtnText}>Save</Text>
-                )}
-              </Pressable>
+            <SectionHeader title="My account" />
+            <Card padding={0}>
+              <ListRow leftIcon="document-text-outline" title="My quotations" chevron onPress={() => navigation.navigate("QuotationList")} />
+              <Divider inset={68} />
+              <ListRow leftIcon="notifications-outline" title="Notifications" chevron onPress={() => navigation.navigate("Notifications")} />
+              <Divider inset={68} />
+              {doorAccess?.canOpenDoor ? (
+                <ListRow
+                  leftIcon="lock-open-outline"
+                  title="Unlock door"
+                  subtitle={doorAccess.selectedSpace?.spaceName ?? undefined}
+                  chevron
+                  onPress={() => navigation.navigate("UnlockDoor")}
+                />
+              ) : (
+                <ListRow
+                  leftIcon="key-outline"
+                  title="Access request"
+                  subtitle="Verify your access to unlock your room door"
+                  chevron
+                  onPress={() => navigation.navigate("AccessRequest")}
+                />
+              )}
+            </Card>
+          </>
+        ) : (
+          <Card>
+            <AppText variant="heading">Welcome to WorkNest</AppText>
+            <AppText variant="bodySmall" color="textSecondary" style={styles.top}>
+              Sign in to book spaces, see your challans and payments, and sign your agreements.
+            </AppText>
+            <View style={styles.guestActions}>
+              <Button title="Sign in" style={styles.flex} onPress={() => navigation.navigate("Login")} />
+              <Button title="Create account" variant="outline" style={styles.flex} onPress={() => navigation.navigate("Signup")} />
             </View>
-          </View>
-        </View>
-      </Modal>
+          </Card>
+        )}
+
+        <SectionHeader title="Appearance" />
+        <Card>
+          <AppearanceSetting />
+        </Card>
+
+        <SectionHeader title="WorkNest" />
+        {exploreRows}
+
+        {user ? (
+          <Card padding={0}>
+            <ListRow leftIcon="log-out-outline" title="Sign out" destructive onPress={signOut} />
+          </Card>
+        ) : null}
+
+        <AppText variant="caption" color="textMuted" align="center">
+          Version {appVersion}
+        </AppText>
+      </ScrollView>
+
+      <BottomSheet
+        visible={editOpen}
+        onClose={() => !saving && setEditOpen(false)}
+        dismissible={!saving}
+        title="Edit profile"
+        footer={
+          <>
+            <Button title="Cancel" variant="outline" style={styles.flex} disabled={saving} onPress={() => setEditOpen(false)} />
+            <Button title="Save" style={styles.flex} loading={saving} onPress={saveProfile} />
+          </>
+        }
+      >
+        <TextField
+          label="Full name"
+          required
+          value={name}
+          onChangeText={(v) => {
+            setName(v);
+            setErrors((e) => ({ ...e, name: undefined }));
+          }}
+          autoCapitalize="words"
+          autoComplete="name"
+          returnKeyType="next"
+          onSubmitEditing={() => phoneRef.current?.focus()}
+          error={errors.name}
+        />
+        <TextField
+          ref={phoneRef}
+          label="Phone"
+          value={phone}
+          onChangeText={(v) => {
+            setPhone(formatPhoneInput(v));
+            setErrors((e) => ({ ...e, phone: undefined }));
+          }}
+          keyboardType="phone-pad"
+          maxLength={PHONE_MAX_LENGTH}
+          autoComplete="tel"
+          returnKeyType="done"
+          onSubmitEditing={saveProfile}
+          error={errors.phone}
+          placeholder="03001234567"
+        />
+        <TextField label="Email" value={email} disabled helperText="Your sign-in email can't be changed here." />
+        {errors.form ? (
+          <AppText variant="bodySmall" color="danger">
+            {errors.form}
+          </AppText>
+        ) : null}
+      </BottomSheet>
     </Screen>
   );
 }
 
-function buildSummary(bookings: BookingItem[]): BookingSummary {
-  const now = new Date();
-  let upcoming = 0;
-  let completed = 0;
-  let cancelled = 0;
-
-  bookings.forEach((booking) => {
-    const status = (booking.bookingStatus ?? "").toLowerCase();
-    if (status.includes("cancel")) {
-      cancelled += 1;
-      return;
-    }
-    if (status.includes("complete")) {
-      completed += 1;
-      return;
-    }
-
-    const endDate = booking.endDateTime ? new Date(booking.endDateTime) : null;
-    if (endDate && endDate < now) {
-      completed += 1;
-      return;
-    }
-
-    upcoming += 1;
+const createStyles = (_c: AppColors, t: Theme) =>
+  StyleSheet.create({
+    content: { padding: t.spacing.screen, gap: t.spacing.lg, paddingBottom: t.spacing.xxl },
+    identity: { flexDirection: "row", alignItems: "center", gap: t.spacing.lg },
+    flex: { flex: 1 },
+    top: { marginTop: t.spacing.sm },
+    editBtn: { alignSelf: "flex-start", marginTop: t.spacing.md },
+    stats: { flexDirection: "row", gap: t.spacing.md },
+    guestActions: { flexDirection: "row", gap: t.spacing.md, marginTop: t.spacing.lg },
   });
-
-  return { upcoming, completed, cancelled };
-}
-
-const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.create({
-  content: {
-    paddingBottom: 36,
-    gap: 14,
-  },
-  // Hero card
-  heroCard: {
-    marginHorizontal: 18,
-    marginTop: 14,
-    backgroundColor: colors.card,
-    borderRadius: radii.xl,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: "center",
-    paddingBottom: 22,
-    overflow: "hidden",
-    shadowColor: colors.primary,
-    shadowOpacity: 0.1,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 4,
-  },
-  heroBg: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 90,
-    backgroundColor: colors.primary,
-    opacity: 0.15,
-  },
-  avatarWrap: {
-    marginTop: 28,
-    position: "relative",
-    marginBottom: 12,
-  },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 26,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 3,
-    borderColor: colors.card,
-    shadowColor: colors.primary,
-    shadowOpacity: 0.35,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 6,
-  },
-  onlineDot: {
-    position: "absolute",
-    bottom: 4,
-    right: 4,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: "#10b981",
-    borderWidth: 2.5,
-    borderColor: colors.card,
-  },
-  name: {
-    color: colors.foreground,
-    fontSize: 20,
-    fontWeight: "800",
-    letterSpacing: -0.4,
-  },
-  subText: {
-    color: colors.mutedForeground,
-    fontSize: 13,
-    marginTop: 3,
-  },
-  phoneRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    marginTop: 5,
-  },
-  phoneText: {
-    color: colors.mutedForeground,
-    fontSize: 13,
-  },
-  editButton: {
-    marginTop: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: colors.primary,
-    borderRadius: radii.md,
-    paddingVertical: 9,
-    paddingHorizontal: 20,
-    shadowColor: colors.primary,
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
-  },
-  editText: {
-    color: colors.white,
-    fontWeight: "700",
-    fontSize: 13,
-  },
-  // Stats
-  statsRow: {
-    flexDirection: "row",
-    marginHorizontal: 18,
-    backgroundColor: colors.card,
-    borderRadius: radii.xl,
-    borderWidth: 1,
-    borderColor: colors.border,
-    overflow: "hidden",
-    shadowColor: colors.primary,
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 2,
-  },
-  statCard: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: 18,
-    gap: 4,
-    borderRightWidth: 1,
-    borderRightColor: colors.border,
-  },
-  statCardMiddle: {
-    backgroundColor: colors.primaryMuted,
-  },
-  statValue: {
-    color: colors.foreground,
-    fontSize: 28,
-    fontWeight: "800",
-    letterSpacing: -0.5,
-  },
-  statValueAccent: { color: colors.primary },
-  statLabel: {
-    color: colors.mutedForeground,
-    fontSize: 11,
-    fontWeight: "600",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  // Membership
-  membershipCard: {
-    marginHorizontal: 18,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: colors.card,
-    borderRadius: radii.xl,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    shadowColor: colors.primary,
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 2,
-  },
-  membershipLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
-  membershipIconWell: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: "rgba(245,158,11,0.12)",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(245,158,11,0.25)",
-  },
-  membershipTitle: { color: colors.foreground, fontSize: 15, fontWeight: "800" },
-  membershipSub: { color: colors.mutedForeground, fontSize: 12, marginTop: 2 },
-  manageBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: radii.md,
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-    backgroundColor: colors.primaryMuted,
-  },
-  manageBtnText: { color: colors.primary, fontSize: 12, fontWeight: "700" },
-  // Settings menu
-  menuCard: {
-    marginHorizontal: 18,
-    backgroundColor: colors.card,
-    borderRadius: radii.xl,
-    borderWidth: 1,
-    borderColor: colors.border,
-    overflow: "hidden",
-    shadowColor: colors.primary,
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 2,
-  },
-  menuItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 15,
-  },
-  menuItemBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-  menuIconWell: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: colors.primaryMuted,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  menuLabel: { flex: 1, color: colors.foreground, fontSize: 14, fontWeight: "600" },
-  // Logout
-  logoutButton: {
-    marginHorizontal: 18,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    backgroundColor: colors.card,
-    borderWidth: 1.5,
-    borderColor: "rgba(239,68,68,0.3)",
-    borderRadius: radii.xl,
-    paddingVertical: 15,
-  },
-  logoutText: { color: colors.danger, fontWeight: "700", fontSize: 15 },
-  // Modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: colors.overlay,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 24,
-  },
-  modalContent: {
-    backgroundColor: colors.card,
-    borderRadius: radii.xl,
-    padding: 24,
-    width: "100%",
-    maxWidth: 400,
-    borderWidth: 1,
-    borderColor: colors.border,
-    shadowColor: colors.shadow,
-    shadowOpacity: 0.2,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 8,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: colors.foreground,
-    marginBottom: 20,
-    letterSpacing: -0.3,
-  },
-  errorText: {
-    color: colors.danger,
-    fontSize: 13,
-    fontWeight: "600",
-    marginBottom: 12,
-    backgroundColor: colors.dangerMuted,
-    borderRadius: radii.sm,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    textAlign: "center",
-  },
-  inputLabel: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: colors.mutedForeground,
-    marginBottom: 6,
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-  },
-  textInput: {
-    backgroundColor: colors.muted,
-    borderColor: colors.border,
-    borderWidth: 1.5,
-    borderRadius: radii.md,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    color: colors.foreground,
-    fontSize: 15,
-    marginBottom: 16,
-  },
-  modalButtons: {
-    flexDirection: "row",
-    gap: 12,
-    marginTop: 8,
-  },
-  modalButton: {
-    flex: 1,
-    paddingVertical: 13,
-    borderRadius: radii.md,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cancelBtn: {
-    backgroundColor: colors.muted,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  cancelBtnText: { color: colors.foreground, fontWeight: "700", fontSize: 14 },
-  saveBtn: {
-    backgroundColor: colors.primary,
-    shadowColor: colors.primary,
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
-  },
-  saveBtnText: { color: colors.white, fontWeight: "700", fontSize: 14 },
-  // Coming soon modal
-  comingSoonCard: {
-    backgroundColor: colors.card,
-    borderRadius: radii.xl,
-    padding: 28,
-    width: "100%",
-    maxWidth: 340,
-    alignItems: "center",
-    gap: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    shadowColor: colors.shadow,
-    shadowOpacity: 0.2,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 8,
-  },
-  comingSoonIconWell: {
-    width: 68,
-    height: 68,
-    borderRadius: 22,
-    backgroundColor: colors.primaryMuted,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 4,
-  },
-  comingSoonTitle: {
-    fontSize: 22,
-    fontWeight: "900",
-    color: colors.foreground,
-    letterSpacing: -0.5,
-  },
-  comingSoonDesc: {
-    fontSize: 14,
-    color: colors.mutedForeground,
-    textAlign: "center",
-    lineHeight: 22,
-  },
-  comingSoonContact: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: colors.primaryMuted,
-    borderRadius: radii.pill,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  comingSoonEmail: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: colors.primary,
-  },
-  comingSoonBtn: {
-    marginTop: 4,
-    width: "100%",
-    backgroundColor: colors.primary,
-    borderRadius: radii.md,
-    paddingVertical: 13,
-    alignItems: "center",
-    shadowColor: colors.primary,
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
-  },
-  comingSoonBtnText: { color: colors.white, fontWeight: "700", fontSize: 15 },
-  // kept for TS compat
-  sectionTitle: { color: colors.foreground, fontSize: 15, fontWeight: "700" },
-  profileCard: { display: "none" },
-  summaryCard: { display: "none" },
-  summaryRow: { display: "none" },
-  summaryItem: { display: "none" },
-  summaryLabel: { display: "none" },
-  summaryValue: { display: "none" },
-  membershipRow: { display: "none" },
-  membershipButton: { display: "none" },
-  membershipButtonText: { display: "none" },
-  // Guest wall
-  guestWall: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 32,
-    gap: 12,
-  },
-  guestTitle: {
-    color: colors.foreground,
-    fontSize: 20,
-    fontWeight: "800",
-    textAlign: "center",
-    letterSpacing: -0.3,
-  },
-  guestSub: {
-    color: colors.mutedForeground,
-    fontSize: 14,
-    textAlign: "center",
-    lineHeight: 21,
-  },
-  guestBtn: {
-    marginTop: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: colors.primary,
-    borderRadius: radii.md,
-    paddingVertical: 13,
-    paddingHorizontal: 28,
-    shadowColor: colors.primary,
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
-  },
-  guestBtnText: { color: colors.white, fontWeight: "700", fontSize: 15 },
-});

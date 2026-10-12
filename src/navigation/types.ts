@@ -1,20 +1,19 @@
 import type { NavigatorScreenParams } from "@react-navigation/native";
+import type { Workspace } from "../services/workspaceService";
+
+// ─── Customer app (general role) ──────────────────────────────────────────────
+// Root (Splash, Onboarding, AuthStack, AppStack)
+//   AppStack (native stack)
+//     MainTabs: Home · Bookings · Payments · Agreements · Profile
+//     everything else is pushed on AppStack (space detail, booking flow, challan, quotations...)
+// Staff routes (sales executive / admin) live in their own navigators and param lists.
 
 export type MainTabParamList = {
   Home: undefined;
-  Booking:
-    | {
-        initialRoomType?: "Meeting/Conference" | "Shared Space" | "Office";
-        initialLocation?: string;
-        initialSearch?: string;
-      }
-    | undefined;
-  MyPayments: undefined;
+  Bookings: { tab?: "upcoming" | "history" } | undefined;
+  Payments: undefined;
+  Agreements: undefined;
   Profile: undefined;
-};
-
-export type AppDrawerParamList = {
-  Workspace: undefined;
 };
 
 export type AuthStackParamList = {
@@ -22,77 +21,58 @@ export type AuthStackParamList = {
   Signup: { redirectAfterLogin?: { screen: keyof AppStackParamList; params?: any } } | undefined;
 };
 
-export type WorkspaceSummary = {
-  id: number;
-  idGuid?: string;
-  name: string;
-  type: "Private Office" | "Co-Working Space" | "Meeting Room" | "Event Space";
-  location: string;
-  capacity: string;
-  price: number;
-  amenities: string[];
-  image: string;
-  available: boolean;
+/** A space card from GET /space/available (one per location + space type). */
+export type WorkspaceSummary = Workspace;
+
+/** Space type filter used by the Spaces list. */
+export type SpaceTypeFilter = "all" | "office" | "shared" | "meeting";
+
+/** What the customer chose on BookingInfo; BookingConfirm sends it to POST /booking/smart. */
+export type BookingDraft = {
+  mode: "shared" | "meeting" | "office";
+  /** Local date-time, e.g. 2026-10-14T09:00:00. */
+  startDateTime: string;
+  endDateTime: string;
+  /** Readable period, e.g. "14 Oct 2026, 9:00 AM to 11:00 AM" or "1 Nov 2026, 3 months". */
+  periodLabel: string;
+  months?: number;
+  hours?: number;
+  capacity?: number;
+  notes?: string;
+  guest: { name: string; email: string; phone: string };
 };
 
 export type AppStackParamList = {
   MainTabs: NavigatorScreenParams<MainTabParamList> | undefined;
-  AdminPanel: undefined;
-  ContactUs:
-    | {
-        source?: "tour" | "general";
-      }
-    | undefined;
+  /** Browse all spaces (search, type and location filters). */
+  Spaces: { initialType?: SpaceTypeFilter; initialSearch?: string } | undefined;
   SpaceDetail: { workspace: WorkspaceSummary };
-  BookingInfo: {
-    workspace: WorkspaceSummary;
-    booking: {
-      mode: "shared" | "meeting" | "office";
-      dates: string[];
-      slot: string;
-      month?: string;
-    };
-  };
-  Payment: {
-    workspace: WorkspaceSummary;
-    booking: {
-      mode: "shared" | "meeting" | "office";
-      dates: string[];
-      slot: string;
-      month?: string;
-      securityDeposit?: number;
-      guest: {
-        name: string;
-        email: string;
-        phone: string;
-      };
-    };
-  };
-  Profile: undefined;
-  AccessRequest: undefined;
-  UnlockDoor: undefined;
-  Attendees: undefined;
-  MyBookings: undefined;
+  /** Pick the period and confirm your details. */
+  BookingInfo: { workspace: WorkspaceSummary };
+  /** Review and confirm: POST /booking/smart, then the challan to pay. No payment form. */
+  BookingConfirm: { workspace: WorkspaceSummary; booking: BookingDraft };
+  /** Bank challan of a booking (GET /booking/{id}/challan). */
+  Challan: { bookingId: number; challanNumber?: string };
   BookingDetail: { bookingId: number | string };
-  BookingHistory: undefined;
-  PrivacyPolicy: undefined;
-  AboutUs: undefined;
-  UserManual: undefined;
-  Challan: { challanNumber?: string; bookingGuid?: string };
-  Notifications: undefined;
   Quotation: { quotationId: string };
   QuotationList: undefined;
-  CustomerInfo: { quotationId: string };
-  CustomerCreate: undefined;
-  CustomerList: undefined;
-  KycDocuments: { customerId: number | string; customerName?: string };
-  ModifyOrder: { quotationId: string };
-  QuotationPayment: { quotationId: string };
-  ShareQuotation: { quotationId: string };
-  AgreementList: undefined;
   ESignAgreement: { agreementId: number | string; quotationNumber?: string; customerName?: string };
-  InvoiceList: undefined;
-  InvoiceDetail: { invoiceId: number | string };
+  Notifications: undefined;
+  Gallery: undefined;
+  /** Book a Tour form (POST /book-tour, like the website). */
+  BookTour: undefined;
+  ContactUs: undefined;
+  AboutUs: undefined;
+  PrivacyPolicy: undefined;
+  UserManual: undefined;
+  AccessRequest: undefined;
+  UnlockDoor: undefined;
+  /**
+   * Staff route, NOT registered in the customer navigator. Kept here only because
+   * src/screens/App/Sales/KycDocumentsScreen.tsx (Phase 2) still types its props with AppStackParamList;
+   * remove once that screen uses the staff param list.
+   */
+  KycDocuments: { customerId: number | string; customerName?: string };
   Login: { redirectAfterLogin?: { screen: keyof AppStackParamList; params?: any } } | undefined;
   Signup: { redirectAfterLogin?: { screen: keyof AppStackParamList; params?: any } } | undefined;
 };
