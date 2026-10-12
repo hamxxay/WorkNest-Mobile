@@ -1,410 +1,177 @@
-import { useEffect, useMemo, useState } from "react";
+import { useRef, useState } from "react";
+import { KeyboardAvoidingView, Linking, Platform, ScrollView, StyleSheet, View, type TextInput } from "react-native";
+import { useNavigation } from "@react-navigation/native";
 import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Linking,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
-import { useNavigation, useRoute } from "@react-navigation/native";
-import type { RouteProp } from "@react-navigation/native";
-import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import Ionicons from "react-native-vector-icons/Ionicons";
-import { Screen } from "../../../components/Screen";
-import { radii, useThemeColors, useThemedStyles } from "../../../theme";
-import type { AppStackParamList } from "../../../navigation/types";
-import { createContact } from "../../../services/contactService";
-import { ApiError } from "../../../services/apiClient";
-import {
-  INPUT_LIMITS,
-  sanitizeEmailInput,
-  sanitizeMessageInput,
-  sanitizeNameInput,
-  sanitizePhoneInput,
-  sanitizeTextForState,
-} from "../../../utils/inputSanitizer";
-import { formatPhoneInput } from "../../../utils/phone";
+  AppHeader,
+  AppText,
+  Banner,
+  Button,
+  Card,
+  Divider,
+  ListRow,
+  Screen,
+  SectionHeader,
+  TextField,
+  useToast,
+} from "../../../components/ui";
+import { useThemedStyles, type AppColors, type Theme } from "../../../theme";
 import { useAuth } from "../../../context/AuthContext";
+import { errorMessage } from "../../../services/apiClient";
+import { SALES_EMAIL, SALES_WHATSAPP_NUMBER, submitContactMessage } from "../../../services/tourService";
+import { isValidEmail } from "../../../utils/validation";
+import { formatPhoneInput, phoneError, PHONE_MAX_LENGTH } from "../../../utils/phone";
 
-const WHATSAPP_NUMBER = "923160577702";
+type Errors = Partial<Record<"fullName" | "email" | "phone" | "message", string>>;
 
+/** Contact us: message form (POST /contact), WhatsApp and email, and a link to Book a Tour. */
 export default function ContactUsScreen() {
-  const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
-  const colors = useThemeColors();
+  const navigation = useNavigation<any>();
   const styles = useThemedStyles(createStyles);
-  const route = useRoute<RouteProp<AppStackParamList, "ContactUs">>();
+  const toast = useToast();
   const { user } = useAuth();
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
+
+  const [fullName, setFullName] = useState(typeof user?.name === "string" ? user.name : "");
+  const [email, setEmail] = useState(typeof user?.email === "string" ? user.email : "");
+  const [phone, setPhone] = useState(typeof user?.phoneNumber === "string" ? user.phoneNumber : "");
   const [message, setMessage] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-  const [isPrepopulated, setIsPrepopulated] = useState(false);
+  const [errors, setErrors] = useState<Errors>({});
+  const [sending, setSending] = useState(false);
+  const [formError, setFormError] = useState("");
 
-  useEffect(() => {
-    if (user && !isPrepopulated) {
-      if (user.name) setFullName(user.name);
-      if (user.email) setEmail(user.email);
-      if (user.phoneNumber) setPhone(user.phoneNumber);
-      setIsPrepopulated(true);
-    }
-  }, [user, isPrepopulated]);
+  const emailRef = useRef<TextInput>(null);
+  const phoneRef = useRef<TextInput>(null);
+  const messageRef = useRef<TextInput>(null);
 
-  const introTitle = route.params?.source === "tour" ? "Book a Tour" : "Contact Us";
-  const introText = useMemo(
-    () =>
-      route.params?.source === "tour"
-        ? "Tell us a little about your preferred visit and we will help you schedule the right workspace tour."
-        : "Share your details and message, and our team will get back to you shortly.",
-    [route.params?.source]
-  );
+  const clear = (key: keyof Errors) => setErrors((e) => ({ ...e, [key]: undefined }));
 
-  const whatsappMessage = useMemo(() => {
-    const name = fullName.trim() || "Hi";
-    return `Hello WorkNest, I would like to book a tour. My name is ${name}.`;
-  }, [fullName]);
-
-  const handleSubmit = async () => {
+  const submit = async () => {
+    if (sending) return;
+    const next: Errors = {};
+    if (fullName.trim().length < 2) next.fullName = "Enter your full name.";
+    if (!isValidEmail(email.trim())) next.email = "Enter a valid email address.";
+    if (phone.trim() && phoneError(phone)) next.phone = phoneError(phone) ?? undefined;
+    if (message.trim().length < 5) next.message = "Write a short message.";
+    setErrors(next);
+    if (Object.keys(next).length) return;
+    setSending(true);
+    setFormError("");
     try {
-      setSubmitting(true);
-      setError(null);
-      setSuccess(null);
-      await createContact({
-        fullName: sanitizeNameInput(fullName, "Full name"),
-        email: sanitizeEmailInput(email),
-        phone: sanitizePhoneInput(phone),
-        message: sanitizeMessageInput(message),
-      });
-      setSuccess("Your message has been sent. We will contact you soon.");
-      setFullName("");
-      setEmail("");
-      setPhone("");
+      const result = await submitContactMessage({ fullName, email, phone, message });
+      toast.success(`${result} We will get back to you soon.`, { title: "Message sent" });
       setMessage("");
     } catch (err) {
-      const nextMessage =
-        err instanceof ApiError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : "Unable to send your message right now.";
-      setError(nextMessage);
+      setFormError(errorMessage(err, "Your message could not be sent. Please try again."));
     } finally {
-      setSubmitting(false);
+      setSending(false);
     }
   };
 
-  const handleOpenWhatsapp = async () => {
-    const encodedMessage = encodeURIComponent(whatsappMessage);
-    const appUrl = `whatsapp://send?phone=${WHATSAPP_NUMBER}&text=${encodedMessage}`;
-    const webUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodedMessage}`;
-
+  const openWhatsApp = async () => {
+    const text = encodeURIComponent(`Hello WorkNest, my name is ${fullName.trim() || "a customer"}.`);
+    const appUrl = `whatsapp://send?phone=${SALES_WHATSAPP_NUMBER}&text=${text}`;
+    const webUrl = `https://wa.me/${SALES_WHATSAPP_NUMBER}?text=${text}`;
     try {
-      const canOpenWhatsapp = await Linking.canOpenURL(appUrl);
-      await Linking.openURL(canOpenWhatsapp ? appUrl : webUrl);
+      await Linking.openURL((await Linking.canOpenURL(appUrl)) ? appUrl : webUrl);
     } catch {
-      Alert.alert("WhatsApp unavailable", "Unable to open WhatsApp on this device right now.");
+      toast.error("WhatsApp could not be opened on this device.");
     }
+  };
+
+  const openEmail = () => {
+    Linking.openURL(`mailto:${SALES_EMAIL}`).catch(() => toast.error("No email app found on this device."));
   };
 
   return (
     <Screen>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        <ScrollView
-          contentContainerStyle={styles.content}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.topBar}>
-            <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
-              <Ionicons name="arrow-back" size={18} color={colors.foreground} />
-              <Text style={styles.backText}>Back</Text>
-            </Pressable>
-          </View>
+      <AppHeader title="Contact us" subtitle="We usually reply within a working day" />
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          <Card padding={0}>
+            <ListRow leftIcon="logo-whatsapp" title="WhatsApp" subtitle="+92 328 0256000" chevron onPress={openWhatsApp} />
+            <Divider inset={68} />
+            <ListRow leftIcon="mail-outline" title="Email" subtitle={SALES_EMAIL} chevron onPress={openEmail} />
+            <Divider inset={68} />
+            <ListRow leftIcon="walk-outline" title="Book a tour" subtitle="Visit a space before you book" chevron onPress={() => navigation.navigate("BookTour")} />
+          </Card>
 
-          <View style={styles.heroCard}>
-            <Text style={styles.heroEyebrow}>WorkNest Support</Text>
-            <Text style={styles.heroTitle}>{introTitle}</Text>
-            <Text style={styles.heroSubtitle}>{introText}</Text>
-          </View>
-
-          <View style={styles.formCard}>
-            <Text style={styles.sectionTitle}>Tour Request Form</Text>
-            <Text style={styles.sectionSubtitle}>
-              Leave your details and our team will reach out with available slots.
-            </Text>
-
-            <Text style={styles.label}>Full name</Text>
-            <View style={styles.inputWrapper}>
-              <Ionicons name="person-outline" size={18} color={colors.mutedForeground} />
-              <TextInput
+          <SectionHeader title="Send us a message" />
+          <Card>
+            <View style={styles.fields}>
+              <TextField
+                label="Full name"
+                required
                 value={fullName}
-                onChangeText={(value) =>
-                  setFullName(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.name }))
-                }
-                placeholder="Enter your name"
-                placeholderTextColor={colors.mutedForeground}
-                maxLength={INPUT_LIMITS.name}
-                style={styles.input}
+                onChangeText={(v) => {
+                  setFullName(v);
+                  clear("fullName");
+                }}
+                autoCapitalize="words"
+                autoComplete="name"
+                returnKeyType="next"
+                onSubmitEditing={() => emailRef.current?.focus()}
+                error={errors.fullName}
               />
-            </View>
-
-            <Text style={styles.label}>Email</Text>
-            <View style={styles.inputWrapper}>
-              <Ionicons name="mail-outline" size={18} color={colors.mutedForeground} />
-              <TextInput
+              <TextField
+                ref={emailRef}
+                label="Email"
+                required
                 value={email}
-                onChangeText={(value) =>
-                  setEmail(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.email }))
-                }
-                placeholder="you@example.com"
-                placeholderTextColor={colors.mutedForeground}
+                onChangeText={(v) => {
+                  setEmail(v);
+                  clear("email");
+                }}
                 keyboardType="email-address"
                 autoCapitalize="none"
-                maxLength={INPUT_LIMITS.email}
-                style={styles.input}
+                autoComplete="email"
+                returnKeyType="next"
+                onSubmitEditing={() => phoneRef.current?.focus()}
+                error={errors.email}
               />
-            </View>
-
-            <Text style={styles.label}>Phone</Text>
-            <View style={styles.inputWrapper}>
-              <Ionicons name="call-outline" size={18} color={colors.mutedForeground} />
-              <TextInput
+              <TextField
+                ref={phoneRef}
+                label="Phone"
                 value={phone}
-                onChangeText={(value) =>
-                  setPhone(formatPhoneInput(value))
-                }
-                placeholder="Enter your phone number"
-                placeholderTextColor={colors.mutedForeground}
+                onChangeText={(v) => {
+                  setPhone(formatPhoneInput(v));
+                  clear("phone");
+                }}
                 keyboardType="phone-pad"
-                maxLength={INPUT_LIMITS.phone}
-                style={styles.input}
+                maxLength={PHONE_MAX_LENGTH}
+                returnKeyType="next"
+                onSubmitEditing={() => messageRef.current?.focus()}
+                error={errors.phone}
+                helperText="Optional"
               />
-            </View>
-
-            <Text style={styles.label}>Message</Text>
-            <View style={[styles.inputWrapper, styles.messageWrapper]}>
-              <Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.mutedForeground} />
-              <TextInput
+              <TextField
+                ref={messageRef}
+                label="Message"
+                required
                 value={message}
-                onChangeText={(value) =>
-                  setMessage(
-                    sanitizeTextForState(value, {
-                      maxLength: INPUT_LIMITS.message,
-                      multiline: true,
-                    })
-                  )
-                }
-                placeholder="Tell us your preferred date, team size, or any special requirements"
-                placeholderTextColor={colors.mutedForeground}
+                onChangeText={(v) => {
+                  setMessage(v.slice(0, 1000));
+                  clear("message");
+                }}
                 multiline
-                textAlignVertical="top"
-                maxLength={INPUT_LIMITS.message}
-                style={[styles.input, styles.messageInput]}
+                rows={5}
+                error={errors.message}
               />
             </View>
+          </Card>
 
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
-            {success ? <Text style={styles.successText}>{success}</Text> : null}
-
-            <Pressable
-              style={[styles.primaryButton, submitting && styles.primaryButtonDisabled]}
-              onPress={handleSubmit}
-              disabled={submitting}
-            >
-              {submitting ? (
-                <ActivityIndicator size="small" color={colors.white} />
-              ) : (
-                <Text style={styles.primaryButtonText}>Send Request</Text>
-              )}
-            </Pressable>
-          </View>
+          {formError ? <Banner tone="danger" title="Not sent" message={formError} /> : null}
+          <Button title="Send message" size="lg" fullWidth loading={sending} leftIcon="send-outline" onPress={submit} />
+          <AppText variant="caption" color="textMuted" align="center">
+            For bookings and challans, see the Bookings and Payments tabs.
+          </AppText>
         </ScrollView>
-
-        <Pressable style={styles.whatsappFab} onPress={handleOpenWhatsapp}>
-          <Ionicons name="logo-whatsapp" size={26} color="#FFFFFF" />
-        </Pressable>
       </KeyboardAvoidingView>
     </Screen>
   );
 }
 
-const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.create({
-  flex: {
-    flex: 1,
-  },
-  content: {
-    padding: 20,
-    paddingBottom: 120,
-    gap: 18,
-  },
-  topBar: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  backButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 999,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignSelf: "flex-start",
-  },
-  backText: {
-    color: colors.foreground,
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  heroCard: {
-    backgroundColor: colors.primary,
-    borderRadius: radii.lg,
-    padding: 20,
-    gap: 8,
-  },
-  heroEyebrow: {
-    color: "rgba(255,255,255,0.82)",
-    fontSize: 13,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-  },
-  heroTitle: {
-    color: "#FFFFFF",
-    fontSize: 28,
-    fontWeight: "800",
-  },
-  heroSubtitle: {
-    color: "#E8EEFF",
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  formCard: {
-    backgroundColor: colors.card,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 18,
-    gap: 12,
-    shadowColor: "#1F2A44",
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 2,
-  },
-  sectionTitle: {
-    color: colors.foreground,
-    fontSize: 24,
-    fontWeight: "800",
-  },
-  sectionSubtitle: {
-    color: colors.mutedForeground,
-    fontSize: 14,
-    lineHeight: 21,
-    marginBottom: 4,
-  },
-  label: {
-    color: colors.foreground,
-    fontSize: 15,
-    fontWeight: "700",
-    marginTop: 4,
-  },
-  inputWrapper: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.md,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    backgroundColor: colors.muted,
-  },
-  messageWrapper: {
-    alignItems: "flex-start",
-  },
-  input: {
-    flex: 1,
-    color: colors.foreground,
-    fontSize: 15,
-  },
-  messageInput: {
-    minHeight: 110,
-  },
-  errorText: {
-    color: colors.danger,
-    fontSize: 13,
-    textAlign: "center",
-    marginTop: 4,
-  },
-  successText: {
-    color: "#15803d",
-    fontSize: 13,
-    textAlign: "center",
-    marginTop: 4,
-  },
-  responseCard: {
-    marginTop: 4,
-    backgroundColor: colors.muted,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.md,
-    padding: 12,
-    gap: 6,
-  },
-  responseTitle: {
-    color: colors.foreground,
-    fontSize: 14,
-    fontWeight: "800",
-  },
-  responseText: {
-    color: colors.mutedForeground,
-    fontSize: 12,
-    lineHeight: 18,
-    fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }),
-  },
-  primaryButton: {
-    marginTop: 8,
-    backgroundColor: colors.accent,
-    borderRadius: radii.md,
-    paddingVertical: 14,
-    alignItems: "center",
-  },
-  primaryButtonDisabled: {
-    opacity: 0.7,
-  },
-  primaryButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "800",
-  },
-  whatsappFab: {
-    position: "absolute",
-    right: 22,
-    bottom: 28,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: "#25D366",
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000000",
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 6,
-  },
-});
+const createStyles = (_c: AppColors, t: Theme) =>
+  StyleSheet.create({
+    flex: { flex: 1 },
+    content: { padding: t.spacing.screen, gap: t.spacing.lg, paddingBottom: t.spacing.xxl },
+    fields: { gap: t.spacing.md },
+  });

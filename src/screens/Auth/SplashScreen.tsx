@@ -1,24 +1,30 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AccessibilityInfo } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/types";
 import { Screen } from "../../components/Screen";
-import { useThemedStyles } from "../../theme";
+import { useThemeColors, useThemedStyles } from "../../theme";
 import { hasCompletedOnboarding } from "../../utils/onboardingStorage";
 import { SplashContent } from "./splash/SplashContent";
 import { createSplashStyles } from "./splash/styles";
 import { useSplashAnimation } from "./splash/useSplashAnimation";
 import { useAuth } from "../../context/AuthContext";
 
-const MIN_SPLASH_DURATION = 2200;
+// Long enough for the brand animation (~0.8 s) without holding the user up; the session itself is restored
+// before this screen mounts (RootNavigator shows a spinner until then).
+const MIN_SPLASH_DURATION = 800;
+const MIN_SPLASH_DURATION_REDUCED_MOTION = 300;
 
 export default function SplashScreen() {
   const styles = useThemedStyles(createSplashStyles);
+  const colors = useThemeColors();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { user } = useAuth();
   const [reduceMotion, setReduceMotion] = useState(false);
   const animation = useSplashAnimation(reduceMotion);
+  // Measured from first mount, so re-running the effect below never extends the wait.
+  const mountedAt = useRef(Date.now()).current;
 
   useEffect(() => {
     AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion).catch(() => undefined);
@@ -26,9 +32,9 @@ export default function SplashScreen() {
 
   useEffect(() => {
     let active = true;
-    const startedAt = Date.now();
     const finish = (onboardingDone: boolean) => {
-      const remaining = Math.max(0, MIN_SPLASH_DURATION - (Date.now() - startedAt));
+      const minimum = reduceMotion ? MIN_SPLASH_DURATION_REDUCED_MOTION : MIN_SPLASH_DURATION;
+      const remaining = Math.max(0, minimum - (Date.now() - mountedAt));
       setTimeout(() => {
         if (!active) return;
         animation.fadeOut(() => {
@@ -51,7 +57,11 @@ export default function SplashScreen() {
 
     hasCompletedOnboarding().then(finish).catch(() => finish(true));
     return () => { active = false; };
-  }, [animation, navigation, user]);
+  }, [animation, mountedAt, navigation, reduceMotion, user]);
 
-  return <Screen><SplashContent animation={animation} styles={styles} /></Screen>;
+  return (
+    <Screen backgroundColor={colors.headerBg} statusBarColor={colors.headerBg}>
+      <SplashContent animation={animation} styles={styles} />
+    </Screen>
+  );
 }

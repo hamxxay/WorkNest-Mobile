@@ -9,6 +9,7 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from "react-native";
+import Ionicons from "react-native-vector-icons/Ionicons";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Animated, {
@@ -21,7 +22,9 @@ import Animated, {
 } from "react-native-reanimated";
 import type { RootStackParamList } from "../../navigation/types";
 import { Screen } from "../../components/Screen";
-import { radii, useThemeColors, useThemedStyles } from "../../theme";
+import { useThemeColors, useThemedStyles, type AppColors, type Theme } from "../../theme";
+import { Button } from "../../components/ui";
+import { MAX_CONTENT_WIDTH } from "../../utils/responsive";
 import { setOnboardingCompleted } from "../../utils/onboardingStorage";
 import type { ImageSourcePropType } from "react-native";
 
@@ -29,26 +32,30 @@ type Slide = {
   title: string;
   description: string;
   image: ImageSourcePropType;
+  icon: string;
 };
 
 const slides: Slide[] = [
   {
-    title: "Find Your Space",
+    title: "Find your space",
     description:
       "Explore offices, meeting rooms, and co-working spaces that match your work style.",
     image: require("../../../public/images/spaces/creative-cowork.jpg"),
+    icon: "search-outline",
   },
   {
-    title: "Book In Minutes",
+    title: "Book in minutes",
     description:
       "Choose your preferred date and time, then confirm your booking in a few taps.",
     image: require("../../../public/images/spaces/meeting-room.jpg"),
+    icon: "calendar-outline",
   },
   {
-    title: "Manage Easily",
+    title: "Manage easily",
     description:
       "Track bookings, payments, and workspace details from one place.",
     image: require("../../../public/images/gallery/team-collab.jpg"),
+    icon: "receipt-outline",
   },
 ];
 
@@ -58,6 +65,7 @@ type OnboardingSlideProps = {
   slide: Slide;
   scrollX: SharedValue<number>;
   styles: ReturnType<typeof createStyles>;
+  iconColor: string;
 };
 
 function OnboardingSlide({
@@ -66,6 +74,7 @@ function OnboardingSlide({
   slide,
   scrollX,
   styles,
+  iconColor,
 }: OnboardingSlideProps) {
   const slideAnimatedStyle = useAnimatedStyle(() => {
     const inputRange = [
@@ -104,20 +113,22 @@ function OnboardingSlide({
 
   return (
     <View style={{ width: cardWidth }}>
-      <Animated.View style={[styles.card, slideAnimatedStyle]}>
+      <Animated.View
+        accessible
+        accessibilityLabel={`${slide.title}. ${slide.description}`}
+        style={[styles.card, slideAnimatedStyle]}
+      >
         <View style={styles.imageFrame}>
           <Animated.Image
             source={slide.image}
             style={styles.cardImage}
             resizeMode="cover"
           />
-          <View style={styles.imageShade} />
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>WorkNest</Text>
-          </View>
         </View>
-
         <View style={styles.copyBlock}>
+          <View style={styles.iconWell}>
+            <Ionicons name={slide.icon} size={24} color={iconColor} />
+          </View>
           <Text style={styles.title}>{slide.title}</Text>
           <Text style={styles.description}>{slide.description}</Text>
         </View>
@@ -130,12 +141,14 @@ const AnimatedFlatList = Animated.createAnimatedComponent(FlatList<Slide>);
 
 export default function OnboardingScreen() {
   const styles = useThemedStyles(createStyles);
+  const colors = useThemeColors();
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [currentIndex, setCurrentIndex] = useState(0);
   const listRef = useRef<FlatList<Slide>>(null);
   const { width: screenWidth } = useWindowDimensions();
-  const cardWidth = screenWidth - 40;
+  // Screen centres a MAX_CONTENT_WIDTH column on tablets; the carousel pages must match that column.
+  const cardWidth = Math.min(screenWidth, MAX_CONTENT_WIDTH) - 40;
   const scrollX = useSharedValue(0);
 
   const isLast = currentIndex === slides.length - 1;
@@ -186,15 +199,13 @@ export default function OnboardingScreen() {
     <Screen>
       <View style={styles.container}>
         <View style={styles.headerRow}>
-          <Text style={styles.stepText}>
-            {currentIndex + 1} / {slides.length}
+          <Text style={styles.stepText} accessibilityLabel={`Step ${currentIndex + 1} of ${slides.length}`}>
+            {currentIndex + 1} of {slides.length}
           </Text>
           {!isLast ? (
-            <Pressable onPress={handleSkip}>
-              <Text style={styles.skipText}>Skip</Text>
-            </Pressable>
+            <Button title="Skip" variant="ghost" size="sm" onPress={handleSkip} accessibilityHint="Skips the introduction" />
           ) : (
-            <View />
+            <View style={styles.skipPlaceholder} />
           )}
         </View>
 
@@ -210,6 +221,7 @@ export default function OnboardingScreen() {
                 slide={item}
                 scrollX={scrollX}
                 styles={styles}
+                iconColor={colors.onPrimary}
               />
             )}
             horizontal
@@ -250,7 +262,18 @@ export default function OnboardingScreen() {
           </View>
         </View>
 
-        <View style={styles.dotsRow}>
+        <View
+          style={styles.dotsRow}
+          accessible
+          accessibilityRole="adjustable"
+          accessibilityLabel="Slides"
+          accessibilityValue={{ min: 1, max: slides.length, now: currentIndex + 1, text: `${currentIndex + 1} of ${slides.length}` }}
+          accessibilityActions={[{ name: "increment" }, { name: "decrement" }]}
+          onAccessibilityAction={(event) => {
+            if (event.nativeEvent.actionName === "increment") goToIndex(currentIndex + 1);
+            if (event.nativeEvent.actionName === "decrement") goToIndex(currentIndex - 1);
+          }}
+        >
           {slides.map((slide, index) => {
             const active = index === currentIndex;
             return (
@@ -262,41 +285,40 @@ export default function OnboardingScreen() {
           })}
         </View>
 
-        <Pressable style={styles.primaryButton} onPress={handleNext}>
-          <Text style={styles.primaryButtonText}>
-            {isLast ? "Get Started" : "Next"}
-          </Text>
-        </Pressable>
+        <Button
+          title={isLast ? "Get started" : "Next"}
+          rightIcon={isLast ? "checkmark" : "arrow-forward"}
+          size="lg"
+          fullWidth
+          onPress={handleNext}
+          style={styles.primaryButton}
+        />
       </View>
     </Screen>
   );
 }
 
-const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.create({
+const createStyles = (colors: AppColors, theme: Theme) => StyleSheet.create({
   container: {
     flex: 1,
     paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 24,
+    paddingTop: 8,
+    paddingBottom: 20,
   },
   headerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    minHeight: 44,
   },
   stepText: {
-    color: colors.mutedForeground,
-    fontSize: 14,
-    fontWeight: "700",
+    ...theme.typography.label,
+    color: colors.textMuted,
   },
-  skipText: {
-    color: colors.primary,
-    fontSize: 14,
-    fontWeight: "700",
-  },
+  skipPlaceholder: { height: 36 },
   cardViewport: {
     flex: 1,
-    marginTop: 24,
+    marginTop: 12,
     position: "relative",
   },
   carouselContent: {
@@ -311,69 +333,63 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
   },
   card: {
     flex: 1,
-    borderRadius: radii.lg,
+    borderRadius: theme.radii.sheet,
     overflow: "hidden",
     minHeight: 420,
-    backgroundColor: colors.card,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   imageFrame: {
-    position: "relative",
     width: "100%",
-    aspectRatio: 3 / 2,
-    backgroundColor: colors.muted,
+    aspectRatio: 4 / 3,
+    backgroundColor: colors.surfaceAlt,
   },
   cardImage: {
     ...StyleSheet.absoluteFill,
     width: "100%",
     height: "100%",
   },
-  imageShade: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: "rgba(15, 23, 42, 0.24)",
-  },
-  badge: {
-    position: "absolute",
-    top: 18,
-    left: 18,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: colors.card,
-  },
-  badgeText: {
-    color: colors.foreground,
-    fontSize: 12,
-    fontWeight: "800",
-    letterSpacing: 0.6,
+  iconWell: {
+    width: 52,
+    height: 52,
+    marginTop: -26,
+    marginBottom: 4,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.primaryStrong,
+    borderWidth: 3,
+    borderColor: colors.surface,
   },
   copyBlock: {
     flex: 1,
-    justifyContent: "flex-end",
-    padding: 22,
-    backgroundColor: colors.card,
+    justifyContent: "flex-start",
+    paddingHorizontal: 22,
+    paddingBottom: 22,
+    gap: 10,
   },
   title: {
-    color: colors.foreground,
-    fontSize: 30,
-    fontWeight: "800",
+    ...theme.typography.display,
+    color: colors.text,
   },
   description: {
-    marginTop: 14,
-    color: colors.mutedForeground,
-    fontSize: 16,
-    lineHeight: 24,
+    ...theme.typography.body,
+    color: colors.textSecondary,
   },
   dotsRow: {
     flexDirection: "row",
     justifyContent: "center",
+    alignItems: "center",
     gap: 8,
     marginTop: 20,
+    minHeight: 24,
   },
   dot: {
     width: 8,
     height: 8,
     borderRadius: 999,
-    backgroundColor: colors.border,
+    backgroundColor: colors.borderStrong,
   },
   dotActive: {
     width: 24,
@@ -381,15 +397,5 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
   },
   primaryButton: {
     marginTop: 16,
-    borderRadius: radii.md,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    height: 50,
-  },
-  primaryButtonText: {
-    color: colors.white,
-    fontSize: 16,
-    fontWeight: "700",
   },
 });

@@ -1,9 +1,25 @@
 /**
  * @format
+ *
+ * Renders App with its providers (theme, toasts, confirm dialog). Needs the React Native Jest preset
+ * (@react-native/jest-preset); jest.config.js skips this file when the preset is not installed.
  */
 
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
+
+jest.mock('react-native-vector-icons/Ionicons', () => 'Ionicons');
+jest.mock('react-native-gesture-handler', () => ({
+  GestureHandlerRootView: ({ children }: { children: React.ReactNode }) => children,
+}));
+jest.mock('@react-native-async-storage/async-storage', () => ({
+  __esModule: true,
+  default: {
+    getItem: jest.fn(() => Promise.resolve('dark')),
+    setItem: jest.fn(() => Promise.resolve()),
+    removeItem: jest.fn(() => Promise.resolve()),
+  },
+}));
 
 jest.mock('react-redux', () => ({
   Provider: ({ children }: { children: React.ReactNode }) => children,
@@ -20,28 +36,28 @@ jest.mock('../src/store/store', () => ({
 
 jest.mock('../src/context/AuthContext', () => ({
   AuthProvider: ({ children }: { children: React.ReactNode }) => children,
-  useAuth: () => ({
-    user: null,
-    isAdmin: false,
-    isLoadingUser: false,
-    refreshUser: jest.fn(),
-    setUser: jest.fn(),
-    clearSession: jest.fn(),
-  }),
 }));
 
-jest.mock('../src/navigation/AppNavigator', () => {
+// The navigators (customer and staff) are not under test here; show the theme mode instead.
+jest.mock('../src/navigation/RootNavigator', () => {
   const ReactMock = require('react');
   const { Text } = require('react-native');
-  return function MockAppNavigator() {
-    return ReactMock.createElement(Text, null, 'App Navigator');
+  const { useThemeMode } = require('../src/theme');
+  return function MockRootNavigator() {
+    const { mode, isDark } = useThemeMode();
+    return ReactMock.createElement(Text, { testID: 'root' }, `${mode}:${isDark}`);
   };
 });
 
 import App from '../App';
 
-test('renders correctly', async () => {
-  await ReactTestRenderer.act(() => {
-    ReactTestRenderer.create(<App />);
+test('renders with providers and restores the saved appearance', async () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+  expect(renderer!.root.findByProps({ testID: 'root' }).props.children).toBe('dark:true');
+  await ReactTestRenderer.act(async () => {
+    renderer!.unmount();
   });
 });

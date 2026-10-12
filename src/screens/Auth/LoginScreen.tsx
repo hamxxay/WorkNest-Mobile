@@ -1,25 +1,11 @@
-import { useState, useMemo } from "react";
-import {
-  ActivityIndicator,
-  useWindowDimensions,
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
-import Ionicons from "react-native-vector-icons/Ionicons";
+import { useRef, useState } from "react";
+import { StyleSheet, Text, View, type TextInput } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
 import type { AuthStackParamList, RootStackParamList, AppStackParamList } from "../../navigation/types";
-import { Screen } from "../../components/Screen";
-import { ConfirmModal } from "../../components/ConfirmModal";
-import { useThemeColors } from "../../theme";
+import { Banner, Button, ConfirmDialog, GoogleSignInButton, TextField } from "../../components/ui";
+import { useTheme } from "../../theme";
 import { ApiError } from "../../services/apiClient";
 import {
   beginGoogleAuth,
@@ -34,24 +20,29 @@ import {
   sanitizeEmailInput,
   sanitizeTextForState,
 } from "../../utils/inputSanitizer";
+import { isValidEmail } from "../../utils/validation";
+import { AuthLayout, OrDivider } from "./components/AuthLayout";
 
+type FieldErrors = { email?: string; password?: string };
 
 export default function LoginScreen() {
-  const colors = useThemeColors();
-  const { width: SW } = useWindowDimensions();
-  const styles = useMemo(() => createStyles(colors, SW), [colors, SW]);
+  const { colors, typography } = useTheme();
   const navigation = useNavigation<NativeStackNavigationProp<AuthStackParamList & AppStackParamList>>();
   const route = useRoute<RouteProp<AuthStackParamList, "Login">>();
   const redirectAfterLogin = route.params?.redirectAfterLogin;
+  const passwordRef = useRef<TextInput>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resetSentTo, setResetSentTo] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [pendingGoogleAuth, setPendingGoogleAuth] = useState<PendingGoogleAuth | null>(null);
   const rootNavigation =
     navigation.getParent<NativeStackNavigationProp<RootStackParamList>>();
+  const busy = loading || googleLoading;
 
   const routeToApp = () => {
     if (redirectAfterLogin) {
@@ -84,7 +75,24 @@ export default function LoginScreen() {
     }
   };
 
+  /** Inline checks before calling the service (the service validates again). */
+  const validate = (forReset: boolean): boolean => {
+    const next: FieldErrors = {};
+    const trimmed = email.trim();
+    if (!trimmed) {
+      next.email = forReset ? "Enter your email first, then tap Forgot password again." : "Enter your email.";
+    } else if (!isValidEmail(trimmed)) {
+      next.email = "Enter a valid email address, like name@example.com.";
+    }
+    if (!forReset && !password) next.password = "Enter your password.";
+    setFieldErrors(next);
+    return !next.email && !next.password;
+  };
+
   const handleLogin = async () => {
+    if (busy) return;
+    setResetSentTo(null);
+    if (!validate(false)) return;
     try {
       setLoading(true);
       setError(null);
@@ -108,6 +116,7 @@ export default function LoginScreen() {
     try {
       setGoogleLoading(true);
       setError(null);
+      setResetSentTo(null);
       const pending = await beginGoogleAuth();
       setPendingGoogleAuth(pending);
     } catch (err) {
@@ -150,152 +159,121 @@ export default function LoginScreen() {
   };
 
   const handleForgotPassword = async () => {
+    if (resetting) return;
+    setError(null);
+    setResetSentTo(null);
+    if (!validate(true)) return;
     try {
-      setError(null);
-      await requestPasswordReset(sanitizeEmailInput(email));
-      setError("Password reset email sent. Check your inbox.");
+      setResetting(true);
+      const address = sanitizeEmailInput(email);
+      await requestPasswordReset(address);
+      setResetSentTo(address);
     } catch (err) {
       const message =
         err instanceof ApiError || err instanceof Error
           ? err.message
           : "Unable to send a password reset email right now.";
       setError(message);
+    } finally {
+      setResetting(false);
     }
   };
 
   return (
-    <Screen>
-      <View style={styles.bgDecor1} />
-      <View style={styles.bgDecor2} />
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-      >
-        <ScrollView
-        //  contentContainerStyle={{ flexGrow: 1 }}
-          contentContainerStyle={styles.content}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.brandBlock}>
-            <View style={styles.logoWell}>
-              <View style={styles.logoGlow} />
-              <Image
-                source={require("../../../public/Logo.png")}
-                style={styles.logo}
-                resizeMode="contain"
-              />
-            </View>
-            <Text style={styles.brandTitle}>WorkNest</Text>
-            <Text style={styles.brandSubtitle}>Welcome back</Text>
-          </View>
+    <AuthLayout
+      title="Welcome back"
+      subtitle="Sign in to manage your bookings, invoices and workspace access."
+      footer={
+        <View style={styles.footerRow}>
+          <Text style={[typography.bodySmall, { color: colors.textMuted }]}>New to WorkNest?</Text>
+          <Button
+            title="Create account"
+            variant="ghost"
+            size="sm"
+            onPress={() => navigation.navigate("Signup")}
+            disabled={busy}
+          />
+        </View>
+      }
+    >
+      {resetSentTo ? (
+        <Banner
+          tone="success"
+          title="Password reset email sent"
+          message={`Check your inbox at ${resetSentTo} for a link to set a new password.`}
+          onDismiss={() => setResetSentTo(null)}
+        />
+      ) : null}
+      {error ? <Banner tone="danger" message={error} onDismiss={() => setError(null)} /> : null}
 
-          <View style={styles.card}>
-            <Text style={styles.title}>Sign In</Text>
-            <Text style={styles.subtitle}>
-              Access your bookings and workspace history.
-            </Text>
-            <Text style={styles.label}>Email</Text>
-            <View style={styles.inputWrapper}>
-              <Ionicons name="mail-outline" size={18} color={colors.mutedForeground} />
-              <TextInput
-                placeholder="you@example.com"
-                placeholderTextColor={colors.mutedForeground}
-                value={email}
-                onChangeText={(value) =>
-                  setEmail(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.email }))
-                }
-                autoCapitalize="none"
-                keyboardType="email-address"
-                textContentType="emailAddress"
-                autoComplete="email"
-                maxLength={INPUT_LIMITS.email}
-                style={styles.input}
-              />
-            </View>
+      <TextField
+        label="Email"
+        required
+        leftIcon="mail-outline"
+        placeholder="you@example.com"
+        value={email}
+        onChangeText={(value) => {
+          setEmail(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.email }));
+          if (fieldErrors.email) setFieldErrors((prev) => ({ ...prev, email: undefined }));
+        }}
+        error={fieldErrors.email}
+        autoCapitalize="none"
+        autoCorrect={false}
+        keyboardType="email-address"
+        textContentType="emailAddress"
+        autoComplete="email"
+        maxLength={INPUT_LIMITS.email}
+        returnKeyType="next"
+        submitBehavior="submit"
+        onSubmitEditing={() => passwordRef.current?.focus()}
+      />
 
-            <Text style={styles.label}>Password</Text>
-            <View style={styles.inputWrapper}>
-              <Ionicons
-                name="lock-closed-outline"
-                size={18}
-                color={colors.mutedForeground}
-              />
-              <TextInput
-                placeholder="Enter your password"
-                placeholderTextColor={colors.mutedForeground}
-                value={password}
-                textContentType="password"
-                onChangeText={(value) =>
-                  setPassword(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.password }))
-                }
-                autoComplete="off"
-                autoCorrect={false}
-                secureTextEntry={!showPassword}
-                autoCapitalize="none"
-                maxLength={INPUT_LIMITS.password}
-                style={styles.input}
-              />
-              <Pressable onPress={() => setShowPassword((prev) => !prev)}>
-                <Ionicons
-                  name={showPassword ? "eye-off-outline" : "eye-outline"}
-                  size={18}
-                  color={colors.mutedForeground}
-                />
-              </Pressable>
-            </View>
+      <View style={styles.passwordBlock}>
+        <TextField
+          ref={passwordRef}
+          label="Password"
+          required
+          leftIcon="lock-closed-outline"
+          placeholder="Enter your password"
+          value={password}
+          onChangeText={(value) => {
+            setPassword(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.password }));
+            if (fieldErrors.password) setFieldErrors((prev) => ({ ...prev, password: undefined }));
+          }}
+          error={fieldErrors.password}
+          secureTextEntry
+          textContentType="password"
+          autoComplete="password"
+          autoCorrect={false}
+          autoCapitalize="none"
+          maxLength={INPUT_LIMITS.password}
+          returnKeyType="go"
+          onSubmitEditing={handleLogin}
+        />
+        <Button
+          title="Forgot password?"
+          variant="ghost"
+          size="sm"
+          loading={resetting}
+          disabled={busy}
+          onPress={handleForgotPassword}
+          accessibilityHint="Sends a reset link to the email above"
+          style={styles.forgot}
+        />
+      </View>
 
-            <Pressable
-              style={[styles.primaryButton, loading && styles.primaryButtonDisabled]}
-              onPress={handleLogin}
-              disabled={loading || googleLoading}
-            >
-              {loading ? (
-                <ActivityIndicator size="small" color={colors.white} />
-              ) : (
-                <Text style={styles.primaryButtonText}>Sign In</Text>
-              )}
-            </Pressable>
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+      <Button title="Sign in" size="lg" fullWidth loading={loading} disabled={googleLoading} onPress={handleLogin} />
 
-            <View style={styles.dividerRow}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>or continue with</Text>
-              <View style={styles.dividerLine} />
-            </View>
+      <OrDivider />
 
-            <Pressable
-              style={[styles.googleButton, googleLoading && styles.primaryButtonDisabled]}
-              onPress={handleGoogleLogin}
-              disabled={loading || googleLoading}
-            >
-              {googleLoading ? (
-                <ActivityIndicator size="small" color={colors.foreground} />
-              ) : (
-                <>
-                  <Ionicons name="logo-google" size={18} color={colors.primary} />
-                  <Text style={styles.googleButtonText}>Continue with Google</Text>
-                </>
-              )}
-            </Pressable>
+      <GoogleSignInButton
+        label="Continue with Google"
+        loading={googleLoading && !pendingGoogleAuth}
+        disabled={loading}
+        onPress={handleGoogleLogin}
+      />
 
-            <View style={styles.footerLinks}>
-              <Pressable style={styles.linkButton} onPress={handleForgotPassword}>
-                <Text style={styles.linkText}>Forgot password?</Text>
-              </Pressable>
-              <Text style={styles.footerDivider}>·</Text>
-              <Pressable
-                style={styles.linkButton}
-                onPress={() => navigation.navigate("Signup")}
-              >
-                <Text style={styles.linkText}>Create account</Text>
-              </Pressable>
-            </View>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-
-      <ConfirmModal
+      <ConfirmDialog
         visible={Boolean(pendingGoogleAuth)}
         title="Continue with Google?"
         message={
@@ -303,209 +281,20 @@ export default function LoginScreen() {
             ? `Continue as ${pendingGoogleAuth.name ?? pendingGoogleAuth.email} (${pendingGoogleAuth.email})?`
             : ""
         }
-        confirmText="Continue"
-        cancelText="Cancel"
+        confirmLabel="Continue"
+        cancelLabel="Cancel"
+        loading={googleLoading}
         onCancel={handleCancelGoogleLogin}
         onConfirm={() => {
           handleConfirmGoogleLogin().catch(() => {});
         }}
       />
-    </Screen>
+    </AuthLayout>
   );
 }
 
-const createStyles = (colors: ReturnType<typeof useThemeColors>, SW: number) => StyleSheet.create({
-  flex: { flex: 1 },
-  bgDecor1: {
-    position: "absolute",
-    width: SW * 1.2,
-    height: SW * 1.2,
-    borderRadius: SW * 0.6,
-    backgroundColor: colors.primaryMuted,
-    top: -SW * 0.65,
-    right: -SW * 0.25,
-    opacity: 0.55,
-  },
-  bgDecor2: {
-    position: "absolute",
-    width: SW * 0.7,
-    height: SW * 0.7,
-    borderRadius: SW * 0.35,
-    backgroundColor: colors.secondary,
-    bottom: -SW * 0.2,
-    left: -SW * 0.2,
-    opacity: 0.06,
-  },
-  content: {
-    flexGrow: 1,
-    padding: 24,
-    paddingTop: 44,
-    paddingBottom: 48,
-  },
-  brandBlock: {
-    alignItems: "center",
-    marginBottom: 36,
-    gap: 8,
-  },
-  logoWell: {
-    width: 80,
-    height: 80,
-    borderRadius: 26,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 18,
-    shadowColor: colors.primary,
-    shadowOpacity: 0.4,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 10,
-  },
-  logoGlow: {
-    position: "absolute",
-    width: "100%",
-    height: "100%",
-    borderRadius: 26,
-    backgroundColor: colors.secondary,
-    opacity: 0.3,
-  },
-  logo: { width: 48, height: 48 },
-  brandTitle: {
-    fontSize: 32,
-    fontWeight: "800",
-    letterSpacing: -1,
-    color: colors.foreground,
-  },
-  brandSubtitle: {
-    fontSize: 15,
-    fontWeight: "500",
-    color: colors.mutedForeground,
-  },
-  card: {
-    backgroundColor: colors.card,
-    borderRadius: 28,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 26,
-    gap: 16,
-    shadowColor: colors.shadow,
-    shadowOpacity: 0.1,
-    shadowRadius: 28,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 6,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: colors.foreground,
-    letterSpacing: -0.5,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: colors.mutedForeground,
-    marginTop: -8,
-    lineHeight: 21,
-  },
-  label: {
-    color: colors.foreground,
-    fontWeight: "700",
-    fontSize: 13,
-    letterSpacing: 0.3,
-    marginBottom: -8,
-  },
-  inputWrapper: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    gap: 10,
-    backgroundColor: colors.muted,
-  },
-  input: {
-    flex: 1,
-    color: colors.foreground,
-    fontSize: 15,
-  },
-  primaryButton: {
-    backgroundColor: colors.primary,
-    borderRadius: 14,
-    paddingVertical: 16,
-    alignItems: "center",
-    shadowColor: colors.primary,
-    shadowOpacity: 0.38,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 6,
-  },
-  primaryButtonDisabled: { opacity: 0.6 },
-  primaryButtonText: {
-    color: colors.white,
-    fontWeight: "700",
-    fontSize: 16,
-    letterSpacing: 0.2,
-  },
-  errorText: {
-    color: colors.danger,
-    fontSize: 13,
-    textAlign: "center",
-    backgroundColor: colors.dangerMuted,
-    borderRadius: 10,
-    paddingVertical: 9,
-    paddingHorizontal: 14,
-  },
-  dividerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  dividerLine: {
-    flex: 1,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.border,
-  },
-  dividerText: {
-    color: colors.mutedForeground,
-    fontSize: 12,
-    fontWeight: "600",
-    letterSpacing: 0.3,
-  },
-  googleButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: 14,
-    paddingVertical: 14,
-    backgroundColor: colors.card,
-  },
-  googleButtonText: {
-    color: colors.foreground,
-    fontWeight: "700",
-    fontSize: 15,
-  },
-  footerLinks: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingVertical: 4,
-  },
-  footerDivider: {
-    color: colors.border,
-    fontSize: 18,
-    fontWeight: "300",
-  },
-  linkButton: {
-    paddingVertical: 2,
-  },
-  linkText: {
-    color: colors.primary,
-    fontWeight: "700",
-    fontSize: 14,
-  },
+const styles = StyleSheet.create({
+  passwordBlock: { gap: 4 },
+  forgot: { alignSelf: "flex-end", marginRight: -8 },
+  footerRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", flexWrap: "wrap" },
 });

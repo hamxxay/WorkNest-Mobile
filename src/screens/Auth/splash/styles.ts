@@ -1,21 +1,50 @@
 import { StyleSheet } from "react-native";
-import { useThemeColors } from "../../../theme";
+import { palette, type AppColors, type Theme } from "../../../theme";
 
-export const createSplashStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.create({
-  container: { flex: 1, alignItems: "center", justifyContent: "center", overflow: "hidden" },
-  background: { ...StyleSheet.absoluteFill },
-  bgCircle1: { position: "absolute", width: 520, height: 520, borderRadius: 260, backgroundColor: colors.primaryMuted, top: -260, left: -80 },
-  bgCircle2: { position: "absolute", width: 360, height: 360, borderRadius: 180, backgroundColor: colors.primary, bottom: -185, right: -95, opacity: 0.08 },
-  brandBlock: { alignItems: "center" },
-  logoWell: { width: 108, height: 108, borderRadius: 34, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", shadowColor: colors.primary, shadowOpacity: 0.42, shadowRadius: 30, shadowOffset: { width: 0, height: 14 }, elevation: 12 },
-  logoGlow: { position: "absolute", width: "100%", height: "100%", borderRadius: 34, backgroundColor: colors.secondary, opacity: 0.34 },
-  logo: { width: 64, height: 64 },
-  copyBlock: { alignItems: "center", marginTop: 20 },
-  brand: { color: colors.foreground, fontSize: 30, fontWeight: "800", letterSpacing: 2.2 },
-  subtitle: { color: colors.mutedForeground, fontSize: 14, fontWeight: "600", marginTop: 9, letterSpacing: 0.15 },
-  loaderWrap: { position: "absolute", bottom: 66, width: 74 },
-  loaderTrack: { height: 3, width: "100%", overflow: "hidden", borderRadius: 999, backgroundColor: colors.border },
-  loaderFill: { height: "100%", width: "100%", borderRadius: 999, backgroundColor: colors.primary, transformOrigin: "left" },
-});
+/** Branded splash: navy (headerBg) in both modes, teal logo tile, white wordmark. */
+export const createSplashStyles = (colors: AppColors, theme: Theme) =>
+  StyleSheet.create({
+    container: { flex: 1, alignItems: "center", justifyContent: "center", overflow: "hidden", backgroundColor: colors.headerBg },
+    glowTop: {
+      position: "absolute",
+      width: 520,
+      height: 520,
+      borderRadius: 260,
+      top: -300,
+      right: -160,
+      backgroundColor: palette.teal[600],
+      opacity: 0.16,
+    },
+    glowBottom: {
+      position: "absolute",
+      width: 380,
+      height: 380,
+      borderRadius: 190,
+      bottom: -220,
+      left: -140,
+      backgroundColor: palette.teal[400],
+      opacity: 0.08,
+    },
+    brandBlock: { alignItems: "center" },
+    logoTile: {
+      width: 88,
+      height: 88,
+      borderRadius: 26,
+      backgroundColor: colors.primaryStrong,
+      borderWidth: 1,
+      borderColor: colors.headerLine,
+      alignItems: "center",
+      justifyContent: "center",
+      ...theme.shadows.lg,
+      shadowColor: colors.shadow,
+    },
+    logo: { width: 52, height: 52, tintColor: colors.onHeader },
+    copyBlock: { alignItems: "center", marginTop: 22, gap: 6 },
+    wordmark: { ...theme.typography.display, color: colors.onHeader },
+    tagline: { ...theme.typography.body, color: colors.onHeaderMuted },
+    loaderWrap: { position: "absolute", bottom: 72, width: 72 },
+    loaderTrack: { height: 3, width: "100%", overflow: "hidden", borderRadius: 999, backgroundColor: colors.headerLine },
+    loaderFill: { height: "100%", width: "100%", borderRadius: 999, backgroundColor: palette.teal[400], transformOrigin: "left" },
+  });
 
 export type SplashStyles = ReturnType<typeof createSplashStyles>;

@@ -1,235 +1,117 @@
-import { useEffect, useCallback } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import Ionicons from 'react-native-vector-icons/Ionicons';
-import { useNavigation } from '@react-navigation/native';
-import { Screen } from '../../../components/Screen';
-import { useThemeColors, shadows, radii, spacing } from '../../../theme';
-import { useAppDispatch, useAppSelector } from '../../../store/hooks';
+import { useCallback, useEffect } from "react";
+import { StyleSheet, View } from "react-native";
+import Ionicons from "react-native-vector-icons/Ionicons";
+import { AppHeader, AppText, AsyncList, Card, Screen, useToast } from "../../../components/ui";
+import { useTheme, useThemedStyles, type AppColors, type Theme } from "../../../theme";
+import { formatRelative } from "../../../utils/format";
+import { useAppDispatch, useAppSelector } from "../../../store/hooks";
 import {
-  markRead,
-  markAllRead,
-  clearAll,
-  type AppNotification,
-} from '../../../store/slices/notificationSlice';
-import { persistNotifications } from '../../../store/slices/notificationSlice';
+  fetchAnnouncements,
+  markAllAnnouncementsRead,
+  markAnnouncementAsRead,
+  selectUnreadCount,
+} from "../../../store/slices/notificationSlice";
+import { useAuth } from "../../../context/AuthContext";
+import { GuestState } from "./shared/GuestState";
 
+/** The signed-in user's announcements from the API (GET /mobile/announcements); read state is saved on the API. */
 export default function NotificationsScreen() {
-  const colors = useThemeColors();
-  const navigation = useNavigation();
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const dispatch = useAppDispatch();
-  const notifications = useAppSelector(s => s.notifications.items);
+  const toast = useToast();
+  const { user } = useAuth();
+  const items = useAppSelector((s) => s.notifications.items);
+  const loading = useAppSelector((s) => s.notifications.loading);
+  const loaded = useAppSelector((s) => s.notifications.loaded);
+  const error = useAppSelector((s) => s.notifications.error);
+  const unread = useAppSelector(selectUnreadCount);
 
-  const save = useCallback(
-    (items: AppNotification[]) => {
-      dispatch(persistNotifications(items) as any);
-    },
-    [dispatch],
-  );
+  const refresh = useCallback(() => {
+    dispatch(fetchAnnouncements());
+  }, [dispatch]);
 
-  const handleMarkAllRead = () => {
-    dispatch(markAllRead());
-    save(notifications.map(n => ({ ...n, read: true })));
+  useEffect(() => {
+    if (user) refresh();
+  }, [user, refresh]);
+
+  const markAll = async () => {
+    const result = await dispatch(markAllAnnouncementsRead());
+    if (markAllAnnouncementsRead.rejected.match(result)) {
+      toast.error(result.payload ?? "Could not mark the notifications as read.");
+    }
   };
-
-  const handleClear = () => {
-    dispatch(clearAll());
-    save([]);
-  };
-
-  const handleRead = (id: string) => {
-    dispatch(markRead(id));
-    save(notifications.map(n => (n.id === id ? { ...n, read: true } : n)));
-  };
-
-  const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
     <Screen>
-      {/* Header */}
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <Pressable
-          onPress={() => navigation.goBack()}
-          hitSlop={12}
-          style={styles.backBtn}
-        >
-          <Ionicons name="arrow-back" size={22} color={colors.foreground} />
-        </Pressable>
-        <View style={styles.headerCenter}>
-          <Text style={[styles.headerTitle, { color: colors.foreground }]}>
-            Notifications
-          </Text>
-          {unreadCount > 0 && (
-            <View style={[styles.badge, { backgroundColor: colors.primary }]}>
-              <Text style={styles.badgeText}>{unreadCount}</Text>
-            </View>
-          )}
-        </View>
-        <View style={styles.headerActions}>
-          {unreadCount > 0 && (
-            <Pressable onPress={handleMarkAllRead} hitSlop={10}>
-              <Text style={[styles.actionText, { color: colors.primary }]}>
-                Read all
-              </Text>
-            </Pressable>
-          )}
-          {notifications.length > 0 && (
-            <Pressable onPress={handleClear} hitSlop={10}>
-              <Text style={[styles.actionText, { color: colors.danger }]}>
-                Clear
-              </Text>
-            </Pressable>
-          )}
-        </View>
-      </View>
-
-      <FlatList
-        data={notifications}
-        keyExtractor={item => item.id}
-        contentContainerStyle={
-          notifications.length === 0 ? styles.emptyContainer : styles.list
-        }
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Ionicons
-              name="notifications-off-outline"
-              size={48}
-              color={colors.mutedForeground}
-            />
-            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
-              No notifications yet
-            </Text>
-            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-              You'll see booking updates and alerts here.
-            </Text>
-          </View>
-        }
-        renderItem={({ item }) => (
-          <Pressable
-            onPress={() => handleRead(item.id)}
-            style={[
-              {
-                backgroundColor: item.read ? colors.card : colors.primaryMuted,
-                borderColor: item.read ? colors.border : colors.primary + '40',
-              },
-              styles.card,
-               item.read && shadows.lg,
-            ]}
-          >
-            <View
-              style={[
-                styles.iconWell,
-                { backgroundColor: item.read ? colors.muted : colors.primary },
-              ]}
-            >
-              <Ionicons
-                name={item.read ? 'notifications-outline' : 'notifications'}
-                size={18}
-                color={item.read ? colors.mutedForeground : '#fff'}
-              />
-            </View>
-            <View style={styles.cardBody}>
-              <View style={styles.cardTop}>
-                <Text
-                  style={[styles.cardTitle, { color: colors.foreground }]}
-                  numberOfLines={1}
-                >
-                  {item.title}
-                </Text>
-                {!item.read && (
-                  <View
-                    style={[
-                      styles.unreadDot,
-                      { backgroundColor: colors.primary },
-                    ]}
-                  />
-                )}
-              </View>
-              <Text
-                style={[styles.cardBody2, { color: colors.mutedForeground }]}
-                numberOfLines={2}
-              >
-                {item.body}
-              </Text>
-              <Text
-                style={[styles.cardTime, { color: colors.mutedForeground }]}
-              >
-                {formatTime(item.receivedAt)}
-              </Text>
-            </View>
-          </Pressable>
-        )}
+      <AppHeader
+        title="Notifications"
+        subtitle={unread > 0 ? `${unread} unread` : undefined}
+        actions={unread > 0 ? [{ icon: "checkmark-done-outline", accessibilityLabel: "Mark all as read", onPress: markAll }] : []}
       />
+      {!user ? (
+        <GuestState icon="notifications-outline" title="Sign in for notifications" message="Announcements and alerts from WorkNest appear here." />
+      ) : (
+        <AsyncList
+          data={items}
+          keyExtractor={(n) => n.id}
+          loading={loading && !loaded}
+          refreshing={loading && loaded}
+          onRefresh={refresh}
+          error={error}
+          empty={{
+            icon: "notifications-off-outline",
+            title: "No notifications yet",
+            message: "Announcements and alerts from WorkNest appear here.",
+          }}
+          renderItem={({ item }) => (
+            <Card
+              variant={item.isRead ? "outlined" : "elevated"}
+              onPress={item.isRead ? undefined : () => dispatch(markAnnouncementAsRead(item.id))}
+              accessibilityLabel={`${item.isRead ? "" : "Unread. "}${item.title}. ${item.body}`}
+              accessibilityHint={item.isRead ? undefined : "Marks it as read"}
+            >
+              <View style={styles.row}>
+                <View style={[styles.iconWell, item.isRead ? styles.iconRead : styles.iconUnread]}>
+                  <Ionicons
+                    name={item.type.toLowerCase() === "alert" ? "alert-circle-outline" : "megaphone-outline"}
+                    size={20}
+                    color={item.isRead ? colors.textMuted : colors.onPrimarySoft}
+                  />
+                </View>
+                <View style={styles.flex}>
+                  <View style={styles.titleRow}>
+                    <AppText variant={item.isRead ? "bodyStrong" : "subheading"} numberOfLines={2} style={styles.flex}>
+                      {item.title}
+                    </AppText>
+                    {!item.isRead ? <View style={styles.dot} accessibilityElementsHidden /> : null}
+                  </View>
+                  {item.body ? (
+                    <AppText variant="bodySmall" color="textSecondary">
+                      {item.body}
+                    </AppText>
+                  ) : null}
+                  <AppText variant="caption" color="textMuted" style={styles.time}>
+                    {formatRelative(item.sentAt ?? item.createdAt)}
+                  </AppText>
+                </View>
+              </View>
+            </Card>
+          )}
+        />
+      )}
     </Screen>
   );
 }
 
-function formatTime(iso: string): string {
-  const date = new Date(iso);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  if (diffMins < 1) return 'Just now';
-  if (diffMins < 60) return `${diffMins}m ago`;
-  const diffHours = Math.floor(diffMins / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
-  const diffDays = Math.floor(diffHours / 24);
-  if (diffDays < 7) return `${diffDays}d ago`;
-  return date.toLocaleDateString();
-}
-
-const styles = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    gap: spacing.sm,
-  },
-  backBtn: { padding: 4 },
-  headerCenter: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  headerTitle: { fontSize: 20, fontWeight: '800', letterSpacing: -0.4 },
-  badge: { borderRadius: 99, paddingHorizontal: 7, paddingVertical: 2 },
-  badgeText: { color: '#fff', fontSize: 11, fontWeight: '800' },
-  headerActions: { flexDirection: 'row', gap: spacing.md },
-  actionText: { fontSize: 13, fontWeight: '700' },
-  list: { padding: spacing.md, gap: spacing.sm },
-  emptyContainer: { flex: 1 },
-  empty: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 40,
-    gap: spacing.sm,
-  },
-  emptyTitle: { fontSize: 18, fontWeight: '800', marginTop: spacing.sm },
-  emptyText: { fontSize: 14, textAlign: 'center', lineHeight: 21 },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing.md,
-    padding: spacing.md,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    marginBottom: spacing.sm,
-  },
-  iconWell: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cardBody: { flex: 1 },
-  cardTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 3,
-  },
-  cardTitle: { fontSize: 14, fontWeight: '700', flex: 1 },
-  unreadDot: { width: 8, height: 8, borderRadius: 4, marginLeft: 6 },
-  cardBody2: { fontSize: 13, lineHeight: 19 },
-  cardTime: { fontSize: 11, marginTop: 5, fontWeight: '600' },
-});
+const createStyles = (c: AppColors, t: Theme) =>
+  StyleSheet.create({
+    row: { flexDirection: "row", gap: t.spacing.md },
+    flex: { flex: 1 },
+    titleRow: { flexDirection: "row", alignItems: "flex-start", gap: t.spacing.sm },
+    iconWell: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+    iconUnread: { backgroundColor: c.primarySoft },
+    iconRead: { backgroundColor: c.surfaceAlt },
+    dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: c.primary, marginTop: 6 },
+    time: { marginTop: t.spacing.xs },
+  });

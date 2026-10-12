@@ -10,22 +10,50 @@ import {
 import { clearAuthStorage, getUser, type StoredUser } from "../utils/authStorage";
 import { hydrateSessionUser, subscribeToAuthChanges } from "../services/authService";
 
-export type UserRole = "admin" | "sales_executive" | "general";
+import {
+  hasRole as userHasRole,
+  isAdminOrAbove,
+  isLocationBound,
+  isStaffRole,
+  isSuperAdmin as isSuperAdminRole,
+  resolveRole,
+  type StaffRole,
+  type UserRole,
+} from "./roles";
 
-export function resolveRole(user: StoredUser | null): UserRole {
-  if (!user) return "general";
-  const raw = (user.role ?? user.userType ?? user.userRole ?? "") as string;
-  const r = raw.toLowerCase();
-  if (r === "admin" || r === "super_admin" || user.isAdmin === true || user.isAdmin === "true") return "admin";
-  if (r === "sales_executive") return "sales_executive";
-  return "general";
-}
+// The role model lives in ./roles (pure, unit-tested); re-exported here for existing imports.
+export {
+  hasRole,
+  isAdminOrAbove,
+  isLocationBound,
+  isStaffRole,
+  isSuperAdmin,
+  normalizeRoleName,
+  resolveRole,
+  roleLabel,
+  rolesOf,
+  STAFF_ROLES,
+} from "./roles";
+export type { StaffRole, UserRole } from "./roles";
 
 type AuthContextValue = {
   user: StoredUser | null;
-  isAdmin: boolean;
-  isSalesExecutive: boolean;
+  /** The experience to show: general (customer app), sales_executive, admin or super_admin. */
   role: UserRole;
+  /** The staff role, or null for customers. */
+  staffRole: StaffRole | null;
+  /** Sales executive, admin or super admin. */
+  isStaff: boolean;
+  /** Admin or super admin (CMS `adminOnly`, API "admin,Admin,super_admin,SuperAdmin"). */
+  isAdmin: boolean;
+  /** Super admin only (CMS `superAdminOnly`). */
+  isSuperAdmin: boolean;
+  /** Sales executive and not an admin. */
+  isSalesExecutive: boolean;
+  /** Admins and sales executives only see their own location(s); super admins see all. */
+  isLocationBound: boolean;
+  /** True when the user carries this exact role (CMS AuthService.hasRole). */
+  hasRole: (role: UserRole) => boolean;
   isLoadingUser: boolean;
   refreshUser: () => Promise<void>;
   setUser: (nextUser: StoredUser | null) => void;
@@ -33,47 +61,6 @@ type AuthContextValue = {
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
-
-function hasAdminRole(user: StoredUser | null): boolean {
-  if (!user) {
-    return false;
-  }
-
-  if (
-    user.isAdmin === true ||
-    (typeof user.isAdmin === "string" &&
-      user.isAdmin.toLowerCase() === "true")
-  ) {
-    return true;
-  }
-
-  const roleCandidate = user.role ?? user.userType ?? (user.userRole as string | undefined);
-  if (
-    typeof roleCandidate === "string" &&
-    (roleCandidate.toLowerCase() === "admin" ||
-      roleCandidate.toLowerCase() === "super_admin")
-  ) {
-    return true;
-  }
-
-  if (typeof user.roles === "string") {
-    const roleList = user.roles
-      .split(",")
-      .map((value) => value.trim().toLowerCase());
-    return roleList.includes("admin") || roleList.includes("super_admin");
-  }
-
-  if (Array.isArray(user.roles)) {
-    return user.roles.some(
-      (role) =>
-        typeof role === "string" &&
-        (role.toLowerCase() === "admin" ||
-          role.toLowerCase() === "super_admin")
-    );
-  }
-
-  return false;
-}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<StoredUser | null>(null);
@@ -122,19 +109,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [refreshUser]);
 
-  const value = useMemo<AuthContextValue>(
-    () => ({
+  const value = useMemo<AuthContextValue>(() => {
+    const role = resolveRole(user);
+    return {
       user,
-      isAdmin: hasAdminRole(user),
-      isSalesExecutive: resolveRole(user) === "sales_executive",
-      role: resolveRole(user),
+      role,
+      staffRole: isStaffRole(role) ? role : null,
+      isStaff: isStaffRole(role),
+      isAdmin: isAdminOrAbove(role),
+      isSuperAdmin: isSuperAdminRole(role),
+      isSalesExecutive: role === "sales_executive",
+      isLocationBound: isLocationBound(role),
+      hasRole: (target: UserRole) => userHasRole(user, target),
       isLoadingUser,
       refreshUser,
       setUser,
       clearSession,
-    }),
-    [clearSession, isLoadingUser, refreshUser, user]
-  );
+    };
+  }, [clearSession, isLoadingUser, refreshUser, user]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

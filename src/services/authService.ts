@@ -12,12 +12,30 @@ import {
 } from "@react-native-google-signin/google-signin";
 import { FIREBASE_IOS_CLIENT_ID, FIREBASE_WEB_CLIENT_ID } from "@env";
 import { buildApiPath } from "../config/api";
-import { clearAuthStorage, removeToken, removeUser, saveToken, saveUser, getUser, getToken } from "../utils/authStorage";
-import { ApiError, apiRequest } from "./apiClient";
+import {
+  clearAuthStorage,
+  getToken,
+  getUser,
+  removeToken,
+  removeUser,
+  saveToken,
+  saveUser,
+} from "../utils/authStorage";
 import type { StoredUser } from "../utils/authStorage";
+import { ApiError, apiRequest, onSessionExpired, setSessionRefresher } from "./apiClient";
+import {
+  sanitizeEmailInput,
+  sanitizeOptionalNameInput,
+  sanitizePasswordInput,
+} from "../utils/inputSanitizer";
+
+// How sign-in works: Firebase owns passwords and Google sign-in. The WorkNest API verifies the Firebase ID
+// token (sent as `firebaseIdToken`) and returns its own JWT with the user's role; every API call sends that JWT.
+// The Firebase ID token itself is never used as the API token.
 
 type AuthResponse = {
-  token: string;
+  /** The WorkNest API token (JWT), never the Firebase ID token. */
+  token: string | null;
   email: string | null;
   userId: string;
   roles: string[] | null;
@@ -34,11 +52,14 @@ type RegisterRequest = {
   firstName?: string;
   lastName?: string;
 };
-import {
-  sanitizeEmailInput,
-  sanitizeOptionalNameInput,
-  sanitizePasswordInput,
-} from "../utils/inputSanitizer";
+
+type ApiSession = { token: string; roles: string[] | null };
+
+/**
+ * At app start the API token exchange may not wait longer than this: offline (or on a slow network) the app
+ * opens with the cached session instead of a spinner, and the exchange finishes in the background.
+ */
+const STARTUP_EXCHANGE_TIMEOUT_MS = 5000;
 
 let googleSigninConfigured = false;
 
@@ -52,31 +73,18 @@ function getFirebaseAuth() {
   }
 }
 
-function maskEmail(email?: string | null): string | null {
-  if (!email) {
-    return null;
-  }
-
-  const [localPart, domain] = email.split("@");
-  if (!localPart || !domain) {
-    return email;
-  }
-
-  const visible = localPart.slice(0, 2);
-  return `${visible}${"*".repeat(Math.max(localPart.length - visible.length, 0))}@${domain}`;
-}
-
+/** Development-only trace of the sign-in flow. Never logs emails, names, tokens or other personal data. */
 function debugAuth(label: string, details?: Record<string, unknown>) {
-  if (!__DEV__) {
-    return;
-  }
-
+  if (!__DEV__) return;
   if (details) {
     console.log(`[Firebase Auth] ${label}`, details);
     return;
   }
-
   console.log(`[Firebase Auth] ${label}`);
+}
+
+function warnDev(label: string, error?: unknown) {
+  if (__DEV__) console.warn(label, error instanceof Error ? error.message : error);
 }
 
 function mapFirebaseUser(user: FirebaseAuthTypes.User): StoredUser {
@@ -88,60 +96,74 @@ function mapFirebaseUser(user: FirebaseAuthTypes.User): StoredUser {
   };
 }
 
+function sameAccount(a: StoredUser | null | undefined, b: StoredUser | null | undefined): boolean {
+  const ea = typeof a?.email === "string" ? a.email.trim().toLowerCase() : "";
+  const eb = typeof b?.email === "string" ? b.email.trim().toLowerCase() : "";
+  return !!ea && ea === eb;
+}
+
+/** The current Firebase user's ID token, or undefined when nobody is signed in to Firebase. */
+async function currentFirebaseIdToken(): Promise<string | undefined> {
+  try {
+    const current = getFirebaseAuth().currentUser;
+    return current ? await getIdToken(current) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * POST /auth/sync — creates or updates the user row (name / phone). Sends the Firebase ID token the API
+ * verifies (`firebaseIdToken`); the email is taken from that token by the API.
+ */
 export async function syncUserWithBackend(user: StoredUser): Promise<void> {
   if (!user.email) return;
   try {
     await apiRequest(buildApiPath("auth/sync"), {
       method: "POST",
       body: {
+        firebaseIdToken: await currentFirebaseIdToken(),
         email: user.email,
         name: user.name ?? undefined,
         phone: (user.phoneNumber as string) || undefined,
       },
     });
   } catch (error) {
-    console.warn("[Auth Sync] Failed to sync user to database:", error);
+    warnDev("[Auth Sync] Failed to sync user", error);
   }
 }
 
+/**
+ * Updates the signed-in user's own name and phone: Firebase display name + PUT /auth/me (the API's
+ * profile endpoint, identified by the JWT). Throws a readable error when the API refuses the change.
+ */
 export async function updateUserProfile(name: string, phone: string): Promise<StoredUser> {
   const firebaseUserObj = getFirebaseAuth().currentUser;
   if (!firebaseUserObj) {
-    throw new Error("No authenticated user session found.");
+    throw new ApiError("Your session has expired. Please sign in again.", 401);
   }
 
-  // Update Firebase display name
-  await firebaseUserObj.updateProfile({ displayName: name });
+  const profile = await apiRequest<{ name?: string; phone?: string | null }>(buildApiPath("auth/me"), {
+    method: "PUT",
+    requiresAuth: true,
+    body: { name, phone: phone || null },
+  });
 
-  // Read current stored user to merge fields
+  await firebaseUserObj.updateProfile({ displayName: profile?.name || name }).catch(error => {
+    warnDev("[Auth] Firebase display name not updated", error);
+  });
+
   const currentStored = await getUser();
   const updatedUser: StoredUser = {
     ...currentStored,
-    id: firebaseUserObj.uid,
-    email: firebaseUserObj.email ?? undefined,
-    name: name,
-    phoneNumber: phone,
+    id: currentStored?.id ?? firebaseUserObj.uid,
+    email: firebaseUserObj.email ?? currentStored?.email,
+    name: profile?.name || name,
+    phoneNumber: profile?.phone ?? phone,
   };
-
-  // Save updated user locally
   await saveUser(updatedUser);
-
-  // Sync to database
-  await syncUserWithBackend(updatedUser);
-
+  notifyAuthListeners(updatedUser);
   return updatedUser;
-}
-
-function mapFirebaseAuthResponse(
-  user: FirebaseAuthTypes.User,
-  idToken: string
-): AuthResponse {
-  return {
-    token: idToken ?? null,
-    email: user.email ?? null,
-    userId: user.uid,
-    roles: null,
-  };
 }
 
 function configureGoogleAuth() {
@@ -176,17 +198,18 @@ function notifyAuthListeners(user: StoredUser | null) {
     try {
       listener(user);
     } catch (err) {
-      console.warn("Error in auth listener:", err);
+      warnDev("[Auth] listener failed", err);
     }
   }
 }
 
+/**
+ * Refreshes the stored profile from GET /auth/me (name, role, customer id). Never throws: the app keeps the
+ * cached profile when the API can't be reached.
+ */
 export async function triggerBackgroundSync(currentUser: StoredUser) {
   if (!currentUser.email) return;
   try {
-    // 1. Synchronize user profile with backend database
-    await syncUserWithBackend(currentUser);
-    // 2. Fetch profile from database to get correct role
     const profile = await apiRequest<{
       id: string | number | null;
       email: string;
@@ -202,7 +225,7 @@ export async function triggerBackgroundSync(currentUser: StoredUser) {
     });
     if (profile) {
       const activeUser = await getUser();
-      if (activeUser && activeUser.email === currentUser.email) {
+      if (activeUser && sameAccount(activeUser, currentUser)) {
         const rawCustomerId =
           profile.customerId ??
           profile.customerCode ??
@@ -217,6 +240,7 @@ export async function triggerBackgroundSync(currentUser: StoredUser) {
           ...activeUser,
           id: profile.id ?? activeUser.id,
           name: profile.name || activeUser.name,
+          phoneNumber: profile.phone || activeUser.phoneNumber,
           role: profile.role || activeUser.role || "general",
           customerCode: customerCode,
           customerId: customerCode,
@@ -226,7 +250,7 @@ export async function triggerBackgroundSync(currentUser: StoredUser) {
       }
     }
   } catch (err) {
-    console.warn("[Background Sync] Failed:", err);
+    warnDev("[Background Sync] Failed", err);
   }
 }
 
@@ -238,19 +262,21 @@ export async function triggerBackgroundSync(currentUser: StoredUser) {
 async function exchangeFirebaseTokenForJwt(
   user: FirebaseAuthTypes.User,
   displayNameOverride?: string
-): Promise<{ token: string; roles: string[] | null }> {
+): Promise<ApiSession> {
   if (!user.email) {
     throw new ApiError("This account has no email address, so it can't be used with WorkNest.", 400);
   }
-  let response: { token?: string; id?: string; roles?: string[] } | null;
+  let response: { token?: string; id?: string; roles?: string[]; role?: string } | null;
   try {
     const idToken = await getIdToken(user);
     const displayName = displayNameOverride ?? user.displayName ?? "";
-    response = await apiRequest<{ token?: string; id?: string; roles?: string[] }>(
+    response = await apiRequest<{ token?: string; id?: string; roles?: string[]; role?: string }>(
       buildApiPath("auth/google-login"),
       {
         method: "POST",
         body: {
+          // The field the API verifies (GoogleLoginRequest.FirebaseIdToken); idToken is kept for older servers.
+          firebaseIdToken: idToken,
           idToken,
           email: user.email,
           name: displayName || undefined,
@@ -259,7 +285,7 @@ async function exchangeFirebaseTokenForJwt(
     );
   } catch (err) {
     debugAuth("jwt exchange failed", {
-      message: err instanceof Error ? err.message : "unknown",
+      status: err instanceof ApiError ? err.status : "unknown",
     });
     if (err instanceof ApiError) {
       if (err.status === 0) {
@@ -271,43 +297,92 @@ async function exchangeFirebaseTokenForJwt(
     throw new ApiError("Couldn't sign you in to WorkNest. Please try again.", 0, err);
   }
   if (!response?.token) {
-    debugAuth("jwt exchange failed", { message: "no token in response" });
+    debugAuth("jwt exchange failed", { reason: "no token in response" });
     throw new ApiError("Couldn't sign you in to WorkNest. Please try again.", 500);
   }
-  debugAuth("jwt exchange success", {
-    hasToken: true,
-    roles: response.roles ?? null,
+  const roles = response.roles ?? (response.role ? [response.role] : null);
+  debugAuth("jwt exchange success", { roles });
+  return { token: response.token, roles };
+}
+
+/** One exchange per account at a time: app start, onIdTokenChanged and a 401 refresh share it. */
+let exchangeInFlight: { uid: string; promise: Promise<ApiSession> } | null = null;
+
+function exchangeOnce(user: FirebaseAuthTypes.User, displayNameOverride?: string): Promise<ApiSession> {
+  if (!displayNameOverride && exchangeInFlight && exchangeInFlight.uid === user.uid) {
+    return exchangeInFlight.promise;
+  }
+  const promise = exchangeFirebaseTokenForJwt(user, displayNameOverride);
+  const entry = { uid: user.uid, promise };
+  exchangeInFlight = entry;
+  const clear = () => {
+    if (exchangeInFlight === entry) exchangeInFlight = null;
+  };
+  promise.then(clear, clear);
+  return promise;
+}
+
+class ExchangeTimeout extends Error {}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new ExchangeTimeout("timeout")), ms);
+    promise.then(
+      value => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      error => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
   });
-  return { token: response.token, roles: response.roles ?? null };
+}
+
+/** Stores a new API token (and role) for the account that is still signed in. */
+async function applyApiSession(uid: string, session: ApiSession): Promise<StoredUser | null> {
+  let current: FirebaseAuthTypes.User | null = null;
+  try {
+    current = getFirebaseAuth().currentUser;
+  } catch {
+    return null;
+  }
+  if (!current || current.uid !== uid) return null;
+  await saveToken(session.token);
+  const stored = await getUser();
+  const role = session.roles?.[0];
+  if (stored && role && stored.role !== role) {
+    const updated = { ...stored, role };
+    await saveUser(updated);
+    return updated;
+  }
+  return stored;
 }
 
 /**
  * Saves the session after Firebase sign-in. `strict` (login, sign-up, Google sign-in): if the API
- * token can't be obtained, sign out and throw, so the user never lands in the app with only the
- * Firebase token (API calls fail and the role is wrong). Not strict (app start / token refresh):
- * keep the API token from the last successful login, e.g. when offline at startup.
+ * token can't be obtained, sign out and throw, so the user never lands in the app without an API token
+ * (API calls fail and the role is wrong). Not strict (app start / token refresh): keep the API token from
+ * the last successful login, e.g. when offline at startup; `timeoutMs` caps how long that may take.
  */
 async function persistFirebaseSession(
   user: FirebaseAuthTypes.User,
   displayNameOverride?: string,
-  options: { strict?: boolean } = {}
-): Promise<{ user: StoredUser; idToken: string }> {
+  options: { strict?: boolean; timeoutMs?: number } = {}
+): Promise<{ user: StoredUser; apiToken: string | null }> {
   const firebaseUser = mapFirebaseUser(user);
   if (displayNameOverride) {
     firebaseUser.name = displayNameOverride;
   }
-  const idToken = await getIdToken(user);
-  debugAuth("persist session", {
-    uid: user.uid,
-    email: maskEmail(user.email),
-    displayName: firebaseUser.name ?? null,
-  });
+  debugAuth("persist session", { strict: !!options.strict });
 
-  // Exchange Firebase token for .NET JWT so API calls are authorized
-  let dotnetJwt: string | null = null;
-  let roles: string[] | null = null;
+  let session: ApiSession | null = null;
+  const exchange = exchangeOnce(user, displayNameOverride);
   try {
-    ({ token: dotnetJwt, roles } = await exchangeFirebaseTokenForJwt(user, displayNameOverride));
+    session = options.timeoutMs && !options.strict
+      ? await withTimeout(exchange, options.timeoutMs)
+      : await exchange;
   } catch (err) {
     if (options.strict) {
       await Promise.allSettled([
@@ -318,20 +393,35 @@ async function persistFirebaseSession(
       ]);
       throw err;
     }
+    if (err instanceof ExchangeTimeout) {
+      // Slow or offline start: open with the cached session; store the new token once the exchange answers.
+      debugAuth("jwt exchange still running, using cached session");
+      exchange
+        .then(result => applyApiSession(user.uid, result))
+        .then(updated => {
+          if (updated) notifyAuthListeners(updated);
+        })
+        .catch(() => undefined);
+    }
   }
-  const activeToken = dotnetJwt || (await getToken()) || idToken;
-  await saveToken(activeToken);
+
+  // Only the API's own JWT is ever stored as the API token; without one the cached token (if any) stays.
+  if (session?.token) await saveToken(session.token);
 
   const existing = await getUser();
-  const primaryRole = roles && roles.length > 0 ? roles[0] : undefined;
+  // A cached profile of another account must never be merged into this one.
+  const previous = sameAccount(existing, firebaseUser) ? existing : null;
+  const primaryRole = session?.roles && session.roles.length > 0 ? session.roles[0] : undefined;
   const mergedUser: StoredUser = {
-    ...existing,
+    ...(previous ?? {}),
     ...firebaseUser,
-    role: primaryRole ?? existing?.role ?? firebaseUser.role,
+    name: firebaseUser.name ?? previous?.name,
+    phoneNumber: firebaseUser.phoneNumber ?? previous?.phoneNumber,
+    role: primaryRole ?? previous?.role ?? firebaseUser.role,
   };
   await saveUser(mergedUser);
 
-  return { user: mergedUser, idToken: activeToken };
+  return { user: mergedUser, apiToken: session?.token ?? (await getToken()) };
 }
 
 export async function logoutUser(): Promise<void> {
@@ -360,6 +450,61 @@ export async function logoutUser(): Promise<void> {
   debugAuth("logout complete");
 }
 
+/**
+ * Ends the session after the API refused it (401 that a token refresh could not fix): signs out of
+ * Firebase / Google, removes the stored token and user, and tells AuthContext (user becomes null).
+ * The navigators listen to the same event (onSessionExpired) and open Login.
+ */
+export async function endExpiredSession(): Promise<void> {
+  debugAuth("session expired");
+  const tasks: Promise<unknown>[] = [GoogleSignin.signOut()];
+  try {
+    tasks.push(getFirebaseAuth().signOut());
+  } catch {
+    // Firebase not available: the stored session is still cleared below.
+  }
+  await Promise.allSettled(tasks);
+  await clearAuthStorage();
+  notifyAuthListeners(null);
+}
+
+/**
+ * Renews the API token from the Firebase sign-in after a 401. Null when nobody is signed in to Firebase or
+ * the API refuses (account turned off): the session then ends. Throws when the API could not be reached,
+ * so a network problem never signs anyone out.
+ */
+async function refreshApiSession(): Promise<string | null> {
+  let current: FirebaseAuthTypes.User | null = null;
+  try {
+    current = getFirebaseAuth().currentUser;
+  } catch {
+    return null;
+  }
+  if (!current) return null;
+  try {
+    const session = await exchangeOnce(current);
+    const updated = await applyApiSession(current.uid, session);
+    if (updated) notifyAuthListeners(updated);
+    return session.token;
+  } catch (error) {
+    warnDev("[Auth] session refresh failed", error);
+    const status = error instanceof ApiError ? error.status : 0;
+    // 0 = offline / timeout, 429 = rate limited, 5xx = server trouble: not a verdict on the session.
+    if (status === 0 || status === 429 || status >= 500) throw error;
+    return null;
+  }
+}
+
+// One shared mechanism for an expired session (see apiClient): renew once, otherwise sign out everywhere.
+setSessionRefresher(refreshApiSession);
+onSessionExpired(() => {
+  endExpiredSession().catch(error => warnDev("[Auth] ending the expired session failed", error));
+});
+
+/**
+ * Restores the session at app start. Never waits more than STARTUP_EXCHANGE_TIMEOUT_MS for the API:
+ * offline, the cached user and API token are used and the exchange completes in the background.
+ */
 export async function hydrateSessionUser(): Promise<StoredUser | null> {
   let firebaseUser: FirebaseAuthTypes.User | null = null;
 
@@ -369,7 +514,7 @@ export async function hydrateSessionUser(): Promise<StoredUser | null> {
     debugAuth("hydrate session skipped", {
       message: error instanceof Error ? error.message : "unknown",
     });
-    return null;
+    return getUser();
   }
 
   if (!firebaseUser) {
@@ -379,16 +524,20 @@ export async function hydrateSessionUser(): Promise<StoredUser | null> {
     return null;
   }
 
-  debugAuth("hydrate session", {
-    hasUser: true,
-    uid: firebaseUser.uid,
-    email: maskEmail(firebaseUser.email),
-  });
-  const session = await persistFirebaseSession(firebaseUser);
+  debugAuth("hydrate session", { hasUser: true });
+  let session: { user: StoredUser; apiToken: string | null };
+  try {
+    session = await persistFirebaseSession(firebaseUser, undefined, {
+      timeoutMs: STARTUP_EXCHANGE_TIMEOUT_MS,
+    });
+  } catch (error) {
+    warnDev("[Auth] hydrate failed, using the cached session", error);
+    return getUser();
+  }
 
-  // Non-blocking trigger of sync/fetch profile
+  // Non-blocking refresh of the profile (name, role, customer id).
   triggerBackgroundSync(session.user).catch((err) => {
-    console.warn("hydrateSessionUser background sync triggered error:", err);
+    warnDev("[Auth] background sync failed", err);
   });
 
   return session.user;
@@ -410,18 +559,20 @@ export function subscribeToAuthChanges(
         return;
       }
 
-      debugAuth("auth state changed", {
-        signedIn: true,
-        uid: firebaseUser.uid,
-        email: maskEmail(firebaseUser.email),
-      });
-      const session = await persistFirebaseSession(firebaseUser);
-      notifyAuthListeners(session.user);
+      debugAuth("auth state changed", { signedIn: true });
+      try {
+        const session = await persistFirebaseSession(firebaseUser, undefined, {
+          timeoutMs: STARTUP_EXCHANGE_TIMEOUT_MS,
+        });
+        notifyAuthListeners(session.user);
 
-      // Non-blocking trigger of sync/fetch profile
-      triggerBackgroundSync(session.user).catch((err) => {
-        console.warn("subscribeToAuthChanges background sync triggered error:", err);
-      });
+        // Non-blocking refresh of the profile (name, role, customer id).
+        triggerBackgroundSync(session.user).catch((err) => {
+          warnDev("[Auth] background sync failed", err);
+        });
+      } catch (err) {
+        warnDev("[Auth] token change not saved", err);
+      }
     });
   } catch (error) {
     debugAuth("subscribe auth changes skipped", {
@@ -435,32 +586,31 @@ export function subscribeToAuthChanges(
   };
 }
 
+function errorCode(error: unknown): string {
+  return error && typeof error === "object" && "code" in error
+    ? String((error as { code?: unknown }).code)
+    : "unknown";
+}
+
 export async function loginUser(payload: LoginRequest): Promise<AuthResponse> {
   try {
     const email = sanitizeEmailInput(payload.email);
     const password = sanitizePasswordInput(payload.password);
-    debugAuth("login request", {
-      email: maskEmail(email),
-      passwordLength: password.length,
-    });
+    debugAuth("login request");
     const credential = await getFirebaseAuth().signInWithEmailAndPassword(
       email,
       password
     );
     const session = await persistFirebaseSession(credential.user, undefined, { strict: true });
-    debugAuth("login success", {
-      uid: credential.user.uid,
-      email: maskEmail(credential.user.email),
-      isAnonymous: credential.user.isAnonymous,
-    });
-    return mapFirebaseAuthResponse(credential.user, session.idToken);
+    debugAuth("login success");
+    return {
+      token: session.apiToken,
+      email: credential.user.email ?? null,
+      userId: credential.user.uid,
+      roles: session.user.role ? [String(session.user.role)] : null,
+    };
   } catch (error) {
-    debugAuth("login error", {
-      code:
-        error && typeof error === "object" && "code" in error
-          ? String((error as { code?: unknown }).code)
-          : "unknown",
-    });
+    debugAuth("login error", { code: errorCode(error) });
     throw mapFirebaseError(error, "Login failed.");
   }
 }
@@ -471,12 +621,7 @@ export async function registerUser(payload: RegisterRequest): Promise<AuthRespon
     const password = sanitizePasswordInput(payload.password);
     const firstName = sanitizeOptionalNameInput(payload.firstName);
     const lastName = sanitizeOptionalNameInput(payload.lastName);
-    debugAuth("register request", {
-      email: maskEmail(email),
-      passwordLength: password.length,
-      hasFirstName: Boolean(firstName),
-      hasLastName: Boolean(lastName),
-    });
+    debugAuth("register request");
     const credential = await getFirebaseAuth().createUserWithEmailAndPassword(
       email,
       password
@@ -489,25 +634,19 @@ export async function registerUser(payload: RegisterRequest): Promise<AuthRespon
 
     if (displayName) {
       await credential.user.updateProfile({ displayName });
-      debugAuth("register profile updated", {
-        uid: credential.user.uid,
-        displayName,
-      });
+      debugAuth("register profile updated");
     }
 
     const session = await persistFirebaseSession(credential.user, displayName, { strict: true });
-    debugAuth("register success", {
-      uid: credential.user.uid,
-      email: maskEmail(credential.user.email),
-    });
-    return mapFirebaseAuthResponse(credential.user, session.idToken);
+    debugAuth("register success");
+    return {
+      token: session.apiToken,
+      email: credential.user.email ?? null,
+      userId: credential.user.uid,
+      roles: session.user.role ? [String(session.user.role)] : null,
+    };
   } catch (error) {
-    debugAuth("register error", {
-      code:
-        error && typeof error === "object" && "code" in error
-          ? String((error as { code?: unknown }).code)
-          : "unknown",
-    });
+    debugAuth("register error", { code: errorCode(error) });
     throw mapFirebaseError(error, "Registration failed.");
   }
 }
@@ -560,10 +699,7 @@ export async function beginGoogleAuth(): Promise<PendingGoogleAuth> {
       throw new Error("Google Sign-In did not return an ID token.");
     }
 
-    debugAuth("google account selected", {
-      email: maskEmail(signInResult.data.user.email),
-      idTokenLength: googleIdToken.length,
-    });
+    debugAuth("google account selected");
 
     return {
       email: signInResult.data.user.email,
@@ -571,13 +707,7 @@ export async function beginGoogleAuth(): Promise<PendingGoogleAuth> {
       idToken: googleIdToken,
     };
   } catch (error) {
-    debugAuth("google sign-in error", {
-      code:
-        error && typeof error === "object" && "code" in error
-          ? String((error as { code?: unknown }).code)
-          : "unknown",
-      message: error instanceof Error ? error.message : "unknown",
-    });
+    debugAuth("google sign-in error", { code: errorCode(error) });
     throw mapGoogleSigninError(error);
   }
 }
@@ -586,9 +716,6 @@ async function completeGoogleAuth(idToken: string): Promise<GoogleAuthResult> {
   const googleCredential = GoogleAuthProvider.credential(idToken);
   const credentialResult = await getFirebaseAuth().signInWithCredential(googleCredential);
   debugAuth("google sign-in success", {
-    uid: credentialResult.user.uid,
-    email: maskEmail(credentialResult.user.email),
-    displayName: credentialResult.user.displayName ?? null,
     isNewUser: credentialResult.additionalUserInfo?.isNewUser ?? false,
   });
   const session = await persistFirebaseSession(credentialResult.user, undefined, { strict: true });
@@ -611,20 +738,20 @@ export async function signInWithGoogle(): Promise<StoredUser> {
   return result.user;
 }
 
+async function rejectExistingGoogleAccount(): Promise<never> {
+  await Promise.allSettled([
+    GoogleSignin.signOut(),
+    getFirebaseAuth().signOut(),
+    removeToken(),
+    removeUser(),
+  ]);
+  throw new ApiError("This Google account already exists. Please log in instead.", 400);
+}
+
 export async function signUpWithGoogle(): Promise<StoredUser> {
   const pending = await beginGoogleAuth();
   const result = await completeGoogleAuth(pending.idToken);
-
-  if (!result.isNewUser) {
-    await Promise.allSettled([
-      GoogleSignin.signOut(),
-      getFirebaseAuth().signOut(),
-      removeToken(),
-      removeUser(),
-    ]);
-    throw new ApiError("This Google account already exists. Please log in instead.", 400);
-  }
-
+  if (!result.isNewUser) return rejectExistingGoogleAccount();
   return result.user;
 }
 
@@ -635,47 +762,25 @@ export async function confirmGoogleLogin(idToken: string): Promise<StoredUser> {
 
 export async function confirmGoogleSignup(idToken: string): Promise<StoredUser> {
   const result = await completeGoogleAuth(idToken);
-
-  if (!result.isNewUser) {
-    await Promise.allSettled([
-      GoogleSignin.signOut(),
-      getFirebaseAuth().signOut(),
-      removeToken(),
-      removeUser(),
-    ]);
-    throw new ApiError("This Google account already exists. Please log in instead.", 400);
-  }
-
+  if (!result.isNewUser) return rejectExistingGoogleAccount();
   return result.user;
 }
 
 export async function requestPasswordReset(email: string): Promise<void> {
   try {
     const sanitizedEmail = sanitizeEmailInput(email);
-    debugAuth("password reset request", {
-      email: maskEmail(sanitizedEmail),
-    });
+    debugAuth("password reset request");
     await getFirebaseAuth().sendPasswordResetEmail(sanitizedEmail);
-    debugAuth("password reset sent", {
-      email: maskEmail(sanitizedEmail),
-    });
+    debugAuth("password reset sent");
   } catch (error) {
-    debugAuth("password reset error", {
-      code:
-        error && typeof error === "object" && "code" in error
-          ? String((error as { code?: unknown }).code)
-          : "unknown",
-    });
+    debugAuth("password reset error", { code: errorCode(error) });
     throw mapFirebaseError(error, "Unable to send password reset email.");
   }
 }
 
 function mapFirebaseError(error: unknown, fallbackMessage: string): ApiError {
   if (error instanceof ApiError) return error;
-  const code =
-    error && typeof error === "object" && "code" in error
-      ? String((error as { code?: unknown }).code)
-      : "";
+  const code = errorCode(error);
 
   const messageByCode: Record<string, string> = {
     "auth/email-already-in-use": "That email address is already in use.",
@@ -694,10 +799,7 @@ function mapFirebaseError(error: unknown, fallbackMessage: string): ApiError {
 
 function mapGoogleSigninError(error: unknown): ApiError {
   if (error instanceof ApiError) return error;
-  const code =
-    error && typeof error === "object" && "code" in error
-      ? String((error as { code?: unknown }).code)
-      : "";
+  const code = errorCode(error);
 
   const messageByCode: Record<string, string> = {
     [statusCodes.SIGN_IN_CANCELLED]: "Google sign-in was cancelled.",
