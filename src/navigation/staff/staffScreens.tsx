@@ -1,7 +1,6 @@
 import type { ComponentType } from "react";
 import type { StaffRole } from "../../context/roles";
 import type { StaffRouteName, StaffTabName } from "../staffTypes";
-import { makeStaffPlaceholder } from "../../screens/App/Staff/StaffPlaceholderScreen";
 import StaffMoreScreen from "../../screens/App/Staff/StaffMoreScreen";
 import StaffProfileScreen from "../../screens/App/Staff/Profile/StaffProfileScreen";
 import CustomerListScreen from "../../screens/App/Staff/Customers/CustomerListScreen";
@@ -31,6 +30,7 @@ import LocationListScreen from "../../screens/App/Staff/Directory/LocationListSc
 import SpaceListScreen from "../../screens/App/Staff/Directory/SpaceListScreen";
 import ChallanValidityScreen from "../../screens/App/Staff/SuperAdmin/ChallanValidityScreen";
 import StaffNotificationsScreen from "../../screens/App/Staff/Notifications/StaffNotificationsScreen";
+import StaffDashboardScreen from "../../screens/App/Staff/Dashboard/StaffDashboardScreen";
 
 // Route name -> screen for the staff navigators. Every staff screen draws its own AppHeader (back button,
 // title, actions), so the navigators render no header of their own.
@@ -72,13 +72,11 @@ export type StaffTabDef = {
   component: ComponentType<any>;
 };
 
-const DashboardPlaceholder = makeStaffPlaceholder("Dashboard");
-
 /** Tab screens (the same list screens as the pushed routes; the dashboard adapts to the role). */
 export function staffTabScreen(_role: StaffRole, tab: StaffTabName): StaffTabDef {
   switch (tab) {
     case "Dashboard":
-      return { label: "Dashboard", icon: "grid-outline", activeIcon: "grid", component: DashboardPlaceholder };
+      return { label: "Dashboard", icon: "grid-outline", activeIcon: "grid", component: StaffDashboardScreen };
     case "Inquiries":
       return { label: "Inquiries", icon: "walk-outline", activeIcon: "walk", component: STAFF_SCREENS.TourInquiries };
     case "Quotations":
