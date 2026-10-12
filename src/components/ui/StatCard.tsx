@@ -2,6 +2,8 @@ import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } fro
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { useTheme, type Tone } from "../../theme";
 import { SkeletonBlock, SkeletonGroup } from "../Skeleton";
+import { Sparkline } from "../charts/Sparkline";
+import { describeTrend } from "../charts/summary";
 
 export type StatTrend = {
   direction: "up" | "down" | "flat";
@@ -24,13 +26,16 @@ export type StatCardProps = {
   onPress?: () => void;
   /** Shows a skeleton instead of the value. */
   loading?: boolean;
+  /** Recent values, oldest first (e.g. the last 6 months). Two or more draw a sparkline at the bottom of the card. */
+  trendSeries?: number[];
   style?: StyleProp<ViewStyle>;
 };
 
 /** KPI tile for dashboards. Put two per row: `<View style={{flexDirection:"row", gap:12}}>`. */
-export function StatCard({ label, value, sub, tone = "primary", icon, trend, onPress, loading = false, style }: StatCardProps) {
+export function StatCard({ label, value, sub, tone = "primary", icon, trend, onPress, loading = false, trendSeries, style }: StatCardProps) {
   const { colors, tones, typography, radii, shadows } = useTheme();
   const t = tones[tone];
+  const hasSeries = !!trendSeries && trendSeries.length > 1;
 
   let trendColor = colors.textMuted;
   let trendIcon = "remove";
@@ -75,6 +80,7 @@ export function StatCard({ label, value, sub, tone = "primary", icon, trend, onP
               </Text>
             </View>
           ) : null}
+          {hasSeries ? <Sparkline data={trendSeries} tone={tone} height={28} decorative style={styles.sparkline} /> : null}
         </>
       )}
     </>
@@ -89,7 +95,7 @@ export function StatCard({ label, value, sub, tone = "primary", icon, trend, onP
     gap: 6,
     ...shadows.sm,
   };
-  const a11y = loading ? `${label}, loading` : [label, String(value), sub, trend?.label].filter(Boolean).join(", ");
+  const a11y = loading ? `${label}, loading` : [label, String(value), sub, trend?.label, hasSeries && describeTrend(trendSeries)].filter(Boolean).join(", ");
 
   if (onPress) {
     return (
@@ -122,4 +128,5 @@ const styles = StyleSheet.create({
   iconWell: { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   trend: { flexDirection: "row", alignItems: "center", gap: 4 },
   skeleton: { gap: 8, paddingVertical: 4 },
+  sparkline: { marginTop: "auto" },
 });
