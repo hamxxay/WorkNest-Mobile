@@ -1,9 +1,10 @@
 <resources>
 
-    <!-- Base application theme. -->
-    <style name="AppTheme" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your theme here. -->
+    <!-- Shared app theme. DayNight because the app supports dark mode; ThemeProvider switches the night mode
+         (AppCompatDelegate) when the user forces Light or Dark, so these resources follow the in-app choice. -->
+    <style name="Base.AppTheme" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="android:editTextBackground">@drawable/rn_edit_text_material</item>
+        <item name="android:windowBackground">@color/window_background</item>
         <item name="colorPrimary">@color/picker_primary</item>
         <item name="colorOnPrimary">@color/picker_on_primary</item>
         <item name="colorSurface">@color/picker_surface</item>
@@ -12,6 +13,9 @@
         <item name="materialCalendarTheme">@style/WorkNest.MaterialCalendar</item>
         <item name="materialTimePickerTheme">@style/WorkNest.MaterialTimePicker</item>
     </style>
+
+    <!-- Base application theme (Android 12+ adds the splash colour in values-v31/styles.xml). -->
+    <style name="AppTheme" parent="Base.AppTheme" />
 
     <style name="WorkNest.MaterialCalendar" parent="ThemeOverlay.Material3.MaterialCalendar">
         <item name="colorPrimary">@color/picker_primary</item>
