@@ -14,8 +14,17 @@ import * as palette from "./palette";
 
 export { lightColors, darkColors, lightTones, darkTones } from "./colors";
 export type { AppColors, Tone, ToneColors } from "./colors";
-export { typography, fontWeights } from "./typography";
-export type { TypographyVariant } from "./typography";
+export {
+  typography,
+  fontWeights,
+  fontFamilies,
+  fontFor,
+  withBrandFont,
+  tabularNums,
+  normalizeFontWeight,
+  hasBrandFont,
+} from "./typography";
+export type { TypographyVariant, FontWeight, FontStyle } from "./typography";
 export { spacing, radii, shadows, getShadows, touchTarget, iconSizes } from "./tokens";
 export type { ShadowScale } from "./tokens";
 export { statusTone, statusLabel, normalizeStatus } from "./status";
