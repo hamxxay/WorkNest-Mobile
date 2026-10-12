@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, type ReactElement, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, type ReactElement, type ReactNode } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -87,7 +87,17 @@ export function AsyncList<T>({
   const retry = onRetry ?? onRefresh;
 
   // FlatList can call onEndReached several times for one scroll; allow one call per data length.
+  // The guard starts over when the list shrinks (new query / filter / reload) and when a page request
+  // finishes (loadingMore true -> false), so a failed or empty page can be requested again.
   const lastRequestedAt = useRef(-1);
+  const wasLoadingMore = useRef(loadingMore);
+  useEffect(() => {
+    if (wasLoadingMore.current && !loadingMore) lastRequestedAt.current = -1;
+    wasLoadingMore.current = loadingMore;
+  }, [loadingMore]);
+  useEffect(() => {
+    if (rows.length < lastRequestedAt.current) lastRequestedAt.current = -1;
+  }, [rows.length]);
   const handleEndReached = useCallback(() => {
     if (!onEndReached || !hasMore || loading || loadingMore || refreshing || error || !hasRows) return;
     if (lastRequestedAt.current === rows.length) return;

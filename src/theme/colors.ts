@@ -94,6 +94,14 @@ export type AppColors = {
   tabBar: string;
   tabInactive: string;
 
+  // ── Paper (documents) ─────────────────────────────────────────────────────
+  /** Always-light "document" surface in BOTH modes: signature pads and previews, PDF/receipt thumbnails. */
+  paper: string;
+  /** Ink on paper (signature strokes, document text). Same in both modes. */
+  onPaper: string;
+  /** Edge of a paper well, visible on light and dark pages. */
+  paperBorder: string;
+
   // ── Legacy keys (kept for existing screens; prefer the semantic keys above) ──
   /** = surface */
   card: string;
@@ -168,6 +176,10 @@ export const lightColors: AppColors = {
   tabBar: "#ffffff",
   tabInactive: slate[500],
 
+  paper: "#ffffff",
+  onPaper: "#0a1628",
+  paperBorder: slate[300],
+
   card: "#ffffff",
   foreground: slate[900],
   mutedForeground: slate[500],
@@ -229,6 +241,10 @@ export const darkColors: AppColors = {
   rippleOnPrimary: "rgba(255, 255, 255, 0.24)",
   tabBar: night.surface,
   tabInactive: slate[400],
+
+  paper: "#ffffff",
+  onPaper: "#0a1628",
+  paperBorder: slate[600],
 
   card: night.surface,
   foreground: slate[100],

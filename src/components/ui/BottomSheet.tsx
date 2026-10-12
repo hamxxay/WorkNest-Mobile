@@ -17,6 +17,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "../../theme";
+import { Banner } from "./Banner";
 import { IconButton } from "./Button";
 import { ToastModalHost } from "./Toast";
 
@@ -43,6 +44,8 @@ export type BottomSheetProps = {
   fullHeight?: boolean;
   contentStyle?: StyleProp<ViewStyle>;
   testID?: string;
+  /** Error pinned above the footer (stays visible while the content scrolls), e.g. "Could not save". */
+  error?: string | null | false;
 };
 
 /**
@@ -67,6 +70,7 @@ export function BottomSheet({
   fullHeight = false,
   contentStyle,
   testID,
+  error,
 }: BottomSheetProps) {
   const { colors, radii, typography } = useTheme();
   const insets = useSafeAreaInsets();
@@ -174,6 +178,12 @@ export function BottomSheet({
             <View style={[styles.flexShrink, fullHeight && styles.flex, contentStyle]}>{children}</View>
           )}
 
+          {error ? (
+            <View style={styles.error}>
+              <Banner tone="danger" message={error} />
+            </View>
+          ) : null}
+
           {footer ? (
             <View
               style={[
@@ -201,4 +211,5 @@ const styles = StyleSheet.create({
   footer: { paddingHorizontal: 20, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, flexDirection: "row", gap: 12 },
   flex: { flex: 1 },
   flexShrink: { flexShrink: 1 },
+  error: { paddingHorizontal: 20, paddingBottom: 12 },
 });

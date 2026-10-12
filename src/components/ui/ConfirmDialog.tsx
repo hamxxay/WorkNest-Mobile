@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { useTheme } from "../../theme";
+import { Banner } from "./Banner";
 import { Button } from "./Button";
 import { ToastModalHost } from "./Toast";
 
@@ -21,6 +22,8 @@ export type ConfirmDialogProps = {
   icon?: string;
   /** Extra content between message and buttons (e.g. a reason TextField). */
   children?: ReactNode;
+  /** Error shown inside the dialog above the buttons (e.g. the action failed); keep the dialog open to retry. */
+  error?: string | null | false;
 };
 
 /** Centred confirmation dialog. Use for blocking yes/no decisions; use useToast() for plain messages. */
@@ -36,6 +39,7 @@ export function ConfirmDialog({
   loading = false,
   icon,
   children,
+  error,
 }: ConfirmDialogProps) {
   const { colors, radii, typography, shadows } = useTheme();
   const iconName = icon ?? (destructive ? "warning-outline" : undefined);
@@ -70,6 +74,7 @@ export function ConfirmDialog({
           </Text>
           {message ? <Text style={[typography.body, { color: colors.textSecondary }]}>{message}</Text> : null}
           {children}
+          {error ? <Banner tone="danger" message={error} /> : null}
           <View style={styles.actions}>
             <Button title={cancelLabel} variant="outline" onPress={cancel} disabled={loading} style={styles.flex} />
             <Button

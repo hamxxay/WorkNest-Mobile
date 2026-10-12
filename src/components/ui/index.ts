@@ -14,9 +14,12 @@ export {
   type IconButtonVariant,
 } from "./Button";
 export { TextField, type TextFieldProps } from "./TextField";
+export { PressableField, type PressableFieldProps } from "./PressableField";
+export { Checkbox, type CheckboxProps } from "./Checkbox";
+export { Switch, SwitchRow, type SwitchProps, type SwitchRowProps } from "./Switch";
 export { SelectField, PickerField, type SelectFieldProps, type PickerFieldProps, type SelectOption } from "./SelectField";
 export { DateField, type DateFieldProps, type DateFieldMode } from "./DateField";
-export { FieldShell, FieldLabel, FieldMessage, type FieldBaseProps } from "./Field";
+export { FieldShell, FieldLabel, FieldMessage, fieldStyles, fieldBoxColors, type FieldBaseProps } from "./Field";
 export { Card, type CardProps, type CardVariant } from "./Card";
 export { ListRow, type ListRowProps } from "./ListRow";
 export { InfoRow, type InfoRowProps } from "./InfoRow";
