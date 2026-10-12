@@ -143,6 +143,20 @@ export async function registerDeviceToken(): Promise<string | null> {
   }
 }
 
+/**
+ * After sign-out: deletes this device's FCM token so pushes meant for the previous account stop arriving
+ * (the API has no "unregister device" endpoint). A new token is created at the next sign-in. Never throws.
+ */
+export async function unregisterDeviceToken(): Promise<void> {
+  const m = messagingInstance();
+  if (!m) return;
+  try {
+    await m.mod.deleteToken(m.messaging);
+  } catch {
+    // Best effort: nothing else to do without network.
+  }
+}
+
 /** Re-sends the token when FCM rotates it. Returns the unsubscribe function. */
 export function subscribeToTokenRefresh(): () => void {
   const m = messagingInstance();
