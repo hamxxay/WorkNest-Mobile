@@ -25,6 +25,7 @@ import {
   GestureHandlerRootView,
 } from "react-native-gesture-handler";
 import { Header } from "../../../components/Header";
+import { errorMessage } from "../../../services/apiClient";
 import { Screen } from "../../../components/Screen";
 import { radii, useThemeColors, useThemedStyles } from "../../../theme";
 import { GalleryImage, getGalleryImages } from "../../../services/galleryService";
@@ -301,12 +302,14 @@ export default function GalleryScreen() {
   const colors = useThemeColors();
   const [images, setImages] = useState<GalleryImage[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   useEffect(() => {
     getGalleryImages()
       .then((items) => setImages(items))
+      .catch((err) => setError(errorMessage(err, "The gallery could not be loaded. Please try again.")))
       .finally(() => setLoading(false));
   }, []);
 
@@ -349,6 +352,10 @@ export default function GalleryScreen() {
 
         {loading ? (
           <GallerySkeletonGrid />
+        ) : error ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyText}>{error}</Text>
+          </View>
         ) : !loading && filteredImages.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="images-outline" size={36} color={colors.mutedForeground} />
