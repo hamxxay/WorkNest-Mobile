@@ -12,13 +12,13 @@ import {
   StatusPill,
 } from "../../../../components/ui";
 import {
-  addMonthsToApiDate,
+  accessPeriodRange,
   getAccessDevices,
   getAccessEvents,
   getAccessSyncActivity,
-  toApiDate,
   type AccessDevice,
   type AccessEvent,
+  type AccessPeriod,
   type AccessSyncActivity,
 } from "../../../../services/staff";
 import { spacing, useTheme } from "../../../../theme";
@@ -27,7 +27,7 @@ import { SearchField } from "../shared/SearchField";
 import { StaffScreen } from "../shared/StaffScreen";
 import { useDebounced, usePagedList } from "../shared/hooks";
 
-type Period = "today" | "yesterday" | "7d" | "30d";
+type Period = AccessPeriod;
 type Result = "all" | "granted" | "denied";
 
 const METHOD_ICONS: Record<string, string> = {
@@ -37,22 +37,6 @@ const METHOD_ICONS: Record<string, string> = {
   door: "enter-outline",
   remote: "phone-portrait-outline",
 };
-
-/** from (inclusive) / to (exclusive, the API's rule) for a period preset. */
-function periodRange(period: Period): { from: string; to: string } {
-  const today = new Date();
-  const day = (offset: number) => toApiDate(new Date(today.getFullYear(), today.getMonth(), today.getDate() + offset));
-  switch (period) {
-    case "today":
-      return { from: day(0), to: day(1) };
-    case "yesterday":
-      return { from: day(-1), to: day(0) };
-    case "7d":
-      return { from: day(-6), to: day(1) };
-    case "30d":
-      return { from: addMonthsToApiDate(day(1), -1) ?? day(-29), to: day(1) };
-  }
-}
 
 /**
  * Access activity log (admin / super admin, like the CMS): door events from the machines
@@ -97,7 +81,7 @@ function DoorEvents() {
   }, []);
 
   const fetchPage = useCallback(async () => {
-    const range = periodRange(period);
+    const range = accessPeriodRange(period);
     const items = await getAccessEvents({ ...range, deviceId: deviceId || null, limit: 2000 });
     return { items, total: items.length, page: 1, limit: items.length, hasMore: false };
   }, [period, deviceId]);

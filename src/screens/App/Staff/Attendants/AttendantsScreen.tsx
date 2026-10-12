@@ -5,20 +5,14 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { AppHeader, AppText, AsyncList, Card, EmptyState, FilterChips, StatusPill } from "../../../../components/ui";
 import type { StaffStackParamList } from "../../../../navigation/staffTypes";
 import { errorMessage } from "../../../../services/apiClient";
-import { getCustomer, getCustomerBookedSpaces, type BookedSpace, type StaffCustomer } from "../../../../services/staff";
+import { getCustomer, getCustomerBookedSpaces, isCurrentBookedSpace, type BookedSpace, type StaffCustomer } from "../../../../services/staff";
 import { spacing } from "../../../../theme";
-import { formatDateRange, parseDate } from "../../../../utils/format";
+import { formatDateRange } from "../../../../utils/format";
 import { CustomerPickerField } from "../shared/CustomerPickerField";
 import { StaffScreen } from "../shared/StaffScreen";
 
 type Nav = NativeStackNavigationProp<StaffStackParamList>;
 type Route = RouteProp<StaffStackParamList, "Attendants">;
-
-/** A booked space is current until its end date (the API also returns ended ones). */
-function isCurrent(space: BookedSpace, today = new Date()): boolean {
-  const end = parseDate(space.endDateTime);
-  return !end || end.getTime() >= new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
-}
 
 /**
  * Attendants & Access: pick a customer, then one of their booked spaces (GET customers/{id}/active-spaces) to
@@ -64,7 +58,7 @@ export default function AttendantsScreen() {
     load("initial");
   }, [load]);
 
-  const rows = useMemo(() => (show === "current" ? spaces.filter((s) => isCurrent(s)) : spaces), [spaces, show]);
+  const rows = useMemo(() => (show === "current" ? spaces.filter((s) => isCurrentBookedSpace(s)) : spaces), [spaces, show]);
 
   return (
     <StaffScreen>
@@ -76,7 +70,7 @@ export default function AttendantsScreen() {
             value={show}
             onChange={setShow}
             options={[
-              { label: "Current", value: "current", count: spaces.filter((s) => isCurrent(s)).length },
+              { label: "Current", value: "current", count: spaces.filter((s) => isCurrentBookedSpace(s)).length },
               { label: "All bookings", value: "all", count: spaces.length },
             ]}
             accessibilityLabel="Booked spaces to show"

@@ -4,6 +4,7 @@ import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { AppText, Card, Divider, FilterChips, InfoRow, ListRow, SegmentedControl, StatusPill } from "../../../../components/ui";
 import type { StaffStackParamList } from "../../../../navigation/staffTypes";
+import { dashboardTrend } from "../../../../services/staff";
 import type {
   DashboardForecast,
   DashboardOverview,
@@ -20,23 +21,6 @@ import { AttentionList, BarRow, KpiGrid, money } from "./parts";
 type Nav = NativeStackNavigationProp<StaffStackParamList>;
 
 const pct = (v: number) => `${formatNumber(v, Number.isInteger(v) ? 0 : 1)}%`;
-
-/** Trend vs the previous period (CMS dashboard-overview trend()). */
-function trend(now: number, prev: number, unit: "pts" | "n" | "%", upIsGood = true) {
-  if (!now && !prev) return undefined;
-  let diff: number;
-  let label: string;
-  if (unit === "%") {
-    if (!prev) return { direction: "up" as const, label: "new", upIsGood };
-    diff = ((now - prev) / prev) * 100;
-    label = `${Math.abs(diff).toFixed(0)}%`;
-  } else {
-    diff = now - prev;
-    label = unit === "pts" ? `${Math.abs(diff).toFixed(1)} pts` : `${Math.abs(diff)}`;
-  }
-  if (Math.abs(diff) < 0.05) return { direction: "flat" as const, label: "no change", upIsGood };
-  return { direction: diff > 0 ? ("up" as const) : ("down" as const), label: `${label} vs last period`, upIsGood };
-}
 
 // ─── Sales executive ──────────────────────────────────────────────────────────────────────────────────────
 
@@ -183,7 +167,7 @@ export function OverviewSection({ data, periodWord }: { data: DashboardOverview;
             sub: `${d.occupiedSpaces} of ${d.totalSpaces} spaces in use`,
             icon: "business-outline",
             tone: d.occupancyPct >= 70 ? "success" : d.occupancyPct >= 40 ? "primary" : "warning",
-            trend: trend(d.occupancyPct, d.occupancyPctLastMonth, "pts"),
+            trend: dashboardTrend(d.occupancyPct, d.occupancyPctLastMonth, "pts"),
             onPress: () => navigation.navigate("Spaces"),
           },
           {
@@ -191,7 +175,7 @@ export function OverviewSection({ data, periodWord }: { data: DashboardOverview;
             value: d.activeBookings,
             sub: "running today",
             icon: "calendar-outline",
-            trend: trend(d.activeBookings, d.activeBookingsLastMonth, "n"),
+            trend: dashboardTrend(d.activeBookings, d.activeBookingsLastMonth, "n"),
             onPress: () => navigation.navigate("StaffTabs", { screen: "Bookings" }),
           },
           {
@@ -223,7 +207,7 @@ export function OverviewSection({ data, periodWord }: { data: DashboardOverview;
             value: money(d.invoicedThisPeriod),
             sub: `${money(d.paidThisPeriod)} paid ${periodWord}`,
             icon: "receipt-outline",
-            trend: trend(d.invoicedThisPeriod, d.invoicedPrevPeriod, "%"),
+            trend: dashboardTrend(d.invoicedThisPeriod, d.invoicedPrevPeriod, "%"),
           },
         ]}
       />

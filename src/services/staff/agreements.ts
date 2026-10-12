@@ -9,7 +9,7 @@ import {
   type DownloadedFile,
   type UploadFile,
 } from "./http";
-import { isApiDate, num, optNum, optStr, str, toPage, unwrapEnvelope, withQuery, type Page } from "./normalize";
+import { calendarMonthsBetween, isApiDate, num, optNum, optStr, str, toPage, unwrapEnvelope, withQuery, type Page } from "./normalize";
 import { cnicError } from "../../utils/cnic";
 import { phoneError } from "../../utils/phone";
 
@@ -132,6 +132,31 @@ export async function listAgreements(
     withQuery(STAFF_ENDPOINTS.agreements.list, { page, limit, search: query.search?.trim(), status: query.status }),
   );
   return toPage(raw, normalizeAgreement, { page, limit });
+}
+
+/** The quotation numbers the agreement fee is worked out from. */
+export type AgreementFeeSource = {
+  monthlyRent: number;
+  monthlyBasePrice: number;
+  discountPercentage: number;
+  discountAmount: number;
+  startDateTime: string | null;
+  endDateTime: string | null;
+};
+
+/**
+ * Agreement fee per billing cycle, as the CMS send dialog prefills it: the quotation's monthly rent after its
+ * discount (percent, or the amount spread over the contract months) times the billing months.
+ */
+export function agreementFeePerCycle(q: AgreementFeeSource, billingMonths: number): number {
+  const base = q.monthlyRent || q.monthlyBasePrice || 0;
+  const start = q.startDateTime ? new Date(q.startDateTime) : null;
+  const end = q.endDateTime ? new Date(q.endDateTime) : null;
+  const months = start && end && !isNaN(start.getTime()) && !isNaN(end.getTime()) ? calendarMonthsBetween(start, end) : 12;
+  let monthly = base;
+  if (q.discountPercentage > 0) monthly = base * (1 - q.discountPercentage / 100);
+  else if (q.discountAmount > 0 && months > 0) monthly = Math.max(0, base - q.discountAmount / months);
+  return Math.round(monthly * Math.max(1, billingMonths) * 100) / 100;
 }
 
 // ─── Send ─────────────────────────────────────────────────────────────────────────────────────────────────

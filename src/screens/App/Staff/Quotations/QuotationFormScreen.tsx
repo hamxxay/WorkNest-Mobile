@@ -22,6 +22,7 @@ import type { StaffStackParamList } from "../../../../navigation/staffTypes";
 import { errorMessage } from "../../../../services/apiClient";
 import {
   addMonthsToApiDate,
+  calendarMonthsBetween,
   createQuotation,
   getCustomer,
   getQuotation,
@@ -63,11 +64,6 @@ const pad2 = (n: number) => String(n).padStart(2, "0");
 const timeOf = (d: Date) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}:00`;
 const today = () => new Date(new Date().setHours(0, 0, 0, 0));
 const plusDays = (days: number) => new Date(today().getTime() + days * 86400000);
-
-/** Calendar months between two dates (at least 1). */
-function monthsBetween(start: Date, end: Date): number {
-  return Math.max(1, (end.getFullYear() - start.getFullYear()) * 12 + end.getMonth() - start.getMonth());
-}
 
 /**
  * New quotation (POST quotation), with pickers for every value the CMS form asks for: customer, location, space
@@ -185,7 +181,7 @@ export default function QuotationFormScreen() {
           setEndTime(end);
         }
       } else if (start && end) {
-        setMonths(monthsBetween(start, end));
+        setMonths(calendarMonthsBetween(start, end));
       }
       setBillingMonths(q.billingPeriodMonths || (group === "meeting" ? 1 : 3));
       setDepositMonths(q.securityDepositMonths || (group === "private" ? 2 : 0));

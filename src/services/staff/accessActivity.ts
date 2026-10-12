@@ -1,10 +1,27 @@
 import { STAFF_ENDPOINTS } from "./endpoints";
 import { staffGet } from "./http";
-import { bool, num, optNum, optStr, pick, str, toList, unwrapEnvelope, withQuery } from "./normalize";
+import { bool, num, optNum, optStr, pick, str, toApiDate, toList, unwrapEnvelope, withQuery } from "./normalize";
 
 // Door access activity (CMS pages/admin/access/*: Access Dashboard, Access Activity Log, Access Analytics —
 // `adminOnly`, so admin and super admin only in the app; API HikAccessController, location-scoped for admins).
 // Times of door events are the door machine's local time without an offset ("yyyy-MM-ddTHH:mm:ss").
+
+export type AccessPeriod = "today" | "yesterday" | "7d" | "30d";
+
+/** from (inclusive) / to (exclusive, the API's rule) of the activity log's period presets, as yyyy-MM-dd. */
+export function accessPeriodRange(period: AccessPeriod, today: Date = new Date()): { from: string; to: string } {
+  const day = (offset: number) => toApiDate(new Date(today.getFullYear(), today.getMonth(), today.getDate() + offset));
+  switch (period) {
+    case "today":
+      return { from: day(0), to: day(1) };
+    case "yesterday":
+      return { from: day(-1), to: day(0) };
+    case "7d":
+      return { from: day(-6), to: day(1) };
+    case "30d":
+      return { from: day(-29), to: day(1) };
+  }
+}
 
 export type AccessMethod = "fingerprint" | "face" | "card" | "door" | "remote" | "other";
 

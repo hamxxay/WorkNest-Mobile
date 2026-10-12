@@ -99,6 +99,15 @@ export async function getCustomerBookedSpaces(customerId: number): Promise<Booke
   }));
 }
 
+/** A booked space is current until the end of its end date (the API also returns ended ones). */
+export function isCurrentBookedSpace(space: Pick<BookedSpace, "endDateTime">, today: Date = new Date()): boolean {
+  if (!space.endDateTime) return true;
+  const end = new Date(space.endDateTime.length === 10 ? `${space.endDateTime}T00:00:00` : space.endDateTime);
+  if (isNaN(end.getTime())) return true;
+  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  return new Date(end.getFullYear(), end.getMonth(), end.getDate()).getTime() >= startOfToday;
+}
+
 export type RoomAttendant = {
   id: number | null;
   bookingDetailId: number;

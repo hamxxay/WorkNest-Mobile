@@ -463,3 +463,27 @@ export async function getAccessOverview(): Promise<Record<string, any>> {
   const raw = await staffGet<Record<string, any>>(STAFF_ENDPOINTS.dashboard.accessOverview);
   return raw && typeof raw === "object" ? raw : {};
 }
+
+// ─── Trends (CMS dashboard-overview trend()) ─────────────────────────────────────────────────────────────
+
+export type DashboardTrend = { direction: "up" | "down" | "flat"; label: string; upIsGood: boolean };
+
+/**
+ * Change vs the previous period: "pts" (percentage points), "n" (count) or "%" (relative change).
+ * undefined when both are zero; "new" when there was nothing before (relative change).
+ */
+export function dashboardTrend(now: number, prev: number, unit: "pts" | "n" | "%", upIsGood = true): DashboardTrend | undefined {
+  if (!now && !prev) return undefined;
+  let diff: number;
+  let label: string;
+  if (unit === "%") {
+    if (!prev) return { direction: "up", label: "new", upIsGood };
+    diff = ((now - prev) / prev) * 100;
+    label = `${Math.abs(diff).toFixed(0)}%`;
+  } else {
+    diff = now - prev;
+    label = unit === "pts" ? `${Math.abs(diff).toFixed(1)} pts` : `${Math.abs(diff)}`;
+  }
+  if (Math.abs(diff) < 0.05) return { direction: "flat", label: "no change", upIsGood };
+  return { direction: diff > 0 ? "up" : "down", label: `${label} vs last period`, upIsGood };
+}

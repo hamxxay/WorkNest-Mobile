@@ -9,8 +9,13 @@ jest.mock("../../apiClient", () => ({
   serverMessage: () => null,
 }));
 
+import { accessPeriodRange } from "../accessActivity";
+import { agreementFeePerCycle } from "../agreements";
+import { dashboardTrend } from "../dashboard";
+import { calendarMonthsBetween } from "../normalize";
 import {
   addPersonAction,
+  isCurrentBookedSpace,
   canDecideCapacityRequest,
   canWithdrawCapacityRequest,
   validateAttendantInput,
@@ -302,5 +307,44 @@ describe("space lookups", () => {
     expect(floorLabel({ id: 3, name: "3rd Floor" })).toBe("3rd Floor");
     expect(floorLabel({ id: 3, floorNumber: 2 })).toBe("Floor 2");
     expect(floorLabel({ id: 3 })).toBe("Floor #3");
+  });
+});
+
+describe("screen rules", () => {
+  it("calendar months between dates", () => {
+    expect(calendarMonthsBetween(new Date(2026, 0, 15), new Date(2027, 0, 15))).toBe(12);
+    expect(calendarMonthsBetween(new Date(2026, 10, 1), new Date(2027, 1, 1))).toBe(3);
+    expect(calendarMonthsBetween(new Date(2026, 10, 1), new Date(2026, 10, 20))).toBe(1);
+  });
+
+  it("agreement fee per billing cycle like the CMS dialog", () => {
+    const q = { monthlyRent: 100000, monthlyBasePrice: 0, discountPercentage: 10, discountAmount: 0, startDateTime: "2026-11-01T00:00:00", endDateTime: "2027-11-01T00:00:00" };
+    expect(agreementFeePerCycle(q, 3)).toBe(270000);
+    expect(agreementFeePerCycle({ ...q, discountPercentage: 0, discountAmount: 120000 }, 1)).toBe(90000);
+    expect(agreementFeePerCycle({ ...q, discountPercentage: 0, monthlyRent: 0, monthlyBasePrice: 50000 }, 1)).toBe(50000);
+  });
+
+  it("access log periods: from inclusive, to exclusive", () => {
+    const today = new Date(2026, 9, 12, 15, 30);
+    expect(accessPeriodRange("today", today)).toEqual({ from: "2026-10-12", to: "2026-10-13" });
+    expect(accessPeriodRange("yesterday", today)).toEqual({ from: "2026-10-11", to: "2026-10-12" });
+    expect(accessPeriodRange("7d", today)).toEqual({ from: "2026-10-06", to: "2026-10-13" });
+    expect(accessPeriodRange("30d", today)).toEqual({ from: "2026-09-13", to: "2026-10-13" });
+  });
+
+  it("dashboard trends", () => {
+    expect(dashboardTrend(0, 0, "n")).toBeUndefined();
+    expect(dashboardTrend(70, 65.5, "pts")).toEqual({ direction: "up", label: "4.5 pts vs last period", upIsGood: true });
+    expect(dashboardTrend(8, 10, "n")).toEqual({ direction: "down", label: "2 vs last period", upIsGood: true });
+    expect(dashboardTrend(150, 100, "%")).toMatchObject({ direction: "up", label: "50% vs last period" });
+    expect(dashboardTrend(5, 0, "%")).toMatchObject({ label: "new" });
+    expect(dashboardTrend(10, 10, "n")).toMatchObject({ direction: "flat", label: "no change" });
+  });
+
+  it("current booked spaces end today or later", () => {
+    const today = new Date(2026, 9, 12, 18, 0);
+    expect(isCurrentBookedSpace({ endDateTime: "2026-10-12T00:00:00" }, today)).toBe(true);
+    expect(isCurrentBookedSpace({ endDateTime: "2026-10-11" }, today)).toBe(false);
+    expect(isCurrentBookedSpace({ endDateTime: null }, today)).toBe(true);
   });
 });

@@ -230,3 +230,8 @@ export function utcIso(value: string | null | undefined): string | null {
   if (/[zZ]$|[+-]\d{2}:?\d{2}$/.test(v)) return v;
   return /^\d{4}-\d{2}-\d{2}T/.test(v) ? `${v}Z` : v;
 }
+
+/** Calendar months from one date to another (day of month ignored), at least 1 (quotation / lease length). */
+export function calendarMonthsBetween(start: Date, end: Date): number {
+  return Math.max(1, (end.getFullYear() - start.getFullYear()) * 12 + end.getMonth() - start.getMonth());
+}

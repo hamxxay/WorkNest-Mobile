@@ -19,6 +19,7 @@ import {
 import type { StaffStackParamList } from "../../../../navigation/staffTypes";
 import { errorMessage } from "../../../../services/apiClient";
 import {
+  agreementFeePerCycle,
   getCustomer,
   getQuotation,
   sendAgreement,
@@ -45,20 +46,6 @@ const BILLING = [
   { label: "Bi-Annual", value: 6 },
   { label: "Annual", value: 12 },
 ];
-
-/** CMS openSendAgreement: fee per billing cycle = discounted monthly rent x billing months. */
-function feePerCycle(q: StaffQuotation, billingMonths: number): number {
-  const base = q.monthlyRent || q.monthlyBasePrice || 0;
-  const months = (() => {
-    const s = parseDate(q.startDateTime);
-    const e = parseDate(q.endDateTime);
-    return s && e ? Math.max(1, (e.getFullYear() - s.getFullYear()) * 12 + e.getMonth() - s.getMonth()) : 12;
-  })();
-  let monthly = base;
-  if (q.discountPercentage > 0) monthly = base * (1 - q.discountPercentage / 100);
-  else if (q.discountAmount > 0 && months > 0) monthly = Math.max(0, base - q.discountAmount / months);
-  return Math.round(monthly * billingMonths * 100) / 100;
-}
 
 /**
  * Send the lease agreement for an accepted quotation (POST agreement/send): prefilled from the quotation and the
@@ -103,7 +90,7 @@ export default function AgreementSendScreen() {
       setQuotation(q);
       const bpm = [1, 2, 3, 6, 12].includes(q.billingPeriodMonths) ? q.billingPeriodMonths : 1;
       setBillingMonths(bpm);
-      setFee(String(feePerCycle(q, bpm) || ""));
+      setFee(String(agreementFeePerCycle(q, bpm) || ""));
       setDeposit(q.securityDeposit ? String(q.securityDeposit) : "");
       setHours(q.offeringType || "24/7");
       setStart(parseDate(q.startDateTime));
@@ -269,7 +256,7 @@ export default function AgreementSendScreen() {
                 </View>
                 <SelectField label="Billing" value={billingMonths} options={BILLING} onChange={(v) => {
                   setBillingMonths(v);
-                  if (quotation) setFee(String(feePerCycle(quotation, v) || ""));
+                  if (quotation) setFee(String(agreementFeePerCycle(quotation, v) || ""));
                 }} />
                 <TextField
                   label="Fee per billing cycle (PKR)"
