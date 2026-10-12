@@ -1,187 +1,165 @@
-# WorkNestMobile
+# WorkNest Mobile
 
-WorkNestMobile is a React Native mobile application for browsing, booking, and managing flexible workspaces. It includes customer-facing flows for onboarding, authentication, workspace discovery, booking, pricing, gallery browsing, and profile management, plus an admin panel for operational visibility.
+Android and iOS app for [WorkNest](https://worknestpk.com) coworking spaces. One app serves customers and staff: after sign-in the app picks a navigator based on the user's role.
 
-----------------------------------------
-# WHAT THE APP DOES
+Built with React Native 0.86, React 19 and TypeScript. All data comes from the WorkNest API (`WN_APIs`).
 
-- Onboarding with persisted state
-- Login and signup via Firebase Authentication
-- Google login with Firebase
-- Home dashboard with booking, pricing, and gallery
-- Workspace search and filtering
-- Booking flow
-- Pricing plans
-- Gallery browsing
-- Profile with booking summary
-- Admin dashboard for system data
+## What the app does
 
-----------------------------------------
- 
-# MAIN FLOWS
+### Customers (default role)
 
-Authentication:
-Splash → Onboarding (if needed) → Login → App
+| Area | What it does | Screens |
+|---|---|---|
+| Home | Spaces, search, quick access tiles, notifications | `HomeScreen`, `SpaceDetailScreen`, `NotificationsScreen` |
+| Bookings | Search and book spaces, view and modify bookings, manage attendees | `BookingScreen`, `BookingInfoScreen`, `MyBookingsScreen`, `BookingDetailScreen`, `ModifyOrderScreen`, `AttendeesScreen` |
+| Quotations | View quotations, accept and pay, share | `QuotationListScreen`, `QuotationScreen`, `QuotationPaymentScreen`, `ShareQuotationScreen` |
+| Invoices and payments | Invoice list with PDFs, payment challans (save, share, print) | `MyPaymentsScreen`, `ChallanScreen`, `PaymentScreen`, `CustomerInfoScreen` |
+| Agreements | List agreements, open the PDF, sign in the app (e-sign) | `AgreementListScreen`, `ESignAgreementScreen` |
+| Door access | Request access to your room door; once approved, the Home tile becomes **Unlock Door** and opens the room door in one tap | `AccessRequestScreen`, `UnlockDoorScreen`, `hooks/useUnlockRoomDoor.ts` |
+| Account and info | Profile, pricing, gallery, contact, about, user manual, privacy policy | `ProfileScreen`, `PricingScreen`, `GalleryScreen`, ... |
 
-Main App:
-Home → Booking → Workspace Detail → Booking → Payment
-Also includes Pricing and Gallery
+Guests can browse spaces and pricing. Bookings, invoices and door access ask the user to sign in.
 
-Admin:
-Dashboard + Users + Spaces + Bookings + Payments + etc.
+### Staff (sales executive and admin)
 
-----------------------------------------
+| Area | What it does | Screens |
+|---|---|---|
+| Dashboard | Totals for customers, bookings, quotations, tour inquiries; quotation status (draft, sent, accepted, declined) | `SaleDashboard` (sales), `AdminDashboard` (admin) |
+| Customers | Create customers and browse the customer list | `CustomerCreateScreen`, `CustomerListScreen` |
+| KYC | Upload and view a customer's KYC documents | `KycDocumentsScreen` |
+| Quotations | Create and list quotations | `SaleQuotationCreateScreen`, `SaleQuotationListScreen` |
+| Bookings | Create and list bookings for customers | `SaleBookingCreateScreen`, `SaleBookingListScreen` |
+| Tour inquiries | Follow up on "Book a Tour" requests from the website | `TourInquiriesScreen` |
 
-# TECH STACK
+### Role routing
 
-- React Native
-- TypeScript
-- React Navigation
-- Redux Toolkit
-- AsyncStorage
-- Secure storage
-- Reanimated
-- Jest
+`src/navigation/RootNavigator.tsx` reads the role from `AuthContext`:
 
-----------------------------------------
+| Role from the API | Navigator |
+|---|---|
+| `admin` / `super_admin` | `AdminStack` |
+| `sales_executive` | `SaleStack` |
+| anything else | `AppNavigator` (customer app) |
 
-# PROJECT STRUCTURE
+## Tech stack
 
-mobile-cli/
-  android/
-  ios/
-  public/
-  src/
-    assets/
-    components/
-    config/
-    context/
-    navigation/
-    screens/
-    services/
-    store/
-    utils/
-  __tests__/
-  App.tsx
-  index.js
-  package.json
+- React Native 0.86 (Hermes enabled), React 19.2, TypeScript 5
+- React Navigation 7 (native stack, bottom tabs, drawer)
+- Redux Toolkit for app state, `AuthContext` for the session
+- Firebase Auth and Google Sign-In; Firebase Messaging for push
+- `react-native-keychain` for the token, AsyncStorage for small settings
+- `react-native-dotenv` for configuration (`import { API_BASE } from "@env"`)
+- Reanimated 4, Gesture Handler, SVG, vector icons
+- `react-native-html-to-pdf`, `react-native-view-shot`, `react-native-share` for challans, quotations and agreements
+- Jest, ESLint, Prettier
 
-----------------------------------------
+## Prerequisites
 
-# STATE MANAGEMENT
+- Node.js 22.11 or later (`engines` in `package.json`)
+- JDK 17
+- Android Studio with Android SDK 36 (build tools 36.0.0) and NDK 27.1.12297006; minimum supported device is Android 7.0 (API 24)
+- For iOS: macOS with Xcode, Ruby and Bundler (CocoaPods is installed through the `Gemfile`)
 
-- Local state for UI
-- Redux Toolkit (minimal)
-- Auth via Context
-- Firebase Authentication for email/password and Google sign-in
+See the React Native [environment setup](https://reactnative.dev/docs/set-up-your-environment) guide if this is your first React Native project.
 
-----------------------------------------
+## Setup
 
-# AUTH & SESSION
+```bash
+npm ci
+```
 
-- Tokens stored securely
-- User stored locally
-- Session restored on app launch
-- Admin role inferred from user data
+Create a `.env` file in the project root. It is kept out of git; `.env.example` lists every variable.
 
-----------------------------------------
+| Variable | Used for |
+|---|---|
+| `API_BASE` | WorkNest API address, read in `src/config/api.ts`. Production: `https://aeo.eaccounting360.com.pk/WorkNest/api` (also the fallback when empty). `/api` is added if missing. |
+| `FIREBASE_WEB_CLIENT_ID`, `FIREBASE_IOS_CLIENT_ID` | Google Sign-In |
+| `ANDROID_FIREBASE_*` | Used by `npm run sync:config` to generate `android/app/google-services.json` |
+| `ANDROID_UPLOAD_*` | Optional. Used by `npm run sync:config` to generate `android/keystore.properties` for release signing |
 
-# BACKEND
+`android/app/google-services.json`, `android/keystore.properties` and `ios/**/GoogleService-Info.plist` are not in git. Ask the team for the Firebase values, or for the files themselves.
 
-- REST API via fetch wrapper
-- Base URL from environment variable
+After changing `.env`, restart Metro with `--reset-cache` so the new values are picked up.
 
-Endpoints include:
-- Auth
-- Booking
-- Spaces
-- Pricing
-- Gallery
-- Payments
-- Admin data
+### Using a local API on a phone over USB
 
-----------------------------------------
+Run `WN_APIs` locally on port 5200, then:
 
-# SERVICES
+```bash
+adb reverse tcp:5200 tcp:5200
+adb reverse tcp:8081 tcp:8081
+```
 
-- Auth
-- Workspace & Booking
-- Pricing
-- Gallery
-- Payments
-- Admin
+and set `API_BASE=http://127.0.0.1:5200/api`. On the Android emulator, `localhost` in `API_BASE` is rewritten to `10.0.2.2` automatically.
 
-----------------------------------------
+## Run
 
-# MEDIA HANDLING
+Start Metro in one terminal:
 
-- Local and remote images supported
-- URL normalization
-- Fallback images
+```bash
+npx react-native start
+```
 
-----------------------------------------
+In another terminal:
 
-# ENVIRONMENT SETUP
+```bash
+npx react-native run-android
+npx react-native run-ios        # first time: cd ios && bundle install && bundle exec pod install
+```
 
-Requirements:
-- Node.js
-- npm
-- Android Studio / Xcode
+`npm run android` and `npm run ios` do the same but first run `npm run sync:config`, which regenerates the native Firebase and signing files from `.env` and fails if the `ANDROID_FIREBASE_*` variables are missing.
 
-Install:
-npm install
+## Checks
 
-Set environment:
-API_BASE=<your-backend-url>
-FIREBASE_WEB_CLIENT_ID=<firebase-web-client-id>
-FIREBASE_IOS_CLIENT_ID=<optional-ios-client-id>
-ANDROID_FIREBASE_PROJECT_NUMBER=<firebase-project-number>
-ANDROID_FIREBASE_PROJECT_ID=<firebase-project-id>
-ANDROID_FIREBASE_STORAGE_BUCKET=<firebase-storage-bucket>
-ANDROID_FIREBASE_MOBILE_SDK_APP_ID=<android-mobile-sdk-app-id>
-ANDROID_FIREBASE_PACKAGE_NAME=com.worknestmobile
-ANDROID_FIREBASE_API_KEY=<android-firebase-api-key>
-ANDROID_FIREBASE_ANDROID_CLIENT_ID_DEBUG=<debug-android-oauth-client-id>
-ANDROID_FIREBASE_ANDROID_CLIENT_ID_RELEASE=<release-android-oauth-client-id>
-ANDROID_FIREBASE_DEBUG_CERT_HASH=<debug-sha1>
-ANDROID_FIREBASE_RELEASE_CERT_HASH=<release-sha1>
-ANDROID_UPLOAD_STORE_FILE=<release-keystore-file>
-ANDROID_UPLOAD_KEY_ALIAS=<release-key-alias>
-ANDROID_UPLOAD_STORE_PASSWORD=<release-keystore-password>
-ANDROID_UPLOAD_KEY_PASSWORD=<release-key-password>
+```bash
+npx tsc --noEmit -p .    # type-check
+npm run lint             # ESLint
+npm test                 # Jest
+```
 
-Firebase setup:
-- Run `npm run sync:config` to generate local native config files from `.env`
-- Do not commit `android/app/google-services.json`, `android/keystore.properties`, or `GoogleService-Info.plist`
-- Add `GoogleService-Info.plist` locally to the Xcode target
-- Enable Google provider in Firebase Authentication
-- Enable Email/Password provider in Firebase Authentication
-- For Android Google Sign-In, add both the debug and release SHA-1/SHA-256 fingerprints to the Firebase Android app, then update the matching Android Firebase values in `.env`
-- For iOS, add the `REVERSED_CLIENT_ID` from `GoogleService-Info.plist` as a URL scheme in Xcode
+## Release build (Android)
 
-----------------------------------------
+App ID `com.worknestmobile`. Bump `versionCode` and `versionName` in `android/app/build.gradle` before each release.
 
-# RUNNING THE APP
+```bash
+npm run sync:config
+cd android
+./gradlew assembleRelease    # APK: android/app/build/outputs/apk/release/
+./gradlew bundleRelease      # AAB for Play Store: android/app/build/outputs/bundle/release/
+```
 
-npm start
-npm run android
-npm run ios
+Release signing reads `android/keystore.properties` (keys listed in `android/keystore.properties.example`). If that file is missing the release build is signed with the debug keystore, which is fine for testing but cannot be uploaded to the Play Store.
 
-----------------------------------------
+`hermesCommand` in `android/app/build.gradle` points to `scripts/hermesc-shim.js`, which copies the JS bundle as-is instead of compiling it to Hermes bytecode.
 
-# NOTES
+## Project structure
 
-- Payment is not integrated with real gateway
-- Admin is read-only
-- Some data may be mocked
-- Feature flags may be unused
-- Firebase client configuration is build-injected from `.env`, but mobile client config is still discoverable in a shipped app; true secrets must stay on the server
+```
+App.tsx, index.js         app entry
+src/
+  navigation/             RootNavigator (role switch), AppNavigator (customer), SaleStack, AdminStack, linking
+  screens/
+    Auth/                 splash, onboarding, login, signup
+    App/General/          customer screens (bookings, quotations, invoices, agreements, door access, ...)
+    App/Sales/            staff screens (dashboard, customers, KYC, quotations, bookings, tour inquiries)
+    App/Admin/            admin dashboard
+  services/               one file per API area; apiClient.ts handles auth headers and errors
+  config/api.ts           API base URL and endpoint paths
+  context/AuthContext.tsx session and role
+  hooks/                  useDoorAccess, useUnlockRoomDoor
+  components/             shared UI (Screen, Header, ConfirmModal, Skeleton, ...)
+  store/                  Redux Toolkit store and slices
+  utils/                  storage, validation, phone and CNIC helpers, PDF helpers
+  types/env.d.ts          types for the variables in .env
+scripts/                  sync-native-config.js, hermesc-shim.js
+android/, ios/            native projects
+public/                   Firebase Hosting page and app-link files (.well-known)
+```
 
-----------------------------------------
+## Related repositories
 
-# FUTURE IMPROVEMENTS
-
-- Add test coverage
-- Secure configs
-- Integrate payment gateway
-- Add admin CRUD
+| Repo | What it is |
+|---|---|
+| `WN_APIs` | WorkNest API used by this app and the web portal |
+| `WorkNest_FE` | Staff web portal (CMS) |
+| `WorkNest-MainWeb` | Public website, worknestpk.com |
