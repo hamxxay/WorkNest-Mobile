@@ -1,375 +1,220 @@
-import { useCallback, useEffect, useState } from "react";
-import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useCallback, useMemo, useState } from "react";
+import { StyleSheet, View } from "react-native";
+import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
+import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import Ionicons from "react-native-vector-icons/Ionicons";
-import { Header } from "../../../components/Header";
-import { Screen } from "../../../components/Screen";
-import { radii, shadows, useThemeColors, useThemedStyles } from "../../../theme";
-import type { AppStackParamList } from "../../../navigation/types";
-import { errorMessage } from "../../../services/apiClient";
 import {
-  canCancelBooking,
-  cancelMyBooking,
-  getMyBookings,
-  type MyBooking,
-} from "../../../services/bookingService";
+  AppHeader,
+  AppText,
+  AsyncList,
+  Button,
+  Card,
+  InfoRow,
+  Screen,
+  SegmentedControl,
+  StatusPill,
+  useConfirm,
+  useToast,
+} from "../../../components/ui";
+import { useThemedStyles, type AppColors, type Theme } from "../../../theme";
+import { formatDate, formatDateRange, formatMoney } from "../../../utils/format";
+import { useAuth } from "../../../context/AuthContext";
+import { useNotificationsAction } from "../../../hooks/useHeaderActions";
+import { errorMessage } from "../../../services/apiClient";
+import { canCancelBooking, cancelMyBooking, getMyBookings, type MyBooking } from "../../../services/bookingService";
+import { GuestState } from "./shared/GuestState";
+import type { AppStackParamList, MainTabParamList } from "../../../navigation/types";
 
-type BookingItem = MyBooking;
+type Nav = NativeStackNavigationProp<AppStackParamList>;
+type TabKey = "upcoming" | "history";
 
-function getStatusConfig(status?: string | null) {
-  const s = (status ?? "").toLowerCase();
-  if (s.includes("confirm") || s.includes("active") || s.includes("approved"))
-    return { color: "#10b981", bg: "rgba(16,185,129,0.12)", border: "rgba(16,185,129,0.25)", icon: "checkmark-circle" as const, label: "Confirmed" };
-  if (s.includes("cancel"))
-    return { color: "#ef4444", bg: "rgba(239,68,68,0.1)", border: "rgba(239,68,68,0.22)", icon: "close-circle" as const, label: "Cancelled" };
-  if (s.includes("complet"))
-    return { color: "#6366f1", bg: "rgba(99,102,241,0.1)", border: "rgba(99,102,241,0.22)", icon: "checkmark-done-circle" as const, label: "Completed" };
-  if (s.includes("pending"))
-    return { color: "#F59E0B", bg: "rgba(245,158,11,0.1)", border: "rgba(245,158,11,0.25)", icon: "time" as const, label: "Pending" };
-  return { color: "#64748b", bg: "rgba(100,116,139,0.1)", border: "rgba(100,116,139,0.2)", icon: "ellipse-outline" as const, label: status ?? "Unknown" };
+/** Still running or not started (or no end date yet, e.g. pending): listed under Upcoming. */
+function isUpcoming(b: MyBooking): boolean {
+  const status = b.status.toLowerCase();
+  if (status.includes("cancel") || status.includes("complet")) return false;
+  if (!b.endOn) return true;
+  const end = new Date(b.endOn);
+  return isNaN(end.getTime()) || end.getTime() > Date.now();
 }
 
-function isUpcoming(item: BookingItem) {
-  // A booking without an end date is still open (e.g. pending), so it is listed as upcoming.
-  if (!item.endOn) return true;
-  return new Date(item.endOn) > new Date();
-}
-
-function isHistory(item: BookingItem) {
-  return !isUpcoming(item);
-}
-
+/**
+ * My Bookings (tab), like the website: GET /booking/my, the challan of each booking, and Cancel only while a
+ * booking is still Pending (not paid).
+ */
 export default function MyBookingsScreen() {
-  const colors = useThemeColors();
+  const navigation = useNavigation<Nav>();
+  const route = useRoute<RouteProp<MainTabParamList, "Bookings">>();
   const styles = useThemedStyles(createStyles);
-  const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
-  const [bookings, setBookings] = useState<BookingItem[]>([]);
+  const { user } = useAuth();
+  const bell = useNotificationsAction();
+  const confirm = useConfirm();
+  const toast = useToast();
+
+  const [bookings, setBookings] = useState<MyBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
-  const [cancellingId, setCancellingId] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<"upcoming" | "history">("upcoming");
+  const [tab, setTab] = useState<TabKey>(route.params?.tab ?? "upcoming");
 
-  const loadBookings = useCallback(async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true);
-    else setLoading(true);
-    setError("");
+  const load = useCallback(
+    async (isRefresh = false) => {
+      if (!user) {
+        setBookings([]);
+        setLoading(false);
+        return;
+      }
+      if (isRefresh) setRefreshing(true);
+      setError("");
+      try {
+        setBookings(await getMyBookings());
+      } catch (err) {
+        setError(errorMessage(err, "Your bookings could not be loaded. Please try again."));
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [user],
+  );
+
+  // Reload whenever the tab comes into view (a booking may have been made or paid meanwhile).
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load]),
+  );
+
+  const upcoming = useMemo(() => bookings.filter(isUpcoming), [bookings]);
+  const history = useMemo(() => bookings.filter((b) => !isUpcoming(b)), [bookings]);
+  const shown = tab === "upcoming" ? upcoming : history;
+
+  const cancel = async (booking: MyBooking) => {
     try {
-      setBookings(await getMyBookings());
+      const ok = await confirm({
+        title: "Cancel this booking?",
+        message: "Its challan will no longer be valid. This cannot be undone.",
+        confirmLabel: "Cancel booking",
+        cancelLabel: "Keep booking",
+        destructive: true,
+        icon: "close-circle-outline",
+        onConfirm: () => cancelMyBooking(booking),
+      });
+      if (!ok) return;
+      toast.success("Booking cancelled.");
+      load(true);
     } catch (err) {
-      setError(errorMessage(err, "Your bookings could not be loaded. Please try again."));
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+      toast.error(errorMessage(err, "The booking could not be cancelled. Please try again."));
     }
-  }, []);
-
-  useEffect(() => { loadBookings(); }, [loadBookings]);
-
-  // Website rule: only a booking that is still Pending (challan not paid) can be cancelled by the customer.
-  const handleCancel = (booking: BookingItem) => {
-    if (!canCancelBooking(booking)) return;
-    Alert.alert("Cancel booking", "Are you sure you want to cancel this booking? Its challan will no longer be valid.", [
-      { text: "No", style: "cancel" },
-      {
-        text: "Yes, cancel",
-        style: "destructive",
-        onPress: async () => {
-          setCancellingId(booking.id);
-          try {
-            const message = await cancelMyBooking(booking);
-            await loadBookings();
-            Alert.alert("Booking cancelled", message);
-          } catch (err) {
-            Alert.alert("Could not cancel", errorMessage(err, "The booking could not be cancelled. Please try again."));
-          } finally {
-            setCancellingId(null);
-          }
-        },
-      },
-    ]);
   };
 
-  const upcoming = bookings.filter(isUpcoming);
-  const history = bookings.filter(isHistory);
-  const displayed = activeTab === "upcoming" ? upcoming : history;
+  if (!user) {
+    return (
+      <Screen edges={["top", "left", "right"]}>
+        <AppHeader variant="brand" title="My bookings" />
+        <GuestState
+          icon="calendar-outline"
+          title="Sign in to see your bookings"
+          message="Your bookings, their challans and their status appear here once you sign in."
+        />
+      </Screen>
+    );
+  }
 
   return (
-    <Screen>
-      <ScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadBookings(true)} colors={[colors.primary]} />}
-      >
-        <Header />
-
-        {/* Stats strip */}
-        <View style={styles.statsRow}>
-          {[
-            { label: "Total", value: bookings.length, icon: "calendar-outline" as const, color: colors.primary },
-            { label: "Upcoming", value: upcoming.length, icon: "time-outline" as const, color: "#F59E0B" },
-            { label: "History", value: history.length, icon: "checkmark-done-outline" as const, color: "#6366f1" },
-          ].map((s) => (
-            <View key={s.label} style={styles.statCard}>
-              <View style={[styles.statIcon, { backgroundColor: s.color + "18" }]}>
-                <Ionicons name={s.icon} size={18} color={s.color} />
-              </View>
-              <Text style={[styles.statValue, { color: s.color }]}>{s.value}</Text>
-              <Text style={styles.statLabel}>{s.label}</Text>
+    <Screen edges={["top", "left", "right"]}>
+      <AppHeader
+        variant="brand"
+        title="My bookings"
+        actions={[{ icon: "add", accessibilityLabel: "Book a space", onPress: () => navigation.navigate("Spaces") }, ...bell]}
+      />
+      <AsyncList
+        data={shown}
+        keyExtractor={(b) => String(b.id || b.publicId)}
+        loading={loading}
+        refreshing={refreshing}
+        onRefresh={() => load(true)}
+        error={error}
+        ListHeaderComponent={
+          <SegmentedControl
+            style={styles.segment}
+            value={tab}
+            onChange={setTab}
+            accessibilityLabel="Booking list"
+            options={[
+              { label: `Upcoming (${upcoming.length})`, value: "upcoming" },
+              { label: `History (${history.length})`, value: "history" },
+            ]}
+          />
+        }
+        empty={
+          tab === "upcoming"
+            ? {
+                icon: "calendar-outline",
+                title: "No upcoming bookings",
+                message: "Book a desk, an office or a meeting room.",
+                actionLabel: "Book a space",
+                onAction: () => navigation.navigate("Spaces"),
+              }
+            : { icon: "time-outline", title: "No past bookings", message: "Finished and cancelled bookings appear here." }
+        }
+        renderItem={({ item }) => (
+          <Card onPress={() => navigation.navigate("BookingDetail", { bookingId: item.id || item.publicId || "" })}
+            accessibilityLabel={`${item.spaceName}, ${item.status}`}>
+            <View style={styles.titleRow}>
+              <AppText variant="subheading" numberOfLines={1} style={styles.flex}>
+                {item.spaceName}
+              </AppText>
+              <StatusPill status={item.status} />
             </View>
-          ))}
-        </View>
-
-        {/* Tab switcher */}
-        <View style={styles.tabRow}>
-          {(["upcoming", "history"] as const).map((tab) => (
-            <Pressable
-              key={tab}
-              style={[styles.tabBtn, activeTab === tab && styles.tabBtnActive]}
-              onPress={() => setActiveTab(tab)}
-            >
-              <Text style={[styles.tabBtnText, activeTab === tab && styles.tabBtnTextActive]}>
-                {tab === "upcoming" ? "Upcoming" : "History"}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-
-        {loading ? (
-          <View style={styles.emptyState}>
-            <Ionicons name="hourglass-outline" size={36} color={colors.mutedForeground} />
-            <Text style={styles.emptyText}>Loading bookings…</Text>
-          </View>
-        ) : error ? (
-          <View style={styles.emptyState}>
-            <Ionicons name="alert-circle-outline" size={40} color={colors.danger} />
-            <Text style={styles.emptyTitle}>Bookings not loaded</Text>
-            <Text style={styles.emptyText}>{error}</Text>
-            <Pressable onPress={() => loadBookings()} accessibilityRole="button">
-              <Text style={[styles.emptyTitle, { color: colors.primary }]}>Try again</Text>
-            </Pressable>
-          </View>
-        ) : displayed.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Ionicons name="calendar-outline" size={44} color={colors.border} />
-            <Text style={styles.emptyTitle}>No {activeTab} bookings</Text>
-            <Text style={styles.emptyText}>
-              {activeTab === "upcoming" ? "You have no upcoming reservations." : "No past bookings found."}
-            </Text>
-          </View>
-        ) : (
-          displayed.map((booking) => {
-            const status = getStatusConfig(booking.status);
-            const isCancelling = cancellingId === booking.id;
-            const canCancel = canCancelBooking(booking);
-            return (
-              <Pressable
-                key={String(booking.id)}
-                style={styles.card}
-                onPress={() => navigation.navigate("BookingDetail", { bookingId: booking.publicId ?? booking.id })}
-              >
-                {/* Header row */}
-                <View style={styles.cardHeader}>
-                  <View style={styles.cardIconWell}>
-                    <Ionicons name="business-outline" size={20} color={colors.primary} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.cardTitle} numberOfLines={1}>
-                      {booking.spaceName}
-                    </Text>
-                    <Text style={styles.cardSubtitle}>Booking #{booking.id}</Text>
-                  </View>
-                  <View style={[styles.statusBadge, { backgroundColor: status.bg, borderColor: status.border }]}>
-                    <Ionicons name={status.icon} size={12} color={status.color} />
-                    <Text style={[styles.statusText, { color: status.color }]}>{status.label}</Text>
-                  </View>
-                </View>
-
-                {/* Datetime row */}
-                <View style={styles.dateRow}>
-                  <View style={styles.dateBlock}>
-                    <Text style={styles.dateLabel}>Start Date</Text>
-                    <Text style={styles.dateValue}>{formatDate(booking.startOn)}</Text>
-                  </View>
-                  <View style={styles.dateDivider}>
-                    <Ionicons name="arrow-forward" size={14} color={colors.mutedForeground} />
-                  </View>
-                  <View style={styles.dateBlock}>
-                    <Text style={styles.dateLabel}>End Date</Text>
-                    <Text style={styles.dateValue}>{formatDate(booking.endOn)}</Text>
-                  </View>
-                </View>
-
-                {/* Footer */}
-                <View style={styles.cardFooter}>
-                  <View style={styles.amountRow}>
-                    <Ionicons name="pricetag-outline" size={14} color={colors.primary} />
-                    <Text style={styles.amount}>
-                      {booking.totalAmount !== null ? `PKR ${booking.totalAmount.toLocaleString("en-PK")}` : "Amount on challan"}
-                    </Text>
-                  </View>
-                  {booking.challanNumber ? (
-                    <Pressable
-                      style={styles.cancelBtn}
-                      onPress={() => navigation.navigate("Challan", { bookingId: booking.id, challanNumber: booking.challanNumber ?? undefined })}
-                      accessibilityRole="button"
-                    >
-                      <Ionicons name="document-text-outline" size={14} color={colors.primary} />
-                      <Text style={[styles.cancelText, { color: colors.primary }]}>Challan</Text>
-                    </Pressable>
-                  ) : null}
-                  {canCancel && (
-                    <Pressable
-                      style={[styles.cancelBtn, isCancelling && { opacity: 0.6 }]}
-                      onPress={() => handleCancel(booking)}
-                      disabled={isCancelling}
-                    >
-                      <Ionicons name="close-outline" size={14} color="#ef4444" />
-                      <Text style={styles.cancelText}>{isCancelling ? "Cancelling…" : "Cancel"}</Text>
-                    </Pressable>
-                  )}
-                </View>
-              </Pressable>
-            );
-          })
+            <AppText variant="caption" color="textMuted">
+              Booking #{item.id}
+              {item.locationName ? `  ·  ${item.locationName}` : ""}
+            </AppText>
+            <View style={styles.rows}>
+              <InfoRow label="Dates" value={formatDateRange(item.startOn, item.endOn)} icon="calendar-outline" />
+              <InfoRow
+                label="Amount"
+                value={item.totalAmount !== null ? formatMoney(item.totalAmount) : "On the challan"}
+                icon="pricetag-outline"
+              />
+              {item.challanNumber ? (
+                <InfoRow
+                  label="Challan"
+                  value={`${item.challanNumber}${item.challanValidUntil ? `, pay by ${formatDate(item.challanValidUntil)}` : ""}`}
+                  icon="document-text-outline"
+                />
+              ) : null}
+            </View>
+            {item.challanNumber || canCancelBooking(item) ? (
+              <View style={styles.actions}>
+                {item.challanNumber ? (
+                  <Button
+                    title="View challan"
+                    size="sm"
+                    variant="secondary"
+                    leftIcon="document-text-outline"
+                    onPress={() =>
+                      navigation.navigate("Challan", { bookingId: item.id, challanNumber: item.challanNumber ?? undefined })
+                    }
+                  />
+                ) : null}
+                {canCancelBooking(item) ? (
+                  <Button title="Cancel" size="sm" variant="ghost" leftIcon="close-outline" onPress={() => cancel(item)} />
+                ) : null}
+              </View>
+            ) : null}
+          </Card>
         )}
-      </ScrollView>
+      />
     </Screen>
   );
 }
 
-function formatDate(value?: string | null) {
-  if (!value) return "Not set";
-  const d = new Date(value);
-  if (isNaN(d.getTime())) return value;
-  return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
-    + " · " + d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
-}
-
-const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.create({
-  content: { paddingHorizontal: 18, paddingBottom: 32 },
-  statsRow: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 14,
-    marginBottom: 18,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: colors.card,
-    borderRadius: radii.lg,
-    padding: 14,
-    alignItems: "center",
-    gap: 6,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadows.sm,
-  },
-  statIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  statValue: { fontSize: 22, fontWeight: "800", letterSpacing: -0.5 },
-  statLabel: { fontSize: 11, fontWeight: "600", color: colors.mutedForeground, textTransform: "uppercase", letterSpacing: 0.5 },
-  tabRow: {
-    flexDirection: "row",
-    backgroundColor: colors.muted,
-    borderRadius: radii.lg,
-    padding: 4,
-    marginBottom: 18,
-  },
-  tabBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: "center",
-    borderRadius: radii.md,
-  },
-  tabBtnActive: {
-    backgroundColor: colors.card,
-    ...shadows.sm,
-  },
-  tabBtnText: { fontSize: 13, fontWeight: "700", color: colors.mutedForeground },
-  tabBtnTextActive: { color: colors.foreground },
-  emptyState: { alignItems: "center", paddingVertical: 48, gap: 10 },
-  emptyTitle: { fontSize: 17, fontWeight: "700", color: colors.foreground },
-  emptyText: { color: colors.mutedForeground, fontSize: 14, textAlign: "center" },
-  card: {
-    backgroundColor: colors.card,
-    borderRadius: radii.xl,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 14,
-    overflow: "hidden",
-    ...shadows.sm,
-  },
-  cardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    padding: 14,
-    paddingBottom: 12,
-  },
-  cardIconWell: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: colors.primaryMuted,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  cardTitle: { color: colors.foreground, fontSize: 15, fontWeight: "800", letterSpacing: -0.2 },
-  cardSubtitle: { color: colors.mutedForeground, fontSize: 12, marginTop: 2 },
-  statusBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-    borderWidth: 1,
-    flexShrink: 0,
-  },
-  statusText: { fontSize: 11, fontWeight: "700" },
-  dateRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginHorizontal: 14,
-    marginBottom: 12,
-    backgroundColor: colors.muted,
-    borderRadius: radii.md,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  dateBlock: { flex: 1, gap: 3 },
-  dateLabel: { fontSize: 9, fontWeight: "800", color: colors.mutedForeground, textTransform: "uppercase", letterSpacing: 0.8 },
-  dateValue: { fontSize: 13, fontWeight: "700", color: colors.foreground },
-  dateDivider: { paddingHorizontal: 10 },
-  cardFooter: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 14,
-    paddingBottom: 14,
-  },
-  amountRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  amount: { color: colors.primary, fontSize: 15, fontWeight: "800" },
-  cancelBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    borderWidth: 1,
-    borderColor: "#ef444440",
-    backgroundColor: "rgba(239,68,68,0.06)",
-    borderRadius: radii.md,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-  },
-  cancelText: { color: "#ef4444", fontWeight: "700", fontSize: 12 },
-});
+const createStyles = (_c: AppColors, t: Theme) =>
+  StyleSheet.create({
+    segment: { marginBottom: t.spacing.md },
+    titleRow: { flexDirection: "row", alignItems: "center", gap: t.spacing.sm },
+    flex: { flex: 1 },
+    rows: { marginTop: t.spacing.sm },
+    actions: { flexDirection: "row", gap: t.spacing.sm, marginTop: t.spacing.sm, flexWrap: "wrap" },
+  });

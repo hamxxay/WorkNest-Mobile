@@ -92,3 +92,33 @@ export async function submitTourRequest(request: TourRequest): Promise<string> {
   });
   return (typeof payload?.message === "string" && payload.message.trim()) || "Your tour request has been sent.";
 }
+
+// ─── Contact us ───────────────────────────────────────────────────────────────
+
+export type ContactMessage = { fullName: string; email: string; phone: string; message: string };
+
+/** WorkNest sales email (also on the website). */
+export const SALES_EMAIL = "sales@worknestpk.com";
+
+/**
+ * POST /contact — the public contact form (works signed out; when signed in the API records who sent it).
+ * Throws a readable error for invalid details or a refused request.
+ */
+export async function submitContactMessage(input: ContactMessage): Promise<string> {
+  const phone = (input.phone ?? "").trim();
+  if (phone && !isValidPhone(phone)) throw new ApiError(PHONE_ERROR, 400);
+  const message = sanitizeTextForState(input.message ?? "", { maxLength: 1000 }).trim();
+  if (message.length < 5) throw new ApiError("Please write a short message.", 400);
+  const payload = await apiRequest<{ message?: string }>(API_ENDPOINTS.contact.create, {
+    method: "POST",
+    requiresAuth: true,
+    unwrapData: false,
+    body: {
+      fullName: sanitizeNameInput(input.fullName, "Full name"),
+      email: sanitizeEmailInput(input.email),
+      phone: phone ? sanitizePhoneInput(phone) : undefined,
+      message,
+    },
+  });
+  return (typeof payload?.message === "string" && payload.message.trim()) || "Your message has been sent.";
+}

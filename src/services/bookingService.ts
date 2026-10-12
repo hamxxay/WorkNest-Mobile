@@ -277,13 +277,20 @@ export type BookingChallan = {
   customerName: string | null;
   customerEmail: string | null;
   customerCompany: string | null;
+  customerAddress: string | null;
   spaceName: string | null;
+  spaceNumber: string | null;
+  spaceCapacity: number | null;
   spaceCode: string | null;
   spaceTypeName: string | null;
   locationName: string | null;
   branchName: string | null;
   startOn: string | null;
   endOn: string | null;
+  contractStartDate: string | null;
+  contractEndDate: string | null;
+  numberOfMonths: number | null;
+  bookedOn: string | null;
   billingPeriodLabel: string | null;
   billingPeriodMonths: number | null;
   monthlyRent: number | null;
@@ -313,15 +320,22 @@ export function normalizeChallan(input: unknown, bookingIdFallback?: number): Bo
     bookingStatusCode: textOrNull(pick(raw, "bookingStatusCode", "BookingStatusCode")),
     customerName: textOrNull(pick(raw, "customerName", "CustomerName")),
     customerEmail: textOrNull(pick(raw, "customerEmail", "CustomerEmail")),
-    customerCompany: textOrNull(pick(raw, "customerCompany", "CustomerCompany")),
+    customerCompany: textOrNull(pick(raw, "customerCompany", "CustomerCompany", "companyName", "CompanyName")),
+    customerAddress: textOrNull(pick(raw, "customerAddress", "CustomerAddress")),
     spaceName: textOrNull(pick(raw, "spaceName", "SpaceName")),
+    spaceNumber: textOrNull(pick(raw, "spaceNumber", "SpaceNumber") ?? pick(contract, "spaceNumber", "SpaceNumber")),
+    spaceCapacity: amountOrNull(pick(raw, "spaceCapacity", "SpaceCapacity")),
     spaceCode: textOrNull(pick(raw, "spaceCode", "SpaceCode")),
     spaceTypeName: textOrNull(pick(raw, "spaceTypeName", "SpaceTypeName")),
     locationName: textOrNull(pick(raw, "locationName", "LocationName")),
     branchName: textOrNull(pick(raw, "branchName", "BranchName")),
     startOn: textOrNull(pick(raw, "startOn", "StartOn")),
     endOn: textOrNull(pick(raw, "endOn", "EndOn")),
-    billingPeriodLabel: textOrNull(pick(raw, "billingPeriodLabel", "BillingPeriodLabel")),
+    contractStartDate: textOrNull(pick(raw, "contractStartDate", "ContractStartDate") ?? pick(contract, "contractStartDate")),
+    contractEndDate: textOrNull(pick(raw, "contractEndDate", "ContractEndDate") ?? pick(contract, "contractEndDate")),
+    numberOfMonths: amountOrNull(pick(raw, "numberOfMonths", "NumberOfMonths") ?? pick(contract, "numberOfMonths")),
+    bookedOn: textOrNull(pick(raw, "bookedOn", "BookedOn")),
+    billingPeriodLabel: textOrNull(pick(raw, "billingPeriodLabel", "BillingPeriodLabel", "billingPeriod", "BillingPeriod")),
     billingPeriodMonths: amountOrNull(pick(raw, "billingPeriodMonths", "BillingPeriodMonths")),
     monthlyRent: amountOrNull(pick(raw, "monthlyRent", "MonthlyRent")),
     currentCycleAmount: amountOrNull(pick(raw, "currentCycleAmount", "CurrentCycleAmount")),
@@ -360,6 +374,16 @@ export async function getBookingChallan(bookingId: number): Promise<BookingChall
   return normalizeChallan(payload, bookingId);
 }
 
+/**
+ * GET /booking/{id} — full booking details (customer: own booking only), same shape as the challan.
+ * Accepts the numeric id or the public id (GUID).
+ */
+export async function getBookingDetails(bookingId: number | string): Promise<BookingChallan> {
+  const payload = await apiRequest<unknown>(API_ENDPOINTS.booking.byId(bookingId), { requiresAuth: true });
+  const numeric = Number(bookingId);
+  return normalizeChallan(payload, Number.isFinite(numeric) && numeric > 0 ? numeric : undefined);
+}
+
 /** GET /booking/{id}/challan-pdf with the sign-in token, opened in the share / viewer sheet. */
 export async function openBookingChallanPdf(bookingId: number, challanNumber?: string | null): Promise<void> {
   if (!(bookingId > 0)) throw new ApiError("This booking has no challan yet.", 404);
@@ -377,6 +401,49 @@ export function categoryCodeForMode(mode: "shared" | "meeting" | "office"): Smar
   if (mode === "office") return "PrivateOffice";
   if (mode === "shared") return "SharedSpace";
   return "MeetingRoom";
+}
+
+/** Spaces still free for a period (GET /booking/smart/available), with the API's listed prices. */
+export type SmartAvailability = {
+  /** How many spaces of the category are free for the whole period. */
+  count: number;
+  /** Lowest listed seat price among them (per billingPeriodCode), null when the API sent none. */
+  fromPrice: number | null;
+  billingPeriodCode: string | null;
+  securityDeposit: number | null;
+};
+
+/**
+ * GET /booking/smart/available — is a space of this category free for the period? Public endpoint (works for
+ * guests). Throws a readable ApiError on failure.
+ */
+export async function getSmartAvailability(input: {
+  categoryCode: string;
+  startOn: string;
+  endOn: string;
+  capacity?: number;
+  shiftType?: string;
+}): Promise<SmartAvailability> {
+  const params = new URLSearchParams();
+  params.set("categoryCode", input.categoryCode);
+  params.set("startOn", input.startOn);
+  params.set("endOn", input.endOn);
+  if (input.capacity && input.capacity > 0) params.set("capacity", String(input.capacity));
+  if (input.shiftType) params.set("shiftType", input.shiftType);
+  const payload = await apiRequest<unknown>(`${API_ENDPOINTS.workspaces.smartAvailable}?${params.toString()}`, {
+    requiresAuth: true,
+  });
+  const rows = listFrom(payload) as Array<Record<string, unknown>>;
+  const prices = rows
+    .map((r) => amountOrNull(pick(r, "seatPrice", "SeatPrice")))
+    .filter((n): n is number => n !== null && n > 0);
+  const first = rows[0] ?? {};
+  return {
+    count: rows.length,
+    fromPrice: prices.length ? Math.min(...prices) : null,
+    billingPeriodCode: textOrNull(pick(first, "billingPeriodCode", "BillingPeriodCode")),
+    securityDeposit: amountOrNull(pick(first, "securityDeposit", "SecurityDeposit")),
+  };
 }
 
 /** Customer details the API asks for the first time someone books (CustomerProfileRequired). */

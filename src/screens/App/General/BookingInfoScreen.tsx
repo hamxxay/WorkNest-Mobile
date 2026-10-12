@@ -1,650 +1,358 @@
-import { useEffect, useMemo, useState } from "react";
-import type { ReactNode } from "react";
-import {
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View, type TextInput } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import DateTimePicker from "@react-native-community/datetimepicker";
-import Ionicons from "react-native-vector-icons/Ionicons";
-import { Screen } from "../../../components/Screen";
-import { radii, useThemeColors, useThemedStyles } from "../../../theme";
-import type { AppStackParamList } from "../../../navigation/types";
 import {
-  INPUT_LIMITS,
-  sanitizeEmailInput,
-  sanitizeNameInput,
-  sanitizePhoneInput,
-  sanitizeTextForState,
-} from "../../../utils/inputSanitizer";
-import { formatPhoneInput } from "../../../utils/phone";
+  AppHeader,
+  AppText,
+  Banner,
+  Button,
+  Card,
+  DateField,
+  Screen,
+  SectionHeader,
+  SelectField,
+  TextField,
+} from "../../../components/ui";
+import { useThemedStyles, type AppColors, type Theme } from "../../../theme";
+import { formatDate, formatMoney, formatTime, toYmdLocal } from "../../../utils/format";
 import { useAuth } from "../../../context/AuthContext";
-import {
-  BookingProgress,
-  BookingSummaryCard,
-  ErrorCard,
-  OutlinedField,
-  WorkspaceSummaryCard,
-} from "../../Booking/components/BookingUi";
 import { errorMessage } from "../../../services/apiClient";
+import { categoryCodeForMode, getSmartAvailability, type SmartAvailability } from "../../../services/bookingService";
+import { priceUnitLabel } from "../../../services/workspaceService";
+import { formatPhoneInput, phoneError, PHONE_MAX_LENGTH } from "../../../utils/phone";
+import type { AppStackParamList, BookingDraft } from "../../../navigation/types";
 
-type StepKey = "datetime" | "guest" | "payment";
-type CalendarDay = {
-  date: Date;
-  isCurrentMonth: boolean;
-};
+type Nav = NativeStackNavigationProp<AppStackParamList>;
+type Mode = BookingDraft["mode"];
 
-const MONTH_LABELS = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
+/** Meeting rooms: hourly from 8 AM; the last start leaves room for a one-hour booking before 9 PM. */
+const START_HOURS = Array.from({ length: 13 }, (_, i) => 8 + i);
+const DURATIONS = [1, 2, 3, 4, 5, 6, 7, 8];
+const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 
-const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+function modeOf(type: string): Mode {
+  if (type === "Meeting Room") return "meeting";
+  if (type === "Co-Working Space") return "shared";
+  return "office";
+}
 
+function pad(n: number) {
+  return String(n).padStart(2, "0");
+}
+
+/** Local "YYYY-MM-DDTHH:mm:ss" (what the booking API expects). */
+function localDateTime(d: Date): string {
+  return `${toYmdLocal(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
+}
+
+function hourLabel(h: number): string {
+  const d = new Date();
+  d.setHours(h, 0, 0, 0);
+  return formatTime(d);
+}
+
+function startOfToday(): Date {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+/**
+ * Booking step 1: when (meeting room: date, start time and hours; office / shared desk: start date and months,
+ * like the staff portal's booking form) and the customer's details. Checks availability as the period changes
+ * (GET /booking/smart/available). The amount payable is calculated by the API and shown on the challan.
+ */
 export default function BookingInfoScreen() {
-  const colors = useThemeColors();
-  const styles = useThemedStyles(createStyles);
-  const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
+  const navigation = useNavigation<Nav>();
   const route = useRoute<RouteProp<AppStackParamList, "BookingInfo">>();
-  const { workspace, booking } = route.params;
+  const { workspace } = route.params;
+  const styles = useThemedStyles(createStyles);
   const { user } = useAuth();
-  const isOffice = booking.mode === "office";
-  const isShared = booking.mode === "shared";
-  const isMeeting = booking.mode === "meeting";
+  const mode = modeOf(workspace.type);
+  const categoryCode = workspace.categoryCode || categoryCodeForMode(mode);
 
-  const [activeStep, setActiveStep] = useState<StepKey>("datetime");
-  const [selectedDate, setSelectedDate] = useState<string>(booking.dates[0] ?? "");
-  const [selectedTime, setSelectedTime] = useState<string>(booking.slot ?? "");
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [error, setError] = useState("");
-  const [datePickerOpen, setDatePickerOpen] = useState(false);
-  const [timePickerOpen, setTimePickerOpen] = useState(false);
-  const [datePickerValue, setDatePickerValue] = useState<Date>(new Date());
-  const [datePickerMonth, setDatePickerMonth] = useState<Date>(startOfMonth(new Date()));
-  const [timePickerValue, setTimePickerValue] = useState<Date>(new Date());
-  const [isPrepopulated, setIsPrepopulated] = useState(false);
+  const [date, setDate] = useState<Date | null>(null);
+  const [startHour, setStartHour] = useState<number>(10);
+  const [hours, setHours] = useState<number>(2);
+  const [months, setMonths] = useState<number>(mode === "office" ? 3 : 1);
+  const [people, setPeople] = useState("");
+  const [notes, setNotes] = useState("");
+  const [name, setName] = useState(typeof user?.name === "string" ? user.name : "");
+  const [phone, setPhone] = useState(typeof user?.phoneNumber === "string" ? user.phoneNumber : "");
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [availability, setAvailability] = useState<SmartAvailability | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState("");
 
+  const phoneRef = useRef<TextInput>(null);
+  const notesRef = useRef<TextInput>(null);
+  const email = typeof user?.email === "string" ? user.email : "";
+
+  const capacity = Number(people) > 0 ? Math.floor(Number(people)) : undefined;
+
+  // The booking period from the choices above (null until a date is picked).
+  const period = useMemo(() => {
+    if (!date) return null;
+    const start = new Date(date);
+    const end = new Date(date);
+    if (mode === "meeting") {
+      start.setHours(startHour, 0, 0, 0);
+      end.setHours(startHour + hours, 0, 0, 0);
+      return {
+        start,
+        end,
+        label: `${formatDate(start, { weekday: true })}, ${formatTime(start)} to ${formatTime(end)} (${hours} hour${hours === 1 ? "" : "s"})`,
+      };
+    }
+    start.setHours(0, 0, 0, 0);
+    end.setHours(0, 0, 0, 0);
+    end.setMonth(end.getMonth() + months);
+    return {
+      start,
+      end,
+      label: `${formatDate(start)} to ${formatDate(end)} (${months} month${months === 1 ? "" : "s"})`,
+    };
+  }, [date, mode, startHour, hours, months]);
+
+  const meetingInPast = mode === "meeting" && !!period && period.start.getTime() <= Date.now();
+
+  // Availability for the chosen period (debounced; the last answer wins).
   useEffect(() => {
-    if (user && !isPrepopulated) {
-      if (user.name) setName(user.name);
-      if (user.email) setEmail(user.email);
-      if (user.phoneNumber) setPhone(user.phoneNumber);
-      setIsPrepopulated(true);
-    }
-  }, [user, isPrepopulated]);
-
-  const timeOptions = useMemo(() => {
-    if (isOffice) {
-      return [booking.month ? `${booking.month} (Monthly)` : "Monthly"];
-    }
-    if (isShared) {
-      return ["09:00 - 17:00", "18:00 - 02:00"];
-    }
-    return ["09:00 - 11:00", "11:00 - 13:00", "13:00 - 15:00", "15:00 - 17:00"];
-  }, [booking.month, isOffice, isShared]);
-
-  const selectedDatesLabel = useMemo(() => {
-    if (isOffice) {
-      return booking.month ? booking.month : "Monthly";
-    }
-    if (isShared) {
-      return booking.dates.length ? booking.dates.join(", ") : "No dates selected";
-    }
-    return selectedDate || "Select";
-  }, [booking.dates, booking.month, isOffice, isShared, selectedDate]);
-
-  const openDatePicker = () => {
-    const baseDate = selectedDate ? parseDate(selectedDate) : new Date();
-    setDatePickerValue(baseDate);
-    setDatePickerMonth(startOfMonth(baseDate));
-    setDatePickerOpen(true);
-  };
-
-  const openTimePicker = () => {
-    setTimePickerValue(timeStringToDate(extractStartTime(selectedTime) || "09:00"));
-    setTimePickerOpen(true);
-  };
-
-  const onNext = () => {
-    setError("");
-    if (activeStep === "datetime") {
-      if (isOffice && !booking.month) {
-        setError("Please select a booking month.");
-        return;
-      }
-      if (isShared && (!booking.dates.length || !selectedTime)) {
-        setError("Please confirm your selected dates and time slot.");
-        return;
-      }
-      if (isMeeting && (!selectedDate || !selectedTime)) {
-        setError("Please select a date and time.");
-        return;
-      }
-      if (isMeeting && selectedDate) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const selDate = parseDate(selectedDate);
-        if (selDate < today) {
-          setError("Start date should be greater than or equal to the current date.");
-          return;
-        }
-      }
-      setActiveStep("guest");
+    if (!period || meetingInPast) {
+      setAvailability(null);
+      setAvailabilityError("");
       return;
     }
-    if (activeStep === "guest") {
-      try {
-        navigation.navigate("BookingConfirm", {
-          workspace,
-          booking: {
-            ...booking,
-            dates: isShared ? booking.dates : isOffice ? [] : [selectedDate],
-            slot: isOffice ? "" : selectedTime,
-            month: isOffice ? booking.month : undefined,
-            guest: {
-              name: sanitizeNameInput(name, "Guest name"),
-              email: sanitizeEmailInput(email),
-              phone: sanitizePhoneInput(phone),
-            },
-          },
-        });
-        return;
-      } catch (guestError) {
-        setError(errorMessage(guestError, "Please check your guest details."));
-        return;
-      }
+    let active = true;
+    setChecking(true);
+    setAvailabilityError("");
+    const timer = setTimeout(() => {
+      getSmartAvailability({
+        categoryCode,
+        startOn: localDateTime(period.start),
+        endOn: localDateTime(period.end),
+        capacity,
+      })
+        .then((result) => active && setAvailability(result))
+        .catch((err) => {
+          if (!active) return;
+          setAvailability(null);
+          setAvailabilityError(errorMessage(err, "Availability could not be checked. You can still continue."));
+        })
+        .finally(() => active && setChecking(false));
+    }, 400);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [period, meetingInPast, categoryCode, capacity]);
+
+  const noSpace = !!availability && availability.count === 0;
+
+  const validate = (): boolean => {
+    const next: Record<string, string> = {};
+    if (!date) next.date = "Choose a date.";
+    else if (meetingInPast) next.startHour = "Choose a time later than now.";
+    if (people && !(Number(people) > 0)) next.people = "Enter the number of people, or leave it empty.";
+    if (name.trim().length < 2) next.name = "Enter your full name.";
+    if (!phone.trim()) next.phone = "Enter your phone number.";
+    else {
+      const p = phoneError(phone);
+      if (p) next.phone = p;
     }
-    setActiveStep("payment");
+    setErrors(next);
+    return Object.keys(next).length === 0;
   };
 
-  const handleBack = () => {
-    if (activeStep === "guest") {
-      setActiveStep("datetime");
-    } else {
-      navigation.goBack();
-    }
+  const onContinue = () => {
+    if (!validate() || !period) return;
+    navigation.navigate("BookingConfirm", {
+      workspace,
+      booking: {
+        mode,
+        startDateTime: localDateTime(period.start),
+        endDateTime: localDateTime(period.end),
+        periodLabel: period.label,
+        months: mode === "meeting" ? undefined : months,
+        hours: mode === "meeting" ? hours : undefined,
+        capacity,
+        notes: notes.trim() || undefined,
+        guest: { name: name.trim(), email, phone: phone.trim() },
+      },
+    });
   };
+
+  const unit = availability?.billingPeriodCode ? priceUnitLabel({ priceUnit: availability.billingPeriodCode }) : "";
 
   return (
     <Screen>
-      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        <View style={styles.headerRow}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Go back" style={styles.iconButton} onPress={handleBack}>
-            <Ionicons name="chevron-back" size={20} color={colors.foreground} />
-          </Pressable>
-          <View style={styles.headerCopy}><Text style={styles.headerEyebrow}>SECURE BOOKING</Text><Text numberOfLines={1} style={styles.headerTitle}>Complete your booking</Text></View>
-          <View style={styles.iconButton} />
-        </View>
-
-        <BookingProgress activeStep={activeStep} />
-        <WorkspaceSummaryCard workspace={workspace} />
-
-        {activeStep === "datetime" && (
-          <View style={styles.bookingCard}>
-            <View><Text style={styles.sectionTitle}>Booking information</Text><Text style={styles.helperText}>
-              {isOffice
-                ? "Private office bookings are handled monthly."
-                : isShared
-                  ? "Shared space bookings keep the dates you selected on the previous screen."
-                  : "Meeting room bookings can be adjusted here."}
-            </Text></View>
-
-            {isMeeting ? (
-              <OutlinedField icon="calendar-outline" label="Booking date" value={selectedDatesLabel} onPress={openDatePicker} />
-            ) : (
-              <OutlinedField icon="calendar-outline" label={isOffice ? "Booking month" : "Selected dates"} value={selectedDatesLabel} />
-            )}
-
-            {isOffice ? (
-              <OutlinedField icon="business-outline" label="Workspace type" value="Month-based private office" />
-            ) : (
-              <>
-                <Text style={styles.fieldSectionLabel}>Choose a time</Text>
-                <View style={styles.timeOptions}>
-                  {timeOptions.map((slot) => {
-                    const active = selectedTime === slot;
-                    return (
-                      <Pressable
-                        key={slot}
-                        style={[styles.timeChip, active && styles.timeChipActive]}
-                        onPress={() => setSelectedTime(slot)}
-                      >
-                        <Text style={[styles.timeChipText, active && styles.timeChipTextActive]}>
-                          {slot}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-                {isMeeting ? (
-                  <OutlinedField icon="time-outline" label="Custom time" value={selectedTime ? `Custom: ${selectedTime}` : "Pick a time"} onPress={openTimePicker} />
-                ) : null}
-              </>
-            )}
-            <BookingSummaryCard workspace={workspace} dateLabel={selectedDatesLabel} timeLabel={isOffice ? "Monthly booking" : selectedTime || "Select a time"} />
-          </View>
-        )}
-
-        {activeStep === "guest" && (
-          <View style={styles.bookingCard}>
-            <View><Text style={styles.sectionTitle}>Guest details</Text><Text style={styles.helperText}>These details are used for your booking confirmation.</Text></View>
-            <View style={styles.textField}><Ionicons name="person-outline" size={18} color={colors.primary} /><TextInput accessibilityLabel="Guest name" value={name} onChangeText={(value) => setName(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.name }))} placeholder="Full name" placeholderTextColor={colors.mutedForeground} maxLength={INPUT_LIMITS.name} style={styles.textInput} /></View>
-            <View style={styles.textField}><Ionicons name="mail-outline" size={18} color={colors.primary} /><TextInput accessibilityLabel="Email address" value={email} onChangeText={(value) => setEmail(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.email }))} placeholder="Email address" placeholderTextColor={colors.mutedForeground} keyboardType="email-address" autoCapitalize="none" maxLength={INPUT_LIMITS.email} style={styles.textInput} /></View>
-            <View style={styles.textField}><Ionicons name="call-outline" size={18} color={colors.primary} /><TextInput accessibilityLabel="Phone number" value={phone} onChangeText={(value) => setPhone(formatPhoneInput(value))} placeholder="Phone number" placeholderTextColor={colors.mutedForeground} keyboardType="phone-pad" maxLength={INPUT_LIMITS.phone} style={styles.textInput} /></View>
-            <View style={styles.trustRow}><Ionicons name="shield-checkmark-outline" size={17} color={colors.primary} /><Text style={styles.trustText}>Your details are kept secure and used only to process this booking.</Text></View>
-            <BookingSummaryCard workspace={workspace} dateLabel={selectedDatesLabel} timeLabel={isOffice ? "Monthly booking" : selectedTime || "Select a time"} />
-          </View>
-        )}
-
-        {error ? <ErrorCard message={error} /> : null}
-
-        <Pressable accessibilityRole="button" accessibilityLabel={activeStep === "datetime" ? "Continue to guest details" : "Review booking"} style={styles.nextButton} onPress={onNext} android_ripple={{ color: "rgba(255,255,255,0.18)" }}>
-          <Text style={styles.nextButtonText}>{activeStep === "datetime" ? "Continue to guest details" : "Review booking"}</Text><Ionicons name="arrow-forward" size={18} color={colors.white} />
-        </Pressable>
-      </ScrollView>
-
-      <ModalWrapper visible={datePickerOpen && isMeeting} onClose={() => setDatePickerOpen(false)} styles={styles}>
-        <Text style={styles.modalTitle}>Select date</Text>
-        <View style={styles.calendarHeader}>
-          <Pressable style={styles.iconButton} onPress={() => setDatePickerMonth((prev) => addMonths(prev, -1))}>
-            <Ionicons name="chevron-back" size={18} color={colors.foreground} />
-          </Pressable>
-          <Text style={styles.calendarTitle}>
-            {MONTH_LABELS[datePickerMonth.getMonth()]} {datePickerMonth.getFullYear()}
-          </Text>
-          <Pressable style={styles.iconButton} onPress={() => setDatePickerMonth((prev) => addMonths(prev, 1))}>
-            <Ionicons name="chevron-forward" size={18} color={colors.foreground} />
-          </Pressable>
-        </View>
-
-        <View style={styles.weekdayRow}>
-          {WEEKDAY_LABELS.map((label) => (
-            <Text key={`weekday-${label}`} style={styles.weekdayLabel}>
-              {label}
-            </Text>
-          ))}
-        </View>
-
-        <View style={styles.calendarGrid}>
-          {buildCalendarDays(datePickerMonth).map((day) => {
-            const isSelected = isSameDay(day.date, datePickerValue);
-            return (
-              <Pressable
-                key={day.date.toISOString()}
-                style={[
-                  styles.dayCell,
-                  !day.isCurrentMonth && styles.dayCellMuted,
-                  isSelected && styles.dayCellSelected,
-                ]}
-                onPress={() => {
-                  const today = new Date();
-                  today.setHours(0, 0, 0, 0);
-                  if (day.date < today) {
-                    setError("Start date should be greater than or equal to the current date.");
-                    return;
-                  }
-                  setDatePickerValue(day.date);
-                  setSelectedDate(formatDate(day.date));
-                  setDatePickerOpen(false);
-                  setError("");
+      <AppHeader title="Booking details" subtitle={`${workspace.name}${workspace.location ? `, ${workspace.location}` : ""}`} />
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          <SectionHeader title="When" subtitle={mode === "meeting" ? "Meeting rooms are booked by the hour." : "Offices and shared desks are booked by the month."} />
+          <Card>
+            <View style={styles.fields}>
+              <DateField
+                label={mode === "meeting" ? "Date" : "Start date"}
+                required
+                value={date}
+                onChange={(d) => {
+                  setDate(d);
+                  setErrors((e) => ({ ...e, date: "" }));
                 }}
-              >
-                <Text
-                  style={[
-                    styles.dayText,
-                    !day.isCurrentMonth && styles.dayTextMuted,
-                    isSelected && styles.dayTextSelected,
-                  ]}
-                >
-                  {day.date.getDate()}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </ModalWrapper>
+                minimumDate={startOfToday()}
+                error={errors.date || undefined}
+              />
+              {mode === "meeting" ? (
+                <>
+                  <SelectField
+                    label="Start time"
+                    required
+                    value={startHour}
+                    onChange={(h) => {
+                      setStartHour(h);
+                      setErrors((e) => ({ ...e, startHour: "" }));
+                    }}
+                    options={START_HOURS.map((h) => ({ label: hourLabel(h), value: h }))}
+                    error={errors.startHour || undefined}
+                  />
+                  <SelectField
+                    label="Duration"
+                    required
+                    value={hours}
+                    onChange={setHours}
+                    options={DURATIONS.filter((d) => startHour + d <= 22).map((d) => ({
+                      label: `${d} hour${d === 1 ? "" : "s"}`,
+                      value: d,
+                    }))}
+                  />
+                </>
+              ) : (
+                <SelectField
+                  label="Number of months"
+                  required
+                  value={months}
+                  onChange={setMonths}
+                  options={MONTHS.map((m) => ({ label: `${m} month${m === 1 ? "" : "s"}`, value: m }))}
+                />
+              )}
+              {mode !== "shared" ? (
+                <TextField
+                  label="Number of people"
+                  value={people}
+                  onChangeText={(v) => setPeople(v.replace(/[^0-9]/g, "").slice(0, 3))}
+                  keyboardType="number-pad"
+                  helperText="Optional. We pick a space that fits."
+                  error={errors.people || undefined}
+                  leftIcon="people-outline"
+                />
+              ) : null}
+            </View>
+          </Card>
 
-      <ModalWrapper visible={timePickerOpen && isMeeting} onClose={() => setTimePickerOpen(false)} styles={styles}>
-        <Text style={styles.modalTitle}>Select time</Text>
-        <DateTimePicker
-          value={timePickerValue}
-          mode="time"
-          display={Platform.OS === "ios" ? "spinner" : "default"}
-          design={Platform.OS === "android" ? "material" : undefined}
-          onChange={(event, date) => {
-            if (Platform.OS !== "ios") {
-              setTimePickerOpen(false);
-            }
-            if (event.type === "set" && date) {
-              setTimePickerValue(date);
-              setSelectedTime(`${formatTime(date)} - ${formatTime(addHours(date, 2))}`);
-            }
-          }}
-        />
-      </ModalWrapper>
+          {period ? (
+            <View style={styles.status}>
+              <AppText variant="bodySmall" color="textSecondary">
+                {period.label}
+              </AppText>
+              {meetingInPast ? null : checking ? (
+                <Banner tone="info" message="Checking availability..." />
+              ) : availabilityError ? (
+                <Banner tone="warning" message={availabilityError} />
+              ) : availability ? (
+                availability.count > 0 ? (
+                  <Banner
+                    tone="success"
+                    title={`${availability.count} space${availability.count === 1 ? "" : "s"} available`}
+                    message={
+                      availability.fromPrice !== null
+                        ? `Listed rate from ${formatMoney(availability.fromPrice)}${unit ? ` per ${unit}` : ""}. The exact amount is on your challan.`
+                        : "The exact amount is on your challan."
+                    }
+                  />
+                ) : (
+                  <Banner
+                    tone="danger"
+                    title="Not available"
+                    message="No space of this type is free for this period. Try other dates or a shorter period."
+                  />
+                )
+              ) : null}
+            </View>
+          ) : null}
+
+          <SectionHeader title="Your details" subtitle="Used for the booking and the challan." />
+          <Card>
+            <View style={styles.fields}>
+              <TextField
+                label="Full name"
+                required
+                value={name}
+                onChangeText={(v) => {
+                  setName(v);
+                  setErrors((e) => ({ ...e, name: "" }));
+                }}
+                autoCapitalize="words"
+                autoComplete="name"
+                returnKeyType="next"
+                onSubmitEditing={() => phoneRef.current?.focus()}
+                error={errors.name || undefined}
+                leftIcon="person-outline"
+              />
+              <TextField label="Email" value={email} disabled leftIcon="mail-outline" helperText="Your account email." />
+              <TextField
+                ref={phoneRef}
+                label="Phone"
+                required
+                value={phone}
+                onChangeText={(v) => {
+                  setPhone(formatPhoneInput(v));
+                  setErrors((e) => ({ ...e, phone: "" }));
+                }}
+                keyboardType="phone-pad"
+                maxLength={PHONE_MAX_LENGTH}
+                autoComplete="tel"
+                returnKeyType="next"
+                onSubmitEditing={() => notesRef.current?.focus()}
+                error={errors.phone || undefined}
+                leftIcon="call-outline"
+                placeholder="03001234567"
+              />
+              <TextField
+                ref={notesRef}
+                label="Notes"
+                value={notes}
+                onChangeText={(v) => setNotes(v.slice(0, 300))}
+                multiline
+                rows={3}
+                helperText="Optional, for the WorkNest team."
+              />
+            </View>
+          </Card>
+
+          <Button
+            title="Review booking"
+            rightIcon="arrow-forward"
+            size="lg"
+            fullWidth
+            disabled={noSpace || checking}
+            onPress={onContinue}
+          />
+          <AppText variant="caption" color="textMuted" align="center">
+            Nothing is booked yet: you review and confirm on the next step.
+          </AppText>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </Screen>
   );
 }
 
-function ModalWrapper({
-  visible,
-  onClose,
-  children,
-  styles,
-}: {
-  visible: boolean;
-  onClose: () => void;
-  children: ReactNode;
-  styles: ReturnType<typeof createStyles>;
-}) {
-  if (!visible) return null;
-  return (
-    <Modal transparent visible onRequestClose={onClose} animationType="fade">
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalCard}>
-          {children}
-          <Pressable style={styles.modalPrimary} onPress={onClose}>
-            <Text style={styles.modalPrimaryText}>Done</Text>
-          </Pressable>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-function formatDate(value: Date) {
-  const year = value.getFullYear();
-  const month = String(value.getMonth() + 1).padStart(2, "0");
-  const day = String(value.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function parseDate(value: string) {
-  const [year, month, day] = value.split("-").map((part) => Number(part));
-  return new Date(year, month - 1, day);
-}
-
-function buildCalendarDays(baseMonth: Date): CalendarDay[] {
-  const year = baseMonth.getFullYear();
-  const month = baseMonth.getMonth();
-  const firstDayOfMonth = new Date(year, month, 1);
-  const startDay = firstDayOfMonth.getDay();
-  const startDate = new Date(year, month, 1 - startDay);
-  const days: CalendarDay[] = [];
-
-  for (let i = 0; i < 42; i += 1) {
-    const date = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + i);
-    days.push({
-      date,
-      isCurrentMonth: date.getMonth() === month,
-    });
-  }
-
-  return days;
-}
-
-function startOfMonth(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), 1);
-}
-
-function addMonths(date: Date, delta: number) {
-  return new Date(date.getFullYear(), date.getMonth() + delta, 1);
-}
-
-function isSameDay(a: Date, b: Date) {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
-}
-
-function extractStartTime(value: string) {
-  if (!value) return "";
-  return value.split("-")[0]?.trim() ?? "";
-}
-
-function timeStringToDate(value: string) {
-  const [h, m] = value.split(":").map((part) => Number(part));
-  const date = new Date();
-  date.setHours(h || 0, m || 0, 0, 0);
-  return date;
-}
-
-function formatTime(value: Date) {
-  const h = String(value.getHours()).padStart(2, "0");
-  const m = String(value.getMinutes()).padStart(2, "0");
-  return `${h}:${m}`;
-}
-
-function addHours(value: Date, hours: number) {
-  return new Date(value.getTime() + hours * 60 * 60 * 1000);
-}
-
-const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.create({
-  container: {
-    paddingHorizontal: 18,
-    paddingBottom: 28,
-    gap: 14,
-  },
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 4,
-  },
-  headerTitle: {
-    flex: 1,
-    textAlign: "center",
-    fontSize: 17,
-    fontWeight: "800",
-    color: colors.foreground,
-  },
-  headerCopy: { flex: 1, alignItems: "center", gap: 1 },
-  headerEyebrow: { color: colors.primary, fontSize: 10, fontWeight: "800", letterSpacing: 1 },
-  iconButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.muted,
-  },
-  stepsRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 6,
-  },
-  stepItem: { alignItems: "center", flex: 1, gap: 6 },
-  stepCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.muted,
-  },
-  stepCircleActive: { backgroundColor: colors.primary },
-  stepNumber: { color: colors.mutedForeground, fontWeight: "700" },
-  stepNumberActive: { color: colors.white },
-  stepLabel: { color: colors.mutedForeground, fontSize: 12, fontWeight: "600" },
-  stepLabelActive: { color: colors.foreground },
-  card: {
-    backgroundColor: colors.card,
-    borderRadius: radii.lg,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: 10,
-  },
-  bookingCard: {
-    backgroundColor: colors.card,
-    borderRadius: radii.xl,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: 14,
-    shadowColor: colors.shadow,
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 3,
-  },
-  sectionTitle: { color: colors.foreground, fontSize: 18, fontWeight: "700" },
-  helperText: { color: colors.mutedForeground, fontSize: 12 },
-  label: { color: colors.foreground, fontWeight: "600", fontSize: 13 },
-  input: {
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: colors.muted,
-    color: colors.foreground,
-  },
-  inputValue: { color: colors.foreground, fontWeight: "600" },
-  fieldSectionLabel: { color: colors.foreground, fontSize: 13, fontWeight: "700", marginTop: 2 },
-  textField: {
-    minHeight: 54,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    paddingHorizontal: 13,
-    backgroundColor: colors.card,
-  },
-  textInput: { flex: 1, color: colors.foreground, fontSize: 15, paddingVertical: 10 },
-  trustRow: { flexDirection: "row", gap: 8, padding: 11, borderRadius: 12, backgroundColor: colors.primaryMuted },
-  trustText: { flex: 1, color: colors.mutedForeground, fontSize: 12, lineHeight: 17 },
-  timeOptions: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  timeChip: {
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: colors.muted,
-  },
-  timeChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  timeChipText: { color: colors.mutedForeground, fontSize: 12, fontWeight: "600" },
-  timeChipTextActive: { color: colors.white },
-  errorText: { color: colors.danger, fontSize: 14, textAlign: "center" },
-  nextButton: {
-    backgroundColor: colors.primary,
-    paddingVertical: 14,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    gap: 8,
-    marginTop: 4,
-    minHeight: 52,
-    shadowColor: colors.primary,
-    shadowOpacity: 0.28,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 5,
-  },
-  nextButtonText: { color: colors.white, fontWeight: "800" },
-  modalOverlay: {
-    position: "absolute",
-    inset: 0,
-    backgroundColor: "rgba(15, 23, 42, 0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-  },
-  modalCard: {
-    width: "100%",
-    backgroundColor: colors.card,
-    borderRadius: radii.lg,
-    padding: 16,
-    gap: 12,
-  },
-  modalTitle: {
-    color: colors.foreground,
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  calendarHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  calendarTitle: {
-    color: colors.foreground,
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  weekdayRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  weekdayLabel: {
-    flex: 1,
-    textAlign: "center",
-    color: colors.mutedForeground,
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  calendarGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  dayCell: {
-    width: "12.8%",
-    aspectRatio: 1,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.muted,
-  },
-  dayCellMuted: {
-    opacity: 0.45,
-  },
-  dayCellSelected: {
-    backgroundColor: colors.primary,
-  },
-  dayText: {
-    color: colors.foreground,
-    fontWeight: "600",
-    transform: [{ translateY: -10 }],
-  },
-  dayTextMuted: {
-    color: colors.mutedForeground,
-  },
-  dayTextSelected: {
-    color: colors.white,
-  },
-  modalPrimary: {
-    alignSelf: "flex-end",
-    backgroundColor: colors.primary,
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  modalPrimaryText: { color: colors.white, fontWeight: "700" },
-});
+const createStyles = (_c: AppColors, t: Theme) =>
+  StyleSheet.create({
+    flex: { flex: 1 },
+    content: { padding: t.spacing.screen, gap: t.spacing.lg, paddingBottom: t.spacing.xxl },
+    fields: { gap: t.spacing.md },
+    status: { gap: t.spacing.sm },
+  });

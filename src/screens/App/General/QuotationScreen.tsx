@@ -1,21 +1,29 @@
-import { useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { useCallback, useEffect, useState } from "react";
+import { RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import Ionicons from "react-native-vector-icons/Ionicons";
-import { Screen } from "../../../components/Screen";
-import { radii, shadows, useThemeColors, useThemedStyles } from "../../../theme";
+import {
+  AppHeader,
+  AppText,
+  Banner,
+  BottomSheet,
+  Button,
+  Card,
+  Divider,
+  ErrorState,
+  InfoRow,
+  ListRow,
+  LoadingState,
+  Screen,
+  SectionHeader,
+  StatusPill,
+  TextField,
+  useConfirm,
+  useToast,
+} from "../../../components/ui";
+import { useTheme, useThemedStyles, type AppColors, type Theme } from "../../../theme";
+import { formatDate, formatMoney } from "../../../utils/format";
 import {
   acceptQuotation,
   canRespondToQuotation,
@@ -31,458 +39,278 @@ import { errorMessage } from "../../../services/apiClient";
 import type { AppStackParamList } from "../../../navigation/types";
 import { useAuth } from "../../../context/AuthContext";
 
-// ─── Date formatter ──────────────────────────────────────────────────────────
-function formatDate(raw: string | undefined): string {
-  if (!raw) return "—";
-  const d = new Date(raw);
-  if (isNaN(d.getTime())) return raw;
-  const day = String(d.getDate()).padStart(2, "0");
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const year = d.getFullYear();
-  const weekday = d.toLocaleDateString("en-US", { weekday: "long" });
-  return `${weekday} ${day} / ${month} / ${year}`;
-}
-
-// ─── Status helpers ───────────────────────────────────────────────────────────
-const STATUS_CONFIG: Record<string, { label: string; bg: string; border: string; text: string }> = {
-  active:   { label: "Active",   bg: "rgba(16,185,129,0.1)",  border: "rgba(16,185,129,0.3)",  text: "#059669" },
-  inactive: { label: "Inactive", bg: "rgba(100,116,139,0.1)", border: "rgba(100,116,139,0.3)", text: "#64748b" },
-  pending:  { label: "Pending",  bg: "rgba(245,158,11,0.1)",  border: "rgba(245,158,11,0.3)",  text: "#d97706" },
-  sent:     { label: "Sent",     bg: "rgba(245,158,11,0.1)",  border: "rgba(245,158,11,0.3)",  text: "#d97706" },
-  approved: { label: "Approved", bg: "rgba(16,185,129,0.1)",  border: "rgba(16,185,129,0.3)",  text: "#059669" },
-  accepted: { label: "Accepted", bg: "rgba(16,185,129,0.1)",  border: "rgba(16,185,129,0.3)",  text: "#059669" },
-  rejected: { label: "Rejected", bg: "rgba(220,38,38,0.1)",   border: "rgba(220,38,38,0.3)",   text: "#dc2626" },
-  declined: { label: "Declined", bg: "rgba(220,38,38,0.1)",   border: "rgba(220,38,38,0.3)",   text: "#dc2626" },
-  expired:  { label: "Expired",  bg: "rgba(100,116,139,0.1)", border: "rgba(100,116,139,0.3)", text: "#64748b" },
-};
-
+/**
+ * One quotation. Shared with the sales stack: customers (role general) can accept or decline (a reason is
+ * required); staff see the activity log instead. Everyone can download the PDF.
+ */
 export default function QuotationScreen() {
-  const colors = useThemeColors();
-  const s = useThemedStyles(createStyles);
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const route = useRoute<RouteProp<AppStackParamList, "Quotation">>();
   const { quotationId } = route.params;
-
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+  const toast = useToast();
+  const confirm = useConfirm();
   const { user, isLoadingUser, role } = useAuth();
-  // Shared with the sales stack: customers may accept / decline; staff see the activity log instead.
   const isCustomer = role === "general";
-  const [pdfBusy, setPdfBusy] = useState(false);
+
   const [quotation, setQuotation] = useState<Quotation | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [versions, setVersions] = useState<Quotation[]>([]);
   const [activities, setActivities] = useState<QuotationActivity[]>([]);
-  const [actioning, setActioning] = useState<"accept" | "decline" | null>(null);
-  const [rejectModalVisible, setRejectModalVisible] = useState(false);
-  const [rejectNote, setRejectNote] = useState("");
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const [declineOpen, setDeclineOpen] = useState(false);
+  const [declineNote, setDeclineNote] = useState("");
+  const [declineError, setDeclineError] = useState("");
+  const [declining, setDeclining] = useState(false);
 
-  // Auth guard — redirect to Login then back after successful login
+  // Customer app: a signed-out visitor (deep link) signs in first, then comes back here.
   useEffect(() => {
     if (!isLoadingUser && !user) {
-      navigation.replace("Login", {
-        redirectAfterLogin: { screen: "Quotation", params: { quotationId } },
-      });
+      navigation.replace("Login", { redirectAfterLogin: { screen: "Quotation", params: { quotationId } } });
     }
   }, [isLoadingUser, user, navigation, quotationId]);
 
+  const load = useCallback(
+    async (isRefresh = false) => {
+      if (isRefresh) setRefreshing(true);
+      setError("");
+      try {
+        setQuotation(await getQuotationById(quotationId));
+      } catch (e) {
+        setError(errorMessage(e, "The quotation could not be loaded. Please try again."));
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+      // Versions for everyone; activities are a staff endpoint.
+      const [v, a] = await Promise.allSettled([
+        getQuotationVersions(quotationId),
+        isCustomer ? Promise.resolve([] as QuotationActivity[]) : getQuotationActivities(quotationId),
+      ]);
+      if (v.status === "fulfilled") setVersions(v.value);
+      if (a.status === "fulfilled") setActivities(a.value);
+    },
+    [quotationId, isCustomer],
+  );
+
   useEffect(() => {
-    setLoading(true);
-    setError("");
-    getQuotationById(quotationId)
-      .then(setQuotation)
-      .catch((e) => setError(errorMessage(e, "Failed to load quotation.")))
-      .finally(() => setLoading(false));
-  }, [quotationId]);
+    if (isLoadingUser || !user) return;
+    load();
+  }, [load, isLoadingUser, user]);
 
-  // Activities are a staff endpoint: only loaded when a staff member opens this screen.
-  const loadActivities = () => (isCustomer ? Promise.resolve([] as QuotationActivity[]) : getQuotationActivities(quotationId));
-
-  useEffect(() => {
-    if (isLoadingUser) return;
-    Promise.allSettled([getQuotationVersions(quotationId), loadActivities()])
-      .then(([versionsResult, activitiesResult]) => {
-        if (versionsResult.status === "fulfilled") setVersions(versionsResult.value);
-        if (activitiesResult.status === "fulfilled") setActivities(activitiesResult.value);
-      });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quotationId, isCustomer, isLoadingUser]);
-
-  async function handleOpenPdf() {
+  const openPdf = async () => {
     if (!quotation || pdfBusy) return;
     setPdfBusy(true);
     try {
       await openQuotationPdf(quotation.id, quotation.quotationNumber);
     } catch (e) {
-      Alert.alert("PDF not available", errorMessage(e, "The quotation PDF could not be downloaded. Please try again."));
+      toast.error(errorMessage(e, "The quotation PDF could not be downloaded. Please try again."));
     } finally {
       setPdfBusy(false);
     }
-  }
+  };
 
-  function handleAccept() {
+  const accept = async () => {
     if (!quotation) return;
-    Alert.alert(
-      "Accept Quotation",
-      "Are you sure you want to accept this quotation?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Accept",
-          onPress: async () => {
-            setActioning("accept");
-            try {
-              await acceptQuotation(quotationId, undefined, quotation.version);
-              setQuotation(await getQuotationById(quotationId));
-            } catch (e) {
-              Alert.alert("Unable to Accept", errorMessage(e, "The quotation could not be accepted."));
-            } finally {
-              setActioning(null);
-            }
-          },
-        },
-      ]
-    );
-  }
+    try {
+      const ok = await confirm({
+        title: "Accept this quotation?",
+        message: "Our team will then send you the lease agreement to sign.",
+        confirmLabel: "Accept",
+        icon: "checkmark-circle-outline",
+        onConfirm: () => acceptQuotation(quotationId, undefined, quotation.version),
+      });
+      if (!ok) return;
+      toast.success("Quotation accepted. Watch for your agreement under Agreements.");
+      load(true);
+    } catch (e) {
+      toast.error(errorMessage(e, "The quotation could not be accepted. Please try again."));
+    }
+  };
 
-  async function handleRejectConfirm() {
-    if (!quotation) return;
-    if (!rejectNote.trim()) {
-      Alert.alert("Note Required", "Please enter a note before rejecting.");
+  const decline = async () => {
+    if (!quotation || declining) return;
+    if (!declineNote.trim()) {
+      setDeclineError("Please tell us why you are declining.");
       return;
     }
-    setRejectModalVisible(false);
-    setActioning("decline");
+    setDeclining(true);
+    setDeclineError("");
     try {
-      await declineQuotation(quotationId, rejectNote.trim(), quotation.version);
-      setQuotation(await getQuotationById(quotationId));
-      setRejectNote("");
+      await declineQuotation(quotationId, declineNote.trim(), quotation.version);
+      setDeclineOpen(false);
+      setDeclineNote("");
+      toast.success("Quotation declined. Thank you for letting us know.");
+      load(true);
     } catch (e) {
-      Alert.alert("Unable to Reject", errorMessage(e, "The quotation could not be rejected."));
+      setDeclineError(errorMessage(e, "The quotation could not be declined. Please try again."));
     } finally {
-      setActioning(null);
+      setDeclining(false);
     }
-  }
+  };
 
-  if (loading) {
-    return (
-      <Screen>
-        <View style={s.center}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={s.loadingText}>Loading quotation…</Text>
-        </View>
-      </Screen>
-    );
-  }
-
-  if (error || !quotation) {
-    return (
-      <Screen>
-        <View style={s.center}>
-          <Ionicons name="alert-circle-outline" size={52} color={colors.danger} />
-          <Text style={s.errorTitle}>Quotation Not Found</Text>
-          <Text style={s.errorBody}>{error || "This quotation does not exist or has been removed."}</Text>
-          <Pressable style={s.backBtn} onPress={() => navigation.goBack()}>
-            <Text style={s.backBtnText}>Go Back</Text>
-          </Pressable>
-        </View>
-      </Screen>
-    );
-  }
-  const status = quotation.status?.toLowerCase() ?? "";
-  const statusCfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.pending;
-  const isActionable = isCustomer && canRespondToQuotation(quotation);
-  const isAccepted = status === "approved" || status === "accepted";
-  const isRejected = status === "rejected" || status === "declined";
+  const status = (quotation?.status ?? "").toLowerCase();
+  const actionable = !!quotation && isCustomer && canRespondToQuotation(quotation);
+  const accepted = status === "accepted" || status === "approved";
+  const declined = status === "declined" || status === "rejected";
 
   return (
     <Screen>
-      <ScrollView contentContainerStyle={s.container} showsVerticalScrollIndicator={false}>
-
-        {/* Top bar */}
-        <View style={s.topBar}>
-          <Pressable style={s.topBackBtn} onPress={() => navigation.goBack()}>
-            <Ionicons name="chevron-back" size={20} color={colors.foreground} />
-          </Pressable>
-          <Text style={s.topTitle}>Quotation</Text>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <Pressable
-              style={s.shareBtn}
-              onPress={handleOpenPdf}
-              disabled={pdfBusy}
-              accessibilityLabel="Download quotation PDF"
-            >
-              {pdfBusy ? (
-                <ActivityIndicator size="small" color={colors.primary} />
-              ) : (
-                <Ionicons name="download-outline" size={18} color={colors.primary} />
-              )}
-            </Pressable>
-            <View style={[s.statusBadge, { backgroundColor: statusCfg.bg, borderColor: statusCfg.border }]}>
-              <Text style={[s.statusText, { color: statusCfg.text }]}>{statusCfg.label}</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Header card */}
-        <View style={s.headerCard}>
-          <View style={s.headerCardTop}>
-            <View>
-              <Text style={s.quotationNumber}>{quotation.quotationNumber || quotation.id}</Text>
-              <Text style={s.customerName}>{quotation.customerName}</Text>
-              <Text style={[s.totalValue,{color: "#fff", fontSize: 20, fontWeight: "800",}]}>PKR {quotation.total.toLocaleString()}  </Text>
-            </View>
-            <View style={s.brandMark}>
-              <Text style={s.brandMarkText}>WN</Text>
-            </View>
-          </View>
-          <View style={s.headerDates}>
-            <View style={s.dateItem}>
-              <Text style={s.dateLabel}>Issued</Text>
-              <Text style={s.dateValue}>{formatDate(quotation.quotationDate)}</Text>
-            </View>
-            <View style={s.dateDivider} />
-            <View style={s.dateItem}>
-              <Text style={s.dateLabel}>Valid Until</Text>
-              <Text style={[s.dateValue, { color: colors.danger }]}>{formatDate(quotation.validUntil)}</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Items */}
-        <View style={s.card}>
-          <Text style={s.sectionTitle}>Items</Text>
-          <View style={s.tableHeader}>
-            <Text style={[s.tableHeaderCell, { flex: 3 }]}>Description</Text>
-            <Text style={[s.tableHeaderCell, s.textCenter]}>Qty</Text>
-            <Text style={[s.tableHeaderCell, s.textRight]}>Unit Price</Text>
-            <Text style={[s.tableHeaderCell, s.textRight]}>Total</Text>
-          </View>
-          {quotation.items.map((item, i) => (
-            <View key={item.id} style={[s.tableRow, i < quotation.items.length - 1 && s.tableRowBorder]}>
-              <Text style={[s.tableCell, { flex: 3 }]}>{item.name}</Text>
-              <Text style={[s.tableCell, s.textCenter]}>{item.quantity}</Text>
-              <Text style={[s.tableCell, s.textRight]}>PKR {(item.price ?? 0).toLocaleString()}</Text>
-              <Text style={[s.tableCell, s.textRight, s.tableCellBold]}>PKR {(item.total ?? 0).toLocaleString()}</Text>
-            </View>
-          ))}
-          <View style={s.tableDivider} />
-          {quotation.tax > 0 && (
-            <View style={s.totalRow}>
-              <Text style={s.totalLabel}>Subtotal </Text>
-              <Text style={s.totalValue}>PKR {(quotation.subtotal ?? 0).toLocaleString()}</Text>
-            </View>
-          )}
-          {quotation.tax > 0 && (
-            <View style={s.totalRow}>
-              <Text style={s.totalLabel}>Tax </Text>
-              <Text style={s.totalValue}>PKR {(quotation.tax ?? 0).toLocaleString()}</Text>
-            </View>
-          )}
-          <View style={[s.totalRow, s.grandTotalRow]}>
-            <Text style={s.grandTotalLabel}>Grand Total</Text>
-            <Text style={s.grandTotalValue}>PKR {(quotation.total ?? 0).toLocaleString()}</Text>
-          </View>
-        </View>
-
-        {/* Notes */}
-        {!!quotation.notes && (
-          <View style={s.notesCard}>
-            <Ionicons name="information-circle-outline" size={16} color={colors.primary} />
-            <Text style={s.notesText}>{quotation.notes}</Text>
-          </View>
-        )}
-
-        {versions.length > 0 && (
-          <View style={s.card}>
-            <Text style={s.sectionTitle}>Version History</Text>
-            {versions.map((version) => (
-              <View key={`${version.id}-${version.version}`} style={s.historyRow}>
-                <Text style={s.historyTitle}>Version {version.version ?? 1}</Text>
-                <Text style={s.historyMeta}>{version.status || "Created"}</Text>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {activities.length > 0 && (
-          <View style={s.card}>
-            <Text style={s.sectionTitle}>Recent Activity</Text>
-            {activities.slice(0, 5).map((activity, index) => (
-              <View key={activity.id || `${activity.action}-${index}`} style={s.activityRow}>
-                <View style={s.activityDot} />
-                <View style={{ flex: 1 }}>
-                  <Text style={s.historyTitle}>{activity.action}</Text>
-                  <Text style={s.historyMeta}>{activity.description}{activity.createdAt ? ` · ${activity.createdAt}` : ""}</Text>
-                </View>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {/* Reject Note Modal */}
-        <Modal
-          visible={rejectModalVisible}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setRejectModalVisible(false)}
+      <AppHeader
+        title={quotation?.quotationNumber ? `Quotation ${quotation.quotationNumber}` : "Quotation"}
+        actions={quotation ? [{ icon: "download-outline", accessibilityLabel: "Download quotation PDF", onPress: openPdf, disabled: pdfBusy }] : []}
+      />
+      {loading ? (
+        <LoadingState message="Loading quotation" />
+      ) : error || !quotation ? (
+        <ErrorState message={error} onRetry={() => load()} />
+      ) : (
+        <ScrollView
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => load(true)}
+              colors={[colors.primary]}
+              tintColor={colors.primary}
+              progressBackgroundColor={colors.surfaceRaised}
+            />
+          }
         >
-          <View style={s.modalOverlay}>
-            <View style={s.modalCard}>
-              <Text style={s.modalTitle}>Reject Quotation</Text>
-              <Text style={s.modalSubtitle}>Please provide a reason for rejection.</Text>
-              <TextInput
-                style={s.noteInput}
-                placeholder="Enter note…"
-                placeholderTextColor={colors.mutedForeground}
-                value={rejectNote}
-                onChangeText={setRejectNote}
-                multiline
-                numberOfLines={4}
-                maxLength={500}
-              />
-              <View style={s.modalActions}>
-                <Pressable
-                  style={s.modalCancel}
-                  onPress={() => { setRejectModalVisible(false); setRejectNote(""); }}
-                >
-                  <Text style={s.modalCancelText}>Cancel</Text>
-                </Pressable>
-                <Pressable style={s.modalConfirm} onPress={handleRejectConfirm}>
-                  <Text style={s.modalConfirmText}>Reject</Text>
-                </Pressable>
-              </View>
+          <Card>
+            <View style={styles.titleRow}>
+              <AppText variant="overline" color="textMuted" style={styles.flex}>
+                {quotation.customerName || "Quotation"}
+              </AppText>
+              <StatusPill status={quotation.status} size="md" />
             </View>
-          </View>
-        </Modal>
+            <AppText variant="display" style={styles.total}>
+              {formatMoney(quotation.total)}
+            </AppText>
+            <InfoRow label="Issued" value={formatDate(quotation.quotationDate)} icon="calendar-outline" />
+            <InfoRow label="Valid until" value={formatDate(quotation.validUntil)} icon="time-outline" />
+            {quotation.spaceName || quotation.spaceTypeName ? (
+              <InfoRow label="Space" value={quotation.spaceName || quotation.spaceTypeName || ""} icon="business-outline" />
+            ) : null}
+            {quotation.locationName ? <InfoRow label="Location" value={quotation.locationName} icon="location-outline" /> : null}
+            {quotation.startDateTime ? (
+              <InfoRow label="Period" value={`${formatDate(quotation.startDateTime)} to ${formatDate(quotation.endDateTime)}`} />
+            ) : null}
+          </Card>
 
-        {/* Actions */}
-        {isActionable ? (
-          <View style={s.decisionRow}>
-            <Pressable
-              style={[s.acceptAction, actioning && { opacity: 0.6 }]}
-              onPress={handleAccept}
-              disabled={!!actioning}
-            >
-              {actioning === "accept" ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="checkmark-outline" size={19} color="#fff" />}
-              <Text style={s.acceptActionText}>Accept</Text>
-            </Pressable>
-            <Pressable
-              style={[s.declineAction, actioning && { opacity: 0.6 }]}
-              onPress={() => setRejectModalVisible(true)}
-              disabled={!!actioning}
-            >
-              {actioning === "decline" ? <ActivityIndicator size="small" color={colors.danger} /> : <Ionicons name="close-outline" size={19} color={colors.danger} />}
-              <Text style={s.declineActionText}>Reject</Text>
-            </Pressable>
-          </View>
-        ) : isAccepted ? (
-          <View style={[s.statusNote, { backgroundColor: "rgba(16,185,129,0.08)", borderColor: "rgba(16,185,129,0.3)" }]}>
-            <Ionicons name="checkmark-circle-outline" size={22} color={colors.success} />
-            <View style={{ flex: 1 }}>
-              <Text style={[s.statusNoteTitle, { color: colors.success }]}>Accepted</Text>
-              <Text style={[s.statusNoteText, { color: colors.success }]}>Please wait — you will receive an agreement. Please sign and upload it.</Text>
-            </View>
-          </View>
-        ) : isRejected ? (
-          <View style={[s.statusNote, { backgroundColor: "rgba(220,38,38,0.08)", borderColor: "rgba(220,38,38,0.3)" }]}>
-            <Ionicons name="close-circle-outline" size={22} color={colors.danger} />
-            <View style={{ flex: 1 }}>
-              <Text style={[s.statusNoteTitle, { color: colors.danger }]}>Rejected</Text>
-              <Text style={[s.statusNoteText, { color: colors.danger }]}>Wait for admin action.</Text>
-            </View>
-          </View>
-        ) : (
-          <View style={s.statusNote}>
-            <ActivityIndicator size="small" color={colors.mutedForeground} />
-            <Text style={s.statusNoteText}>Processing…</Text>
-          </View>
-        )}
+          <SectionHeader title="Items" />
+          <Card>
+            {quotation.items.length === 0 ? (
+              <AppText variant="bodySmall" color="textMuted">
+                No item breakdown on this quotation.
+              </AppText>
+            ) : (
+              quotation.items.map((item) => (
+                <InfoRow
+                  key={item.id}
+                  label={`${item.name}${item.quantity > 1 ? ` x ${item.quantity}` : ""}`}
+                  value={formatMoney(item.total)}
+                />
+              ))
+            )}
+            <Divider spacing={8} />
+            {quotation.tax > 0 ? <InfoRow label="Subtotal" value={formatMoney(quotation.subtotal)} /> : null}
+            {quotation.discountAmount ? <InfoRow label="Discount" value={`- ${formatMoney(quotation.discountAmount)}`} /> : null}
+            {quotation.tax > 0 ? <InfoRow label="Tax" value={formatMoney(quotation.tax)} /> : null}
+            {quotation.securityDeposit ? <InfoRow label="Security deposit" value={formatMoney(quotation.securityDeposit)} /> : null}
+            <InfoRow label="Total" value={formatMoney(quotation.total)} emphasize />
+          </Card>
 
-      </ScrollView>
+          {quotation.notes ? <Banner tone="info" title="Notes" message={quotation.notes} /> : null}
+
+          {actionable ? (
+            <View style={styles.actions}>
+              <Button title="Accept quotation" leftIcon="checkmark" size="lg" fullWidth onPress={accept} />
+              <Button title="Decline" variant="outline" leftIcon="close" fullWidth onPress={() => setDeclineOpen(true)} />
+            </View>
+          ) : accepted && isCustomer ? (
+            <Banner
+              tone="success"
+              title="Accepted"
+              message="Our team will send you the lease agreement. Sign it under Agreements; your booking and its challan follow."
+              actionLabel="Open Agreements"
+              onAction={() => navigation.navigate("MainTabs", { screen: "Agreements" })}
+            />
+          ) : declined && isCustomer ? (
+            <Banner tone="danger" title="Declined" message="You declined this quotation. Contact us if you would like a new one." />
+          ) : null}
+
+          {versions.length > 1 ? (
+            <>
+              <SectionHeader title="Versions" />
+              <Card padding={0}>
+                {versions.map((v, i) => (
+                  <View key={`${v.id}-${v.version}`}>
+                    {i > 0 ? <Divider inset={16} /> : null}
+                    <ListRow title={`Version ${v.version ?? 1}`} subtitle={formatMoney(v.total)} right={<StatusPill status={v.status} />} />
+                  </View>
+                ))}
+              </Card>
+            </>
+          ) : null}
+
+          {!isCustomer && activities.length > 0 ? (
+            <>
+              <SectionHeader title="Recent activity" />
+              <Card padding={0}>
+                {activities.slice(0, 5).map((a, i) => (
+                  <View key={a.id || `${a.action}-${i}`}>
+                    {i > 0 ? <Divider inset={16} /> : null}
+                    <ListRow title={a.action} subtitle={a.description} meta={a.createdAt ? formatDate(a.createdAt) : undefined} />
+                  </View>
+                ))}
+              </Card>
+            </>
+          ) : null}
+        </ScrollView>
+      )}
+
+      <BottomSheet
+        visible={declineOpen}
+        onClose={() => !declining && setDeclineOpen(false)}
+        dismissible={!declining}
+        title="Decline quotation"
+        subtitle="A short reason helps our team send you a better offer."
+        footer={
+          <>
+            <Button title="Back" variant="outline" style={styles.flex} disabled={declining} onPress={() => setDeclineOpen(false)} />
+            <Button title="Decline" variant="danger" style={styles.flex} loading={declining} onPress={decline} />
+          </>
+        }
+      >
+        <TextField
+          label="Reason"
+          required
+          value={declineNote}
+          onChangeText={(v) => {
+            setDeclineNote(v);
+            setDeclineError("");
+          }}
+          multiline
+          rows={4}
+          maxLength={500}
+          error={declineError}
+          placeholder="For example: the price is above our budget"
+        />
+      </BottomSheet>
     </Screen>
   );
 }
 
-const createStyles = (colors: ReturnType<typeof useThemeColors>) =>
+const createStyles = (_c: AppColors, t: Theme) =>
   StyleSheet.create({
-    container: { paddingHorizontal: 18, paddingBottom: 36, gap: 14 },
-    center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, padding: 32 },
-    loadingText: { color: colors.mutedForeground, fontSize: 14, marginTop: 8 },
-    errorTitle: { color: colors.foreground, fontSize: 18, fontWeight: "800", textAlign: "center" },
-    errorBody: { color: colors.mutedForeground, fontSize: 14, textAlign: "center", lineHeight: 20 },
-    backBtn: { marginTop: 8, paddingHorizontal: 28, paddingVertical: 12, backgroundColor: colors.primary, borderRadius: radii.md },
-    backBtnText: { color: "#fff", fontWeight: "700" },
-
-    topBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: 12, paddingBottom: 4 },
-    topBackBtn: { width: 36, height: 36, borderRadius: 12, backgroundColor: colors.muted, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border },
-    topTitle: { color: colors.foreground, fontSize: 17, fontWeight: "800" },
-    statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: radii.pill, borderWidth: 1 },
-    statusText: { fontSize: 12, fontWeight: "700" },
-    shareBtn: { width: 36, height: 36, borderRadius: 12, backgroundColor: colors.primaryMuted, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border },
-
-    headerCard: {
-      backgroundColor: "#1e3a5f",
-      borderRadius: radii.xl,
-      padding: 20,
-      gap: 16,
-      ...shadows.md,
-    },
-    headerCardTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
-    quotationNumber: { color: "rgba(255,255,255,0.7)", fontSize: 12, fontWeight: "700", letterSpacing: 1, marginBottom: 4 },
-    customerName: { color: "#fff", fontSize: 20, fontWeight: "800" },
-    brandMark: { width: 44, height: 44, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" },
-    brandMarkText: { color: "#fff", fontSize: 16, fontWeight: "900" },
-    headerDates: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.08)", borderRadius: radii.md, padding: 12 },
-    dateItem: { flex: 1, alignItems: "center" },
-    dateLabel: { color: "rgba(255,255,255,0.6)", fontSize: 11, fontWeight: "600", marginBottom: 3 },
-    dateValue: { color: "#fff", fontSize: 13, fontWeight: "700" },
-    dateDivider: { width: 1, height: 32, backgroundColor: "rgba(255,255,255,0.2)" },
-
-    card: { backgroundColor: colors.card, borderRadius: radii.lg, padding: 16, borderWidth: 1, borderColor: colors.border, gap: 8 },
-    sectionTitle: { color: colors.foreground, fontSize: 15, fontWeight: "800", marginBottom: 4 },
-
-    tableHeader: { flexDirection: "row", paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: colors.border },
-    tableHeaderCell: { flex: 2, fontSize: 11, fontWeight: "700", color: colors.mutedForeground, textTransform: "uppercase", letterSpacing: 0.5 },
-    tableRow: { flexDirection: "row", paddingVertical: 10 },
-    tableRowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-    tableCell: { flex: 2, fontSize: 13, color: colors.foreground },
-    tableCellBold: { fontWeight: "700" },
-    tableDivider: { height: 1, backgroundColor: colors.border, marginVertical: 4 },
-    textCenter: { textAlign: "center" },
-    textRight: { textAlign: "right" },
-    totalRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 },
-    totalLabel: { color: colors.mutedForeground, fontSize: 13 },
-    totalValue: { color: colors.foreground, fontSize: 13, fontWeight: "600" },
-    grandTotalRow: { paddingTop: 8, marginTop: 4, borderTopWidth: 1, borderTopColor: colors.border },
-    grandTotalLabel: { color: colors.foreground, fontSize: 16, fontWeight: "800" },
-    grandTotalValue: { color: colors.primary, fontSize: 18, fontWeight: "800" },
-
-    notesCard: { flexDirection: "row", gap: 8, backgroundColor: colors.primaryMuted, borderRadius: radii.md, padding: 12, borderWidth: 1, borderColor: colors.border, alignItems: "flex-start" },
-    notesText: { flex: 1, color: colors.foreground, fontSize: 13, lineHeight: 19 },
-
-    historyRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-    historyTitle: { color: colors.foreground, fontSize: 13, fontWeight: "700" },
-    historyMeta: { color: colors.mutedForeground, fontSize: 12, marginTop: 2, textTransform: "capitalize" },
-    activityRow: { flexDirection: "row", gap: 9, paddingVertical: 7 },
-    activityDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.primary, marginTop: 5 },
-
-    decisionRow: { flexDirection: "row", gap: 10 },
-    modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 24 },
-    modalCard: { backgroundColor: colors.card, borderRadius: radii.xl, padding: 24, width: "100%", gap: 12, borderWidth: 1, borderColor: colors.border },
-    modalTitle: { color: colors.foreground, fontSize: 18, fontWeight: "800" },
-    modalSubtitle: { color: colors.mutedForeground, fontSize: 13 },
-    noteInput: { borderWidth: 1.5, borderColor: colors.border, borderRadius: radii.md, padding: 12, color: colors.foreground, fontSize: 14, minHeight: 100, textAlignVertical: "top", backgroundColor: colors.muted },
-    modalActions: { flexDirection: "row", gap: 10, marginTop: 4 },
-    modalCancel: { flex: 1, paddingVertical: 13, borderRadius: radii.md, borderWidth: 1, borderColor: colors.border, alignItems: "center" },
-    modalCancelText: { color: colors.mutedForeground, fontWeight: "700" },
-    modalConfirm: { flex: 1, paddingVertical: 13, borderRadius: radii.md, backgroundColor: colors.danger, alignItems: "center" },
-    modalConfirmText: { color: "#fff", fontWeight: "800" },
-    acceptAction: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, backgroundColor: colors.success, borderRadius: radii.md, paddingVertical: 13 },
-    acceptActionText: { color: "#fff", fontSize: 15, fontWeight: "800" },
-    declineAction: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, backgroundColor: colors.card, borderRadius: radii.md, borderWidth: 1, borderColor: colors.danger, paddingVertical: 12 },
-    declineActionText: { color: colors.danger, fontSize: 15, fontWeight: "800" },
-
-    statusNote: { flexDirection: "row", gap: 10, alignItems: "flex-start", backgroundColor: colors.muted, borderRadius: radii.md, padding: 14, borderWidth: 1, borderColor: colors.border },
-    statusNoteTitle: { fontSize: 14, fontWeight: "800", marginBottom: 2 },
-    statusNoteText: { flex: 1, color: colors.mutedForeground, fontSize: 13, lineHeight: 19 },
+    content: { padding: t.spacing.screen, gap: t.spacing.lg, paddingBottom: t.spacing.xxl },
+    titleRow: { flexDirection: "row", alignItems: "center", gap: t.spacing.sm },
+    flex: { flex: 1 },
+    total: { marginVertical: t.spacing.sm },
+    actions: { gap: t.spacing.md },
   });

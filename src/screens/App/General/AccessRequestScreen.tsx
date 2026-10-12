@@ -1,22 +1,19 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from "react";
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View, type TextInput } from "react-native";
+import { useNavigation } from "@react-navigation/native";
 import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  ActivityIndicator,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native';
-import Ionicons from 'react-native-vector-icons/Ionicons';
-import { Picker } from '@react-native-picker/picker';
-import { Screen } from '../../../components/Screen';
-import { Header } from '../../../components/Header';
-import { useThemeColors, useThemedStyles } from '../../../theme';
-import { useAuth } from '../../../context/AuthContext';
+  AppHeader,
+  AppText,
+  Banner,
+  Button,
+  Card,
+  Screen,
+  SelectField,
+  TextField,
+  useToast,
+} from "../../../components/ui";
+import { useThemedStyles, type AppColors, type Theme } from "../../../theme";
+import { useAuth } from "../../../context/AuthContext";
 import {
   allowedSpaces,
   confirmDoorAccess,
@@ -24,44 +21,53 @@ import {
   verifyDoorAccess,
   type DoorAccessDetails,
   type DoorAccessResult,
-} from '../../../services/doorAccessService';
-import { cnicError, formatCnicInput } from '../../../utils/cnic';
-import { formatPhoneInput, phoneError, PHONE_MAX_LENGTH } from '../../../utils/phone';
-import { errorMessage } from '../../../services/apiClient';
+} from "../../../services/doorAccessService";
+import { cnicError, formatCnicInput } from "../../../utils/cnic";
+import { formatPhoneInput, phoneError, PHONE_MAX_LENGTH } from "../../../utils/phone";
+import { errorMessage } from "../../../services/apiClient";
 
 type FormState = { name: string; email: string; cnic: string; phone: string };
+type Errors = Partial<Record<keyof FormState | "room", string>>;
 
-export default function AccessRequestScreen({
-  navigation,
-}: {
-  navigation: any;
-}) {
-  const colors = useThemeColors();
+/**
+ * Access Request: the details must match the access user your company added (at least two of name, email,
+ * CNIC and phone, one of them CNIC or email). Once verified, Unlock Door opens your room door.
+ */
+export default function AccessRequestScreen() {
+  const navigation = useNavigation<any>();
   const styles = useThemedStyles(createStyles);
   const { user } = useAuth();
+  const toast = useToast();
+
   const [form, setForm] = useState<FormState>({
-    name: user?.name ?? '',
-    email: user?.email ?? '',
-    cnic: '',
-    phone: user?.phoneNumber ?? '',
+    name: typeof user?.name === "string" ? user.name : "",
+    email: typeof user?.email === "string" ? user.email : "",
+    cnic: "",
+    phone: typeof user?.phoneNumber === "string" ? user.phoneNumber : "",
   });
+  const [errors, setErrors] = useState<Errors>({});
   const [submitting, setSubmitting] = useState(false);
+  const [notice, setNotice] = useState<{ tone: "warning" | "danger"; title: string; message: string } | null>(null);
   // Set when the details match more than one room: the user picks one, then confirms.
   const [pending, setPending] = useState<{ details: DoorAccessDetails; result: DoorAccessResult } | null>(null);
   const [roomId, setRoomId] = useState<number | null>(null);
   const rooms = pending ? allowedSpaces(pending.result) : [];
 
-  // At least two of name, email, CNIC and phone must match the access user added in Sales,
-  // one of them CNIC or email.
-  const canSubmit = useMemo(
+  const emailRef = useRef<TextInput>(null);
+  const cnicRef = useRef<TextInput>(null);
+  const phoneRef = useRef<TextInput>(null);
+
+  const enough = useMemo(
     () =>
-      [form.name, form.email, form.cnic, form.phone].filter(v => v.trim()).length >= 2 &&
+      [form.name, form.email, form.cnic, form.phone].filter((v) => v.trim()).length >= 2 &&
       !!(form.email.trim() || form.cnic.trim()),
     [form],
   );
 
-  const updateField = (field: keyof FormState, value: string) => {
-    setForm(prev => ({ ...prev, [field]: value }));
+  const update = (field: keyof FormState, value: string) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+    setErrors((e) => ({ ...e, [field]: undefined }));
+    setNotice(null);
     // Changed details mean the rooms found may no longer apply.
     setPending(null);
     setRoomId(null);
@@ -69,64 +75,54 @@ export default function AccessRequestScreen({
 
   const finish = async (details: DoorAccessDetails, result: DoorAccessResult, bookingDetailId: number) => {
     // Record it on the server first (the web shows "App verified"); refuses if this login isn't the person's account.
-    try {
-      await confirmDoorAccess(details, bookingDetailId);
-    } catch (err) {
-      Alert.alert('Could not verify access', errorMessage(err, 'Please try again.'));
-      return;
-    }
+    await confirmDoorAccess(details, bookingDetailId);
     if (user?.email) await saveDoorAccess(user.email, details, result, bookingDetailId);
-    const room = allowedSpaces(result).find(sp => sp.bookingDetailId === bookingDetailId)?.spaceName;
-    Alert.alert('Access verified', `${room ? `Room: ${room}. ` : ''}Use Unlock Door on the home screen to open your room door.`, [
-      { text: 'OK', onPress: () => navigation.goBack() },
-    ]);
+    const room = allowedSpaces(result).find((sp) => sp.bookingDetailId === bookingDetailId)?.spaceName;
+    toast.success(`${room ? `Room: ${room}. ` : ""}Use Unlock Door to open your room door.`, { title: "Access verified" });
+    navigation.goBack();
   };
 
-  const handleSubmit = async () => {
-    if (pending) {
-      if (roomId == null) {
-        Alert.alert('Select your room', 'Your details match more than one booking. Choose the room you use.');
-        return;
-      }
-      await finish(pending.details, pending.result, roomId);
-      return;
-    }
-    if (!canSubmit || submitting) {
-      Alert.alert('More information needed', 'Fill in at least two of Name, Email, CNIC and Phone, including your CNIC or Email.');
-      return;
-    }
-    const cnicMessage = cnicError(form.cnic);
-    if (cnicMessage) {
-      Alert.alert('Invalid CNIC', cnicMessage);
-      return;
-    }
-    const phoneMessage = phoneError(form.phone);
-    if (phoneMessage) {
-      Alert.alert('Invalid phone number', phoneMessage);
-      return;
-    }
-    const details = {
-      name: form.name.trim(),
-      email: form.email.trim(),
-      cnic: form.cnic.trim(),
-      phone: form.phone.trim(),
-    };
+  const submit = async () => {
+    if (submitting) return;
+    setNotice(null);
     setSubmitting(true);
     try {
+      if (pending) {
+        if (roomId == null) {
+          setErrors({ room: "Choose the room you use." });
+          return;
+        }
+        await finish(pending.details, pending.result, roomId);
+        return;
+      }
+      const next: Errors = {};
+      if (!enough) {
+        setNotice({
+          tone: "warning",
+          title: "More information needed",
+          message: "Fill in at least two of name, email, CNIC and phone, including your CNIC or email.",
+        });
+      }
+      const c = cnicError(form.cnic);
+      if (c) next.cnic = c;
+      const p = phoneError(form.phone);
+      if (p) next.phone = p;
+      setErrors(next);
+      if (!enough || Object.keys(next).length) return;
+
+      const details = { name: form.name.trim(), email: form.email.trim(), cnic: form.cnic.trim(), phone: form.phone.trim() };
       const result = await verifyDoorAccess(details);
       const allowed = allowedSpaces(result);
       if (!result.canOpenDoor || allowed.length === 0) {
-        Alert.alert(result.matched ? 'Access disabled' : 'No match found', result.message);
+        setNotice({ tone: "danger", title: result.matched ? "Access turned off" : "No match found", message: result.message });
       } else if (allowed.length === 1) {
-        // One room: selected automatically
-        setRoomId(allowed[0].bookingDetailId);
         await finish(details, result, allowed[0].bookingDetailId);
       } else {
         setPending({ details, result });
         setRoomId(null);
       }
     } catch (err) {
-      Alert.alert('Could not verify access', errorMessage(err, 'Please try again.'));
+      setNotice({ tone: "danger", title: "Could not verify access", message: errorMessage(err, "Please try again.") });
     } finally {
       setSubmitting(false);
     }
@@ -134,244 +130,93 @@ export default function AccessRequestScreen({
 
   return (
     <Screen>
-      <Header />
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <ScrollView
-          contentContainerStyle={styles.container}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.titleRow}>
-            <View style={styles.iconBox}>
-              <Ionicons name="key-outline" size={24} color={colors.white} />
-            </View>
-            <View>
-              <Text style={styles.eyebrow}>ACCESS</Text>
-              <Text style={styles.title}>Access Request</Text>
-            </View>
-          </View>
-
-          <View style={styles.formCard}>
-            <Text style={styles.sectionLabel}>Fill in at least two, including CNIC or Email, as your company registered them</Text>
-
-            <Field
-              label="Name"
-              placeholder="Enter full name"
-              value={form.name}
-              onChangeText={value => updateField('name', value)}
-            />
-            <Field
-              label="Email"
-              placeholder="Enter email"
-              value={form.email}
-              onChangeText={value => updateField('email', value)}
-              keyboardType="email-address"
-            />
-            <Field
-              label="CNIC"
-              placeholder="e.g. 35202-1234567-1"
-              value={form.cnic}
-              onChangeText={value => updateField('cnic', formatCnicInput(value))}
-              keyboardType="number-pad"
-              maxLength={15}
-            />
-            <Field
-              label="Phone"
-              placeholder="Enter phone number"
-              value={form.phone}
-              onChangeText={value => updateField('phone', formatPhoneInput(value))}
-              keyboardType="phone-pad"
-              maxLength={PHONE_MAX_LENGTH}
-            />
-
-            <View style={styles.fieldWrap}>
-              <Text style={styles.fieldLabel}>Room / Office No.</Text>
+      <AppHeader title="Access request" subtitle="Verify once to unlock your room door" />
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          <AppText variant="bodySmall" color="textSecondary">
+            Enter your details exactly as your company registered them: at least two, including your CNIC or email.
+          </AppText>
+          <Card>
+            <View style={styles.fields}>
+              <TextField
+                label="Name"
+                value={form.name}
+                onChangeText={(v) => update("name", v)}
+                autoCapitalize="words"
+                returnKeyType="next"
+                onSubmitEditing={() => emailRef.current?.focus()}
+                error={errors.name}
+                leftIcon="person-outline"
+              />
+              <TextField
+                ref={emailRef}
+                label="Email"
+                value={form.email}
+                onChangeText={(v) => update("email", v)}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                returnKeyType="next"
+                onSubmitEditing={() => cnicRef.current?.focus()}
+                error={errors.email}
+                leftIcon="mail-outline"
+              />
+              <TextField
+                ref={cnicRef}
+                label="CNIC"
+                value={form.cnic}
+                onChangeText={(v) => update("cnic", formatCnicInput(v))}
+                keyboardType="number-pad"
+                maxLength={15}
+                placeholder="35202-1234567-1"
+                returnKeyType="next"
+                onSubmitEditing={() => phoneRef.current?.focus()}
+                error={errors.cnic}
+                leftIcon="card-outline"
+              />
+              <TextField
+                ref={phoneRef}
+                label="Phone"
+                value={form.phone}
+                onChangeText={(v) => update("phone", formatPhoneInput(v))}
+                keyboardType="phone-pad"
+                maxLength={PHONE_MAX_LENGTH}
+                error={errors.phone}
+                leftIcon="call-outline"
+              />
               {rooms.length > 1 ? (
-                <View style={[styles.input, styles.pickerWrap, { borderColor: colors.primary, backgroundColor: colors.card }]}>
-                  <Picker
-                    selectedValue={roomId ?? undefined}
-                    onValueChange={value => setRoomId(value == null ? null : Number(value))}
-                    mode="dropdown"
-                    dropdownIconColor={colors.mutedForeground}
-                    style={{ color: colors.foreground }}
-                  >
-                    <Picker.Item label="Select your room..." value={undefined} color={colors.mutedForeground} />
-                    {rooms.map(room => (
-                      <Picker.Item key={room.bookingDetailId} label={room.spaceName || `Booking ${room.bookingDetailId}`} value={room.bookingDetailId} />
-                    ))}
-                  </Picker>
-                </View>
-              ) : (
-                <Text style={[styles.input, styles.readonlyInput, { borderColor: colors.border, color: colors.mutedForeground }]}>
-                  Selected automatically after your details match
-                </Text>
-              )}
+                <SelectField
+                  label="Your room"
+                  required
+                  value={roomId}
+                  onChange={(v) => {
+                    setRoomId(v);
+                    setErrors((e) => ({ ...e, room: undefined }));
+                  }}
+                  options={rooms.map((r) => ({ label: r.spaceName || `Booking ${r.bookingDetailId}`, value: r.bookingDetailId }))}
+                  helperText="Your details match more than one booking. Choose the room you use."
+                  error={errors.room}
+                  leftIcon="business-outline"
+                />
+              ) : null}
             </View>
-          </View>
+          </Card>
 
-          <TouchableOpacity
-            style={[styles.submitBtn, (!canSubmit || submitting || (pending && roomId == null)) && styles.submitBtnDisabled]}
-            onPress={handleSubmit}
-            disabled={!canSubmit || submitting || (!!pending && roomId == null)}
-            activeOpacity={0.9}
-          >
-            {submitting ? (
-              <ActivityIndicator color={colors.white} />
-            ) : (
-              <Text style={styles.submitText}>{pending ? 'Confirm Room' : 'Verify Access'}</Text>
-            )}
-          </TouchableOpacity>
+          {notice ? <Banner tone={notice.tone} title={notice.title} message={notice.message} /> : null}
 
-          <View style={styles.bottomSpace} />
+          <Button title={pending ? "Confirm room" : "Verify access"} size="lg" fullWidth loading={submitting} onPress={submit} />
+          <AppText variant="caption" color="textMuted" align="center">
+            The verification lasts 30 days. The app opens your room door only; use your card, fingerprint or face at the
+            building entrances.
+          </AppText>
         </ScrollView>
       </KeyboardAvoidingView>
     </Screen>
   );
 }
 
-function Field({
-  label,
-  value,
-  placeholder,
-  onChangeText,
-  keyboardType = 'default',
-  maxLength,
-}: {
-  label: string;
-  value: string;
-  placeholder: string;
-  onChangeText: (value: string) => void;
-  keyboardType?: 'default' | 'email-address' | 'phone-pad' | 'numeric' | 'number-pad';
-  maxLength?: number;
-}) {
-  const colors = useThemeColors();
-  const styles = useThemedStyles(createStyles);
-
-  return (
-    <View style={styles.fieldWrap}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        autoCapitalize={keyboardType === 'email-address' ? 'none' : 'sentences'}
-        autoCorrect={false}
-        placeholder={placeholder}
-        placeholderTextColor={colors.mutedForeground}
-        keyboardType={keyboardType}
-        maxLength={maxLength}
-        style={[styles.input, { borderColor: colors.border, color: colors.foreground, backgroundColor: colors.card }]}
-      />
-    </View>
-  );
-}
-
-const createStyles = (colors: ReturnType<typeof useThemeColors>) =>
+const createStyles = (_c: AppColors, t: Theme) =>
   StyleSheet.create({
     flex: { flex: 1 },
-    container: {
-      paddingHorizontal: 18,
-      paddingTop: 18,
-      paddingBottom: 40,
-    },
-    titleRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-      marginBottom: 18,
-    },
-    iconBox: {
-      width: 52,
-      height: 52,
-      borderRadius: 16,
-      backgroundColor: colors.primary,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    eyebrow: {
-      fontSize: 11,
-      letterSpacing: 1.2,
-      textTransform: 'uppercase',
-      color: colors.mutedForeground,
-      fontWeight: '700',
-    },
-    title: {
-      fontSize: 28,
-      fontWeight: '800',
-      color: colors.foreground,
-      letterSpacing: -0.7,
-      marginTop: 2,
-    },
-    formCard: {
-      backgroundColor: colors.card,
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: 18,
-      padding: 16,
-      shadowColor: colors.primary,
-      shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.08,
-      shadowRadius: 16,
-      elevation: 3,
-    },
-    sectionLabel: {
-      fontSize: 13,
-      fontWeight: '800',
-      textTransform: 'uppercase',
-      letterSpacing: 0.7,
-      color: colors.mutedForeground,
-      marginBottom: 12,
-    },
-    fieldWrap: {
-      marginBottom: 14,
-    },
-    fieldLabel: {
-      fontSize: 13,
-      fontWeight: '700',
-      color: colors.foreground,
-      marginBottom: 8,
-    },
-    input: {
-      minHeight: 48,
-      borderRadius: 12,
-      borderWidth: 1,
-      fontSize: 15,
-      paddingHorizontal: 14,
-      paddingVertical: 12,
-    },
-    pickerWrap: {
-      paddingHorizontal: 4,
-      paddingVertical: 0,
-      justifyContent: 'center',
-    },
-    readonlyInput: {
-      fontSize: 13,
-      textAlignVertical: 'center',
-    },
-    submitBtn: {
-      marginTop: 20,
-      minHeight: 52,
-      borderRadius: 14,
-      backgroundColor: colors.primary,
-      alignItems: 'center',
-      justifyContent: 'center',
-      shadowColor: colors.primary,
-      shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: 0.18,
-      shadowRadius: 18,
-      elevation: 4,
-    },
-    submitBtnDisabled: {
-      opacity: 0.55,
-    },
-    submitText: {
-      color: colors.white,
-      fontSize: 15,
-      fontWeight: '800',
-    },
-    bottomSpace: {
-      height: 24,
-    },
+    content: { padding: t.spacing.screen, gap: t.spacing.lg, paddingBottom: t.spacing.xxl },
+    fields: { gap: t.spacing.md },
   });

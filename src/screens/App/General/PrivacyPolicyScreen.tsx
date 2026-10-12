@@ -1,10 +1,6 @@
-import { useMemo } from "react";
-import { useWindowDimensions, ScrollView, StyleSheet, Text, View } from "react-native";
-import Ionicons from "react-native-vector-icons/Ionicons";
-import { Header } from "../../../components/Header";
-import { Screen } from "../../../components/Screen";
-import { radii, shadows, useThemeColors } from "../../../theme";
-
+import { ScrollView, StyleSheet, View } from "react-native";
+import { AppHeader, AppText, Card, Screen } from "../../../components/ui";
+import { useThemedStyles, type AppColors, type Theme } from "../../../theme";
 
 type Section = {
   number: string;
@@ -24,12 +20,12 @@ const SECTIONS: Section[] = [
     bullets: [
       "Account details: name, email address, phone number, password, profile picture.",
       "Booking information: selected workspaces, dates, times, number of participants, special requests.",
-      "Payment information (processed securely by third-party providers like Stripe — we do not store full card details).",
-      "Communications: messages, support tickets, reviews, and feedback.",
-      "Host information (if you list spaces): business details, space photos, descriptions, and banking info for payouts.",
+      "Payment information: your bank challans and their payment status. Payments are made at the bank (1Bill / HBL); the app never asks for card or bank-account details.",
+      "Identity and agreement details: CNIC, company details and signed lease agreements, when you book an office or verify door access.",
+      "Communications: messages, tour requests, support requests and feedback.",
     ],
     footer:
-      "We also automatically collect device and usage data (IP address, device type, OS, app version), location data (with your permission), and cookies for analytics and functionality. We may also receive data from payment processors, authentication services, or workspace hosts.",
+      "We also automatically collect device and usage data (IP address, device type, OS, app version), location data (with your permission), and cookies for analytics and functionality. We may also receive data from our bank (payment confirmations) and authentication services (Google / Firebase sign-in).",
   },
   {
     number: "2",
@@ -42,7 +38,6 @@ const SECTIONS: Section[] = [
       "Provide customer support.",
       "Send important notifications (booking confirmations, reminders, updates).",
       "Improve our Service through analytics and user feedback.",
-      "Personalize your experience (recommended spaces, saved preferences).",
       "Detect fraud and ensure platform security.",
       "Comply with legal obligations.",
       "(With your consent) Send marketing communications.",
@@ -54,8 +49,8 @@ const SECTIONS: Section[] = [
     title: "Sharing Your Information",
     body: "We do not sell your personal data. We may share information with:",
     bullets: [
-      "Workspace Hosts: Necessary booking details (name, contact, booking time) so they can prepare for your visit.",
-      "Service Providers: Payment processors, cloud hosting, analytics, and customer support tools (under strict data processing agreements).",
+      "Our bank: challan details needed to collect and confirm your payment.",
+      "Service Providers: cloud hosting, sign-in, notifications and customer support tools (under strict data processing agreements).",
       "Legal Reasons: When required by law, to protect rights, safety, or in response to valid legal requests.",
       "Business Transfers: In case of merger, acquisition, or sale of assets.",
     ],
@@ -63,8 +58,8 @@ const SECTIONS: Section[] = [
   {
     number: "4",
     icon: "analytics-outline",
-    title: "Cookies and Tracking",
-    body: "We use essential cookies for the Service to function and analytics cookies (e.g., Google Analytics) to understand usage. You can manage cookie preferences through your device or browser settings.",
+    title: "Device Storage and Cookies",
+    body: "The app stores your sign-in session and settings on your device. The website uses essential cookies to work. You can clear app data from your device settings.",
   },
   {
     number: "5",
@@ -112,253 +107,65 @@ const SECTIONS: Section[] = [
 ];
 
 export default function PrivacyPolicyScreen() {
-  const colors = useThemeColors();
-  const { width: SW } = useWindowDimensions();
-  const styles = useMemo(() => createStyles(colors, SW), [colors, SW]);
-
+  const styles = useThemedStyles(createStyles);
   return (
     <Screen>
-      <Header />
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scroll}
-      >
-        {/* Hero */}
-        <View style={styles.hero}>
-          <View style={styles.heroBlob} />
-          <View style={styles.iconWell}>
-            <Ionicons name="lock-closed" size={32} color={colors.white} />
-          </View>
-          <Text style={styles.heroTitle}>Privacy Policy</Text>
-          <Text style={styles.heroDate}>Last Updated: July 03, 2026  ·  Effective: July 03, 2026</Text>
-          <Text style={styles.heroDesc}>
-            WorkNest respects your privacy and is committed to protecting your
-            personal data. This policy explains how we collect, use, and
-            safeguard your information when you use our Service.
-          </Text>
-          <View style={styles.noticePill}>
-            <Ionicons name="information-circle-outline" size={15} color={colors.primary} />
-            <Text style={styles.noticeText}>
-              By using WorkNest, you agree to the practices described here.
-            </Text>
-          </View>
-        </View>
-
-        {/* Sections */}
-        {SECTIONS.map((s) => (
-          <View key={s.number} style={styles.section}>
-            <View style={styles.sectionHeadRow}>
-              <View style={styles.numberBadge}>
-                <Text style={styles.numberText}>{s.number}</Text>
-              </View>
-              <View style={styles.sectionIconWell}>
-                <Ionicons name={s.icon} size={18} color={colors.primary} />
-              </View>
-              <Text style={styles.sectionTitle}>{s.title}</Text>
-            </View>
-
-            {s.body ? <Text style={styles.bodyText}>{s.body}</Text> : null}
-
-            {s.bullets?.map((b, i) => (
-              <View key={i} style={styles.bulletRow}>
-                <View style={styles.bulletDot} />
-                <Text style={styles.bulletText}>{b}</Text>
+      <AppHeader title="Privacy policy" />
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <Card>
+          <AppText variant="body">
+            WorkNest respects your privacy and is committed to protecting your personal data. This policy explains how
+            we collect, use, and safeguard your information when you use our Service.
+          </AppText>
+          <AppText variant="bodySmall" color="textMuted" style={styles.top}>
+            By using WorkNest, you agree to the practices described here.
+          </AppText>
+        </Card>
+        {SECTIONS.map((section) => (
+          <Card key={section.number}>
+            <AppText variant="subheading">
+              {section.number}. {section.title}
+            </AppText>
+            {section.body ? (
+              <AppText variant="bodySmall" color="textSecondary" style={styles.top}>
+                {section.body}
+              </AppText>
+            ) : null}
+            {section.bullets?.map((b) => (
+              <View key={b} style={styles.bullet}>
+                <AppText variant="bodySmall" color="primary">
+                  {"\u2022"}
+                </AppText>
+                <AppText variant="bodySmall" color="textSecondary" style={styles.flex}>
+                  {b}
+                </AppText>
               </View>
             ))}
-
-            {s.footer ? <Text style={styles.footerText}>{s.footer}</Text> : null}
-          </View>
+            {section.footer ? (
+              <AppText variant="bodySmall" color="textSecondary" style={styles.top}>
+                {section.footer}
+              </AppText>
+            ) : null}
+          </Card>
         ))}
-
-        {/* Contact card */}
-        <View style={styles.contactCard}>
-          <Ionicons name="mail-outline" size={24} color={colors.white} />
-          <Text style={styles.contactTitle}>Contact Us</Text>
-          <Text style={styles.contactLine}>sales@worknestpk.com</Text>
-          <Text style={styles.contactLine}>
+        <Card variant="filled">
+          <AppText variant="subheading">Contact us</AppText>
+          <AppText variant="bodySmall" color="textSecondary" style={styles.top}>
+            sales@worknestpk.com
+          </AppText>
+          <AppText variant="bodySmall" color="textSecondary">
             3rd Floor EOBI Building-II, I-8 Markaz, Islamabad, Pakistan
-          </Text>
-        </View>
+          </AppText>
+        </Card>
       </ScrollView>
     </Screen>
   );
 }
 
-const createStyles = (colors: ReturnType<typeof useThemeColors>, SW: number) =>
+const createStyles = (_c: AppColors, t: Theme) =>
   StyleSheet.create({
-    scroll: { paddingBottom: 48 },
-
-    // Hero
-    hero: {
-      alignItems: "center",
-      paddingTop: 32,
-      paddingBottom: 32,
-      paddingHorizontal: 24,
-      overflow: "hidden",
-      gap: 10,
-    },
-    heroBlob: {
-      position: "absolute",
-      width: SW * 1.1,
-      height: SW * 1.1,
-      borderRadius: SW * 0.55,
-      backgroundColor: colors.primaryMuted,
-      top: -SW * 0.6,
-      right: -SW * 0.2,
-      opacity: 0.55,
-    },
-    iconWell: {
-      width: 72,
-      height: 72,
-      borderRadius: 22,
-      backgroundColor: colors.primary,
-      alignItems: "center",
-      justifyContent: "center",
-      marginBottom: 4,
-      ...shadows.md,
-      shadowColor: colors.primary,
-    },
-    heroTitle: {
-      fontSize: 30,
-      fontWeight: "900",
-      color: colors.foreground,
-      letterSpacing: -1,
-    },
-    heroDate: {
-      fontSize: 12,
-      fontWeight: "600",
-      color: colors.mutedForeground,
-      letterSpacing: 0.2,
-    },
-    heroDesc: {
-      fontSize: 14,
-      color: colors.mutedForeground,
-      textAlign: "center",
-      lineHeight: 22,
-      maxWidth: 320,
-    },
-    noticePill: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-      backgroundColor: colors.primaryMuted,
-      borderRadius: radii.pill,
-      paddingVertical: 8,
-      paddingHorizontal: 14,
-      borderWidth: 1,
-      borderColor: colors.border,
-      marginTop: 4,
-    },
-    noticeText: {
-      fontSize: 12,
-      fontWeight: "600",
-      color: colors.primary,
-      flexShrink: 1,
-    },
-
-    // Section card
-    section: {
-      marginHorizontal: 16,
-      marginBottom: 12,
-      backgroundColor: colors.card,
-      borderRadius: radii.lg,
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: 18,
-      gap: 10,
-      ...shadows.sm,
-    },
-    sectionHeadRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 10,
-      marginBottom: 2,
-    },
-    numberBadge: {
-      width: 24,
-      height: 24,
-      borderRadius: 8,
-      backgroundColor: colors.primary,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    numberText: {
-      fontSize: 11,
-      fontWeight: "900",
-      color: colors.white,
-    },
-    sectionIconWell: {
-      width: 32,
-      height: 32,
-      borderRadius: 10,
-      backgroundColor: colors.primaryMuted,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    sectionTitle: {
-      fontSize: 16,
-      fontWeight: "800",
-      color: colors.foreground,
-      letterSpacing: -0.3,
-      flex: 1,
-    },
-    bodyText: {
-      fontSize: 14,
-      color: colors.mutedForeground,
-      lineHeight: 22,
-    },
-    bulletRow: {
-      flexDirection: "row",
-      alignItems: "flex-start",
-      gap: 10,
-    },
-    bulletDot: {
-      width: 6,
-      height: 6,
-      borderRadius: 3,
-      backgroundColor: colors.primary,
-      marginTop: 8,
-      flexShrink: 0,
-    },
-    bulletText: {
-      flex: 1,
-      fontSize: 13,
-      color: colors.mutedForeground,
-      lineHeight: 21,
-    },
-    footerText: {
-      fontSize: 13,
-      color: colors.mutedForeground,
-      lineHeight: 21,
-      fontStyle: "italic",
-      borderTopWidth: 1,
-      borderTopColor: colors.border,
-      paddingTop: 10,
-      marginTop: 2,
-    },
-
-    // Contact card
-    contactCard: {
-      marginHorizontal: 16,
-      marginTop: 8,
-      borderRadius: radii.xl,
-      backgroundColor: colors.primary,
-      padding: 24,
-      alignItems: "center",
-      gap: 8,
-      ...shadows.md,
-      shadowColor: colors.primary,
-    },
-    contactTitle: {
-      fontSize: 18,
-      fontWeight: "900",
-      color: colors.white,
-      letterSpacing: -0.3,
-    },
-    contactLine: {
-      fontSize: 13,
-      color: "rgba(255,255,255,0.85)",
-      textAlign: "center",
-      lineHeight: 20,
-    },
+    content: { padding: t.spacing.screen, gap: t.spacing.md, paddingBottom: t.spacing.xxl },
+    top: { marginTop: t.spacing.sm },
+    bullet: { flexDirection: "row", gap: t.spacing.sm, marginTop: t.spacing.xs },
+    flex: { flex: 1 },
   });

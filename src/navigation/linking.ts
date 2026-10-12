@@ -19,15 +19,10 @@ export const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com
 //
 // Actual navigator hierarchy:
 //   Root (RootStack)
-//     └── AppStack (AppStackNavigator)
-//          └── MainTabs → AppDrawerNavigator
-//               └── Workspace (DrawerScreen)
-//                    └── InnerStack (InnerStackNavigator)
-//                         ├── MainTabs (BottomTabNavigator)
-//                         │    └── Home, Booking, MyPayments (Payments), Profile
-//                         ├── QuotationList
-//                         ├── Quotation
-//                         └── ... other screens
+//     ├── AuthStack: Login, Signup
+//     └── AppStack (native stack)
+//          ├── MainTabs (bottom tabs): Home, Bookings, Payments, Agreements, Profile
+//          └── QuotationList, Quotation, Spaces, Gallery, BookTour, Notifications, ... (pushed screens)
 //
 // Test with adb:
 //   adb shell am start -W -a android.intent.action.VIEW -d "myapp://quotation/QUO-1001" com.worknestmobile
@@ -75,42 +70,30 @@ export const linking: LinkingOptions<RootStackParamList> = {
           Signup: "signup",
         },
       },
-      // Main app stack
       AppStack: {
         screens: {
-          // AppStack only has "MainTabs" which renders AppDrawerNavigator
           MainTabs: {
             screens: {
-              // Drawer has one screen: "Workspace" which renders InnerStack
-              Workspace: {
-                screens: {
-                  // InnerStack screens
-                  MainTabs: {
-                    screens: {
-                      Home: "home",
-                      Booking: "booking",
-                      MyPayments: {
-                        path: "payments",
-                        alias: ["invoice", "invoices", "invoice/:invoiceId", "my-payments"],
-                      },
-                      Profile: "profile",
-                    },
-                  },
-                  QuotationList: "quotation",
-                  Quotation: "quotation/:quotationId",
-                  MyBookings: { path: "bookings", alias: ["my-bookings"] },
-                  AgreementList: { path: "agreements", alias: ["my-agreements"] },
-                  Gallery: "gallery",
-                  BookTour: "book-a-tour",
-                  ContactUs: "contact",
-                  AboutUs: "about",
-                  PrivacyPolicy: "privacy",
-                  UserManual: "manual",
-                  Notifications: "notifications",
-                },
+              Home: "home",
+              Bookings: { path: "bookings", alias: ["my-bookings"] },
+              Payments: {
+                path: "payments",
+                alias: ["invoice", "invoices", "invoice/:invoiceId", "my-payments"],
               },
+              Agreements: { path: "agreements", alias: ["my-agreements"] },
+              Profile: "profile",
             },
           },
+          Spaces: { path: "spaces", alias: ["booking"] },
+          QuotationList: "quotation",
+          Quotation: "quotation/:quotationId",
+          Gallery: "gallery",
+          BookTour: "book-a-tour",
+          ContactUs: "contact",
+          AboutUs: "about",
+          PrivacyPolicy: "privacy",
+          UserManual: "manual",
+          Notifications: "notifications",
         },
       },
     },

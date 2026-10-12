@@ -1,358 +1,172 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from "react";
+import { StyleSheet, View } from "react-native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import {
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Header } from '../../../components/Header';
-import { Screen } from '../../../components/Screen';
-import { radii, useThemedStyles, useThemeColors } from '../../../theme';
-import { errorMessage } from '../../../services/apiClient';
-import {
-  getMyPayments,
-  isPaid,
-  summarizePayments,
-  type MyPayment,
-} from '../../../services/paymentService';
-import { useAuth } from '../../../context/AuthContext';
-import type { AppStackParamList } from '../../../navigation/types';
-import Ionicons from 'react-native-vector-icons/Ionicons';
+  AppHeader,
+  AppText,
+  AsyncList,
+  Button,
+  Card,
+  InfoRow,
+  Screen,
+  StatCard,
+  StatusPill,
+} from "../../../components/ui";
+import { useThemedStyles, type AppColors, type Theme } from "../../../theme";
+import { formatDate, formatMoney } from "../../../utils/format";
+import { useAuth } from "../../../context/AuthContext";
+import { useNotificationsAction } from "../../../hooks/useHeaderActions";
+import { errorMessage } from "../../../services/apiClient";
+import { getMyPayments, isPaid, summarizePayments, type MyPayment } from "../../../services/paymentService";
+import { ChallanPayHelp } from "./shared/ChallanPayHelp";
+import { GuestState } from "./shared/GuestState";
+import type { AppStackParamList } from "../../../navigation/types";
 
-// My Payments, like worknestpk.com: GET /payment/my plus the bank challan of each booking. Payment is by
-// challan only (1Bill / HBL); every status shown comes from the API, the app never marks anything paid.
-// (The API has no customer "my invoices" list yet.)
+type Nav = NativeStackNavigationProp<AppStackParamList>;
 
+/**
+ * Payments (tab), like the website's My Payments: GET /payment/my plus the bank challan of each booking.
+ * Payment is by challan only (1Bill / HBL); every status shown comes from the API, the app never marks anything
+ * paid. (The API has no customer "my invoices" list yet.)
+ */
 export default function MyPaymentsScreen() {
+  const navigation = useNavigation<Nav>();
   const styles = useThemedStyles(createStyles);
-  const colors = useThemeColors();
-  const navigation =
-    useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const { user } = useAuth();
+  const bell = useNotificationsAction();
+
   const [payments, setPayments] = useState<MyPayment[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
-  const fetchPayments = useCallback(async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true);
-    else setLoading(true);
-    setError('');
-    try {
-      setPayments(await getMyPayments());
-    } catch (err) {
-      setError(errorMessage(err, 'Your payments could not be loaded. Please try again.'));
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
+  const load = useCallback(
+    async (isRefresh = false) => {
+      if (!user) {
+        setPayments([]);
+        setLoading(false);
+        return;
+      }
+      if (isRefresh) setRefreshing(true);
+      setError("");
+      try {
+        setPayments(await getMyPayments());
+      } catch (err) {
+        setError(errorMessage(err, "Your payments could not be loaded. Please try again."));
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [user],
+  );
 
-  useEffect(() => {
-    if (user) fetchPayments();
-    else {
-      setPayments([]);
-      setLoading(false);
-    }
-  }, [user, fetchPayments]);
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load]),
+  );
 
-  // Hooks run before the guest wall: the tab stays mounted across sign in / out (hooks must not change count).
   const totals = useMemo(() => summarizePayments(payments), [payments]);
 
   if (!user) {
     return (
-      <Screen>
-        <Header />
-        <View style={styles.guestWall}>
-          <Ionicons
-            name="receipt-outline"
-            size={72}
-            color={colors.primary}
-            style={{ opacity: 0.5 }}
-          />
-          <Text style={styles.guestTitle}>Sign in to view payments</Text>
-          <Text style={styles.guestSub}>
-            Your challans and payments will appear here once you're signed in.
-          </Text>
-          <Pressable
-            style={styles.guestBtn}
-            onPress={() => navigation.navigate('Login')}
-          >
-            <Ionicons name="log-in-outline" size={18} color="#fff" />
-            <Text style={styles.guestBtnText}>Sign In</Text>
-          </Pressable>
-        </View>
+      <Screen edges={["top", "left", "right"]}>
+        <AppHeader variant="brand" title="Payments" />
+        <GuestState
+          icon="receipt-outline"
+          title="Sign in to see your payments"
+          message="Your challans and their payment status appear here once you sign in."
+        />
       </Screen>
     );
   }
 
   return (
-    <Screen>
-      <Header />
-      <ScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => fetchPayments(true)}
-          />
-        }
-      >
-        <Text style={styles.title}>My Payments</Text>
-
-        <View style={styles.summaryRow}>
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>Paid</Text>
-            <Text style={styles.summaryValue}>PKR {formatMoney(totals.paid)}</Text>
-          </View>
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>Pending</Text>
-            <Text style={styles.summaryValue}>PKR {formatMoney(totals.pending)}</Text>
-          </View>
-        </View>
-
-        <Text style={styles.helper}>
-          Pay pending challans at any HBL branch, ATM or in your mobile banking app under 1Bill / Bill Payment.
-          The status updates once the payment reaches us.
-        </Text>
-
-        {loading && !payments.length ? (
-          <Text style={styles.helper}>Loading payments...</Text>
-        ) : null}
-        {!loading && error ? (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Payments not loaded</Text>
-            <Text style={styles.meta}>{error}</Text>
-            <Pressable style={styles.challanBtn} onPress={() => fetchPayments()}>
-              <Ionicons name="refresh-outline" size={14} color={colors.primary} />
-              <Text style={styles.challanBtnText}>Try again</Text>
-            </Pressable>
-          </View>
-        ) : null}
-        {!loading && !error && payments.length === 0 ? (
-          <Text style={styles.helper}>No payments yet.</Text>
-        ) : null}
-
-        {payments.map(payment => {
-          const paid = isPaid(payment);
-          return (
-            <View key={payment.id} style={styles.card}>
-              <View style={styles.cardHeader}>
-                <View style={styles.cardBody}>
-                  <Text style={styles.voucherCode}>
-                    {payment.challanNumber ? `Challan ${payment.challanNumber}` : `Payment #${payment.id}`}
-                  </Text>
-                  {payment.spaceName ? (
-                    <Text style={styles.meta}>Space: {payment.spaceName}</Text>
-                  ) : null}
-                  <Text style={styles.meta}>
-                    Amount: {payment.amount !== null ? `PKR ${formatMoney(payment.amount)}` : 'Not available'}
-                  </Text>
-                  {payment.methodLabel ? (
-                    <Text style={styles.meta}>Method: {payment.methodLabel}</Text>
-                  ) : null}
-                  <Text style={styles.meta}>Created: {formatDate(payment.createdOn)}</Text>
-                  {paid ? (
-                    <Text style={styles.meta}>Paid on: {formatDate(payment.paidOn)}</Text>
-                  ) : payment.challanValidUntil ? (
-                    <Text style={styles.meta}>Pay before: {formatDate(payment.challanValidUntil)}</Text>
-                  ) : null}
-                </View>
-
-                <View style={styles.cardRight}>
-                  <View
-                    style={[
-                      styles.statusBadge,
-                      paid ? styles.statusPaid : styles.statusPending,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.statusText,
-                        paid ? styles.statusPaidText : styles.statusPendingText,
-                      ]}
-                    >
-                      {payment.status}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
-              {payment.bookingId ? (
-                <Pressable
-                  style={styles.challanBtn}
-                  onPress={() =>
-                    navigation.navigate('Challan', {
-                      bookingId: payment.bookingId!,
-                      challanNumber: payment.challanNumber ?? undefined,
-                    })
-                  }
-                >
-                  <Ionicons
-                    name="document-text-outline"
-                    size={14}
-                    color={colors.primary}
-                  />
-                  <Text style={styles.challanBtnText}>View challan</Text>
-                </Pressable>
-              ) : null}
+    <Screen edges={["top", "left", "right"]}>
+      <AppHeader variant="brand" title="Payments" actions={bell} />
+      <AsyncList
+        data={payments}
+        keyExtractor={(p) => String(p.id || p.publicId)}
+        loading={loading}
+        refreshing={refreshing}
+        onRefresh={() => load(true)}
+        error={error}
+        ListHeaderComponent={
+          <View style={styles.header}>
+            <View style={styles.stats}>
+              <StatCard label="Paid" value={formatMoney(totals.paid, { compact: true })} tone="success" icon="checkmark-circle-outline" />
+              <StatCard label="Pending" value={formatMoney(totals.pending, { compact: true })} tone="warning" icon="time-outline" />
             </View>
+            <ChallanPayHelp compact />
+          </View>
+        }
+        empty={{
+          icon: "receipt-outline",
+          title: "No payments yet",
+          message: "When you book, the challan to pay appears here.",
+          actionLabel: "Book a space",
+          onAction: () => navigation.navigate("Spaces"),
+        }}
+        renderItem={({ item }) => {
+          const paid = isPaid(item);
+          return (
+            <Card
+              onPress={
+                item.bookingId
+                  ? () => navigation.navigate("Challan", { bookingId: item.bookingId!, challanNumber: item.challanNumber ?? undefined })
+                  : undefined
+              }
+              accessibilityLabel={`${item.challanNumber ? `Challan ${item.challanNumber}` : `Payment ${item.id}`}, ${item.status}`}
+            >
+              <View style={styles.titleRow}>
+                <AppText variant="subheading" numberOfLines={1} style={styles.flex}>
+                  {item.challanNumber ? `Challan ${item.challanNumber}` : `Payment #${item.id}`}
+                </AppText>
+                <StatusPill status={item.status} />
+              </View>
+              {item.spaceName ? (
+                <AppText variant="caption" color="textMuted">
+                  {item.spaceName}
+                </AppText>
+              ) : null}
+              <View style={styles.rows}>
+                <InfoRow label="Amount" value={item.amount !== null ? formatMoney(item.amount) : "Not available"} emphasize />
+                {item.methodLabel ? <InfoRow label="Method" value={item.methodLabel} /> : null}
+                {paid ? (
+                  <InfoRow label="Paid on" value={formatDate(item.paidOn)} />
+                ) : item.challanValidUntil ? (
+                  <InfoRow label="Pay before" value={formatDate(item.challanValidUntil)} />
+                ) : null}
+                <InfoRow label="Created" value={formatDate(item.createdOn)} />
+              </View>
+              {item.bookingId ? (
+                <Button
+                  title="View challan"
+                  size="sm"
+                  variant="secondary"
+                  leftIcon="document-text-outline"
+                  style={styles.action}
+                  onPress={() =>
+                    navigation.navigate("Challan", { bookingId: item.bookingId!, challanNumber: item.challanNumber ?? undefined })
+                  }
+                />
+              ) : null}
+            </Card>
           );
-        })}
-      </ScrollView>
+        }}
+      />
     </Screen>
   );
 }
 
-function formatDate(value?: string | null) {
-  if (!value) return 'Not set';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' });
-}
-
-function formatMoney(value: number) {
-  return Number.isFinite(value) ? value.toLocaleString('en-PK', { maximumFractionDigits: 2 }) : '0';
-}
-
-const createStyles = (colors: ReturnType<typeof useThemeColors>) =>
+const createStyles = (_c: AppColors, t: Theme) =>
   StyleSheet.create({
-    content: {
-      paddingHorizontal: 18,
-      paddingTop: 8,
-      paddingBottom: 36,
-      gap: 14,
-    },
-    title: {
-      fontSize: 28,
-      fontWeight: '800',
-      color: colors.foreground,
-      marginBottom: 12,
-    },
-    summaryRow: { flexDirection: 'row', gap: 10, marginBottom: 14 },
-    summaryCard: {
-      flex: 1,
-      backgroundColor: colors.muted,
-      borderRadius: radii.md,
-      padding: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    summaryLabel: {
-      color: colors.mutedForeground,
-      fontSize: 12,
-      fontWeight: '700',
-    },
-    summaryValue: {
-      color: colors.foreground,
-      fontSize: 20,
-      fontWeight: '800',
-      marginTop: 4,
-    },
-    helper: { color: colors.mutedForeground, marginBottom: 12 },
-    card: {
-      backgroundColor: colors.card,
-      borderRadius: radii.md,
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: 14,
-      gap: 5,
-      marginBottom: 12,
-    },
-    cardTitle: {
-      color: colors.foreground,
-      fontSize: 15,
-      fontWeight: '700',
-      marginBottom: 4,
-    },
-    cardHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      gap: 10,
-    },
-    cardBody: { flex: 1, gap: 3 },
-    cardRight: { alignItems: 'flex-end', gap: 6, flexShrink: 0 },
-    statusBadge: { borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3 },
-    statusPending: {
-      backgroundColor: 'rgba(245,158,11,0.12)',
-      borderWidth: 1,
-      borderColor: '#f59e0b',
-    },
-    statusPaid: {
-      backgroundColor: 'rgba(16,185,129,0.12)',
-      borderWidth: 1,
-      borderColor: '#10b981',
-    },
-    statusText: { fontSize: 11, fontWeight: '700' },
-    statusPendingText: { color: '#d97706' },
-    statusPaidText: { color: '#059669' },
-    voucherCode: { color: colors.primary, fontSize: 13, fontWeight: '800' },
-    meta: { color: colors.mutedForeground, fontSize: 13 },
-    pendingBadge: {
-      borderRadius: 8,
-      backgroundColor: '#fef3c7',
-      borderWidth: 1,
-      borderColor: '#f59e0b',
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      alignSelf: 'flex-start',
-    },
-    pendingBadgeText: { color: '#92400e', fontSize: 12, fontWeight: '700' },
-    challanBtn: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-      marginTop: 6,
-      alignSelf: 'flex-start',
-      paddingHorizontal: 12,
-      paddingVertical: 7,
-      borderRadius: 999,
-      backgroundColor: colors.primaryMuted,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    challanBtnText: { color: colors.primary, fontSize: 12, fontWeight: '700' },
-    sectionTitle: {
-      color: colors.foreground,
-      fontSize: 18,
-      fontWeight: '800',
-      marginTop: 8,
-      marginBottom: 8,
-    },
-    guestWall: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingHorizontal: 32,
-      gap: 12,
-    },
-    guestTitle: {
-      color: colors.foreground,
-      fontSize: 20,
-      fontWeight: '800',
-      textAlign: 'center',
-      letterSpacing: -0.3,
-    },
-    guestSub: {
-      color: colors.mutedForeground,
-      fontSize: 14,
-      textAlign: 'center',
-      lineHeight: 21,
-    },
-    guestBtn: {
-      marginTop: 8,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      backgroundColor: colors.primary,
-      borderRadius: radii.md,
-      paddingVertical: 13,
-      paddingHorizontal: 28,
-    },
-    guestBtnText: { color: colors.white, fontWeight: '700', fontSize: 15 },
+    header: { gap: t.spacing.md, marginBottom: t.spacing.md },
+    stats: { flexDirection: "row", gap: t.spacing.md },
+    titleRow: { flexDirection: "row", alignItems: "center", gap: t.spacing.sm },
+    flex: { flex: 1 },
+    rows: { marginTop: t.spacing.sm },
+    action: { alignSelf: "flex-start", marginTop: t.spacing.sm },
   });

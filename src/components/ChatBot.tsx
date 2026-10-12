@@ -12,7 +12,8 @@ import {
   View,
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
-import { radii, shadows, useThemeColors } from "../theme";
+import { useTheme, useThemeColors, useThemedStyles, type AppColors, type Theme } from "../theme";
+import { IconButton } from "./ui";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Message = { id: string; text: string; from: "user" | "bot" };
@@ -116,8 +117,11 @@ function getBotReply(input: string): string {
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
+/** Floating "WorkNest assistant" button and chat sheet (offline answers about booking, payments and spaces). */
 export function ChatBot({ visible = true }: { visible?: boolean }) {
   const colors = useThemeColors();
+  const { shadows } = useTheme();
+  const s = useThemedStyles(makeStyles);
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -130,17 +134,6 @@ export function ChatBot({ visible = true }: { visible?: boolean }) {
   const [typing, setTyping] = useState(false);
   const listRef = useRef<FlatList>(null);
 
-  // FAB pulse animation
-  const pulse = useRef(new Animated.Value(1)).current;
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1.15, duration: 900, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 1, duration: 900, useNativeDriver: true }),
-      ])
-    ).start();
-  }, [pulse]);
-
   function send(text: string) {
     const trimmed = text.trim();
     if (!trimmed) return;
@@ -150,15 +143,10 @@ export function ChatBot({ visible = true }: { visible?: boolean }) {
     setTyping(true);
     setTimeout(() => {
       const reply = getBotReply(trimmed);
-      setMessages((prev) => [
-        ...prev,
-        { id: (Date.now() + 1).toString(), from: "bot", text: reply },
-      ]);
+      setMessages((prev) => [...prev, { id: (Date.now() + 1).toString(), from: "bot", text: reply }]);
       setTyping(false);
     }, 650);
   }
-
-  const s = makeStyles(colors);
 
   const fabVisibility = useRef(new Animated.Value(visible ? 1 : 0)).current;
   useEffect(() => {
@@ -167,46 +155,39 @@ export function ChatBot({ visible = true }: { visible?: boolean }) {
 
   return (
     <>
-      {/* ── FAB ── */}
-      
-      <Animated.View pointerEvents={visible ? "auto" : "none"} style={{ opacity: fabVisibility, transform: [{ scale: fabVisibility }] }}>
-      <Animated.View style={[s.fabRing, { opacity: fabVisibility, transform: [{ scale: Animated.multiply(pulse, fabVisibility) }] }]} pointerEvents="none" />
-      <Pressable accessibilityRole="button" accessibilityLabel="Open WorkNest assistant" style={s.fab} onPress={() => setOpen(true)}>
-        <Ionicons name="chatbubble-ellipses" size={24} color="#fff" />
-      </Pressable>
+      <Animated.View
+        pointerEvents={visible ? "box-none" : "none"}
+        style={[s.fabWrap, { opacity: fabVisibility, transform: [{ scale: fabVisibility }] }]}
+      >
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Open WorkNest assistant"
+          style={[s.fab, shadows.md]}
+          android_ripple={{ color: colors.rippleOnPrimary, borderless: true }}
+          onPress={() => setOpen(true)}
+        >
+          <Ionicons name="chatbubble-ellipses" size={24} color={colors.onPrimary} />
+        </Pressable>
       </Animated.View>
 
-      {/* ── Chat modal ── */}
-      <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)} statusBarTranslucent >
-      
-        <KeyboardAvoidingView
-          style={s.overlay}
-          behavior={Platform.OS === "ios" ? "padding" : 'height'}
-        >
-
-          <Pressable style={s.backdrop} onPress={() => setOpen(false)} />
+      <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)} statusBarTranslucent>
+        <KeyboardAvoidingView style={s.overlay} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+          <Pressable style={s.backdrop} onPress={() => setOpen(false)} accessibilityLabel="Close assistant" />
 
           <View style={s.sheet}>
-            {/* Header */}
             <View style={s.header}>
               <View style={s.headerLeft}>
                 <View style={s.avatarWell}>
-                  <Ionicons name="chatbubble-ellipses" size={18} color="#fff" />
+                  <Ionicons name="chatbubble-ellipses" size={18} color={colors.onPrimary} />
                 </View>
                 <View>
                   <Text style={s.headerTitle}>WorkNest Assistant</Text>
-                  <View style={s.onlineRow}>
-                    <View style={s.onlineDot} />
-                    <Text style={s.onlineText}>Online</Text>
-                  </View>
+                  <Text style={s.headerSub}>Quick answers about booking and payments</Text>
                 </View>
               </View>
-              <Pressable onPress={() => setOpen(false)} hitSlop={10}>
-                <Ionicons name="close" size={22} color={colors.mutedForeground} />
-              </Pressable>
+              <IconButton icon="close" accessibilityLabel="Close assistant" onPress={() => setOpen(false)} />
             </View>
 
-            {/* Messages */}
             <FlatList
               ref={listRef}
               data={messages}
@@ -223,43 +204,42 @@ export function ChatBot({ visible = true }: { visible?: boolean }) {
               )}
               ListFooterComponent={
                 typing ? (
-                  <View style={[s.bubble, s.bubbleBot, s.typingBubble]}>
-                    <Text style={s.typingDots}>● ● ●</Text>
+                  <View style={[s.bubble, s.bubbleBot]}>
+                    <Text style={s.typing}>Typing...</Text>
                   </View>
                 ) : null
               }
             />
 
-            {/* Quick questions */}
             {messages.length <= 2 && (
               <View style={s.quickRow}>
                 {QUICK_QUESTIONS.map((q) => (
-                  <Pressable key={q} style={s.quickChip} onPress={() => send(q)}>
+                  <Pressable key={q} style={s.quickChip} onPress={() => send(q)} accessibilityRole="button">
                     <Text style={s.quickChipText}>{q}</Text>
                   </Pressable>
                 ))}
               </View>
             )}
 
-            {/* Input */}
             <View style={s.inputRow}>
               <TextInput
                 style={s.input}
                 value={input}
                 onChangeText={setInput}
-                placeholder="Ask something…"
-                placeholderTextColor={colors.mutedForeground}
+                placeholder="Ask something"
+                placeholderTextColor={colors.placeholder}
                 maxLength={200}
                 returnKeyType="send"
                 onSubmitEditing={() => send(input)}
+                accessibilityLabel="Your question"
               />
-              <Pressable
-                style={[s.sendBtn, !input.trim() && s.sendBtnDisabled]}
+              <IconButton
+                icon="send"
+                variant="primary"
+                accessibilityLabel="Send"
                 onPress={() => send(input)}
                 disabled={!input.trim()}
-              >
-                <Ionicons name="send" size={16} color="#fff" />
-              </Pressable>
+              />
             </View>
           </View>
         </KeyboardAvoidingView>
@@ -269,143 +249,96 @@ export function ChatBot({ visible = true }: { visible?: boolean }) {
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
-const makeStyles = (colors: ReturnType<typeof useThemeColors>) =>
+const makeStyles = (c: AppColors, t: Theme) =>
   StyleSheet.create({
-    // FAB
+    fabWrap: { position: "absolute", bottom: 20, right: 16, zIndex: 99 },
     fab: {
-      position: "absolute",
-      bottom: 24,
-      right: 20,
-      width: 48,
-      height: 48,
-      borderRadius: 999,
-      backgroundColor: colors.primary,
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      backgroundColor: c.primaryStrong,
       alignItems: "center",
       justifyContent: "center",
-      zIndex: 99,
-      ...shadows.lg,
-      shadowColor: colors.primary,
     },
-    fabRing: {
-      position: "absolute",
-      bottom: 24,
-      right: 20,
-      width: 48,
-      height: 48,
-      borderRadius: 999,
-      backgroundColor: colors.primary,
-      opacity: 0.25,
-      zIndex: 98,
-    },
-
-    // Modal
     overlay: { flex: 1, justifyContent: "flex-end" },
-    backdrop: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(0,0,0,0.4)" },
+    backdrop: { ...StyleSheet.absoluteFill, backgroundColor: c.overlay },
     sheet: {
-      backgroundColor: colors.background,
-      borderTopLeftRadius: 28,
-      borderTopRightRadius: 28,
-      flex: 1/1.08,
+      backgroundColor: c.surfaceRaised,
+      borderTopLeftRadius: t.radii.sheet,
+      borderTopRightRadius: t.radii.sheet,
+      height: "85%",
       overflow: "hidden",
-      ...shadows.lg,
     },
-
-    // Header
     header: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      paddingHorizontal: 18,
-      paddingVertical: 14,
+      paddingLeft: t.spacing.lg,
+      paddingRight: t.spacing.sm,
+      paddingVertical: t.spacing.sm,
       borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border,
+      borderBottomColor: c.border,
     },
-    headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
+    headerLeft: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
     avatarWell: {
       width: 38,
       height: 38,
       borderRadius: 12,
-      backgroundColor: colors.primary,
+      backgroundColor: c.primaryStrong,
       alignItems: "center",
       justifyContent: "center",
     },
-    headerTitle: { fontSize: 15, fontWeight: "800", color: colors.foreground },
-    onlineRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 },
-    onlineDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#10b981" },
-    onlineText: { fontSize: 11, color: "#10b981", fontWeight: "600" },
-
-    // Messages
-    messageList: { padding: 16, gap: 10 },
-    bubble: {
-      maxWidth: "80%",
-      borderRadius: 18,
-      paddingHorizontal: 14,
-      paddingVertical: 10,
-    },
-    bubbleUser: {
-      alignSelf: "flex-end",
-      backgroundColor: colors.primary,
-      borderBottomRightRadius: 4,
-    },
+    headerTitle: { ...t.typography.subheading, color: c.text },
+    headerSub: { ...t.typography.caption, color: c.textMuted },
+    messageList: { padding: t.spacing.lg, gap: 10 },
+    bubble: { maxWidth: "80%", borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10 },
+    bubbleUser: { alignSelf: "flex-end", backgroundColor: c.primaryStrong, borderBottomRightRadius: 4 },
     bubbleBot: {
       alignSelf: "flex-start",
-      backgroundColor: colors.card,
+      backgroundColor: c.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: c.border,
       borderBottomLeftRadius: 4,
     },
-    bubbleText: { fontSize: 14, lineHeight: 20 },
-    bubbleTextUser: { color: "#fff" },
-    bubbleTextBot: { color: colors.foreground },
-    typingBubble: { paddingVertical: 12 },
-    typingDots: { color: colors.mutedForeground, fontSize: 12, letterSpacing: 3 },
-
-    // Quick questions
+    bubbleText: { ...t.typography.bodySmall },
+    bubbleTextUser: { color: c.onPrimary },
+    bubbleTextBot: { color: c.text },
+    typing: { ...t.typography.caption, color: c.textMuted },
     quickRow: {
       flexDirection: "row",
       flexWrap: "wrap",
       gap: 8,
-      paddingHorizontal: 16,
+      paddingHorizontal: t.spacing.lg,
       paddingBottom: 10,
     },
     quickChip: {
-      backgroundColor: colors.primaryMuted,
-      borderRadius: radii.pill,
+      backgroundColor: c.primarySoft,
+      borderRadius: t.radii.pill,
       paddingHorizontal: 12,
-      paddingVertical: 7,
+      minHeight: 36,
+      justifyContent: "center",
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: c.border,
     },
-    quickChipText: { fontSize: 12, fontWeight: "600", color: colors.primary },
-
-    // Input
+    quickChipText: { ...t.typography.captionStrong, color: c.onPrimarySoft },
     inputRow: {
       flexDirection: "row",
       alignItems: "center",
       gap: 10,
-      paddingHorizontal: 16,
+      paddingHorizontal: t.spacing.lg,
       paddingVertical: 12,
       borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: colors.border,
+      borderTopColor: c.border,
     },
     input: {
       flex: 1,
-      backgroundColor: colors.card,
-      borderRadius: 14,
+      backgroundColor: c.surface,
+      borderRadius: t.radii.control,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: c.inputBorder,
       paddingHorizontal: 14,
-      paddingVertical: 10,
-      fontSize: 14,
-      color: colors.foreground,
+      minHeight: 44,
+      ...t.typography.bodySmall,
+      color: c.text,
     },
-    sendBtn: {
-      width: 40,
-      height: 40,
-      borderRadius: 12,
-      backgroundColor: colors.primary,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    sendBtnDisabled: { opacity: 0.4 },
   });

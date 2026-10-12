@@ -1,7 +1,6 @@
 import { API_ENDPOINTS } from "../config/api";
 import { apiRequest } from "./apiClient";
 import { resolveMediaUrl } from "../utils/mediaUrl";
-import { createSpaceBooking, type CreatedBooking } from "./bookingService";
 
 export type ApiLocation = {
   id: number;
@@ -84,9 +83,8 @@ function mapWorkspace(item: ApiWorkspace, availableCount: number, totalCount: nu
     amenities: item.amenities
       ? item.amenities.split(",").map((part) => part.trim()).filter(Boolean)
       : [],
-    image:
-      resolvedImageUrl ||
-      "https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=800&h=600&fit=crop",
+    // No stock photo when the space has none: the image component shows a neutral placeholder.
+    image: resolvedImageUrl || "",
     available: isAvailable(item),
   };
 }
@@ -146,21 +144,6 @@ function buildWorkspaceList(items: ApiWorkspace[]): Workspace[] {
 export async function getWorkspaces(): Promise<Workspace[]> {
   const payload = await apiRequest<unknown>(API_ENDPOINTS.workspaces.list, { requiresAuth: true });
   return buildWorkspaceList(extractSpaces(payload));
-}
-
-/**
- * POST /booking — books one specific space for the signed-in customer. The API prices the booking and issues
- * the bank challan; the result carries the booking id and challan (show the challan next).
- * Kept for the Booking tab's quick-book form; see bookingService.createSpaceBooking.
- */
-export async function createBooking(
-  workspaceId: number,
-  startDateTime: string,
-  endDateTime: string,
-  details?: string | { notes?: string }
-): Promise<CreatedBooking> {
-  const notes = typeof details === "string" ? details : details?.notes;
-  return createSpaceBooking({ spaceId: workspaceId, startDateTime, endDateTime, notes });
 }
 
 /** GET /location/all — active locations. Throws a readable ApiError on failure. */
