@@ -470,7 +470,8 @@ export async function endExpiredSession(): Promise<void> {
 
 /**
  * Renews the API token from the Firebase sign-in after a 401. Null when nobody is signed in to Firebase or
- * the API refuses (account turned off): the session then ends.
+ * the API refuses (account turned off): the session then ends. Throws when the API could not be reached,
+ * so a network problem never signs anyone out.
  */
 async function refreshApiSession(): Promise<string | null> {
   let current: FirebaseAuthTypes.User | null = null;
@@ -487,6 +488,9 @@ async function refreshApiSession(): Promise<string | null> {
     return session.token;
   } catch (error) {
     warnDev("[Auth] session refresh failed", error);
+    const status = error instanceof ApiError ? error.status : 0;
+    // 0 = offline / timeout, 429 = rate limited, 5xx = server trouble: not a verdict on the session.
+    if (status === 0 || status === 429 || status >= 500) throw error;
     return null;
   }
 }

@@ -104,9 +104,16 @@ export default function BookingConfirmScreen() {
         if (!(err instanceof CustomerProfileRequiredError)) throw err;
         created = await createSmartBooking({ ...input, profile: profileFromGuest(booking.guest) });
       }
-      navigation.replace("Challan", {
-        bookingId: created.bookingId!,
-        challanNumber: created.challanNumber ?? undefined,
+      // The booking exists now: leave the booking flow (no way back to confirm it twice) and show the challan.
+      navigation.reset({
+        index: 1,
+        routes: [
+          { name: "MainTabs" },
+          {
+            name: "Challan",
+            params: { bookingId: created.bookingId!, challanNumber: created.challanNumber ?? undefined },
+          },
+        ],
       });
     } catch (err) {
       setError(errorMessage(err, "Your booking could not be created. Please try again."));

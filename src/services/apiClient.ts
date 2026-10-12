@@ -92,7 +92,10 @@ function reportIfSessionExpired(status: number, path: string, sentToken: boolean
 // background for a day). Before ending the session on a 401, authService gets one chance to exchange the
 // Firebase sign-in for a new API token; the refused request is then sent once more with it.
 
-/** Returns a new API token, or null when the session can't be renewed (signed out, account turned off). */
+/**
+ * Returns a new API token, or null when the session can't be renewed (signed out, account turned off).
+ * Throws when it could not even try (e.g. no network): the session is then kept and only the request fails.
+ */
 type SessionRefresher = () => Promise<string | null>;
 let sessionRefresher: SessionRefresher | null = null;
 let refreshInFlight: Promise<string | null> | null = null;
@@ -102,15 +105,13 @@ export function setSessionRefresher(refresher: SessionRefresher | null): void {
   sessionRefresher = refresher;
 }
 
-/** One refresh at a time: parallel 401s share it. */
+/** One refresh at a time: parallel 401s share it (and its outcome). */
 function refreshSessionOnce(): Promise<string | null> {
   if (!sessionRefresher) return Promise.resolve(null);
   if (!refreshInFlight) {
-    refreshInFlight = sessionRefresher()
-      .catch(() => null)
-      .finally(() => {
-        refreshInFlight = null;
-      });
+    refreshInFlight = sessionRefresher().finally(() => {
+      refreshInFlight = null;
+    });
   }
   return refreshInFlight;
 }
@@ -128,7 +129,13 @@ async function sendWithSessionRefresh(
   let response = await send(headers);
   let sentHeaders = headers;
   if (response.status === 401 && headers.Authorization && !isAuthEndpoint(path)) {
-    const fresh = await refreshSessionOnce();
+    let fresh: string | null;
+    try {
+      fresh = await refreshSessionOnce();
+    } catch {
+      // Could not reach the sign-in service: keep the session, only this request fails.
+      return response;
+    }
     if (fresh && `Bearer ${fresh}` !== headers.Authorization) {
       sentHeaders = { ...headers, Authorization: `Bearer ${fresh}` };
       response = await send(sentHeaders);

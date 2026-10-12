@@ -224,6 +224,53 @@ describe("apiRequest", () => {
   });
 });
 
+describe("apiRequest session refresh", () => {
+  let expired: jest.Mock;
+  let unsubscribe: () => void;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    resetSessionExpiredState();
+    expired = jest.fn();
+    unsubscribe = onSessionExpired(expired);
+    (getToken as jest.Mock).mockResolvedValue("api-jwt");
+    (getUser as jest.Mock).mockResolvedValue({ email: "customer@example.com" });
+  });
+
+  afterEach(() => {
+    unsubscribe();
+    setSessionRefresher(null);
+  });
+
+  it("keeps the session when the token could not be renewed because the network failed", async () => {
+    setSessionRefresher(jest.fn().mockRejectedValue(new ApiError("offline", 0)));
+    const fetchMock = installFetch(jsonResponse(401, undefined));
+
+    await expect(apiRequest("/booking/my", { requiresAuth: true })).rejects.toMatchObject({ status: 401 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(expired).not.toHaveBeenCalled();
+  });
+
+  it("parallel 401s share one renewal", async () => {
+    const refresher = jest.fn().mockResolvedValue("fresh-jwt");
+    setSessionRefresher(refresher);
+    installFetch(
+      jsonResponse(401, undefined),
+      jsonResponse(401, undefined),
+      jsonResponse(200, { data: [] }),
+      jsonResponse(200, { data: [] }),
+    );
+
+    await Promise.all([
+      apiRequest("/booking/my", { requiresAuth: true }),
+      apiRequest("/payment/my", { requiresAuth: true }),
+    ]);
+
+    expect(refresher).toHaveBeenCalledTimes(1);
+    expect(expired).not.toHaveBeenCalled();
+  });
+});
+
 describe("isAuthEndpoint", () => {
   it("matches only the /auth endpoints", () => {
     expect(isAuthEndpoint("/auth/google-login")).toBe(true);
