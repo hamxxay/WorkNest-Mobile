@@ -13,10 +13,10 @@ import {
   InfoRow,
   Screen,
   SectionHeader,
-  useToast,
 } from "../../../components/ui";
 import { useThemedStyles, type AppColors, type Theme } from "../../../theme";
 import { errorMessage } from "../../../services/apiClient";
+import { haptics } from "../../../utils/haptics";
 import {
   categoryCodeForMode,
   createSmartBooking,
@@ -45,7 +45,6 @@ export default function BookingConfirmScreen() {
   const route = useRoute<RouteProp<AppStackParamList, "BookingConfirm">>();
   const { workspace, booking } = route.params;
   const styles = useThemedStyles(createStyles);
-  const toast = useToast();
 
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -74,16 +73,20 @@ export default function BookingConfirmScreen() {
         if (!(err instanceof CustomerProfileRequiredError)) throw err;
         created = await createSmartBooking({ ...input, profile: profileFromGuest(booking.guest) });
       }
-      toast.success("Booking created. Pay the challan to confirm it.", { title: "Booked" });
-      // The booking exists now: leave the booking flow (no way back to confirm it twice) and show the challan.
+      // The booking exists now: leave the booking flow (no way back to confirm it twice) and show the challan,
+      // which opens with the success check (justBooked) and the success haptic.
       navigation.reset({
         index: 1,
         routes: [
           { name: "MainTabs", params: { screen: "Bookings" } },
-          { name: "Challan", params: { bookingId: created.bookingId!, challanNumber: created.challanNumber ?? undefined } },
+          {
+            name: "Challan",
+            params: { bookingId: created.bookingId!, challanNumber: created.challanNumber ?? undefined, justBooked: true },
+          },
         ],
       });
     } catch (err) {
+      haptics.error();
       setError(errorMessage(err, "Your booking could not be created. Please try again."));
     } finally {
       submittingRef.current = false;
@@ -130,6 +133,7 @@ export default function BookingConfirmScreen() {
           title="Confirm booking and get challan"
           size="lg"
           fullWidth
+          haptic
           loading={submitting}
           disabled={!termsAccepted || submitting}
           onPress={confirm}

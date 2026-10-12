@@ -12,6 +12,7 @@ import {
   ConfirmDialog,
   FilterChips,
   StatusPill,
+  SuccessOverlay,
   TextField,
   useToast,
 } from "../../../../components/ui";
@@ -57,6 +58,8 @@ export default function CapacityRequestsScreen() {
   const [rejecting, setRejecting] = useState<CapacityRequest | null>(null);
   const [busy, setBusy] = useState(false);
   const [approveError, setApproveError] = useState<string | null>(null);
+  // Message of the request just approved: shown in the success overlay.
+  const [approved, setApproved] = useState<string | null>(null);
 
   const fetchPage = useCallback(async () => {
     const items = await listCapacityRequests({ status });
@@ -64,10 +67,13 @@ export default function CapacityRequestsScreen() {
   }, [status]);
   const list = usePagedList(fetchPage);
 
-  const done = (message: string) => {
-    toast.success(message);
+  const reload = () => {
     list.refresh();
     refreshBadges();
+  };
+  const done = (message: string) => {
+    toast.success(message);
+    reload();
   };
 
   const approve = async () => {
@@ -75,8 +81,10 @@ export default function CapacityRequestsScreen() {
     setBusy(true);
     setApproveError(null);
     try {
-      done((await approveCapacityRequest(approving.id)).message);
+      const result = await approveCapacityRequest(approving.id);
       setApproving(null);
+      setApproved(result.message || "The person was added to the room.");
+      reload();
     } catch (err) {
       setApproveError(errorMessage(err, "Could not approve the request."));
     } finally {
@@ -156,6 +164,7 @@ export default function CapacityRequestsScreen() {
         }}
         onConfirm={approve}
        />
+      <SuccessOverlay visible={!!approved} title="Request approved" message={approved} onHidden={() => setApproved(null)} />
       {rejecting ? <RejectSheet request={rejecting} onClose={() => setRejecting(null)} onDone={(m) => {
         setRejecting(null);
         done(m);

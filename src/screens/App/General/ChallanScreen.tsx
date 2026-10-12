@@ -15,6 +15,7 @@ import {
   Screen,
   SectionHeader,
   StatusPill,
+  SuccessCheck,
   useToast,
 } from "../../../components/ui";
 import { useTheme, useThemedStyles, type AppColors, type Theme } from "../../../theme";
@@ -35,6 +36,7 @@ export default function ChallanScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<RouteProp<AppStackParamList, "Challan">>();
   const bookingId = Number(route.params?.bookingId);
+  const justBooked = !!route.params?.justBooked;
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const toast = useToast();
@@ -94,7 +96,11 @@ export default function ChallanScreen() {
       {loading ? (
         <LoadingState message="Loading challan" />
       ) : error || !challan ? (
-        <ErrorState message={error || "This booking has no challan yet."} onRetry={() => load()} />
+        <ErrorState
+          title={justBooked ? "Booking created, challan not loaded" : undefined}
+          message={error || "This booking has no challan yet."}
+          onRetry={() => load()}
+        />
       ) : (
         <ScrollView
           contentContainerStyle={styles.content}
@@ -109,6 +115,17 @@ export default function ChallanScreen() {
             />
           }
         >
+          {justBooked ? (
+            <Card variant="outlined" style={styles.booked}>
+              <SuccessCheck size={48} haptic accessibilityLabel={null} />
+              <View style={styles.flex} accessible accessibilityLiveRegion="polite">
+                <AppText variant="subheading">Booking created</AppText>
+                <AppText variant="bodySmall" color="textSecondary">
+                  Pay this challan before the date below to confirm it.
+                </AppText>
+              </View>
+            </Card>
+          ) : null}
           <Card>
             <View style={styles.rowBetween}>
               <AppText variant="overline" color="textMuted">
@@ -188,5 +205,7 @@ const createStyles = (_c: AppColors, t: Theme) =>
     content: { padding: t.spacing.screen, gap: t.spacing.lg, paddingBottom: t.spacing.xxl },
     rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: t.spacing.sm },
     number: { marginVertical: t.spacing.sm },
+    booked: { flexDirection: "row", alignItems: "center", gap: t.spacing.md },
+    flex: { flex: 1 },
     actions: { gap: t.spacing.md },
   });

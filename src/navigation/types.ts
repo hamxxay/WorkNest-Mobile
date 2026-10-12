@@ -52,7 +52,8 @@ export type AppStackParamList = {
   /** Review and confirm: POST /booking/smart, then the challan to pay. No payment form. */
   BookingConfirm: { workspace: WorkspaceSummary; booking: BookingDraft };
   /** Bank challan of a booking (GET /booking/{id}/challan). */
-  Challan: { bookingId: number; challanNumber?: string };
+  /** justBooked: opened right after BookingConfirm created the booking (shows the success check). */
+  Challan: { bookingId: number; challanNumber?: string; justBooked?: boolean };
   BookingDetail: { bookingId: number | string };
   Quotation: { quotationId: string };
   QuotationList: undefined;

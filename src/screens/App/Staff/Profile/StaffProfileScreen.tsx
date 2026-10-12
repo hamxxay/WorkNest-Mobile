@@ -9,6 +9,7 @@ import {
   Card,
   ConfirmDialog,
   Divider,
+  HapticsSetting,
   InfoRow,
   ListRow,
   SectionHeader,
@@ -146,6 +147,8 @@ export default function StaffProfileScreen() {
           <SectionHeader title="Appearance" variant="overline" />
           <Card>
             <AppearanceSetting />
+            <Divider spacing={12} />
+            <HapticsSetting />
           </Card>
 
           <Card padding={0}>

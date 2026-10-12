@@ -91,6 +91,15 @@ describe("haptics", () => {
     expect(trigger).toHaveBeenCalledTimes(2);
   });
 
+  it("always plays an outcome, even right after a tap", () => {
+    const { mod, trigger } = load();
+    mod.haptics.light();
+    now += 5;
+    mod.haptics.warning();
+    expect(trigger).toHaveBeenCalledTimes(2);
+    expect(trigger).toHaveBeenLastCalledWith("notificationWarning", expect.any(Object));
+  });
+
   it("is a no-op when the native module is missing or throws", () => {
     const missing = load({ engine: "missing" });
     expect(() => missing.mod.haptics.success()).not.toThrow();

@@ -54,6 +54,7 @@ export { Banner, type BannerProps, type BannerTone } from "./Banner";
 export { GoogleSignInButton, GoogleMark, type GoogleSignInButtonProps } from "./GoogleSignInButton";
 export { AppHeader, greeting, type AppHeaderProps, type AppHeaderVariant, type HeaderAction } from "./AppHeader";
 export { AppearanceSetting, type AppearanceSettingProps } from "./AppearanceSetting";
+export { HapticsSetting, type HapticsSettingProps } from "./HapticsSetting";
 export { FocusAwareStatusBar, barStyleFor } from "./FocusAwareStatusBar";
 export { useScreenChrome, type StatusBarChrome } from "./screenChrome";
 

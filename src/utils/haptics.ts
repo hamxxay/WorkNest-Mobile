@@ -36,8 +36,12 @@ export const HAPTIC_TYPES: Readonly<Record<HapticKind, string>> = {
 
 export const HAPTICS_STORAGE_KEY = "@worknest/haptics-enabled";
 
-/** Two haptics closer than this are one gesture (e.g. a chip press that also changes a filter): play the first. */
+/**
+ * Two taps / ticks closer than this are one gesture (e.g. a chip press that also changes a filter): play the first.
+ * Outcomes (success / warning / error) always play, even right after a tap (a form that fails validation at once).
+ */
 const MIN_GAP_MS = 60;
+const OUTCOMES: ReadonlySet<HapticKind> = new Set<HapticKind>(["success", "warning", "error"]);
 
 const TRIGGER_OPTIONS = {
   enableVibrateFallback: false,
@@ -94,7 +98,7 @@ function emit() {
 export function triggerHaptic(kind: HapticKind): void {
   if (!enabled) return;
   const now = Date.now();
-  if (now - lastAt < MIN_GAP_MS) return;
+  if (now - lastAt < MIN_GAP_MS && !OUTCOMES.has(kind)) return;
   const e = loadEngine();
   if (!e) return;
   lastAt = now;
