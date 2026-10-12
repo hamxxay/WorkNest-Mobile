@@ -159,7 +159,7 @@ export function AppHeader({
         style,
       ]}
     >
-      {!screen ? <FocusAwareStatusBar barStyle={barStyle} backgroundColor={bg} /> : null}
+      {!screen ? <FocusAwareStatusBar barStyle={barStyle} /> : null}
       <View style={styles.row}>
         {leading}
         <View style={styles.titles}>

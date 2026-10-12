@@ -4,7 +4,6 @@ import {
   Easing,
   KeyboardAvoidingView,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -116,10 +115,14 @@ export function BottomSheet({
       transparent
       animationType="none"
       statusBarTranslucent
+      navigationBarTranslucent
       onRequestClose={requestClose}
       testID={testID}
     >
-      <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      {/* Edge-to-edge: the modal window covers the status and navigation bars and Android no longer resizes it
+          for the keyboard, so the sheet stays below the status bar (paddingTop), pads the bottom inset itself and
+          moves up with the keyboard on both platforms ("padding"). */}
+      <KeyboardAvoidingView style={[styles.root, { paddingTop: insets.top }]} behavior="padding">
         <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: colors.overlay, opacity: progress }]}>
           <Pressable
             style={StyleSheet.absoluteFill}

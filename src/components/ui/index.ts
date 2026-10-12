@@ -53,7 +53,7 @@ export { GoogleSignInButton, GoogleMark, type GoogleSignInButtonProps } from "./
 export { AppHeader, greeting, type AppHeaderProps, type AppHeaderVariant, type HeaderAction } from "./AppHeader";
 export { BrandLogo, BRAND_NAVY, BRAND_W_ASPECT, type BrandLogoProps } from "./BrandLogo";
 export { AppearanceSetting, type AppearanceSettingProps } from "./AppearanceSetting";
-export { FocusAwareStatusBar, barStyleFor } from "./FocusAwareStatusBar";
+export { FocusAwareStatusBar, barStyleFor, type FocusAwareStatusBarProps } from "./FocusAwareStatusBar";
 export { useScreenChrome, type StatusBarChrome } from "./screenChrome";
 
 // Re-exported so screens can get everything UI-related from one import.
