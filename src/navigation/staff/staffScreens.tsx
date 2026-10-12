@@ -25,6 +25,10 @@ import ComplaintListScreen from "../../screens/App/Staff/Complaints/ComplaintLis
 import AttendantsScreen from "../../screens/App/Staff/Attendants/AttendantsScreen";
 import RoomAccessScreen from "../../screens/App/Staff/Attendants/RoomAccessScreen";
 import CapacityRequestsScreen from "../../screens/App/Staff/Approvals/CapacityRequestsScreen";
+import AccessActivityScreen from "../../screens/App/Staff/Access/AccessActivityScreen";
+import UserListScreen from "../../screens/App/Staff/Directory/UserListScreen";
+import LocationListScreen from "../../screens/App/Staff/Directory/LocationListScreen";
+import SpaceListScreen from "../../screens/App/Staff/Directory/SpaceListScreen";
 
 // Route name -> screen for the staff navigators. Every staff screen draws its own AppHeader (back button,
 // title, actions), so the navigators render no header of their own.
@@ -50,10 +54,10 @@ export const STAFF_SCREENS: Record<StaffRouteName, ComponentType<any>> = {
   RoomAccess: RoomAccessScreen,
   CapacityRequests: CapacityRequestsScreen,
   Complaints: ComplaintListScreen,
-  AccessActivity: makeStaffPlaceholder("Access activity log"),
-  Users: makeStaffPlaceholder("Users"),
-  Locations: makeStaffPlaceholder("Locations"),
-  Spaces: makeStaffPlaceholder("Spaces"),
+  AccessActivity: AccessActivityScreen,
+  Users: UserListScreen,
+  Locations: LocationListScreen,
+  Spaces: SpaceListScreen,
   ChallanValidity: makeStaffPlaceholder("Challan validity"),
   StaffNotifications: makeStaffPlaceholder("Notifications"),
   StaffProfile: StaffProfileScreen,
