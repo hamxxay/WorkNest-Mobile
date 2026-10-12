@@ -1,7 +1,13 @@
 <resources>
-    <color name="picker_primary">#6E96FF</color>
-    <color name="picker_on_primary">#FFFFFF</color>
-    <color name="picker_surface">#0F172A</color>
-    <color name="picker_on_surface">#F8FAFC</color>
+    <!-- Dark mode (theme `background` / `headerBg` / `surface` of the dark palette) -->
+    <color name="window_background">#0B1220</color>
+    <color name="splash_background">#0F1A2E</color>
+
+    <!-- Material 3 pickers and native dialogs, dark mode. Light teal on a dark surface with dark text on the
+         selected day (Material dark-scheme pattern): teal-400 on #131C2E is 9:1, #042F2E on teal-400 is 9:1. -->
+    <color name="picker_primary">#2DD4BF</color>
+    <color name="picker_on_primary">#042F2E</color>
+    <color name="picker_surface">#131C2E</color>
+    <color name="picker_on_surface">#F1F5F9</color>
     <color name="picker_on_surface_variant">#94A3B8</color>
 </resources>

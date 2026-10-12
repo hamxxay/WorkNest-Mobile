@@ -1,0 +1,8 @@
+<resources>
+
+    <!-- Android 12+: the system splash shows the launcher icon on the brand navy, matching the JS splash. -->
+    <style name="AppTheme" parent="Base.AppTheme">
+        <item name="android:windowSplashScreenBackground">@color/splash_background</item>
+    </style>
+
+</resources>
