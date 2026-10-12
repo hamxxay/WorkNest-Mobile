@@ -15,6 +15,9 @@ import QuotationFormScreen from "../../screens/App/Staff/Quotations/QuotationFor
 import BookingListScreen from "../../screens/App/Staff/Bookings/BookingListScreen";
 import BookingDetailScreen from "../../screens/App/Staff/Bookings/BookingDetailScreen";
 import BookingFormScreen from "../../screens/App/Staff/Bookings/BookingFormScreen";
+import AgreementListScreen from "../../screens/App/Staff/Agreements/AgreementListScreen";
+import AgreementDetailScreen from "../../screens/App/Staff/Agreements/AgreementDetailScreen";
+import AgreementSendScreen from "../../screens/App/Staff/Agreements/AgreementSendScreen";
 
 // Route name -> screen for the staff navigators. Every staff screen draws its own AppHeader (back button,
 // title, actions), so the navigators render no header of their own.
@@ -31,9 +34,9 @@ export const STAFF_SCREENS: Record<StaffRouteName, ComponentType<any>> = {
   BookingDetail: BookingDetailScreen,
   BookingForm: BookingFormScreen,
   TourInquiries: makeStaffPlaceholder("Tour inquiries"),
-  AgreementList: makeStaffPlaceholder("Agreements"),
-  AgreementDetail: makeStaffPlaceholder("Agreement"),
-  AgreementSend: makeStaffPlaceholder("Send agreement"),
+  AgreementList: AgreementListScreen,
+  AgreementDetail: AgreementDetailScreen,
+  AgreementSend: AgreementSendScreen,
   InvoiceList: makeStaffPlaceholder("Invoices & billing"),
   InvoiceDetail: makeStaffPlaceholder("Invoice"),
   Attendants: makeStaffPlaceholder("Attendants & access"),

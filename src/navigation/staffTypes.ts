@@ -1,4 +1,5 @@
 import type { NavigatorScreenParams } from "@react-navigation/native";
+import type { StaffAgreement, StaffInvoice } from "../services/staff";
 
 // Route types for the staff apps (sales executive, admin, super admin). The customer app's routes live in
 // ./types.ts. Each staff role gets its own navigator (see ./staff/StaffNavigator.tsx), built from one shared
@@ -57,12 +58,14 @@ export type StaffStackParamList = {
   TourInquiries: { filter?: InquiryFilter } | undefined;
 
   AgreementList: { status?: string } | undefined;
-  AgreementDetail: { agreementId: number };
+  /** The API has no GET agreement/{id}: the list row is passed in. */
+  AgreementDetail: { agreement: StaffAgreement };
   /** Send the lease agreement for an accepted quotation. */
   AgreementSend: { quotationId: number };
 
   InvoiceList: undefined;
-  InvoiceDetail: { invoiceId: number };
+  /** `invoice`: the list row (status label and balance carry over into the detail, as in the CMS). */
+  InvoiceDetail: { invoiceId: number; invoice?: StaffInvoice };
 
   /** Attendants & Access: pick a customer (or open one), then a booked space. */
   Attendants: { customerId?: number } | undefined;
