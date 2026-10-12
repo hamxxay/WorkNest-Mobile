@@ -22,7 +22,6 @@ const menuItems: { key: AdminView; label: string; icon: string }[] = [
   { key: "space-types", label: "Space Types", icon: "layers-outline" },
   { key: "spaces", label: "Spaces", icon: "business-outline" },
   { key: "bookings", label: "Bookings", icon: "calendar-outline" },
-  { key: "pricing", label: "Pricing Plans", icon: "pricetags-outline" },
   { key: "memberships", label: "Memberships", icon: "person-add-outline" },
   { key: "payments", label: "Payments", icon: "card-outline" },
   { key: "contacts", label: "Contacts", icon: "mail-outline" },

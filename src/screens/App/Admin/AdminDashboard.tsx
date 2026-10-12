@@ -52,7 +52,6 @@ const STAT_CARDS: StatCard[] = [
   { label: "Contacts",      key: "contacts",     icon: "mail-outline"          },
   { label: "Locations",     key: "locations",    icon: "location-outline"      },
   { label: "Memberships",   key: "memberships",  icon: "card-outline"          },
-  { label: "Pricing Plans", key: "plans",        icon: "pricetag-outline"      },
   { label: "Gallery",       key: "gallery",      icon: "images-outline"        },
 ];
 

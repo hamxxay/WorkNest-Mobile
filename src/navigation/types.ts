@@ -78,7 +78,6 @@ export type AppStackParamList = {
   PrivacyPolicy: undefined;
   AboutUs: undefined;
   UserManual: undefined;
-  Pricing: undefined;
   Challan: { challanNumber?: string; bookingGuid?: string };
   Notifications: undefined;
   Quotation: { quotationId: string };

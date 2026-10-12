@@ -201,7 +201,6 @@ export default function ProfileScreen() {
             { icon: "person-outline" as const, label: "Edit Profile", onPress: handleOpenEdit },
             { icon: "document-text-outline" as const, label: "Quotations", onPress: () => navigation.navigate("QuotationList") },
             { icon: "create-outline" as const, label: "My Agreements", onPress: () => navigation.navigate("AgreementList") },
-            // { icon: "pricetag-outline" as const, label: "Pricing", onPress: () => navigation.navigate("Pricing") },
             { icon: "time-outline" as const, label: "My Bookings", onPress: () => navigation.navigate("MyBookings") },
             { icon: "time-outline" as const, label: "Booking History", onPress: () => navigation.navigate("BookingHistory") },
             { icon: "shield-checkmark-outline" as const, label: "Privacy Policy", onPress: () => navigation.navigate("PrivacyPolicy") },
