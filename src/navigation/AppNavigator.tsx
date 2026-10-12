@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { NavigationContainer, NavigationContainerRef, DrawerActions } from "@react-navigation/native";
+import { NavigationContainer, NavigationContainerRef } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import Ionicons from "react-native-vector-icons/Ionicons";
@@ -55,17 +55,6 @@ const AppStack = createNativeStackNavigator<AppStackParamList>();
 // ─── Nav refs ──────────────────────────────────────────────────────────────────
 // rootNavRef → the customer NavigationContainer (always alive while the customer app is shown).
 export const rootNavRef = React.createRef<NavigationContainerRef<RootStackParamList>>();
-
-// drawerNavRef → the staff stacks (SaleStack / AdminStack) register their drawer container here so the menu
-// button in DashboardHeader opens their drawer. The customer app has no drawer.
-export const drawerNavRef = {
-  current: null as NavigationContainerRef<any> | null,
-  set: (ref: NavigationContainerRef<any> | null) => {
-    drawerNavRef.current = ref;
-  },
-  open: () => drawerNavRef.current?.dispatch(DrawerActions.openDrawer()),
-  close: () => drawerNavRef.current?.dispatch(DrawerActions.closeDrawer()),
-};
 
 // ─── Bottom tabs ───────────────────────────────────────────────────────────────
 const TAB_ICONS: Record<keyof MainTabParamList, { active: string; inactive: string; label: string }> = {

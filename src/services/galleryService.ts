@@ -65,9 +65,8 @@ export async function getGalleryImages(): Promise<GalleryImage[]> {
     const resolvedSrc = resolveMediaUrl(image.imageUrl);
     return {
       id: image.id,
-      src:
-        resolvedSrc ??
-        "https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=800",
+      // No stock-photo fallback: SmartImage shows a neutral placeholder for an empty source.
+      src: resolvedSrc ?? "",
       alt: title,
       title,
       description: image.description,

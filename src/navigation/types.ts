@@ -67,12 +67,6 @@ export type AppStackParamList = {
   UserManual: undefined;
   AccessRequest: undefined;
   UnlockDoor: undefined;
-  /**
-   * Staff route, NOT registered in the customer navigator. Kept here only because
-   * src/screens/App/Sales/KycDocumentsScreen.tsx (Phase 2) still types its props with AppStackParamList;
-   * remove once that screen uses the staff param list.
-   */
-  KycDocuments: { customerId: number | string; customerName?: string };
   Login: { redirectAfterLogin?: { screen: keyof AppStackParamList; params?: any } } | undefined;
   Signup: { redirectAfterLogin?: { screen: keyof AppStackParamList; params?: any } } | undefined;
 };

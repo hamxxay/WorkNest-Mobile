@@ -24,8 +24,8 @@ type ScreenProps = PropsWithChildren<{
 /**
  * Root of every screen: page background, safe areas, tablet column and the status bar.
  *
- * Status-bar policy: the bar is painted the colour of whatever sits under it — the header (AppHeader /
- * DashboardHeader / Header register their colour automatically) or the page background — with light or dark
+ * Status-bar policy: the bar is painted the colour of whatever sits under it — the header (AppHeader
+ * registers its colour automatically) or the page background — with light or dark
  * icons to match. It only applies while the screen is focused, so tabs do not fight over it.
  */
 export function Screen({ children, style, edges = ALL_EDGES, backgroundColor, statusBarColor, statusBarStyle }: ScreenProps) {
