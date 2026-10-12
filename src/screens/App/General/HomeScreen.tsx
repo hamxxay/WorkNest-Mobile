@@ -32,6 +32,7 @@ import { getWorkspaces, type Workspace } from "../../../services/workspaceServic
 import { getMyBookings, isPendingBooking, type MyBooking } from "../../../services/bookingService";
 import { WorkspaceCard } from "../../Home/WorkspaceCard";
 import type { AppStackParamList } from "../../../navigation/types";
+import { useTabBarSpace } from "../../../components/ui/TabBar";
 
 type Nav = NativeStackNavigationProp<AppStackParamList>;
 
@@ -47,6 +48,7 @@ export default function HomeScreen() {
   const navigation = useNavigation<Nav>();
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
+  const tabBarSpace = useTabBarSpace();
   const { user } = useAuth();
   const bell = useNotificationsAction();
   const doorAccess = useDoorAccess();
@@ -136,7 +138,7 @@ export default function HomeScreen() {
         }
       />
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingBottom: styles.content.paddingBottom + tabBarSpace }]}
         showsVerticalScrollIndicator={false}
         onScrollBeginDrag={() => setChatVisible(false)}
         onScrollEndDrag={() => setChatVisible(true)}

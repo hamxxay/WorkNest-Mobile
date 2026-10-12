@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 import { NavigationContainer, NavigationContainerRef } from "@react-navigation/native";
-import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { createBottomTabNavigator, type BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import Ionicons from "react-native-vector-icons/Ionicons";
 
@@ -33,9 +33,11 @@ import LoginScreen from "../screens/Auth/LoginScreen";
 import OnboardingScreen from "../screens/Auth/OnboardingScreen";
 
 import { onSessionExpired } from "../services/apiClient";
-import { typography, useNavigationTheme, useThemeColors } from "../theme";
-import { useToast } from "../components/ui";
+import { useNavigationTheme, useThemeColors } from "../theme";
+import { TabBar, useToast } from "../components/ui";
+import { useReduceMotion } from "../hooks/useReduceMotion";
 import { linking } from "./linking";
+import { customerTransition, stackTransition, tabTransition } from "./transitions";
 
 import type {
   AppStackParamList,
@@ -55,6 +57,8 @@ const AppStack = createNativeStackNavigator<AppStackParamList>();
 export const rootNavRef = React.createRef<NavigationContainerRef<RootStackParamList>>();
 
 // ─── Bottom tabs ───────────────────────────────────────────────────────────────
+// Floating pill tab bar (components/ui/TabBar): filled icon + label on the selected tab, outline icons on the rest.
+// The customer's notification bell lives in the header, so these tabs carry no badges.
 const TAB_ICONS: Record<keyof MainTabParamList, { active: string; inactive: string; label: string }> = {
   Home: { active: "home", inactive: "home-outline", label: "Home" },
   Bookings: { active: "calendar", inactive: "calendar-outline", label: "Bookings" },
@@ -69,26 +73,22 @@ const tabIcon =
   ({ focused, color, size }: { focused: boolean; color: string; size: number }) =>
     <Ionicons name={focused ? icon.active : icon.inactive} size={size} color={color} />;
 
+const renderTabBar = (props: BottomTabBarProps) => <TabBar {...props} />;
+
 function MainTabs() {
   const colors = useThemeColors();
+  const reduceMotion = useReduceMotion();
   return (
     <Tab.Navigator
+      tabBar={renderTabBar}
       screenOptions={({ route }) => {
         const icon = TAB_ICONS[route.name];
         return {
           headerShown: false,
-          tabBarHideOnKeyboard: true,
-          tabBarActiveTintColor: colors.primary,
-          tabBarInactiveTintColor: colors.tabInactive,
-          tabBarStyle: {
-            backgroundColor: colors.tabBar,
-            borderTopColor: colors.border,
-            minHeight: 60,
-          },
-          tabBarItemStyle: { minHeight: 48, paddingVertical: 4 },
-          tabBarLabelStyle: typography.captionStrong,
+          ...tabTransition(reduceMotion),
+          sceneStyle: { backgroundColor: colors.background },
           tabBarLabel: icon.label,
-          tabBarAccessibilityLabel: `${icon.label} tab`,
+          tabBarAccessibilityLabel: icon.label,
           tabBarIcon: tabIcon(icon),
         };
       }}
@@ -104,12 +104,19 @@ function MainTabs() {
 
 // ─── App stack (tabs + every pushed screen) ────────────────────────────────────
 // No statusBar* options here: Screen / AppHeader own the status bar (UI kit README section 5).
+// Transitions (./transitions.ts): pushes slide from the right, forms (BookTour, AccessRequest, ESignAgreement)
+// slide up from the bottom, the tabs and Login / Signup fade in; none at all with reduce motion.
 function AppStackNavigator() {
   const colors = useThemeColors();
+  const reduceMotion = useReduceMotion();
   return (
     <AppStack.Navigator
       initialRouteName="MainTabs"
-      screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}
+      screenOptions={({ route }) => ({
+        headerShown: false,
+        contentStyle: { backgroundColor: colors.background },
+        ...stackTransition(customerTransition(route.name), reduceMotion),
+      })}
     >
       <AppStack.Screen name="MainTabs" component={MainTabs} />
       <AppStack.Screen name="Spaces" component={SpacesScreen} />
@@ -137,15 +144,17 @@ function AppStackNavigator() {
 }
 
 // ─── Auth stack ────────────────────────────────────────────────────────────────
+// Login <-> Signup is a swap, not a step forward: fade.
 function AuthStackNavigator() {
   const colors = useThemeColors();
+  const reduceMotion = useReduceMotion();
   return (
     <Auth.Navigator
       initialRouteName="Login"
       screenOptions={{
         headerShown: false,
-        gestureEnabled: false,
         contentStyle: { backgroundColor: colors.background },
+        ...stackTransition("fade", reduceMotion),
       }}
     >
       <Auth.Screen name="Login" component={LoginScreen} />
@@ -159,6 +168,7 @@ export function AppNavigator() {
   const colors = useThemeColors();
   const navTheme = useNavigationTheme();
   const toast = useToast();
+  const reduceMotion = useReduceMotion();
 
   // The API refused the session (see apiClient / authService): open Login with a short explanation.
   useEffect(
@@ -178,11 +188,16 @@ export function AppNavigator() {
       theme={navTheme}
       linking={linking}
     >
+      {/* Splash -> Onboarding -> Auth / App are replaced, never stepped back to: fade, no back gesture. */}
       <Root.Navigator
         initialRouteName="Splash"
-        screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: colors.background },
+          ...stackTransition("fade", reduceMotion, { gestureEnabled: false }),
+        }}
       >
-        <Root.Screen name="Splash" component={SplashScreen} options={{ animation: "fade" }} />
+        <Root.Screen name="Splash" component={SplashScreen} />
         <Root.Screen name="Onboarding" component={OnboardingScreen} />
         <Root.Screen name="AuthStack" component={AuthStackNavigator} />
         <Root.Screen name="AppStack" component={AppStackNavigator} />

@@ -15,6 +15,7 @@ import { FadeInView } from "../Skeleton";
 import { createEntranceTracker, type EntranceTracker } from "../motion/entrance";
 import { Button } from "./Button";
 import { EmptyState, ErrorState, ListSkeleton, type EmptyStateProps } from "./States";
+import { useTabBarSpace } from "./TabBar";
 
 export type AsyncListProps<T> = Omit<
   FlatListProps<T>,
@@ -91,6 +92,8 @@ export function AsyncList<T>({
   ...rest
 }: AsyncListProps<T>): ReactElement {
   const { colors, typography } = useTheme();
+  // Inside the bottom tabs the floating tab bar covers the end of the list: scroll the last row clear of it.
+  const tabBarSpace = useTabBarSpace();
   const rows = data ?? [];
   const hasRows = rows.length > 0;
   const retry = onRetry ?? onRefresh;
@@ -189,6 +192,7 @@ export function AsyncList<T>({
         { padding } as StyleProp<ViewStyle>,
         !hasRows && styles.grow,
         contentContainerStyle,
+        tabBarSpace > 0 && { paddingBottom: bottomPadding(contentContainerStyle, padding) + tabBarSpace },
       ]}
       ListEmptyComponent={<>{emptyNode}</>}
       ListFooterComponent={footer}
@@ -228,3 +232,10 @@ const styles = StyleSheet.create({
   footer: { paddingVertical: 16, alignItems: "center", justifyContent: "center" },
   footerError: { flexDirection: "row", gap: 8, paddingHorizontal: 4 },
 });
+
+/** The list's own bottom padding (contentContainerStyle, else the `padding` prop), before the tab-bar space. */
+function bottomPadding(style: StyleProp<ViewStyle>, padding: number): number {
+  const flat = StyleSheet.flatten(style) ?? {};
+  const own = flat.paddingBottom ?? flat.paddingVertical ?? flat.padding;
+  return typeof own === "number" ? own : padding;
+}
