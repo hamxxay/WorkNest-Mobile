@@ -2,7 +2,7 @@ import { useContext, type ReactNode } from "react";
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import { NavigationContext, NavigationRouteContext } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useTheme } from "../../theme";
+import { fontFor, useTheme } from "../../theme";
 import { BrandLogo } from "./BrandLogo";
 import { IconButton } from "./Button";
 import { FocusAwareStatusBar, barStyleFor } from "./FocusAwareStatusBar";
@@ -215,6 +215,6 @@ const styles = StyleSheet.create({
   backBtn: { marginLeft: -4 },
   logo: { marginLeft: 4 },
   titles: { flex: 1, justifyContent: "center", gap: 1, paddingLeft: 2 },
-  brandTitle: { fontSize: 19, lineHeight: 24, fontWeight: "700", letterSpacing: -0.2 },
+  brandTitle: { fontSize: 19, lineHeight: 24, ...fontFor("700"), letterSpacing: -0.2 },
   actions: { flexDirection: "row", alignItems: "center", gap: 4 },
 });
