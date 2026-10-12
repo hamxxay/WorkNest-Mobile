@@ -299,7 +299,7 @@ export default function BookingFormScreen() {
           <AppText variant="caption" color="textMuted" align="center">
             WorkNest calculates tax, deposit and the challan when the booking is created.
           </AppText>
-          <Button title="Create booking" onPress={save} loading={saving} disabled={saving} leftIcon="checkmark" fullWidth />
+          <Button title="Create booking" onPress={save} loading={saving} disabled={saving} leftIcon="checkmark" fullWidth haptic />
         </ScrollView>
       </KeyboardAvoidingView>
     </StaffScreen>

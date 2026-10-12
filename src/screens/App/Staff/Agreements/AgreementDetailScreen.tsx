@@ -204,7 +204,7 @@ function ConfirmSignedSheet({
       footer={
         <>
           <Button title="Cancel" variant="outline" onPress={onClose} disabled={saving} style={styles.flex} />
-          <Button title="Confirm" onPress={submit} loading={saving} style={styles.flex} />
+          <Button title="Confirm" onPress={submit} loading={saving} style={styles.flex} haptic />
         </>
       }
     >

@@ -159,7 +159,7 @@ export default function ContactUsScreen() {
           </Card>
 
           {formError ? <Banner tone="danger" title="Not sent" message={formError} /> : null}
-          <Button title="Send message" size="lg" fullWidth loading={sending} leftIcon="send-outline" onPress={submit} />
+          <Button title="Send message" size="lg" fullWidth loading={sending} leftIcon="send-outline" onPress={submit} haptic />
           <AppText variant="caption" color="textMuted" align="center">
             For bookings and challans, see the Bookings and Payments tabs.
           </AppText>
