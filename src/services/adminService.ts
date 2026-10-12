@@ -24,7 +24,6 @@ export type DashboardSummary = {
   bookings?: number;
   contacts?: number;
   locations?: number;
-  plans?: number;
   gallery?: number;
   memberships?: number;
 };
@@ -90,15 +89,6 @@ export type AdminBooking = {
   endDateTime?: string;
   totalAmount?: number;
   bookingStatus?: string;
-};
-
-export type AdminPricingPlan = {
-  id: number;
-  name?: string;
-  price?: number;
-  billingCycle?: string;
-  includesHours?: number;
-  isActive?: boolean;
 };
 
 export type AdminMembership = {
@@ -207,7 +197,6 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
     bookings,
     contacts,
     locations,
-    plans,
     gallery,
     memberships,
   ] = await Promise.all([
@@ -216,12 +205,11 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
     getCountFrom(API_ENDPOINTS.admin.bookings),
     getCountFrom(API_ENDPOINTS.admin.contacts),
     getCountFrom(API_ENDPOINTS.admin.locationAll),
-    getCountFrom(API_ENDPOINTS.admin.pricingPlansAll),
     getCountFrom(API_ENDPOINTS.admin.galleryAll),
     getCountFrom(API_ENDPOINTS.admin.memberships),
   ]);
 
-  return { users, spaces, bookings, contacts, locations, plans, gallery, memberships };
+  return { users, spaces, bookings, contacts, locations, gallery, memberships };
 }
 
 export async function getRecentBookings(limit = 5): Promise<RecentBooking[]> {
@@ -292,12 +280,6 @@ export async function getBookingsPage(
   query: ListQuery = {}
 ): Promise<PaginatedList<AdminBooking>> {
   return getEntityPage<AdminBooking>(API_ENDPOINTS.admin.bookings, query, "Unable to load bookings.");
-}
-
-export async function getPricingPlansPage(
-  query: ListQuery = {}
-): Promise<PaginatedList<AdminPricingPlan>> {
-  return getEntityPage<AdminPricingPlan>(API_ENDPOINTS.admin.pricingPlansAll, query, "Unable to load pricing plans.");
 }
 
 export async function getMembershipsPage(

@@ -57,7 +57,7 @@ const RULES: { keywords: string[]; answer: string }[] = [
   {
     keywords: ["hour", "hourly", "daily", "weekly", "monthly", "plan", "duration"],
     answer:
-      "You can book by the hour, day, week, or month. Check the Pricing tab for all available plans and rates.",
+      "You can book by the hour, day, week, or month. Check the Booking tab for available spaces and rates.",
   },
   {
     keywords: ["location", "city", "where", "address"],

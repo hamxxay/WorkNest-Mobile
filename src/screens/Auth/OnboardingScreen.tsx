@@ -47,7 +47,7 @@ const slides: Slide[] = [
   {
     title: "Manage Easily",
     description:
-      "Track bookings, pricing plans, and workspace details from one place.",
+      "Track bookings, payments, and workspace details from one place.",
     image: require("../../../public/images/gallery/team-collab.jpg"),
   },
 ];

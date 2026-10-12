@@ -10,7 +10,6 @@ const SCREEN_LABELS: Record<string, string> = {
   Booking: 'Book a Space',
   MyBookings: 'My Bookings',
   MyPayments: 'My Invoices',
-  Pricing: 'Pricing',
   Gallery: 'Gallery',
   Profile: 'Profile',
   BookingHistory: 'Booking History',

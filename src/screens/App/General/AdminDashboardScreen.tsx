@@ -21,7 +21,6 @@ export default function AdminDashboardScreen({ embedded = false }: { embedded?: 
     bookings: 0,
     contacts: 0,
     locations: 0,
-    plans: 0,
     gallery: 0,
     memberships: 0,
   });
@@ -35,7 +34,6 @@ export default function AdminDashboardScreen({ embedded = false }: { embedded?: 
       bookings: typeof summary.bookings === "number" ? summary.bookings : prev.bookings,
       contacts: typeof summary.contacts === "number" ? summary.contacts : prev.contacts,
       locations: typeof summary.locations === "number" ? summary.locations : prev.locations,
-      plans: typeof summary.plans === "number" ? summary.plans : prev.plans,
       gallery: typeof summary.gallery === "number" ? summary.gallery : prev.gallery,
       memberships:
         typeof summary.memberships === "number" ? summary.memberships : prev.memberships,
@@ -71,7 +69,6 @@ export default function AdminDashboardScreen({ embedded = false }: { embedded?: 
     { label: "Bookings", value: stats.bookings },
     { label: "Contacts", value: stats.contacts },
     { label: "Locations", value: stats.locations },
-    { label: "Pricing Plans", value: stats.plans },
     { label: "Gallery", value: stats.gallery },
     { label: "Memberships", value: stats.memberships },
   ];

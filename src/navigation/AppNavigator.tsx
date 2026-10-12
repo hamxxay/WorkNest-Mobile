@@ -25,7 +25,6 @@ import SpaceDetailScreen from "../screens/App/General/SpaceDetailScreen";
 import BookingInfoScreen from "../screens/App/General/BookingInfoScreen";
 import PaymentScreen from "../screens/App/General/PaymentScreen";
 import ContactUsScreen from "../screens/App/General/ContactUsScreen";
-import PricingScreen from "../screens/App/General/PricingScreen";
 import SignupScreen from "../screens/Auth/SignupScreen";
 import SplashScreen from "../screens/Auth/SplashScreen";
 import LoginScreen from "../screens/Auth/LoginScreen";
@@ -464,7 +463,6 @@ function InnerStackNavigator() {
       <InnerStack.Screen name="PrivacyPolicy"  component={PrivacyPolicyScreen} />
       <InnerStack.Screen name="AboutUs"        component={AboutUsScreen} />
       <InnerStack.Screen name="UserManual"     component={UserManualScreen} />
-      <InnerStack.Screen name="Pricing"        component={PricingScreen} />
       <InnerStack.Screen name="AdminPanel"     component={AdminPanelScreen} />
       <InnerStack.Screen name="ContactUs"      component={ContactUsScreen} />
       <InnerStack.Screen name="SpaceDetail"    component={SpaceDetailScreen} />

@@ -8,7 +8,6 @@ import {
   getLocationsPage,
   getMembershipsPage,
   getPaymentsPage,
-  getPricingPlansPage,
   getSpacesPage,
   getSpaceTypesPage,
   approvePayment,
@@ -18,7 +17,6 @@ import {
   type AdminLocation,
   type AdminMembership,
   type AdminPayment,
-  type AdminPricingPlan,
   type AdminSpace,
   type AdminSpaceType,
   type PaginatedList,
@@ -33,7 +31,6 @@ export type AdminEntity =
   | "space-types"
   | "spaces"
   | "bookings"
-  | "pricing"
   | "memberships"
   | "payments"
   | "contacts"
@@ -123,20 +120,6 @@ const configs: Record<AdminEntity, Config<any>> = {
       `End: ${formatDate(item.endDateTime)}`,
       `Amount: ${asCurrency(item.totalAmount)}`,
       `Status: ${item.bookingStatus || "-"}`,
-    ],
-  },
-  pricing: {
-    title: "Admin Pricing Plans",
-    subtitle: "Review billing cycles and plan values.",
-    searchPlaceholder: "Search pricing plans",
-    load: (query) => getPricingPlansPage(query),
-    itemId: (item: AdminPricingPlan) => `pricing-${item.id}`,
-    primary: (item: AdminPricingPlan) => item.name || `Plan #${item.id}`,
-    lines: (item: AdminPricingPlan) => [
-      `Price: ${asCurrency(item.price)}`,
-      `Cycle: ${item.billingCycle || "-"}`,
-      `Included Hours: ${item.includesHours ?? "-"}`,
-      `Status: ${item.isActive === false ? "Inactive" : "Active"}`,
     ],
   },
   memberships: {

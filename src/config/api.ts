@@ -56,9 +56,6 @@ export const API_ENDPOINTS = {
     availabilityCounts: "/space/availability-counts",
     smartAvailable: "/booking/smart/available",
   },
-  pricing: {
-    list: "/pricingplan/all",
-  },
   gallery: {
     list: "/gallery/all",
   },
@@ -171,8 +168,6 @@ export const API_ENDPOINTS = {
     spacetypesAll: "/spacetype/all",
     spaces: "/space",
     bookings: "/booking",
-    pricingPlans: "/pricingplan",
-    pricingPlansAll: "/pricingplan/all",
     memberships: "/membership",
     payments: "/payment",
     contacts: "/contact",

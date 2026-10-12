@@ -72,7 +72,6 @@ export const linking: LinkingOptions<RootStackParamList> = {
                   Quotation: "quotation/:quotationId",
                   InvoiceList: "invoice",
                   InvoiceDetail: "invoice/:invoiceId",
-                  Pricing: "pricing",
                   AboutUs: "about",
                   PrivacyPolicy: "privacy",
                   UserManual: "manual",
