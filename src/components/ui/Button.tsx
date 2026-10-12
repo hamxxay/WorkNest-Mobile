@@ -11,7 +11,7 @@ import {
   type ViewStyle,
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
-import { touchTarget, useTheme, type AppColors } from "../../theme";
+import { fontFor, touchTarget, useTheme, type AppColors } from "../../theme";
 import { Badge } from "./Badge";
 
 export type ButtonVariant = "primary" | "secondary" | "outline" | "ghost" | "danger";
@@ -217,7 +217,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   row: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
-  label: { fontWeight: "600", includeFontPadding: false, textAlign: "center" },
+  label: { ...fontFor("600"), includeFontPadding: false, textAlign: "center" },
   fullWidth: { alignSelf: "stretch" },
   disabled: { opacity: 0.5 },
   iconBtn: { alignItems: "center", justifyContent: "center" },

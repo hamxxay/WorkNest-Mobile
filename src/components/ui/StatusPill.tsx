@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
-import { statusLabel, statusTone, useTheme, type Tone } from "../../theme";
+import { fontFor, statusLabel, statusTone, useTheme, type Tone } from "../../theme";
 
 export type StatusPillProps = {
   /** Raw API status ("Confirmed", "AgreementSent", "in_progress", ...). Sets tone and label automatically. */
@@ -61,7 +61,7 @@ const styles = StyleSheet.create({
   sm: { paddingHorizontal: 8, paddingVertical: 2, minHeight: 22 },
   md: { paddingHorizontal: 12, paddingVertical: 4, minHeight: 28 },
   dot: { width: 6, height: 6, borderRadius: 3 },
-  text: { fontWeight: "600", includeFontPadding: false },
+  text: { ...fontFor("600"), includeFontPadding: false },
   textSm: { fontSize: 12 },
   textMd: { fontSize: 13 },
 });

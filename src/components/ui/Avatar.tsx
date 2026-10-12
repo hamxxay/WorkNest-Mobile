@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Image, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
-import { useTheme, type Tone } from "../../theme";
+import { fontFor, useTheme, type Tone } from "../../theme";
 
 export type AvatarProps = {
   /** Used for initials and the default accessibility label. */
@@ -71,5 +71,5 @@ export function Avatar({ name, uri, size = 40, tone, accessibilityLabel, style }
 
 const styles = StyleSheet.create({
   center: { alignItems: "center", justifyContent: "center", overflow: "hidden" },
-  initials: { fontWeight: "600" },
+  initials: fontFor("600"),
 });

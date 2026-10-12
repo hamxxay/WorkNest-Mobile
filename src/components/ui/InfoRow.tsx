@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
-import { useTheme } from "../../theme";
+import { tabularNums, useTheme } from "../../theme";
 import { resolveColor, type TextColor } from "./AppText";
 
 export type InfoRowProps = {
@@ -40,7 +40,7 @@ export function InfoRow({
     <Text
       numberOfLines={valueLines}
       style={[
-        emphasize ? typography.subheading : typography.bodyStrong,
+        emphasize ? [typography.subheading, tabularNums] : typography.bodyStrong,
         { color: resolveColor(colors, valueColor, colors.text) },
         !stacked && styles.valueInline,
       ]}
