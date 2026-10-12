@@ -34,12 +34,15 @@ describe("route access (mirrors the CMS)", () => {
   it("the sales executive pages of the CMS are open to every staff role", () => {
     const salesPages = [
       "QuotationList",
-      "QuotationCreate",
+      "QuotationForm",
+      "QuotationDetail",
       "BookingList",
       "BookingDetail",
       "TourInquiries",
       "KycList",
-      "KycDocuments",
+      "KycCustomer",
+      "AgreementSend",
+      "RoomAccess",
       "AgreementList",
       "InvoiceList",
       "InvoiceDetail",

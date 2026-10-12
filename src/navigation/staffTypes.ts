@@ -1,10 +1,20 @@
 import type { NavigatorScreenParams } from "@react-navigation/native";
-import type { InquiryFilter } from "../screens/App/Sales/TourInquiriesScreen";
-import type { QuotationFromInquiry } from "../screens/App/Sales/SaleQuotationCreateScreen";
 
 // Route types for the staff apps (sales executive, admin, super admin). The customer app's routes live in
 // ./types.ts. Each staff role gets its own navigator (see ./staff/StaffNavigator.tsx), built from one shared
 // route table; ./staff/access.ts says which role may open which route (mirrors the web CMS).
+
+/** Tour-inquiry list filter. */
+export type InquiryFilter = "all" | "new" | "due";
+
+/** A tour inquiry being turned into a quotation (prefills the customer search; feedback "converted" after saving). */
+export type InquiryPrefill = {
+  inquiryId: number | null;
+  publicId: string | null;
+  name: string;
+  email: string;
+  phone: string;
+};
 
 /** Bottom tabs. Which of them a role gets is in STAFF_TABS (./staff/access.ts). */
 export type StaffTabParamList = {
@@ -20,39 +30,46 @@ export type StaffTabParamList = {
 
 export type StaffTabName = keyof StaffTabParamList;
 
-/** Screens pushed over the tabs. */
+/** Screens pushed over the tabs. Ids are the API's int ids unless noted. */
 export type StaffStackParamList = {
   StaffTabs: NavigatorScreenParams<StaffTabParamList> | undefined;
 
-  // ── Kept under the names the existing Sales/Admin screens navigate to ──────────────────────────────
-  CustomerList: undefined;
-  CustomerCreate: undefined;
   QuotationList: undefined;
+  QuotationDetail: { quotationId: number };
   /**
-   * New quotation. `editQuotationId` is passed by the quotation list's "Edit" action, but the current create
-   * screen ignores it (stage 2: open the quotation as a new version / edit the draft version instead).
+   * New quotation. `editFromId`: "edit" = a new quotation prefilled from that one (the API cannot change a
+   * quotation's values; the new one replaces the active quotation for the same customer and space).
    */
-  QuotationCreate: { fromInquiry?: QuotationFromInquiry; editQuotationId?: string } | undefined;
-  /** Customer-facing quotation screen, still used for staff until the staff quotation detail exists. */
-  Quotation: { quotationId: string };
-  BookingList: undefined;
-  BookingCreate: undefined;
-  TourInquiries: { filter?: InquiryFilter } | undefined;
-  KycDocuments: { customerId: number | string; customerName?: string };
+  QuotationForm: { editFromId?: number; customerId?: number; fromInquiry?: InquiryPrefill } | undefined;
 
-  // ── Staff screens ───────────────────────────────────────────────────────────────────────────────────
+  /** Customer by int id or GUID. */
   CustomerDetail: { customerId: number | string };
-  CustomerEdit: { customerId: number | string };
-  QuotationDetail: { quotationId: number | string };
-  BookingDetail: { bookingId: number | string };
-  AgreementList: { status?: string } | undefined;
-  InvoiceList: undefined;
-  InvoiceDetail: { invoiceId: number | string };
+  CustomerForm: { customerId?: number | string } | undefined;
+
   KycList: undefined;
-  /** Attendants & Access. Opened for a customer, or straight on one booked space (booking detail id). */
-  Attendants: { customerId?: number; bookingDetailId?: number } | undefined;
+  KycCustomer: { customerId: number | string; customerName?: string };
+
+  BookingList: undefined;
+  BookingDetail: { bookingId: number };
+  BookingForm: { customerId?: number } | undefined;
+
+  TourInquiries: { filter?: InquiryFilter } | undefined;
+
+  AgreementList: { status?: string } | undefined;
+  AgreementDetail: { agreementId: number };
+  /** Send the lease agreement for an accepted quotation. */
+  AgreementSend: { quotationId: number };
+
+  InvoiceList: undefined;
+  InvoiceDetail: { invoiceId: number };
+
+  /** Attendants & Access: pick a customer (or open one), then a booked space. */
+  Attendants: { customerId?: number } | undefined;
+  /** People, door access and capacity of one booked space (booking detail). */
+  RoomAccess: { bookingDetailId: number; customerId: number; spaceName?: string };
   /** Capacity requests (admin approvals); also the Approvals tab. */
-  CapacityRequests: { status?: string } | undefined;
+  CapacityRequests: undefined;
+
   Complaints: undefined;
   /** Admin / super admin: door access activity log. */
   AccessActivity: undefined;

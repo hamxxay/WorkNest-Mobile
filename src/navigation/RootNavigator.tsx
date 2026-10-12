@@ -1,4 +1,4 @@
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { useAuth } from "../context/AuthContext";
 import { useThemeColors } from "../theme";
 
@@ -30,7 +30,7 @@ export default function RootNavigator() {
   // so we never flash the wrong navigator before the role is known.
   if (isLoadingUser) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.background }}>
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
@@ -51,3 +51,7 @@ export default function RootNavigator() {
       return <AppNavigator />;
   }
 }
+
+const styles = StyleSheet.create({
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+});

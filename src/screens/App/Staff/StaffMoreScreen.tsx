@@ -1,72 +1,80 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import Ionicons from "react-native-vector-icons/Ionicons";
-import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
+import { Fragment } from "react";
+import { ScrollView, StyleSheet, View } from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { AppHeader, Badge, Card, Divider, ListRow, SectionHeader } from "../../../components/ui";
 import { useAuth } from "../../../context/AuthContext";
+import { roleLabel } from "../../../context/roles";
 import { moreMenuFor } from "../../../navigation/staff/access";
-import type { StaffTabParamList } from "../../../navigation/staffTypes";
-import { useThemeColors, useThemedStyles, type AppColors } from "../../../theme";
+import type { StaffStackParamList } from "../../../navigation/staffTypes";
+import { spacing } from "../../../theme";
+import { StaffScreen } from "./shared/StaffScreen";
+import { useStaffSession } from "./shared/StaffSession";
 
-type Props = BottomTabScreenProps<StaffTabParamList, "More">;
+type Nav = NativeStackNavigationProp<StaffStackParamList>;
 
-// "More" tab: every other screen the signed-in role may open, grouped like the CMS sidebar.
-// Stage 2 restyles this with the UI kit; the menu itself comes from navigation/staff/access.ts.
-export default function StaffMoreScreen({ navigation }: Props) {
-  const colors = useThemeColors();
-  const styles = useThemedStyles(createStyles);
-  const { staffRole } = useAuth();
-  const sections = staffRole ? moreMenuFor(staffRole) : [];
+/** "More" tab: every other screen the role may open, grouped like the CMS sidebar, with waiting counts. */
+export default function StaffMoreScreen() {
+  const navigation = useNavigation<Nav>();
+  const { user } = useAuth();
+  const { role, badges, badgeTotal, profile } = useStaffSession();
+  const sections = moreMenuFor(role);
+  const name = profile?.name || (typeof user?.name === "string" ? user.name : "") || user?.email || "Staff";
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.content}>
-      {sections.map((section) => (
-        <View key={section.title} style={styles.section}>
-          <Text style={styles.sectionTitle} accessibilityRole="header">
-            {section.title}
-          </Text>
-          <View style={styles.card}>
-            {section.items.map((item, index) => (
-              <Pressable
-                key={item.route}
-                accessibilityRole="button"
-                accessibilityLabel={item.label}
-                android_ripple={{ color: colors.primaryMuted }}
-                style={[styles.row, index > 0 && styles.rowDivider]}
-                // Pushed screens live in the stack around the tabs; navigate() bubbles up to it.
-                onPress={() => (navigation as any).navigate(item.route)}
-              >
-                <Ionicons name={item.icon} size={22} color={colors.primary} />
-                <Text style={styles.rowLabel}>{item.label}</Text>
-                <Ionicons name="chevron-forward" size={18} color={colors.mutedForeground} />
-              </Pressable>
-            ))}
-          </View>
-        </View>
-      ))}
-    </ScrollView>
+    <StaffScreen>
+      <AppHeader
+        title="More"
+        actions={[
+          {
+            icon: "notifications-outline",
+            accessibilityLabel: badgeTotal ? `Notifications, ${badgeTotal} waiting` : "Notifications",
+            badge: badgeTotal,
+            onPress: () => navigation.navigate("StaffNotifications"),
+          },
+        ]}
+      />
+      <ScrollView contentContainerStyle={styles.content}>
+        <Card padding={0}>
+          <ListRow
+            avatar={{ name }}
+            title={name}
+            subtitle={`${roleLabel(role)}${profile?.email ? ` · ${profile.email}` : ""}`}
+            onPress={() => navigation.navigate("StaffProfile")}
+            accessibilityLabel={`${name}, ${roleLabel(role)}. Open profile`}
+          />
+        </Card>
+        {sections
+          .map((section) => ({ ...section, items: section.items.filter((i) => i.route !== "StaffProfile") }))
+          .filter((section) => section.items.length > 0)
+          .map((section) => (
+            <View key={section.title} style={styles.section}>
+              <SectionHeader title={section.title} variant="overline" />
+              <Card padding={0}>
+                {section.items.map((item, index) => {
+                  const count = badges[item.route] ?? 0;
+                  return (
+                    <Fragment key={item.route}>
+                      {index > 0 ? <Divider inset={68} /> : null}
+                      <ListRow
+                        leftIcon={item.icon}
+                        title={item.label}
+                        right={count > 0 ? <Badge count={count} accessibilityLabel={`${count} waiting`} /> : undefined}
+                        onPress={() => navigation.navigate(item.route as never)}
+                        accessibilityLabel={count > 0 ? `${item.label}, ${count} waiting` : item.label}
+                      />
+                    </Fragment>
+                  );
+                })}
+              </Card>
+            </View>
+          ))}
+      </ScrollView>
+    </StaffScreen>
   );
 }
 
-const createStyles = (colors: AppColors) =>
-  StyleSheet.create({
-    root: { flex: 1, backgroundColor: colors.background },
-    content: { padding: 16, gap: 20 },
-    section: { gap: 8 },
-    sectionTitle: {
-      color: colors.mutedForeground,
-      fontSize: 12,
-      fontWeight: "700",
-      textTransform: "uppercase",
-      letterSpacing: 0.6,
-      paddingHorizontal: 4,
-    },
-    card: {
-      backgroundColor: colors.card,
-      borderRadius: 14,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.border,
-      overflow: "hidden",
-    },
-    row: { flexDirection: "row", alignItems: "center", gap: 14, minHeight: 52, paddingHorizontal: 16 },
-    rowDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
-    rowLabel: { flex: 1, color: colors.foreground, fontSize: 15, fontWeight: "600" },
-  });
+const styles = StyleSheet.create({
+  content: { padding: spacing.screen, gap: spacing.lg, paddingBottom: spacing.xxl },
+  section: { gap: spacing.sm },
+});
