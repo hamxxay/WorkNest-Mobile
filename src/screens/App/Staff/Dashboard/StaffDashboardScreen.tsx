@@ -3,6 +3,7 @@ import { RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { AppHeader, SegmentedControl, SelectField, greeting } from "../../../../components/ui";
+import { useTabBarSpace } from "../../../../components/ui/TabBar";
 import { useAuth } from "../../../../context/AuthContext";
 import { roleLabel } from "../../../../context/roles";
 import type { StaffStackParamList } from "../../../../navigation/staffTypes";
@@ -55,6 +56,7 @@ const PERIODS: { label: string; value: DashboardPeriod }[] = [
 export default function StaffDashboardScreen() {
   const navigation = useNavigation<Nav>();
   const colors = useThemeColors();
+  const tabBarSpace = useTabBarSpace();
   const { user } = useAuth();
   const { role, profile, locations, locationsLoading, badgeTotal, refreshBadges } = useStaffSession();
   const isAdmin = isAdminRole(role);
@@ -132,7 +134,7 @@ export default function StaffDashboardScreen() {
         ]}
       />
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingBottom: styles.content.paddingBottom + tabBarSpace }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} colors={[colors.primary]} tintColor={colors.primary} />}
       >
         <View style={styles.controls}>

@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { AppHeader, Badge, Card, Divider, ListRow, SectionHeader } from "../../../components/ui";
+import { useTabBarSpace } from "../../../components/ui/TabBar";
 import { useAuth } from "../../../context/AuthContext";
 import { roleLabel } from "../../../context/roles";
 import { moreMenuFor } from "../../../navigation/staff/access";
@@ -16,6 +17,7 @@ type Nav = NativeStackNavigationProp<StaffStackParamList>;
 /** "More" tab: every other screen the role may open, grouped like the CMS sidebar, with waiting counts. */
 export default function StaffMoreScreen() {
   const inTabs = useInTabs();
+  const tabBarSpace = useTabBarSpace();
   const navigation = useNavigation<Nav>();
   const { user } = useAuth();
   const { role, badges, badgeTotal, profile } = useStaffSession();
@@ -36,7 +38,7 @@ export default function StaffMoreScreen() {
           },
         ]}
       />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: styles.content.paddingBottom + tabBarSpace }]}>
         <Card padding={0}>
           <ListRow
             avatar={{ name }}

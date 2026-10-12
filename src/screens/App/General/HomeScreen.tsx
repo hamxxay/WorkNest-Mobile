@@ -20,6 +20,7 @@ import {
   greeting,
 } from "../../../components/ui";
 import { ChatBot } from "../../../components/ChatBot";
+import { useTabBarSpace } from "../../../components/ui/TabBar";
 import { useTheme, useThemedStyles, type AppColors, type Theme } from "../../../theme";
 import { formatDate, formatMoney } from "../../../utils/format";
 import { useAuth } from "../../../context/AuthContext";
@@ -46,6 +47,7 @@ export default function HomeScreen() {
   const navigation = useNavigation<Nav>();
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
+  const tabBarSpace = useTabBarSpace();
   const { user } = useAuth();
   const bell = useNotificationsAction();
   const doorAccess = useDoorAccess();
@@ -135,7 +137,7 @@ export default function HomeScreen() {
         }
       />
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingBottom: styles.content.paddingBottom + tabBarSpace }]}
         showsVerticalScrollIndicator={false}
         onScrollBeginDrag={() => setChatVisible(false)}
         onScrollEndDrag={() => setChatVisible(true)}

@@ -14,6 +14,7 @@ import {
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { useTheme, useThemeColors, useThemedStyles, type AppColors, type Theme } from "../theme";
 import { IconButton } from "./ui";
+import { useTabBarSpace } from "./ui/TabBar";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Message = { id: string; text: string; from: "user" | "bot" };
@@ -122,6 +123,8 @@ export function ChatBot({ visible = true }: { visible?: boolean }) {
   const colors = useThemeColors();
   const { shadows } = useTheme();
   const s = useThemedStyles(makeStyles);
+  // On a tab screen the button floats above the floating tab bar.
+  const tabBarSpace = useTabBarSpace();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -157,7 +160,7 @@ export function ChatBot({ visible = true }: { visible?: boolean }) {
     <>
       <Animated.View
         pointerEvents={visible ? "box-none" : "none"}
-        style={[s.fabWrap, { opacity: fabVisibility, transform: [{ scale: fabVisibility }] }]}
+        style={[s.fabWrap, { bottom: s.fabWrap.bottom + tabBarSpace, opacity: fabVisibility, transform: [{ scale: fabVisibility }] }]}
       >
         <Pressable
           accessibilityRole="button"
