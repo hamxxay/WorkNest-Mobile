@@ -195,6 +195,11 @@ export async function listQuotations(
   return toPage(raw, normalizeQuotation, { page, limit });
 }
 
+/** GET quotation/by-customer/{customerId} — every quotation row of the customer. */
+export async function listCustomerQuotations(customerId: number): Promise<StaffQuotation[]> {
+  return toList(await staffGet(STAFF_ENDPOINTS.quotations.byCustomer(customerId)), normalizeQuotation);
+}
+
 /** GET quotation/{id} */
 export async function getQuotation(id: number | string): Promise<StaffQuotation> {
   return normalizeQuotation(unwrapEnvelope(await staffGet(STAFF_ENDPOINTS.quotations.byId(id))));

@@ -45,6 +45,8 @@ export const STAFF_ENDPOINTS = {
   },
   quotations: {
     list: "/quotation",
+    /** A customer's quotations (staff, or the customer). */
+    byCustomer: (customerId: Id) => `/quotation/by-customer/${seg(customerId)}`,
     byId: (id: Id) => `/quotation/${seg(id)}`,
     create: "/quotation",
     versions: (id: Id) => `/quotation/${seg(id)}/versions`,

@@ -4,6 +4,9 @@ import type { StaffRouteName, StaffTabName } from "../staffTypes";
 import { makeStaffPlaceholder } from "../../screens/App/Staff/StaffPlaceholderScreen";
 import StaffMoreScreen from "../../screens/App/Staff/StaffMoreScreen";
 import StaffProfileScreen from "../../screens/App/Staff/Profile/StaffProfileScreen";
+import CustomerListScreen from "../../screens/App/Staff/Customers/CustomerListScreen";
+import CustomerDetailScreen from "../../screens/App/Staff/Customers/CustomerDetailScreen";
+import CustomerFormScreen from "../../screens/App/Staff/Customers/CustomerFormScreen";
 
 // Route name -> screen for the staff navigators. Every staff screen draws its own AppHeader (back button,
 // title, actions), so the navigators render no header of their own.
@@ -12,8 +15,8 @@ export const STAFF_SCREENS: Record<StaffRouteName, ComponentType<any>> = {
   QuotationList: makeStaffPlaceholder("Quotations"),
   QuotationDetail: makeStaffPlaceholder("Quotation"),
   QuotationForm: makeStaffPlaceholder("New quotation"),
-  CustomerDetail: makeStaffPlaceholder("Customer"),
-  CustomerForm: makeStaffPlaceholder("Customer"),
+  CustomerDetail: CustomerDetailScreen,
+  CustomerForm: CustomerFormScreen,
   KycList: makeStaffPlaceholder("KYC Portal"),
   KycCustomer: makeStaffPlaceholder("KYC documents"),
   BookingList: makeStaffPlaceholder("Bookings"),
@@ -57,7 +60,7 @@ export function staffTabScreen(_role: StaffRole, tab: StaffTabName): StaffTabDef
     case "Quotations":
       return { label: "Quotations", icon: "document-text-outline", activeIcon: "document-text", component: STAFF_SCREENS.QuotationList };
     case "Customers":
-      return { label: "Customers", icon: "people-outline", activeIcon: "people", component: makeStaffPlaceholder("Customers") };
+      return { label: "Customers", icon: "people-outline", activeIcon: "people", component: CustomerListScreen };
     case "Approvals":
       return { label: "Approvals", icon: "checkmark-done-circle-outline", activeIcon: "checkmark-done-circle", component: STAFF_SCREENS.CapacityRequests };
     case "Bookings":

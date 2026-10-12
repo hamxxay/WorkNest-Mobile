@@ -44,7 +44,8 @@ export type StaffStackParamList = {
 
   /** Customer by int id or GUID. */
   CustomerDetail: { customerId: number | string };
-  CustomerForm: { customerId?: number | string } | undefined;
+  /** Create (no id) or edit. `returnTo`: after creating, go back to that form with the new customer picked. */
+  CustomerForm: { customerId?: number | string; returnTo?: "QuotationForm" | "BookingForm" } | undefined;
 
   KycList: undefined;
   KycCustomer: { customerId: number | string; customerName?: string };
