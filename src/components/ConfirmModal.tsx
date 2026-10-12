@@ -1,5 +1,5 @@
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
-import { radii, useThemedStyles, useThemeColors } from "../theme";
+import type { ReactNode } from "react";
+import { ConfirmDialog } from "./ui/ConfirmDialog";
 
 type ConfirmModalProps = {
   visible: boolean;
@@ -9,8 +9,19 @@ type ConfirmModalProps = {
   cancelText?: string;
   onConfirm: () => void;
   onCancel: () => void;
+  /** Red confirm button + warning icon (delete, cancel booking, log out). */
+  destructive?: boolean;
+  /** Spinner on the confirm button; blocks closing. */
+  loading?: boolean;
+  /** Ionicons name above the title. */
+  icon?: string;
+  children?: ReactNode;
 };
 
+/**
+ * Legacy confirm dialog API, kept for existing screens. It now renders the themed ConfirmDialog from the UI kit.
+ * New code: `import { ConfirmDialog } from "../components/ui"` (confirmLabel / cancelLabel instead of *Text).
+ */
 export function ConfirmModal({
   visible,
   title,
@@ -19,100 +30,25 @@ export function ConfirmModal({
   cancelText = "Cancel",
   onConfirm,
   onCancel,
+  destructive = false,
+  loading = false,
+  icon,
+  children,
 }: ConfirmModalProps) {
-  const styles = useThemedStyles((colors) =>
-    StyleSheet.create({
-      modalBackdrop: {
-        flex: 1,
-        backgroundColor: colors.overlay,
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 24,
-      },
-      modalCard: {
-        width: "100%",
-        maxWidth: 360,
-        backgroundColor: colors.card,
-        borderRadius: radii.xl,
-        borderWidth: 1,
-        borderColor: colors.border,
-        padding: 24,
-        gap: 12,
-        shadowColor: colors.shadow,
-        shadowOpacity: 0.2,
-        shadowRadius: 32,
-        shadowOffset: { width: 0, height: 16 },
-        elevation: 14,
-      },
-      modalTitle: {
-        fontSize: 18,
-        fontWeight: "800",
-        color: colors.foreground,
-        letterSpacing: -0.3,
-      },
-      modalMessage: {
-        fontSize: 14,
-        color: colors.mutedForeground,
-        lineHeight: 20,
-      },
-      modalActions: {
-        flexDirection: "row",
-        justifyContent: "flex-end",
-        gap: 8,
-        marginTop: 8,
-      },
-      button: {
-        paddingVertical: 10,
-        paddingHorizontal: 16,
-        borderRadius: radii.md,
-      },
-      cancelButton: {
-        borderWidth: 1,
-        borderColor: colors.border,
-        backgroundColor: colors.muted,
-      },
-      cancelText: {
-        color: colors.foreground,
-        fontSize: 13,
-        fontWeight: "700",
-      },
-      dangerSolidButton: {
-        backgroundColor: colors.primary,
-        shadowColor: colors.primary,
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        shadowOffset: { width: 0, height: 3 },
-        elevation: 3,
-      },
-      dangerSolidText: {
-        color: "#FFFFFF",
-        fontSize: 13,
-        fontWeight: "700",
-      },
-    }),
-  );
-
   return (
-    <Modal
-      transparent
-      animationType="fade"
+    <ConfirmDialog
       visible={visible}
-      onRequestClose={onCancel}
+      title={title}
+      message={message}
+      confirmLabel={confirmText}
+      cancelLabel={cancelText}
+      onConfirm={onConfirm}
+      onCancel={onCancel}
+      destructive={destructive}
+      loading={loading}
+      icon={icon}
     >
-      <View style={styles.modalBackdrop}>
-        <View style={styles.modalCard}>
-          <Text style={styles.modalTitle}>{title}</Text>
-          <Text style={styles.modalMessage}>{message}</Text>
-          <View style={styles.modalActions}>
-            <Pressable onPress={onCancel} style={[styles.button, styles.cancelButton]}>
-              <Text style={styles.cancelText}>{cancelText}</Text>
-            </Pressable>
-            <Pressable onPress={onConfirm} style={[styles.button, styles.dangerSolidButton]}>
-              <Text style={styles.dangerSolidText}>{confirmText}</Text>
-            </Pressable>
-          </View>
-        </View>
-      </View>
-    </Modal>
+      {children}
+    </ConfirmDialog>
   );
 }

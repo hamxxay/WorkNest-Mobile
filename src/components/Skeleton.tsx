@@ -30,7 +30,7 @@ export function SkeletonGroup({ children, style }: PropsWithChildren<{ style?: S
   );
 }
 
-/** A grey placeholder bar / box; pulses when inside a SkeletonGroup. */
+/** A placeholder bar / box in the theme's skeleton colour; pulses when inside a SkeletonGroup. */
 export function SkeletonBlock({
   width = "100%",
   height = 12,
@@ -46,7 +46,7 @@ export function SkeletonBlock({
   const opacity = useContext(PulseContext) ?? 1;
   return (
     <Animated.View
-      style={[{ width, height, borderRadius: radius, backgroundColor: colors.primaryMuted, opacity }, style]}
+      style={[{ width, height, borderRadius: radius, backgroundColor: colors.skeleton, opacity }, style]}
     />
   );
 }
