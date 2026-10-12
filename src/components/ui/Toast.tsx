@@ -14,6 +14,7 @@ import Ionicons from "react-native-vector-icons/Ionicons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { palette, useTheme } from "../../theme";
 import { haptics, type HapticKind } from "../../utils/haptics";
+import { useReduceMotion } from "../motion/useReduceMotion";
 import { SuccessCheck } from "./SuccessCheck";
 
 export type ToastType = "success" | "error" | "info";
@@ -198,12 +199,22 @@ function ToastView({
   const insets = useSafeAreaInsets();
   const anim = useRef(new Animated.Value(0)).current;
   const [shown, setShown] = useState<ToastItem | null>(toast);
+  const reduceMotion = useReduceMotion();
 
   useEffect(() => {
     if (toast) {
       setShown(toast);
+      if (reduceMotion) {
+        anim.setValue(1);
+        return;
+      }
       anim.setValue(0);
       Animated.timing(anim, { toValue: 1, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+      return;
+    }
+    if (reduceMotion) {
+      anim.setValue(0);
+      setShown(null);
       return;
     }
     Animated.timing(anim, { toValue: 0, duration: 180, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(
@@ -211,6 +222,8 @@ function ToastView({
         if (finished) setShown(null);
       },
     );
+    // reduceMotion is read when a toast comes or goes; changing the setting mid-toast needs no replay.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toast, anim]);
 
   if (!shown) return null;
