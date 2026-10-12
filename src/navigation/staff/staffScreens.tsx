@@ -7,6 +7,8 @@ import StaffProfileScreen from "../../screens/App/Staff/Profile/StaffProfileScre
 import CustomerListScreen from "../../screens/App/Staff/Customers/CustomerListScreen";
 import CustomerDetailScreen from "../../screens/App/Staff/Customers/CustomerDetailScreen";
 import CustomerFormScreen from "../../screens/App/Staff/Customers/CustomerFormScreen";
+import KycListScreen from "../../screens/App/Staff/Kyc/KycListScreen";
+import KycCustomerScreen from "../../screens/App/Staff/Kyc/KycCustomerScreen";
 
 // Route name -> screen for the staff navigators. Every staff screen draws its own AppHeader (back button,
 // title, actions), so the navigators render no header of their own.
@@ -17,8 +19,8 @@ export const STAFF_SCREENS: Record<StaffRouteName, ComponentType<any>> = {
   QuotationForm: makeStaffPlaceholder("New quotation"),
   CustomerDetail: CustomerDetailScreen,
   CustomerForm: CustomerFormScreen,
-  KycList: makeStaffPlaceholder("KYC Portal"),
-  KycCustomer: makeStaffPlaceholder("KYC documents"),
+  KycList: KycListScreen,
+  KycCustomer: KycCustomerScreen,
   BookingList: makeStaffPlaceholder("Bookings"),
   BookingDetail: makeStaffPlaceholder("Booking"),
   BookingForm: makeStaffPlaceholder("New booking"),
