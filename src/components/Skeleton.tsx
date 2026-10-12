@@ -157,7 +157,7 @@ export function FadeInView({ index = 0, animate = true, children, style }: FadeI
     return () => anim.stop();
   }, [progress, index, run]);
 
-  if (!run) return <View style={style}>{children}</View>;
+  if (!run) return style ? <View style={style}>{children}</View> : <>{children}</>;
   const translateY = progress.interpolate({ inputRange: [0, 1], outputRange: [12, 0] });
   return <Animated.View style={[style, { opacity: progress, transform: [{ translateY }] }]}>{children}</Animated.View>;
 }
