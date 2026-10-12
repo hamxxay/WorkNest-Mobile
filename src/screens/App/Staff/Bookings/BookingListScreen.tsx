@@ -78,7 +78,7 @@ function BookingCard({ booking: b, onPress }: { booking: StaffBooking; onPress: 
         <AppText variant="caption" color="textMuted" style={styles.flex}>
           {formatDateRange(b.contractStartDate || b.startOn, b.contractEndDate || b.endOn)}
         </AppText>
-        {b.totalAmount ? <AppText variant="bodyStrong">{formatMoney(b.totalAmount)}</AppText> : null}
+        {b.totalAmount ? <AppText variant="amount">{formatMoney(b.totalAmount)}</AppText> : null}
       </View>
     </Card>
   );

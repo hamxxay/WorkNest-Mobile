@@ -73,7 +73,7 @@ export function InvoiceCard({ invoice: inv, onPress }: { invoice: StaffInvoice; 
           {[inv.spaceName, `Due ${formatDate(inv.dueOn)}`].filter(Boolean).join(" · ")}
         </AppText>
         <View style={styles.amount}>
-          <AppText variant="bodyStrong">{formatMoney(inv.grandTotal)}</AppText>
+          <AppText variant="amount">{formatMoney(inv.grandTotal)}</AppText>
           {inv.balanceDue > 0 && inv.balanceDue !== inv.grandTotal ? (
             <AppText variant="caption" color="warning">
               {formatMoney(inv.balanceDue)} due
