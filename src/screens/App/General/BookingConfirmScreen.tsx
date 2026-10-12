@@ -90,7 +90,8 @@ export default function BookingConfirmScreen() {
     setSubmitting(true);
     setError("");
     const input: SmartBookingInput = {
-      categoryCode: categoryCodeForMode(booking.mode),
+      // The space's own category from the API matches what /booking/smart looks up; the mode map is the fallback.
+      categoryCode: workspace.categoryCode || categoryCodeForMode(booking.mode),
       startDateTime: period.startDateTime,
       endDateTime: period.endDateTime,
       notes: "Booked in the WorkNest app. Payment by bank challan.",

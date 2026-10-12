@@ -390,7 +390,8 @@ export type BookingCustomerProfile = {
 };
 
 export type SmartBookingInput = {
-  categoryCode: SmartBookingCategory;
+  /** The space category code from GET /space/available (preferred), or categoryCodeForMode(...). */
+  categoryCode: SmartBookingCategory | (string & {});
   /** Local date-time, e.g. 2026-10-14T09:00:00. */
   startDateTime: string;
   endDateTime: string;
