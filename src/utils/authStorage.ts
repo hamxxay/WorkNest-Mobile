@@ -79,7 +79,6 @@ export const getRefreshToken = async () => {
 
 export const getUser = async (): Promise<StoredUser | null> => {
   const raw = await AsyncStorage.getItem(USER_KEY);
-  console.log('getUser raw:', raw);
   if (!raw) {
     return null;
   }
@@ -128,7 +127,3 @@ export const clearAuthStorage = async () => {
 export const clearDeviceCache = async () => {
   await clearAuthStorage();
 };
-// export const isAuthenticated = async (): Promise<boolean> => {
-//   const token = await getToken();
-//   return !!token;
-// }
