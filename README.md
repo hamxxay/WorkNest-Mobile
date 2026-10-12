@@ -6,52 +6,58 @@ Built with React Native 0.86, React 19 and TypeScript. All data comes from the W
 
 ## What the app does
 
-### Customers (default role)
+### Customers (role `general`, and guests)
+
+Bottom tabs: **Home, Bookings, Payments, Agreements, Profile**.
 
 | Area | What it does | Screens |
 |---|---|---|
-| Home | Spaces, search, quick access tiles, notifications | `HomeScreen`, `SpaceDetailScreen`, `NotificationsScreen` |
-| Bookings | Search and book spaces, view and modify bookings, manage attendees | `BookingScreen`, `BookingInfoScreen`, `MyBookingsScreen`, `BookingDetailScreen`, `ModifyOrderScreen`, `AttendeesScreen` |
-| Quotations | View quotations, accept and pay, share | `QuotationListScreen`, `QuotationScreen`, `QuotationPaymentScreen`, `ShareQuotationScreen` |
-| Invoices and payments | Invoice list with PDFs, payment challans (save, share, print) | `MyPaymentsScreen`, `ChallanScreen`, `PaymentScreen`, `CustomerInfoScreen` |
-| Agreements | List agreements, open the PDF, sign in the app (e-sign) | `AgreementListScreen`, `ESignAgreementScreen` |
-| Door access | Request access to your room door; once approved, the Home tile becomes **Unlock Door** and opens the room door in one tap | `AccessRequestScreen`, `UnlockDoorScreen`, `hooks/useUnlockRoomDoor.ts` |
-| Account and info | Profile, pricing, gallery, contact, about, user manual, privacy policy | `ProfileScreen`, `PricingScreen`, `GalleryScreen`, ... |
+| Home | Challan waiting to be paid, quick actions (book a space, book a tour, door access, quotations), spaces open for booking, notifications, assistant | `HomeScreen`, `SpacesScreen`, `SpaceDetailScreen`, `NotificationsScreen`, `BookTourScreen` |
+| Booking | Pick a space, dates and seats, live availability, confirm, then pay the bank challan (1Bill / HBL) | `BookingInfoScreen`, `BookingConfirmScreen`, `ChallanScreen` |
+| Bookings tab | Upcoming and past bookings, booking detail | `MyBookingsScreen`, `BookingDetailScreen` |
+| Payments tab | Payments and the challan of each booking; statuses come from the API (the app never marks anything paid) | `MyPaymentsScreen`, `ChallanScreen` |
+| Quotations | View quotations from WorkNest, accept or decline, download the PDF | `QuotationListScreen`, `QuotationScreen` |
+| Agreements tab | Lease agreements, read the PDF, sign in the app (drawn or typed signature) | `AgreementListScreen`, `ESignAgreementScreen` |
+| Door access | Request access to your room door; once approved the Home tile opens the door | `AccessRequestScreen`, `UnlockDoorScreen` |
+| Profile tab | Account details, appearance (System / Light / Dark), gallery and help pages, sign out | `ProfileScreen`, `GalleryScreen`, `ContactUsScreen`, `AboutUsScreen`, `UserManualScreen`, `PrivacyPolicyScreen` |
 
-Guests can browse spaces and pricing. Bookings, invoices and door access ask the user to sign in.
+Guests can browse spaces, the gallery and the help pages; booking, payments, agreements and door access ask them
+to sign in. Payment is by bank challan only: there is no in-app card payment.
 
-### Staff (sales executive and admin)
+### Staff (sales executive, admin, super admin)
 
-| Area | What it does | Screens |
+Staff sign in from the same Login screen; the app then switches to the staff navigator for their role
+(`src/navigation/staff`, rules in `staff/access.ts`, mirroring the web CMS).
+
+| Role | Bottom tabs | "More" menu |
 |---|---|---|
-| Dashboard | Totals for customers, bookings, quotations, tour inquiries; quotation status (draft, sent, accepted, declined) | `SaleDashboard` (sales), `AdminDashboard` (admin) |
-| Customers | Create customers and browse the customer list | `CustomerCreateScreen`, `CustomerListScreen` |
-| KYC | Upload and view a customer's KYC documents | `KycDocumentsScreen` |
-| Quotations | Create and list quotations | `SaleQuotationCreateScreen`, `SaleQuotationListScreen` |
-| Bookings | Create and list bookings for customers | `SaleBookingCreateScreen`, `SaleBookingListScreen` |
-| Tour inquiries | Follow up on "Book a Tour" requests from the website | `TourInquiriesScreen` |
+| Sales executive | Dashboard, Inquiries, Quotations, Customers, More | Bookings, Agreements, KYC, Complaints, Invoices, Attendants & Access, Profile |
+| Admin | Dashboard, Approvals, Bookings, Customers, More | Quotations, Tour Inquiries, Agreements, KYC, Complaints, Invoices, Attendants & Access, Access Activity Log, Locations, Spaces, Users, Profile |
+| Super admin | as admin | as admin, plus Challan Validity |
+
+Screens live in `src/screens/App/Staff/<Area>/`; their API calls in `src/services/staff/`. Tabs show badge
+counts from `GET admin/nav-badges`. Sign-out (any role) returns to the customer app.
 
 ### Role routing
 
-`src/navigation/RootNavigator.tsx` reads the role from `AuthContext`:
+`src/navigation/RootNavigator.tsx` reads the role from `AuthContext` and mounts one navigator:
 
 | Role from the API | Navigator |
 |---|---|
-| `admin` / `super_admin` | `AdminStack` |
+| `super_admin` | `SuperAdminStack` |
+| `admin` | `AdminStack` |
 | `sales_executive` | `SaleStack` |
-| anything else | `AppNavigator` (customer app) |
+| anything else (incl. receptionist, guests) | `AppNavigator` (customer app) |
 
-## Tech stack
+The three staff stacks are `StaffNavigator` with their role. RootNavigator also registers push notifications for
+every signed-in role.
 
-- React Native 0.86 (Hermes enabled), React 19.2, TypeScript 5
-- React Navigation 7 (native stack, bottom tabs, drawer)
-- Redux Toolkit for app state, `AuthContext` for the session
-- Firebase Auth and Google Sign-In; Firebase Messaging for push
-- `react-native-keychain` for the token, AsyncStorage for small settings
-- `react-native-dotenv` for configuration (`import { API_BASE } from "@env"`)
-- Reanimated 4, Gesture Handler, SVG, vector icons
-- `react-native-html-to-pdf`, `react-native-view-shot`, `react-native-share` for challans, quotations and agreements
-- Jest, ESLint, Prettier
+### Light and dark mode
+
+The app follows the phone's setting by default; Profile (customers and staff) has an Appearance switch
+(System / Light / Dark), saved on the device. Colours, type scale and components come from the UI kit
+(`src/theme`, `src/components/ui`, usage guide in `src/components/ui/README.md`). Android's own dialogs and date
+pickers follow the same choice. Documents (signatures) always stay on white paper.
 
 ## Prerequisites
 
@@ -112,10 +118,16 @@ npx react-native run-ios        # first time: cd ios && bundle install && bundle
 ## Checks
 
 ```bash
-npx tsc --noEmit -p .    # type-check
-npm run lint             # ESLint
-npm test                 # Jest
+npx tsc --noEmit -p .          # type-check
+npx eslint src --ext .ts,.tsx  # lint (npm run lint lints the whole project)
+npx jest                       # unit tests
 ```
+
+React Native 0.86 moved its Jest preset to the separate package `@react-native/jest-preset`, which is not in
+`package.json` yet. Without it, `jest.config.js` runs the TypeScript unit tests (services, staff rules, config,
+roles) in Node with a small react-native stub (`jest/react-native-stub.js`) and skips the render test
+`__tests__/App.test.tsx`. Install the preset (`npm i -D @react-native/jest-preset@0.86`) to run that one too;
+the config picks it up automatically.
 
 ## Release build (Android)
 
@@ -135,26 +147,47 @@ Release signing reads `android/keystore.properties` (keys listed in `android/key
 ## Project structure
 
 ```
-App.tsx, index.js         app entry
+App.tsx, index.js           app entry: theme, toasts, confirm dialog, error boundary, RootNavigator
 src/
-  navigation/             RootNavigator (role switch), AppNavigator (customer), SaleStack, AdminStack, linking
+  navigation/               RootNavigator (role switch + push), AppNavigator (customer), linking (deep links)
+    staff/                  StaffNavigator, per-role access rules (access.ts), screen registry
+    types.ts, staffTypes.ts route param lists
   screens/
-    Auth/                 splash, onboarding, login, signup
-    App/General/          customer screens (bookings, quotations, invoices, agreements, door access, ...)
-    App/Sales/            staff screens (dashboard, customers, KYC, quotations, bookings, tour inquiries)
-    App/Admin/            admin dashboard
-  services/               one file per API area; apiClient.ts handles auth headers and errors
-  config/api.ts           API base URL and endpoint paths
-  context/AuthContext.tsx session and role
-  hooks/                  useDoorAccess, useUnlockRoomDoor
-  components/             shared UI (Screen, Header, ConfirmModal, Skeleton, ...)
-  store/                  Redux Toolkit store and slices
-  utils/                  storage, validation, phone and CNIC helpers, PDF helpers
-  types/env.d.ts          types for the variables in .env
-scripts/                  sync-native-config.js, hermesc-shim.js
-android/, ios/            native projects
-public/                   Firebase Hosting page and app-link files (.well-known)
+    Auth/                   splash, onboarding, login, signup
+    App/General/            customer screens (home, booking, bookings, payments, quotations, agreements, ...)
+    App/Staff/<Area>/       staff screens (dashboard, inquiries, quotations, customers, bookings, KYC, ...)
+    Home/                   shared space card
+  services/                 customer API calls; apiClient.ts handles auth headers, errors, session expiry
+    staff/                  staff API calls (one file per area) with unit tests
+  components/
+    ui/                     UI kit: Button, TextField, Card, StatusPill, AsyncList, AppHeader, BottomSheet, ...
+    Screen.tsx, SmartImage, Skeleton, ErrorBoundary, ChatBot
+  theme/                    colours (light / dark), typography, spacing, ThemeProvider, status colours
+  config/api.ts             API base URL and endpoint paths
+  context/                  AuthContext (session) and roles
+  hooks/                    push notifications, door access
+  store/                    Redux Toolkit (notifications)
+  utils/                    formatting, storage, validation, phone and CNIC helpers
+  types/env.d.ts            types for the variables in .env
+jest/                       react-native stub for the Node test run
+scripts/                    sync-native-config.js, hermesc-shim.js
+android/, ios/              native projects (Android res: brand colours, DayNight theme, splash colour)
+public/                     logo, bundled photos, Firebase Hosting page and app-link files (.well-known)
 ```
+
+## Known API gaps
+
+Things the app works around because the API has no endpoint for them yet:
+
+- No customer "my invoices" list: Payments shows `GET /payment/my` plus each booking's challan.
+- No `GET agreement/{id}`: the staff agreement detail is opened from the list row.
+- No endpoint to edit a quotation's values: editing means a new version / quotation; quotation "convert" always
+  fails by design (bookings come from signed agreements).
+- No "unregister device token": sign-out deletes the FCM token on the device instead.
+- No "mark all announcements read": one call per announcement.
+- No status / date filter on the staff booking list (search only).
+- No "spaces of this location and type" lookup: the space list is filtered on the device.
+- No receptionist role (`Roles.FromRow` falls back to general), so receptionists get the customer app.
 
 ## Related repositories
 
