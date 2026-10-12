@@ -73,14 +73,19 @@ export async function createCustomer(payload: CustomerPayload): Promise<Customer
   });
 }
 
-export async function getCustomers(searchTerm?: string): Promise<CustomerRecord[]> {
-  const query = searchTerm?.trim();
+/**
+ * GET /api/customer?page=&limit=&search= (CustomerController.List). The API reads `search` (it used to be sent
+ * as `query`, which the API ignored, so searching returned the unfiltered first page). The API returns a bare
+ * array without a total; for paging use listCustomers in services/staff/customers.ts.
+ */
+export async function getCustomers(searchTerm?: string, page = 1, limit = 20): Promise<CustomerRecord[]> {
+  const params = new URLSearchParams();
+  params.set("page", String(page));
+  params.set("limit", String(limit));
+  const search = searchTerm?.trim();
+  if (search) params.set("search", search);
 
-  const url = query
-    ? `${API_ENDPOINTS.customer.list}?query=${encodeURIComponent(query)}`
-    : API_ENDPOINTS.customer.list;
-
-  return apiRequest<CustomerRecord[]>(url, {
+  return apiRequest<CustomerRecord[]>(`${API_ENDPOINTS.customer.list}?${params.toString()}`, {
     method: "GET",
     requiresAuth: true,
   });
