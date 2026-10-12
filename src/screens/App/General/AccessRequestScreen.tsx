@@ -27,6 +27,7 @@ import {
 } from '../../../services/doorAccessService';
 import { cnicError, formatCnicInput } from '../../../utils/cnic';
 import { formatPhoneInput, phoneError, PHONE_MAX_LENGTH } from '../../../utils/phone';
+import { errorMessage } from '../../../services/apiClient';
 
 type FormState = { name: string; email: string; cnic: string; phone: string };
 
@@ -71,7 +72,7 @@ export default function AccessRequestScreen({
     try {
       await confirmDoorAccess(details, bookingDetailId);
     } catch (err) {
-      Alert.alert('Could not verify access', err instanceof Error ? err.message : 'Please try again.');
+      Alert.alert('Could not verify access', errorMessage(err, 'Please try again.'));
       return;
     }
     if (user?.email) await saveDoorAccess(user.email, details, result, bookingDetailId);
@@ -125,7 +126,7 @@ export default function AccessRequestScreen({
         setRoomId(null);
       }
     } catch (err) {
-      Alert.alert('Could not verify access', err instanceof Error ? err.message : 'Please try again.');
+      Alert.alert('Could not verify access', errorMessage(err, 'Please try again.'));
     } finally {
       setSubmitting(false);
     }

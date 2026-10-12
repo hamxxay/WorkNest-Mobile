@@ -84,7 +84,7 @@ export default function ESignAgreementScreen({ navigation, route }: Props) {
       await openAgreementPdf(agreementId);
       setViewed(true);
     } catch (err) {
-      setPdfError(err instanceof Error ? err.message : 'Could not open the agreement. Please try again.');
+      setPdfError(errorMessage(err, 'Could not open the agreement. Please try again.'));
     } finally {
       setOpening(false);
     }

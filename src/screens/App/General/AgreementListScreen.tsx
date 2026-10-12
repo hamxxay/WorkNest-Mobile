@@ -23,6 +23,7 @@ import {
   type AgreementStatus,
 } from "../../../services/agreementService";
 import { openAgreementPdf } from "../../../utils/openAgreementPdf";
+import { errorMessage } from "../../../services/apiClient";
 import type { AppStackParamList } from "../../../navigation/types";
 
 // ─── Status config ────────────────────────────────────────────────────────────
@@ -88,19 +89,22 @@ function getStatusConfig(status?: AgreementStatus) {
 
 function AgreementCard({
   agreement,
+  allAgreements,
   onPress,
   onSign,
   opening,
   colors,
 }: {
   agreement: AgreementRecord;
+  /** The whole list: only the latest agreement of a quotation can be signed (website rule). */
+  allAgreements: AgreementRecord[];
   onPress: () => void;
   onSign: () => void;
   opening: boolean;
   colors: ReturnType<typeof useThemeColors>;
 }) {
   const sc = getStatusConfig(agreement.status);
-  const signable = isAgreementSignable(agreement);
+  const signable = isAgreementSignable(agreement, allAgreements);
 
   const fmt = (iso: string | undefined) => {
     if (!iso) return "—";
@@ -247,7 +251,7 @@ export default function AgreementListScreen() {
       setAgreements(data);
       loadedOnce.current = true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load agreements.");
+      setError(errorMessage(err, "Your agreements could not be loaded. Please try again."));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -267,7 +271,7 @@ export default function AgreementListScreen() {
     try {
       await openAgreementPdf(item.id);
     } catch (err) {
-      Alert.alert("Could not open agreement", err instanceof Error ? err.message : "Please try again.");
+      Alert.alert("Could not open agreement", errorMessage(err, "Please try again."));
     } finally {
       setOpeningId(null);
     }
@@ -323,6 +327,7 @@ export default function AgreementListScreen() {
             <FadeInView index={index}>
               <AgreementCard
                 agreement={item}
+                allAgreements={agreements}
                 colors={colors}
                 opening={openingId !== null && openingId === item.id}
                 onPress={() => viewAgreement(item)}

@@ -13,6 +13,7 @@ import type { AppStackParamList } from "../../../navigation/types";
 import { rootNavRef } from "../../../navigation/AppNavigator";
 import { getMyBookings, type MyBooking } from "../../../services/bookingService";
 import { formatPhoneInput, phoneError, PHONE_MAX_LENGTH } from "../../../utils/phone";
+import { errorMessage as readableError } from "../../../services/apiClient";
 
 type BookingItem = Pick<MyBooking, "id" | "endOn" | "status">;
 
@@ -65,7 +66,7 @@ export default function ProfileScreen() {
       setUser(updatedUser);
       setShowEditModal(false);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Failed to update profile.");
+      setErrorMessage(readableError(error, "Failed to update profile."));
     } finally {
       setIsSavingProfile(false);
     }

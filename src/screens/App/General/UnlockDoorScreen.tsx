@@ -13,6 +13,7 @@ import {
   type DoorAccess,
   type DoorInfo,
 } from '../../../services/doorAccessService';
+import { errorMessage } from '../../../services/apiClient';
 
 type Status = { kind: 'ok' | 'error'; text: string } | null;
 
@@ -47,7 +48,7 @@ export default function UnlockDoorScreen({ navigation }: { navigation: any }) {
       if (!result.doors?.length) setError(result.message || 'No doors found for your room.');
     } catch (err) {
       setDoors([]);
-      setError(err instanceof Error ? err.message : 'Could not load your doors. Please try again.');
+      setError(errorMessage(err, 'Could not load your doors. Please try again.'));
     } finally {
       setLoading(false);
     }
@@ -69,7 +70,7 @@ export default function UnlockDoorScreen({ navigation }: { navigation: any }) {
     } catch (err) {
       setStatus(prev => ({
         ...prev,
-        [door.deviceId]: { kind: 'error', text: err instanceof Error ? err.message : 'The door did not unlock. Please try again.' },
+        [door.deviceId]: { kind: 'error', text: errorMessage(err, 'The door did not unlock. Please try again.') },
       }));
     } finally {
       setUnlocking(null);

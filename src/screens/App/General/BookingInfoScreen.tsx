@@ -34,6 +34,7 @@ import {
   OutlinedField,
   WorkspaceSummaryCard,
 } from "../../Booking/components/BookingUi";
+import { errorMessage } from "../../../services/apiClient";
 
 type StepKey = "datetime" | "guest" | "payment";
 type CalendarDay = {
@@ -169,7 +170,7 @@ export default function BookingInfoScreen() {
         });
         return;
       } catch (guestError) {
-        setError(guestError instanceof Error ? guestError.message : "Please check your guest details.");
+        setError(errorMessage(guestError, "Please check your guest details."));
         return;
       }
     }

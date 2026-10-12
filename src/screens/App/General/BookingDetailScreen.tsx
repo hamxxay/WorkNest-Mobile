@@ -9,6 +9,7 @@ import { Screen } from "../../../components/Screen";
 import { getBookingById } from "../../../services/bookingService";
 import type { AppStackParamList } from "../../../navigation/types";
 import { radii, shadows, useThemeColors, useThemedStyles } from "../../../theme";
+import { errorMessage } from "../../../services/apiClient";
 
 type BookingDetailResponse = {
   bookingId?: number | string;
@@ -106,7 +107,7 @@ export default function BookingDetailScreen() {
       })
       .catch((err) => {
         if (!mounted) return;
-        setError(err instanceof Error ? err.message : "Unable to load booking detail.");
+        setError(errorMessage(err, "Unable to load booking detail."));
       })
       .finally(() => {
         if (mounted) setLoading(false);
