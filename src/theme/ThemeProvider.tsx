@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Appearance, useColorScheme } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { DarkTheme, DefaultTheme, type Theme as NavigationTheme } from "@react-navigation/native";
@@ -103,7 +103,12 @@ export function ThemeProvider({ children, initialMode = "system", persist = true
     };
   }, [persist]);
 
+  // Only touch the native night mode once the user has forced light/dark (and again to undo it), so a
+  // "system" user never triggers a configuration change.
+  const nativeOverridden = useRef(false);
   useEffect(() => {
+    if (mode === "system" && !nativeOverridden.current) return;
+    nativeOverridden.current = mode !== "system";
     applyNativeScheme(mode);
   }, [mode]);
 

@@ -10,6 +10,7 @@
  * the static `colors` object (instead of the hooks) stays light in dark mode. Migrate such screens to the hooks.
  */
 import { lightColors } from "./colors";
+import * as palette from "./palette";
 
 export { lightColors, darkColors, lightTones, darkTones } from "./colors";
 export type { AppColors, Tone, ToneColors } from "./colors";
@@ -30,7 +31,8 @@ export {
   THEME_MODE_STORAGE_KEY,
 } from "./ThemeProvider";
 export type { Theme, ThemeMode, ColorScheme } from "./ThemeProvider";
-export * as palette from "./palette";
+/** Raw colour ramps (teal, slate, emerald, amber, red, sky, indigo, night). Prefer semantic colours. */
+export { palette };
 
 /** Static LIGHT palette (legacy). Does not follow dark mode — use `useThemeColors()` in components. */
 export const colors = lightColors;
