@@ -36,7 +36,6 @@ export default function BookingListScreen() {
       />
       <SearchField value={query} onChangeText={setQuery} placeholder="Search customer, space or challan" />
       <AsyncList
-        key={list.listKey}
         data={list.items}
         keyExtractor={(b) => String(b.bookingId)}
         loading={list.loading}

@@ -8,7 +8,6 @@ import {
   Button,
   Card,
   Divider,
-  FieldMessage,
   FilterChips,
   InfoRow,
   SelectField,
@@ -78,7 +77,6 @@ export default function ComplaintListScreen() {
         contentContainerStyle={styles.chips}
       />
       <AsyncList
-        key={list.listKey}
         data={list.items}
         keyExtractor={(c) => String(c.id)}
         loading={list.loading}
@@ -144,6 +142,7 @@ function ComplaintSheet({ complaint: c, onClose, onSaved }: { complaint: StaffCo
   };
   return (
     <BottomSheet
+      error={error}
       visible
       onClose={onClose}
       dismissible={!saving}
@@ -180,7 +179,6 @@ function ComplaintSheet({ complaint: c, onClose, onSaved }: { complaint: StaffCo
         helperText={status === "resolved" ? "The customer is asked on WhatsApp to confirm it is fixed." : undefined}
       />
       <TextField label="Staff notes" value={notes} onChangeText={setNotes} multiline rows={3} maxLength={1000} />
-      <FieldMessage error={error} />
     </BottomSheet>
   );
 }
@@ -210,6 +208,7 @@ function NewComplaintSheet({ onClose, onSaved }: { onClose: () => void; onSaved:
   };
   return (
     <BottomSheet
+      error={error}
       visible
       onClose={onClose}
       dismissible={!saving}
@@ -227,7 +226,6 @@ function NewComplaintSheet({ onClose, onSaved }: { onClose: () => void; onSaved:
       <TextField label="Phone" value={phone} onChangeText={(t) => setPhone(formatPhoneInput(t))} keyboardType="phone-pad" />
       <TextField label="Email" value={email} onChangeText={(t) => setEmail(t.trim())} keyboardType="email-address" autoCapitalize="none" maxLength={256} />
       <TextField label="Branch" value={branch} onChangeText={setBranch} maxLength={50} placeholder="e.g. I-8" />
-      <FieldMessage error={error} />
     </BottomSheet>
   );
 }

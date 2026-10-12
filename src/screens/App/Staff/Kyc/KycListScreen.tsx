@@ -27,7 +27,6 @@ export default function KycListScreen() {
       <AppHeader title="KYC Portal" subtitle={list.total ? `${list.total} customers` : undefined} />
       <SearchField value={query} onChangeText={setQuery} placeholder="Search customers" />
       <AsyncList
-        key={list.listKey}
         data={list.items}
         keyExtractor={(c) => String(c.id)}
         loading={list.loading}

@@ -49,7 +49,6 @@ export default function AgreementListScreen() {
         contentContainerStyle={styles.chips}
       />
       <AsyncList
-        key={list.listKey}
         data={list.items}
         keyExtractor={(a) => String(a.id)}
         loading={list.loading}

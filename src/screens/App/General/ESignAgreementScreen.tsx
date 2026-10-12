@@ -1,6 +1,5 @@
 import { useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
-import Ionicons from "react-native-vector-icons/Ionicons";
+import { StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
 import { Gesture, GestureDetector, ScrollView } from "react-native-gesture-handler";
 import Svg, { Path } from "react-native-svg";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -10,19 +9,19 @@ import {
   Banner,
   Button,
   Card,
+  Checkbox,
   Screen,
   SectionHeader,
   SegmentedControl,
   TextField,
   useToast,
 } from "../../../components/ui";
-import { useTheme, useThemedStyles, type AppColors, type Theme } from "../../../theme";
+import { useThemedStyles, type AppColors, type Theme } from "../../../theme";
 import { useAuth } from "../../../context/AuthContext";
 import { eSignMyAgreement, openMyAgreementPdf } from "../../../services/agreementService";
 import {
   captureSignatureImage,
   signerNameError,
-  SIGNATURE_BACKGROUND,
   SIGNATURE_INK,
   TYPED_SIGNATURE_TEXT_STYLE,
 } from "../../../services/signatureService";
@@ -54,7 +53,6 @@ function toPath(points: Point[]): string {
  */
 export default function ESignAgreementScreen({ navigation, route }: Props) {
   const { agreementId, quotationNumber, customerName } = route.params;
-  const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const { user } = useAuth();
   const toast = useToast();
@@ -258,18 +256,7 @@ export default function ESignAgreementScreen({ navigation, route }: Props) {
         </Card>
 
         <SectionHeader title="3. Agree and sign" />
-        <Pressable
-          accessibilityRole="checkbox"
-          accessibilityState={{ checked: consent, disabled: submitting }}
-          disabled={submitting}
-          onPress={() => setConsent((c) => !c)}
-          style={styles.consentRow}
-        >
-          <Ionicons name={consent ? "checkbox" : "square-outline"} size={24} color={consent ? colors.primary : colors.textMuted} />
-          <AppText variant="bodySmall" style={styles.flex}>
-            {CONSENT_TEXT}
-          </AppText>
-        </Pressable>
+        <Checkbox checked={consent} onChange={setConsent} disabled={submitting} label={CONSENT_TEXT} />
 
         {error ? <Banner tone="danger" title="Not signed" message={error} /> : null}
 
@@ -288,18 +275,17 @@ const createStyles = (c: AppColors, t: Theme) =>
     fields: { gap: t.spacing.md },
     top: { marginTop: t.spacing.md },
     flex: { flex: 1 },
-    // The signature is part of the signed PDF: white paper and dark ink in light and dark mode.
+    // The signature is part of the signed PDF: paper (always white) with dark ink in light and dark mode.
     pad: {
       height: PAD_HEIGHT,
       borderRadius: t.radii.control,
       borderWidth: 1,
-      borderColor: c.inputBorder,
-      backgroundColor: SIGNATURE_BACKGROUND,
+      borderColor: c.paperBorder,
+      backgroundColor: c.paper,
       overflow: "hidden",
       justifyContent: "center",
       paddingHorizontal: t.spacing.lg,
     },
     typedText: { width: "100%" },
     padFooter: { flexDirection: "row", alignItems: "center", gap: t.spacing.sm },
-    consentRow: { flexDirection: "row", alignItems: "flex-start", gap: t.spacing.md, minHeight: 44 },
   });

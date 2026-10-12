@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, View } from "react-native";
+import { ActivityIndicator, FlatList, StyleSheet, View } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import {
   AppText,
@@ -7,8 +7,8 @@ import {
   Button,
   EmptyState,
   ErrorState,
-  FieldShell,
   ListRow,
+  PressableField,
   TextField,
 } from "../../../../components/ui";
 import { errorMessage } from "../../../../services/apiClient";
@@ -71,37 +71,24 @@ export function CustomerPickerField({
     };
   }, [open, q, attempt]);
 
-  const borderColor = error ? colors.danger : colors.inputBorder;
   const summary = value ? [value.email, value.phoneNumber].filter(Boolean).join(" · ") : "";
 
   return (
-    <FieldShell label={label} required={required} error={error} helperText={helperText} disabled={disabled}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${label}${required ? ", required" : ""}: ${value ? value.fullName : "not selected"}`}
-        accessibilityHint={error ? `Error: ${error}` : "Opens customer search"}
-        accessibilityState={{ disabled: !!disabled }}
+    <>
+      <PressableField
+        label={label}
+        required={required}
+        error={error}
+        helperText={helperText}
         disabled={disabled}
+        value={value ? value.fullName || value.email : null}
+        subtitle={summary}
+        placeholder="Search customers"
+        leftIcon="person-outline"
+        active={open}
         onPress={() => setOpen(true)}
-        android_ripple={{ color: colors.ripple }}
-        style={[
-          styles.box,
-          { borderColor, backgroundColor: disabled ? colors.surfaceAlt : colors.surface },
-        ]}
-      >
-        <Ionicons name="person-outline" size={20} color={colors.textMuted} />
-        <View style={styles.flex}>
-          <AppText numberOfLines={1} color={value ? "text" : colors.placeholder}>
-            {value ? value.fullName || value.email : "Search customers"}
-          </AppText>
-          {summary ? (
-            <AppText variant="caption" color="textMuted" numberOfLines={1}>
-              {summary}
-            </AppText>
-          ) : null}
-        </View>
-        <Ionicons name="chevron-down" size={18} color={colors.textMuted} />
-      </Pressable>
+        accessibilityHint="Opens customer search"
+      />
 
       <BottomSheet visible={open} onClose={() => setOpen(false)} title="Choose customer" scrollable={false} fullHeight maxHeight="85%">
         <View style={styles.search}>
@@ -164,23 +151,12 @@ export function CustomerPickerField({
           </View>
         ) : null}
       </BottomSheet>
-    </FieldShell>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  box: {
-    minHeight: 48,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    borderWidth: 1.5,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    overflow: "hidden",
-  },
   search: { paddingHorizontal: 20, paddingBottom: 8 },
   list: { paddingHorizontal: 8, paddingBottom: 8, flexGrow: 1 },
   center: { paddingVertical: 32, alignItems: "center" },

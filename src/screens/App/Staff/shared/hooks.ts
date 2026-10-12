@@ -24,11 +24,6 @@ export type PagedList<T> = {
   refreshing: boolean;
   loadingMore: boolean;
   error: string | null;
-  /**
-   * Changes whenever the list starts over (new query / filter, full reload). Pass it as the AsyncList `key` so
-   * the list remounts: back at the top, and AsyncList's "one onEndReached per row count" guard starts fresh.
-   */
-  listKey: string;
   /** Pull-to-refresh (keeps the rows while reloading). */
   refresh: () => void;
   /** Reload from page 1 showing the skeleton. */
@@ -54,7 +49,6 @@ export function usePagedList<T>(
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [listKey, setListKey] = useState(0);
   const generation = useRef(0);
   const pageRef = useRef(1);
   const loadedOnce = useRef(false);
@@ -66,10 +60,7 @@ export function usePagedList<T>(
       // A page that was still loading belongs to the old list: stop showing its spinner.
       loadingMoreRef.current = false;
       setLoadingMore(false);
-      if (mode === "initial") {
-        setLoading(true);
-        setListKey((k) => k + 1);
-      }
+      if (mode === "initial") setLoading(true);
       if (mode === "refresh") setRefreshing(true);
       setError(null);
       try {
@@ -151,7 +142,6 @@ export function usePagedList<T>(
     refreshing,
     loadingMore,
     error,
-    listKey: String(listKey),
     refresh: useCallback(() => load("refresh"), [load]),
     reload: useCallback(() => load("initial"), [load]),
     loadMore,

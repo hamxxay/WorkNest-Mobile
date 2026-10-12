@@ -11,7 +11,6 @@ import {
   ConfirmDialog,
   Divider,
   ErrorState,
-  FieldMessage,
   InfoRow,
   ListRow,
   ListSkeleton,
@@ -284,6 +283,7 @@ export default function QuotationDetailScreen() {
       ) : null}
 
       <ConfirmDialog
+        error={dialogError}
         visible={confirmSend}
         title="Send this quotation?"
         message="The customer can then accept or decline it in the WorkNest app and website."
@@ -295,10 +295,9 @@ export default function QuotationDetailScreen() {
           setDialogError(null);
         }}
         onConfirm={send}
-      >
-        <FieldMessage error={dialogError} />
-      </ConfirmDialog>
+       />
       <ConfirmDialog
+        error={dialogError}
         visible={confirmVersion}
         title="Create a new version?"
         message="A draft copy of this quotation is made as the next version."
@@ -310,9 +309,7 @@ export default function QuotationDetailScreen() {
           setDialogError(null);
         }}
         onConfirm={newVersion}
-      >
-        <FieldMessage error={dialogError} />
-      </ConfirmDialog>
+       />
       {q && emailOpen ? (
         <EmailSheet
           quotation={q}

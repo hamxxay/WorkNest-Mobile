@@ -38,7 +38,6 @@ export default function CustomerListScreen() {
       />
       <SearchField value={query} onChangeText={setQuery} placeholder="Search name, email, phone or code" />
       <AsyncList
-        key={list.listKey}
         data={list.items}
         keyExtractor={(c) => String(c.id)}
         loading={list.loading}

@@ -13,7 +13,6 @@ import {
   Divider,
   EmptyState,
   ErrorState,
-  FieldMessage,
   ListSkeleton,
   SelectField,
   StatusPill,
@@ -254,6 +253,7 @@ export default function KycCustomerScreen() {
       ) : null}
 
       <ConfirmDialog
+        error={verifyError}
         visible={!!verifyDoc}
         title="Verify this document?"
         message={verifyDoc ? `${verifyDoc.name} will be marked as verified.` : undefined}
@@ -265,9 +265,7 @@ export default function KycCustomerScreen() {
           setVerifyError(null);
         }}
         onConfirm={verify}
-      >
-        <FieldMessage error={verifyError} />
-      </ConfirmDialog>
+       />
 
       {rejectDoc ? (
         <RejectSheet
@@ -363,6 +361,7 @@ function UploadSheet({
   const uploading = progress !== null;
   return (
     <BottomSheet
+      error={error}
       visible
       onClose={onClose}
       dismissible={!uploading}
@@ -411,7 +410,6 @@ function UploadSheet({
           </AppText>
         </View>
       ) : null}
-      <FieldMessage error={error} />
     </BottomSheet>
   );
 }
@@ -480,7 +478,7 @@ function HistorySheet({ customerId, item, onClose }: { customerId: number; item:
   );
   const { data, loading, error, reload } = useAsyncData<KycDocumentVersion[]>(fetcher);
   return (
-    <BottomSheet visible onClose={onClose} title="Document history" subtitle={item.name}>
+    <BottomSheet error={openError} visible onClose={onClose} title="Document history" subtitle={item.name}>
       {loading ? (
         <ListSkeleton rows={2} variant="rows" />
       ) : error ? (
@@ -516,7 +514,6 @@ function HistorySheet({ customerId, item, onClose }: { customerId: number; item:
           </Card>
         ))
       )}
-      <FieldMessage error={openError} />
     </BottomSheet>
   );
 }

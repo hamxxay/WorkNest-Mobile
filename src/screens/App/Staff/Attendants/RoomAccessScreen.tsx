@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useMemo, useRef, useState } from "react";
-import { RefreshControl, ScrollView, StyleSheet, Switch, View, type TextInput } from "react-native";
+import { RefreshControl, ScrollView, StyleSheet, View, type TextInput } from "react-native";
 import { useRoute, type RouteProp } from "@react-navigation/native";
 import {
   AppHeader,
@@ -12,7 +12,6 @@ import {
   Divider,
   EmptyState,
   ErrorState,
-  FieldMessage,
   InfoRow,
   ListRow,
   ListSkeleton,
@@ -20,6 +19,7 @@ import {
   SegmentedControl,
   SelectField,
   StatusPill,
+  Switch,
   TextField,
   useToast,
 } from "../../../../components/ui";
@@ -245,8 +245,6 @@ export default function RoomAccessScreen() {
                             "Could not change door access.",
                           );
                         }}
-                        trackColor={{ false: colors.borderStrong, true: colors.primarySoft }}
-                        thumbColor={p.isEnabled ? colors.primary : colors.surfaceAlt}
                         accessibilityLabel={`Door access for ${p.name}`}
                       />
                       <Button title="Remove" variant="ghost" size="sm" onPress={() => setRemoving(p)} accessibilityLabel={`Remove ${p.name}`} />
@@ -338,6 +336,7 @@ export default function RoomAccessScreen() {
       ) : null}
 
       <ConfirmDialog
+        error={dialogError}
         visible={!!surcharge}
         title="Room is full"
         message={
@@ -354,10 +353,9 @@ export default function RoomAccessScreen() {
           const ok = await runInDialog("surcharge", async () => (await assignAttendant(bookingDetailId, { personId: surcharge.personId, customerId })).message, "Could not add the person.");
           if (ok) setSurcharge(null);
         }}
-      >
-        <FieldMessage error={dialogError} />
-      </ConfirmDialog>
+       />
       <ConfirmDialog
+        error={dialogError}
         visible={!!removing}
         title="Remove this person?"
         message={removing ? `${removing.name} loses door access to this space today.` : undefined}
@@ -370,10 +368,9 @@ export default function RoomAccessScreen() {
           const ok = await runInDialog("remove", async () => (await removeAttendant(bookingDetailId, removing.personId)).message, "Could not remove the person.");
           if (ok) setRemoving(null);
         }}
-      >
-        <FieldMessage error={dialogError} />
-      </ConfirmDialog>
+       />
       <ConfirmDialog
+        error={dialogError}
         visible={!!approving}
         title="Approve this request?"
         message={approving ? `${approving.personName} is added to the room. Over-capacity charges apply.` : undefined}
@@ -386,9 +383,7 @@ export default function RoomAccessScreen() {
           const ok = await runInDialog("approve", async () => (await approveCapacityRequest(approving.id)).message, "Could not approve the request.");
           if (ok) setApproving(null);
         }}
-      >
-        <FieldMessage error={dialogError} />
-      </ConfirmDialog>
+       />
       {rejecting ? (
         <RejectRequestSheet
           request={rejecting}
@@ -474,6 +469,7 @@ function AddPersonSheet({
 
   return (
     <BottomSheet
+      error={error}
       visible
       onClose={onClose}
       dismissible={!saving}
@@ -542,7 +538,6 @@ function AddPersonSheet({
           />
         </>
       )}
-      <FieldMessage error={error} />
     </BottomSheet>
   );
 }
@@ -564,6 +559,7 @@ function RejectRequestSheet({ request, onClose, onDone }: { request: CapacityReq
   };
   return (
     <BottomSheet
+      error={error}
       visible
       onClose={onClose}
       dismissible={!saving}
@@ -577,7 +573,6 @@ function RejectRequestSheet({ request, onClose, onDone }: { request: CapacityReq
       }
     >
       <TextField label="Note for the sales executive" value={note} onChangeText={setNote} multiline rows={3} maxLength={500} helperText="Optional" />
-      <FieldMessage error={error} />
     </BottomSheet>
   );
 }
@@ -601,6 +596,7 @@ function ExtendAccessSheet({ bookingDetailId, onClose, onDone }: { bookingDetail
   };
   return (
     <BottomSheet
+      error={error}
       visible
       onClose={onClose}
       dismissible={!saving}
@@ -615,7 +611,6 @@ function ExtendAccessSheet({ bookingDetailId, onClose, onDone }: { bookingDetail
     >
       <DateField label="Access until" required value={until} onChange={setUntil} minimumDate={new Date()} />
       <TextField label="Reason" required value={reason} onChangeText={setReason} multiline rows={2} maxLength={500} helperText="3 to 500 characters" />
-      <FieldMessage error={error} />
     </BottomSheet>
   );
 }

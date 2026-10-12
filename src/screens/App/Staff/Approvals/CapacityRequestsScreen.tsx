@@ -10,7 +10,6 @@ import {
   Button,
   Card,
   ConfirmDialog,
-  FieldMessage,
   FilterChips,
   StatusPill,
   TextField,
@@ -90,7 +89,6 @@ export default function CapacityRequestsScreen() {
       <AppHeader showBack={inTabs ? false : undefined} title="Approvals" subtitle="Requests to add people to full rooms" />
       <FilterChips value={status} onChange={setStatus} options={FILTERS} accessibilityLabel="Request status" style={styles.chipBar} contentContainerStyle={styles.chips} />
       <AsyncList
-        key={list.listKey}
         data={list.items}
         keyExtractor={(r) => String(r.id)}
         loading={list.loading}
@@ -145,6 +143,7 @@ export default function CapacityRequestsScreen() {
         )}
       />
       <ConfirmDialog
+        error={approveError}
         visible={!!approving}
         title="Approve this request?"
         message={approving ? `${approving.personName} is added to ${approving.spaceName}. The over-capacity charge is invoiced to the customer.` : undefined}
@@ -156,9 +155,7 @@ export default function CapacityRequestsScreen() {
           setApproveError(null);
         }}
         onConfirm={approve}
-      >
-        <FieldMessage error={approveError} />
-      </ConfirmDialog>
+       />
       {rejecting ? <RejectSheet request={rejecting} onClose={() => setRejecting(null)} onDone={(m) => {
         setRejecting(null);
         done(m);
@@ -184,6 +181,7 @@ function RejectSheet({ request, onClose, onDone }: { request: CapacityRequest; o
   };
   return (
     <BottomSheet
+      error={error}
       visible
       onClose={onClose}
       dismissible={!saving}
@@ -197,7 +195,6 @@ function RejectSheet({ request, onClose, onDone }: { request: CapacityRequest; o
       }
     >
       <TextField label="Note for the sales executive" value={note} onChangeText={setNote} multiline rows={3} maxLength={500} helperText="Optional" />
-      <FieldMessage error={error} />
     </BottomSheet>
   );
 }

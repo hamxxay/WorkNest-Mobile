@@ -36,7 +36,6 @@ export default function QuotationListScreen() {
       />
       <SearchField value={query} onChangeText={setQuery} placeholder="Search number or customer" />
       <AsyncList
-        key={list.listKey}
         data={list.items}
         keyExtractor={(q) => String(q.id)}
         loading={list.loading}

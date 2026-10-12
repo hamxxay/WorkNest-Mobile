@@ -10,7 +10,6 @@ import {
   Button,
   Card,
   DateField,
-  FieldMessage,
   FilterChips,
   IconButton,
   SegmentedControl,
@@ -117,7 +116,6 @@ export default function InquiryListScreen() {
         contentContainerStyle={styles.chips}
       />
       <AsyncList
-        key={list.listKey}
         data={rows}
         keyExtractor={(i) => String(i.id ?? i.publicId)}
         loading={list.loading}
@@ -273,6 +271,7 @@ function FeedbackSheet({
 
   return (
     <BottomSheet
+      error={error}
       visible
       onClose={onClose}
       dismissible={!saving}
@@ -323,7 +322,6 @@ function FeedbackSheet({
           />
         </View>
       ) : null}
-      <FieldMessage error={error} />
     </BottomSheet>
   );
 }
@@ -359,6 +357,7 @@ function AddInquirySheet({ onClose, onSaved }: { onClose: () => void; onSaved: (
 
   return (
     <BottomSheet
+      error={errors.form}
       visible
       onClose={onClose}
       dismissible={!saving}
@@ -375,7 +374,6 @@ function AddInquirySheet({ onClose, onSaved }: { onClose: () => void; onSaved: (
       <TextField ref={phoneRef} label="Phone" required value={phone} onChangeText={(t) => setPhone(formatPhoneInput(t))} error={errors.phone} keyboardType="phone-pad" returnKeyType="next" onSubmitEditing={() => emailRef.current?.focus()} />
       <TextField ref={emailRef} label="Email" value={email} onChangeText={(t) => setEmail(t.trim())} error={errors.email} keyboardType="email-address" autoCapitalize="none" returnKeyType="next" onSubmitEditing={() => messageRef.current?.focus()} />
       <TextField ref={messageRef} label="Message" value={message} onChangeText={setMessage} multiline rows={3} maxLength={1000} />
-      <FieldMessage error={errors.form} />
     </BottomSheet>
   );
 }

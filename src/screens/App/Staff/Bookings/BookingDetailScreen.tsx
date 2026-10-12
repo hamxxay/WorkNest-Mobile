@@ -12,7 +12,6 @@ import {
   Divider,
   EmptyState,
   ErrorState,
-  FieldMessage,
   InfoRow,
   ListSkeleton,
   SectionHeader,
@@ -223,6 +222,7 @@ export default function BookingDetailScreen() {
       ) : null}
 
       <ConfirmDialog
+        error={modalError}
         visible={confirmCancel}
         title="Cancel this booking?"
         message="The booking is marked Cancelled. The customer loses the space."
@@ -235,9 +235,7 @@ export default function BookingDetailScreen() {
           setModalError(null);
         }}
         onConfirm={doCancel}
-      >
-        <FieldMessage error={modalError} />
-      </ConfirmDialog>
+       />
 
       {b && reassignOpen ? (
         <ReassignSheet
@@ -271,7 +269,7 @@ function StatusSheet({
 }) {
   const { colors, typography } = useTheme();
   return (
-    <BottomSheet visible={visible} onClose={onClose} dismissible={!busy} title="Change status" subtitle="Any status can be changed to any other, as in the web portal.">
+    <BottomSheet error={error} visible={visible} onClose={onClose} dismissible={!busy} title="Change status" subtitle="Any status can be changed to any other, as in the web portal.">
       {BOOKING_STATUS_OPTIONS.map((o) => {
         const selected = o.id === current;
         return (
@@ -291,7 +289,6 @@ function StatusSheet({
           </Pressable>
         );
       })}
-      <FieldMessage error={error} />
     </BottomSheet>
   );
 }
@@ -350,6 +347,7 @@ function ReassignSheet({ booking, onClose, onDone }: { booking: StaffBookingDeta
 
   return (
     <BottomSheet
+      error={saveError}
       visible
       onClose={onClose}
       dismissible={!saving}
@@ -392,7 +390,6 @@ function ReassignSheet({ booking, onClose, onDone }: { booking: StaffBookingDeta
           );
         })
       )}
-      <FieldMessage error={saveError} />
     </BottomSheet>
   );
 }

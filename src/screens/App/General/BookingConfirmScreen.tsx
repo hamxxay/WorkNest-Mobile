@@ -1,22 +1,21 @@
 import { useRef, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { ScrollView, StyleSheet } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import Ionicons from "react-native-vector-icons/Ionicons";
 import {
   AppHeader,
-  AppText,
   Banner,
   Button,
   Card,
+  Checkbox,
   Divider,
   InfoRow,
   Screen,
   SectionHeader,
   useToast,
 } from "../../../components/ui";
-import { useTheme, useThemedStyles, type AppColors, type Theme } from "../../../theme";
+import { useThemedStyles, type AppColors, type Theme } from "../../../theme";
 import { errorMessage } from "../../../services/apiClient";
 import {
   categoryCodeForMode,
@@ -45,7 +44,6 @@ export default function BookingConfirmScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<RouteProp<AppStackParamList, "BookingConfirm">>();
   const { workspace, booking } = route.params;
-  const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const toast = useToast();
 
@@ -119,21 +117,12 @@ export default function BookingConfirmScreen() {
         />
         <ChallanPayHelp compact />
 
-        <Pressable
-          style={styles.termsRow}
-          onPress={() => setTermsAccepted((v) => !v)}
-          accessibilityRole="checkbox"
-          accessibilityState={{ checked: termsAccepted }}
-          accessibilityLabel="I agree to the WorkNest terms and understand the booking is confirmed after the challan is paid"
-        >
-          <View style={[styles.checkbox, termsAccepted && styles.checkboxChecked]}>
-            {termsAccepted ? <Ionicons name="checkmark" size={16} color={colors.onPrimary} /> : null}
-          </View>
-          <AppText variant="bodySmall" style={styles.flex}>
-            I agree to the WorkNest terms and conditions and understand the booking is confirmed after the challan is
-            paid.
-          </AppText>
-        </Pressable>
+        <Checkbox
+          checked={termsAccepted}
+          onChange={setTermsAccepted}
+          disabled={submitting}
+          label="I agree to the WorkNest terms and conditions and understand the booking is confirmed after the challan is paid."
+        />
 
         {error ? <Banner tone="danger" title="Not booked" message={error} /> : null}
 
@@ -154,16 +143,4 @@ const createStyles = (c: AppColors, t: Theme) =>
   StyleSheet.create({
     content: { padding: t.spacing.screen, gap: t.spacing.lg, paddingBottom: t.spacing.xxl },
     flex: { flex: 1 },
-    termsRow: { flexDirection: "row", alignItems: "flex-start", gap: t.spacing.md, minHeight: 44, paddingVertical: t.spacing.xs },
-    checkbox: {
-      width: 24,
-      height: 24,
-      borderRadius: 6,
-      borderWidth: 2,
-      borderColor: c.inputBorder,
-      backgroundColor: c.surface,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    checkboxChecked: { backgroundColor: c.primaryStrong, borderColor: c.primaryStrong },
   });

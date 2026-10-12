@@ -11,7 +11,6 @@ import {
   DateField,
   Divider,
   ErrorState,
-  FieldMessage,
   InfoRow,
   ListSkeleton,
   SectionHeader,
@@ -196,6 +195,7 @@ function ConfirmSignedSheet({
 
   return (
     <BottomSheet
+      error={error}
       visible
       onClose={onClose}
       dismissible={!saving}
@@ -221,7 +221,6 @@ function ConfirmSignedSheet({
         helperText="The date written on the signed agreement."
       />
       <TextField label="Note" value={note} onChangeText={setNote} multiline rows={2} maxLength={500} />
-      <FieldMessage error={error} />
     </BottomSheet>
   );
 }
@@ -257,10 +256,10 @@ function ESignatureSheet({ agreementId, onClose }: { agreementId: number; onClos
           {data.ipAddress ? <InfoRow label="IP address" value={data.ipAddress} /> : null}
           {data.signatureImage ? (
             <Card variant="outlined">
-              {/* Dark ink on a transparent image: always shown on a paper-white well so it stays readable in dark mode. */}
+              {/* Dark ink on a transparent image: always shown on paper so it stays readable in dark mode. */}
               <Image
                 source={{ uri: data.signatureImage }}
-                style={[styles.signature, { backgroundColor: colors.white }]}
+                style={[styles.signature, { backgroundColor: colors.paper, borderColor: colors.paperBorder }]}
                 resizeMode="contain"
                 accessibilityLabel="Customer signature"
               />
@@ -283,5 +282,5 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   gapTop: { marginTop: spacing.sm, alignSelf: "flex-start" },
   actions: { gap: spacing.sm },
-  signature: { width: "100%", height: 120, borderRadius: 8 },
+  signature: { width: "100%", height: 120, borderRadius: 8, borderWidth: 1 },
 });

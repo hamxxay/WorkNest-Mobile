@@ -1,6 +1,7 @@
 import { Platform, type TextStyle, type View } from "react-native";
 import { captureRef } from "react-native-view-shot";
 import { ApiError } from "./apiClient";
+import { lightColors } from "../theme/colors";
 
 // Signatures for e-signing an agreement (POST /Agreement/my/{id}/esign), drawn or typed like the website's
 // e-sign panel. Either way the screen renders the signature in a white box and this service turns that box
@@ -9,9 +10,9 @@ import { ApiError } from "./apiClient";
 /** The API's limit for the signature image (AgreementController.MaxSignatureImageBytes). */
 export const MAX_SIGNATURE_BYTES = 300 * 1024;
 
-/** The signature box is a document: always white with dark ink, also in dark mode. */
-export const SIGNATURE_BACKGROUND = "#FFFFFF";
-export const SIGNATURE_INK = "#0A1628";
+/** The signature box is a document: the theme's paper (always white) with dark ink, also in dark mode. */
+export const SIGNATURE_BACKGROUND = lightColors.paper;
+export const SIGNATURE_INK = lightColors.onPaper;
 
 /**
  * Text style for a typed signature: a handwriting font (Android's built-in "cursive"), dark ink.
