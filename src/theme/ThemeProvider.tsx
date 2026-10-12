@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Appearance, useColorScheme } from "react-native";
+import { Appearance, Platform, useColorScheme } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { DarkTheme, DefaultTheme, type Theme as NavigationTheme } from "@react-navigation/native";
+import type { Theme as NavigationTheme } from "@react-navigation/native";
 import { darkColors, darkTones, lightColors, lightTones, type AppColors, type Tone, type ToneColors } from "./colors";
 import { typography } from "./typography";
 import { getShadows, iconSizes, radii, spacing, touchTarget, type ShadowScale } from "./tokens";
@@ -170,16 +170,30 @@ export function useTones(): Record<Tone, ToneColors> {
   return useTheme().tones;
 }
 
+// Same font set React Navigation's DefaultTheme uses. Built here (instead of importing DefaultTheme) so the theme
+// module has no runtime dependency on @react-navigation (keeps unit tests of plain components simple).
+const NAV_FONTS: NavigationTheme["fonts"] =
+  Platform.OS === "ios"
+    ? {
+        regular: { fontFamily: "System", fontWeight: "400" },
+        medium: { fontFamily: "System", fontWeight: "500" },
+        bold: { fontFamily: "System", fontWeight: "600" },
+        heavy: { fontFamily: "System", fontWeight: "700" },
+      }
+    : {
+        regular: { fontFamily: "sans-serif", fontWeight: "normal" },
+        medium: { fontFamily: "sans-serif-medium", fontWeight: "normal" },
+        bold: { fontFamily: "sans-serif", fontWeight: "600" },
+        heavy: { fontFamily: "sans-serif", fontWeight: "700" },
+      };
+
 /** A React Navigation theme matching the active palette. Pass it to every <NavigationContainer theme={...}>. */
 export function useNavigationTheme(): NavigationTheme {
   const { isDark, colors } = useTheme();
-  return useMemo(() => {
-    const base = isDark ? DarkTheme : DefaultTheme;
-    return {
-      ...base,
+  return useMemo(
+    () => ({
       dark: isDark,
       colors: {
-        ...base.colors,
         primary: colors.primary,
         background: colors.background,
         card: colors.surface,
@@ -187,8 +201,10 @@ export function useNavigationTheme(): NavigationTheme {
         border: colors.border,
         notification: colors.dangerStrong,
       },
-    };
-  }, [isDark, colors]);
+      fonts: NAV_FONTS,
+    }),
+    [isDark, colors],
+  );
 }
 
 /**
