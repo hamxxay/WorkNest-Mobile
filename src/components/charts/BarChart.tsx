@@ -92,7 +92,9 @@ export function BarChart({
   const flat = useMemo(() => values.flat(), [values]);
   const empty = !data.length || !series.length || isAllZero(flat);
   const domain = useMemo(() => niceDomain(0, Math.max(0, ...flat), { count: tickCount }), [flat, tickCount]);
-  const tickLabels = domain.ticks.map(t => formatTick(t));
+  // Nothing to show: keep only the baseline (a "1" tick on an empty money axis would mean nothing).
+  const ticks = empty ? [0] : domain.ticks;
+  const tickLabels = ticks.map(t => formatTick(t));
   // Axis text follows the system font size, so the axis band and label widths scale with it.
   const fontScale = PixelRatio.getFontScale() || 1;
   const lineHeight = CAPTION_LINE * fontScale;
@@ -148,7 +150,7 @@ export function BarChart({
                   fill={chart.track}
                 />
               ) : null}
-              {domain.ticks.map(t => (
+              {ticks.map(t => (
                 <Line
                   key={`grid-${t}`}
                   x1={axisWidth}
@@ -177,7 +179,7 @@ export function BarChart({
                   )
                 : null}
             </Svg>
-            {domain.ticks.map((t, i) => (
+            {ticks.map((t, i) => (
               <AppText
                 key={`tick-${t}`}
                 variant="caption"
