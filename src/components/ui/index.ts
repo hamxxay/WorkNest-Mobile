@@ -31,6 +31,7 @@ export { SegmentedControl, type SegmentedControlProps, type SegmentOption } from
 export { Chip, FilterChips, type ChipProps, type FilterChipsProps, type FilterOption } from "./Chip";
 export { Badge, type BadgeProps } from "./Badge";
 export { Avatar, initialsOf, type AvatarProps } from "./Avatar";
+export { TabBar, useTabBarSpace, type TabBarProps } from "./TabBar";
 export {
   LoadingState,
   ListSkeleton,
