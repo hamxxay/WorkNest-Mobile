@@ -8,7 +8,7 @@ import { listQuotations, type StaffQuotation } from "../../../../services/staff"
 import { spacing } from "../../../../theme";
 import { formatDate, formatMoney } from "../../../../utils/format";
 import { SearchField } from "../shared/SearchField";
-import { StaffScreen } from "../shared/StaffScreen";
+import { StaffScreen, useInTabs } from "../shared/StaffScreen";
 import { useDebounced, usePagedList } from "../shared/hooks";
 
 type Nav = NativeStackNavigationProp<StaffStackParamList>;
@@ -19,6 +19,7 @@ const PAGE_SIZE = 15;
  * executives see their own locations. Search by quotation number or customer.
  */
 export default function QuotationListScreen() {
+  const inTabs = useInTabs();
   const navigation = useNavigation<Nav>();
   const [query, setQuery] = useState("");
   const search = useDebounced(query.trim());
@@ -28,12 +29,14 @@ export default function QuotationListScreen() {
   return (
     <StaffScreen>
       <AppHeader
+        showBack={inTabs ? false : undefined}
         title="Quotations"
         subtitle={list.total ? `${list.total} in total` : undefined}
         actions={[{ icon: "add", accessibilityLabel: "New quotation", onPress: () => navigation.navigate("QuotationForm") }]}
       />
       <SearchField value={query} onChangeText={setQuery} placeholder="Search number or customer" />
       <AsyncList
+        key={list.listKey}
         data={list.items}
         keyExtractor={(q) => String(q.id)}
         loading={list.loading}

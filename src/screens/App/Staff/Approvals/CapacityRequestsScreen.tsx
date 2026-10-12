@@ -28,7 +28,7 @@ import {
 } from "../../../../services/staff";
 import { spacing } from "../../../../theme";
 import { formatRelative } from "../../../../utils/format";
-import { StaffScreen } from "../shared/StaffScreen";
+import { StaffScreen, useInTabs } from "../shared/StaffScreen";
 import { useStaffSession } from "../shared/StaffSession";
 import { usePagedList } from "../shared/hooks";
 
@@ -49,6 +49,7 @@ const FILTERS: { label: string; value: Filter }[] = [
  * applies; POST .../approve), reject with an optional note (POST .../reject).
  */
 export default function CapacityRequestsScreen() {
+  const inTabs = useInTabs();
   const navigation = useNavigation<Nav>();
   const toast = useToast();
   const { role, refreshBadges } = useStaffSession();
@@ -56,6 +57,7 @@ export default function CapacityRequestsScreen() {
   const [approving, setApproving] = useState<CapacityRequest | null>(null);
   const [rejecting, setRejecting] = useState<CapacityRequest | null>(null);
   const [busy, setBusy] = useState(false);
+  const [approveError, setApproveError] = useState<string | null>(null);
 
   const fetchPage = useCallback(async () => {
     const items = await listCapacityRequests({ status });
@@ -72,11 +74,12 @@ export default function CapacityRequestsScreen() {
   const approve = async () => {
     if (!approving) return;
     setBusy(true);
+    setApproveError(null);
     try {
       done((await approveCapacityRequest(approving.id)).message);
       setApproving(null);
     } catch (err) {
-      toast.error(errorMessage(err, "Could not approve the request."));
+      setApproveError(errorMessage(err, "Could not approve the request."));
     } finally {
       setBusy(false);
     }
@@ -84,9 +87,10 @@ export default function CapacityRequestsScreen() {
 
   return (
     <StaffScreen>
-      <AppHeader title="Approvals" subtitle="Requests to add people to full rooms" />
+      <AppHeader showBack={inTabs ? false : undefined} title="Approvals" subtitle="Requests to add people to full rooms" />
       <FilterChips value={status} onChange={setStatus} options={FILTERS} accessibilityLabel="Request status" style={styles.chipBar} contentContainerStyle={styles.chips} />
       <AsyncList
+        key={list.listKey}
         data={list.items}
         keyExtractor={(r) => String(r.id)}
         loading={list.loading}
@@ -147,9 +151,14 @@ export default function CapacityRequestsScreen() {
         confirmLabel="Approve"
         icon="checkmark-circle-outline"
         loading={busy}
-        onCancel={() => setApproving(null)}
+        onCancel={() => {
+          setApproving(null);
+          setApproveError(null);
+        }}
         onConfirm={approve}
-      />
+      >
+        <FieldMessage error={approveError} />
+      </ConfirmDialog>
       {rejecting ? <RejectSheet request={rejecting} onClose={() => setRejecting(null)} onDone={(m) => {
         setRejecting(null);
         done(m);

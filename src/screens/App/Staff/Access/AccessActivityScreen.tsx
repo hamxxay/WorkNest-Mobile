@@ -135,6 +135,7 @@ function DoorEvents() {
       </View>
       <SearchField value={query} onChangeText={setQuery} placeholder="Search name, employee no. or card" />
       <AsyncList
+        key={list.listKey}
         data={rows}
         keyExtractor={(e) => String(e.id)}
         loading={list.loading}
@@ -184,6 +185,7 @@ function SystemLog() {
   const list = usePagedList<AccessSyncActivity>(fetchPage, { reloadOnFocus: false });
   return (
     <AsyncList
+        key={list.listKey}
       data={list.items}
       keyExtractor={(a) => String(a.id)}
       loading={list.loading}

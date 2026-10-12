@@ -58,7 +58,7 @@ export default function BookingFormScreen() {
   const navigation = useNavigation<Nav>();
   const { params } = useRoute<Route>();
   const toast = useToast();
-  const { profile, locations, locationsLoading } = useStaffSession();
+  const { profile, locations, locationsLoading, locationsError, reloadProfile } = useStaffSession();
   const lookups = useSpaceLookups();
 
   const [customer, setCustomer] = useState<StaffCustomer | null>(null);
@@ -99,6 +99,11 @@ export default function BookingFormScreen() {
       .catch((err) => toast.error(errorMessage(err, "Could not load the customer.")));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params?.customerId]);
+
+  // Billing can't be longer than the contract: use the longest option that fits.
+  useEffect(() => {
+    if (!isMeeting && billingMonths > months) setBillingMonths(Math.max(1, ...BILLING.filter((m) => m <= months)));
+  }, [months, billingMonths, isMeeting]);
 
   const onSelectionChange = (next: SpaceSelection) => {
     if (next.group !== selection.group) {
@@ -207,6 +212,8 @@ export default function BookingFormScreen() {
               onChange={onSelectionChange}
               locations={locations}
               locationsLoading={locationsLoading}
+              locationsError={locationsError}
+              onRetryLocations={reloadProfile}
               lookups={lookups}
               errors={errors}
             />

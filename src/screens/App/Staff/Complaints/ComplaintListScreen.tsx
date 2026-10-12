@@ -78,6 +78,7 @@ export default function ComplaintListScreen() {
         contentContainerStyle={styles.chips}
       />
       <AsyncList
+        key={list.listKey}
         data={list.items}
         keyExtractor={(c) => String(c.id)}
         loading={list.loading}
@@ -118,6 +119,13 @@ export default function ComplaintListScreen() {
   );
 }
 
+/** Complaint phones are stored as digits; WhatsApp ones in international form (92...) need a "+". */
+function dialable(phone: string): string {
+  const p = phone.trim();
+  if (p.startsWith("+") || p.startsWith("0")) return p;
+  return /^92\d{10}$/.test(p) ? `+${p}` : p;
+}
+
 function ComplaintSheet({ complaint: c, onClose, onSaved }: { complaint: StaffComplaint; onClose: () => void; onSaved: (m: string) => void }) {
   const [status, setStatus] = useState<ComplaintStatus>((COMPLAINT_STATUS_OPTIONS.find((o) => o.value === c.status)?.value ?? "open") as ComplaintStatus);
   const [notes, setNotes] = useState(c.staffNotes ?? "");
@@ -155,7 +163,7 @@ function ComplaintSheet({ complaint: c, onClose, onSaved }: { complaint: StaffCo
         <InfoRow
           label="Phone"
           icon="call-outline"
-          value={<Button title={c.phoneNumber} variant="ghost" size="sm" onPress={() => Linking.openURL(`tel:+${c.phoneNumber}`).catch(() => undefined)} />}
+          value={<Button title={c.phoneNumber} variant="ghost" size="sm" onPress={() => Linking.openURL(`tel:${dialable(c.phoneNumber as string)}`).catch(() => undefined)} />}
         />
       ) : null}
       {c.email ? <InfoRow label="Email" value={c.email} icon="mail-outline" /> : null}

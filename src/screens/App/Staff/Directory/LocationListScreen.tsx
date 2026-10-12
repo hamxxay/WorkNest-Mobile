@@ -22,6 +22,7 @@ export default function LocationListScreen() {
     <StaffScreen>
       <AppHeader title="Locations" subtitle={list.total ? `${list.total} locations` : undefined} />
       <AsyncList
+        key={list.listKey}
         data={list.items}
         keyExtractor={(l) => String(l.id)}
         loading={list.loading}

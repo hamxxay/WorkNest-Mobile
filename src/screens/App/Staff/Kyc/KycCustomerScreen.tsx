@@ -75,6 +75,7 @@ export default function KycCustomerScreen() {
   const [uploadFor, setUploadFor] = useState<KycChecklistItem | null>(null);
   const [verifyDoc, setVerifyDoc] = useState<KycChecklistItem | null>(null);
   const [verifying, setVerifying] = useState(false);
+  const [verifyError, setVerifyError] = useState<string | null>(null);
   const [rejectDoc, setRejectDoc] = useState<KycChecklistItem | null>(null);
   const [historyFor, setHistoryFor] = useState<KycChecklistItem | null>(null);
 
@@ -102,12 +103,13 @@ export default function KycCustomerScreen() {
   const verify = async () => {
     if (!verifyDoc?.documentId) return;
     setVerifying(true);
+    setVerifyError(null);
     try {
       toast.success(await verifyKycDocument(verifyDoc.documentId));
       setVerifyDoc(null);
       refresh();
     } catch (err) {
-      toast.error(errorMessage(err, "Could not verify the document."));
+      setVerifyError(errorMessage(err, "Could not verify the document."));
     } finally {
       setVerifying(false);
     }
@@ -258,9 +260,14 @@ export default function KycCustomerScreen() {
         confirmLabel="Verify"
         icon="checkmark-circle-outline"
         loading={verifying}
-        onCancel={() => setVerifyDoc(null)}
+        onCancel={() => {
+          setVerifyDoc(null);
+          setVerifyError(null);
+        }}
         onConfirm={verify}
-      />
+      >
+        <FieldMessage error={verifyError} />
+      </ConfirmDialog>
 
       {rejectDoc ? (
         <RejectSheet
@@ -466,7 +473,7 @@ function RejectSheet({
 }
 
 function HistorySheet({ customerId, item, onClose }: { customerId: number; item: KycChecklistItem; onClose: () => void }) {
-  const { opening, open } = useOpenFile();
+  const { opening, open, error: openError } = useOpenFile({ toast: false });
   const fetcher = useCallback(
     () => getKycDocumentHistory(customerId, item.documentTypeId, item.slotNo || 1),
     [customerId, item.documentTypeId, item.slotNo],
@@ -509,6 +516,7 @@ function HistorySheet({ customerId, item, onClose }: { customerId: number; item:
           </Card>
         ))
       )}
+      <FieldMessage error={openError} />
     </BottomSheet>
   );
 }

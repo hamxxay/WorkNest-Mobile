@@ -1,9 +1,9 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { AppHeader, Badge, Button, Card, Divider, EmptyState, ListRow, useToast } from "../../../../components/ui";
-import { NAV_BADGE_ROUTES, moreMenuFor } from "../../../../navigation/staff/access";
+import { NAV_BADGE_ROUTES, STAFF_MENU_ITEMS } from "../../../../navigation/staff/access";
 import type { StaffRouteName, StaffStackParamList } from "../../../../navigation/staffTypes";
 import { errorMessage } from "../../../../services/apiClient";
 import { spacing, useThemeColors } from "../../../../theme";
@@ -38,11 +38,6 @@ export default function StaffNotificationsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [marking, setMarking] = useState(false);
 
-  const labels = useMemo(() => {
-    const map = new Map<StaffRouteName, { label: string; icon: string }>();
-    moreMenuFor(role).forEach((s) => s.items.forEach((i) => map.set(i.route, { label: i.label, icon: i.icon })));
-    return map;
-  }, [role]);
 
   const rows = (Object.entries(badges) as [StaffRouteName, number][]).filter(([, n]) => n > 0);
   const approvals = role === "admin" || role === "super_admin" ? pendingApprovals : 0;
@@ -86,11 +81,11 @@ export default function StaffNotificationsScreen() {
                   title="Capacity requests"
                   subtitle="Sales executives asking to add people to full rooms"
                   right={<Badge count={approvals} />}
-                  onPress={() => navigation.navigate("StaffTabs", { screen: "Approvals" })}
+                  onPress={() => navigation.popTo("StaffTabs", { screen: "Approvals" })}
                 />
               ) : null}
               {rows.map(([route, count], i) => {
-                const meta = labels.get(route);
+                const meta = STAFF_MENU_ITEMS[route];
                 return (
                   <ListRowWithDivider
                     key={route}

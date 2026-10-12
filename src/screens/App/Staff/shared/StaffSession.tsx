@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { AppState } from "react-native";
 import type { StaffRole } from "../../../../context/roles";
 import { badgesByRoute } from "../../../../navigation/staff/access";
+import { errorMessage } from "../../../../services/apiClient";
 import type { StaffRouteName } from "../../../../navigation/staffTypes";
 import {
   getLocations,
@@ -27,7 +28,9 @@ export type StaffSession = {
   /** Locations the user may see (admins / sales executives: their own; super admins: all), A-Z. */
   locations: StaffLocation[];
   locationsLoading: boolean;
-  /** Reloads profile and locations (after editing the profile). */
+  /** Why the locations could not be loaded (null when they were). */
+  locationsError: string | null;
+  /** Reloads profile and locations (after editing the profile, or to retry). */
   reloadProfile: () => void;
   /** Raw nav badges keyed by CMS route. */
   navBadges: NavBadges;
@@ -48,6 +51,7 @@ export function StaffSessionProvider({ role, children }: { role: StaffRole; chil
   const [profile, setProfile] = useState<StaffProfile | null>(null);
   const [locations, setLocations] = useState<StaffLocation[]>([]);
   const [locationsLoading, setLocationsLoading] = useState(true);
+  const [locationsError, setLocationsError] = useState<string | null>(null);
   const [navBadges, setNavBadges] = useState<NavBadges>({});
   const [pendingApprovals, setPendingApprovals] = useState(0);
   const isAdmin = role === "admin" || role === "super_admin";
@@ -58,9 +62,10 @@ export function StaffSessionProvider({ role, children }: { role: StaffRole; chil
       .then((p) => active.current && setProfile(p))
       .catch(() => undefined);
     setLocationsLoading(true);
+    setLocationsError(null);
     getLocations()
       .then((l) => active.current && setLocations(l))
-      .catch(() => undefined)
+      .catch((err) => active.current && setLocationsError(errorMessage(err, "Could not load the locations.")))
       .finally(() => active.current && setLocationsLoading(false));
   }, []);
 
@@ -108,6 +113,7 @@ export function StaffSessionProvider({ role, children }: { role: StaffRole; chil
       profile,
       locations,
       locationsLoading,
+      locationsError,
       reloadProfile,
       navBadges,
       badges,
@@ -116,7 +122,7 @@ export function StaffSessionProvider({ role, children }: { role: StaffRole; chil
       refreshBadges,
       markBadgesRead,
     };
-  }, [role, profile, locations, locationsLoading, reloadProfile, navBadges, pendingApprovals, refreshBadges, markBadgesRead]);
+  }, [role, profile, locations, locationsLoading, locationsError, reloadProfile, navBadges, pendingApprovals, refreshBadges, markBadgesRead]);
 
   return <StaffSessionContext.Provider value={value}>{children}</StaffSessionContext.Provider>;
 }

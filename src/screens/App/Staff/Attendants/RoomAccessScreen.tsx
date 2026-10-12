@@ -80,14 +80,29 @@ export default function RoomAccessScreen() {
   const { bookingDetailId, customerId } = params;
 
   const fetcher = useCallback(async () => {
+    // People and capacity are required; suspension and challans are side cards whose failure is shown in place.
     const [capacity, people, requests, suspension, challans] = await Promise.all([
       checkRoomCapacity(bookingDetailId),
       getRoomAttendants(bookingDetailId),
       listCapacityRequests({ status: "Pending", bookingDetailId }),
-      getAccessSuspension(bookingDetailId).catch(() => null),
-      getRoomChallans(bookingDetailId).catch(() => null),
+      getAccessSuspension(bookingDetailId).then(
+        (value) => ({ value, error: null as string | null }),
+        (err) => ({ value: null, error: errorMessage(err, "Could not check whether door access is suspended.") }),
+      ),
+      getRoomChallans(bookingDetailId).then(
+        (value) => ({ value, error: null as string | null }),
+        (err) => ({ value: null, error: errorMessage(err, "Could not load the challans.") }),
+      ),
     ]);
-    return { capacity, people, requests, suspension, challans };
+    return {
+      capacity,
+      people,
+      requests,
+      suspension: suspension.value,
+      suspensionError: suspension.error,
+      challans: challans.value,
+      challansError: challans.error,
+    };
   }, [bookingDetailId]);
   const { data, loading, refreshing, error, reload, refresh } = useAsyncData(fetcher);
 
@@ -98,6 +113,8 @@ export default function RoomAccessScreen() {
   const [rejecting, setRejecting] = useState<CapacityRequest | null>(null);
   const [extending, setExtending] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  // Errors of actions confirmed in a dialog are shown in the dialog (toasts render under modals).
+  const [dialogError, setDialogError] = useState<string | null>(null);
 
   const capacity = data?.capacity;
   const used = data?.people.length ?? 0;
@@ -120,6 +137,25 @@ export default function RoomAccessScreen() {
     } finally {
       setBusy(null);
     }
+  };
+
+  /** Like run(), for actions confirmed in a dialog: the error stays in the dialog. */
+  const runInDialog = async (key: string, action: () => Promise<string>, fallback: string) => {
+    setBusy(key);
+    setDialogError(null);
+    try {
+      finish(await action());
+      return true;
+    } catch (err) {
+      setDialogError(errorMessage(err, fallback));
+      return false;
+    } finally {
+      setBusy(null);
+    }
+  };
+  const closeDialog = (close: () => void) => () => {
+    close();
+    setDialogError(null);
   };
 
   /** After the person exists: decide with a fresh capacity check (CMS processBookingAssignment). */
@@ -150,6 +186,7 @@ export default function RoomAccessScreen() {
           contentContainerStyle={styles.content}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} colors={[colors.primary]} tintColor={colors.primary} />}
         >
+          {data.suspensionError ? <ErrorState compact message={data.suspensionError} onRetry={refresh} /> : null}
           {data.suspension ? (
             <Card variant="outlined">
               <View style={styles.row}>
@@ -264,6 +301,7 @@ export default function RoomAccessScreen() {
             </>
           ) : null}
 
+          {data.challansError ? <ErrorState compact message={data.challansError} onRetry={refresh} /> : null}
           {data.challans?.challans.length ? (
             <>
               <SectionHeader title="Challans" variant="overline" subtitle={data.challans.totalBalanceDue ? `${formatMoney(data.challans.totalBalanceDue)} due` : undefined} />
@@ -310,13 +348,15 @@ export default function RoomAccessScreen() {
         confirmLabel="Add and charge"
         icon="alert-circle-outline"
         loading={busy === "surcharge"}
-        onCancel={() => setSurcharge(null)}
+        onCancel={closeDialog(() => setSurcharge(null))}
         onConfirm={async () => {
           if (!surcharge) return;
-          const ok = await run("surcharge", async () => (await assignAttendant(bookingDetailId, { personId: surcharge.personId, customerId })).message, "Could not add the person.");
+          const ok = await runInDialog("surcharge", async () => (await assignAttendant(bookingDetailId, { personId: surcharge.personId, customerId })).message, "Could not add the person.");
           if (ok) setSurcharge(null);
         }}
-      />
+      >
+        <FieldMessage error={dialogError} />
+      </ConfirmDialog>
       <ConfirmDialog
         visible={!!removing}
         title="Remove this person?"
@@ -324,13 +364,15 @@ export default function RoomAccessScreen() {
         confirmLabel="Remove"
         destructive
         loading={busy === "remove"}
-        onCancel={() => setRemoving(null)}
+        onCancel={closeDialog(() => setRemoving(null))}
         onConfirm={async () => {
           if (!removing) return;
-          const ok = await run("remove", async () => (await removeAttendant(bookingDetailId, removing.personId)).message, "Could not remove the person.");
+          const ok = await runInDialog("remove", async () => (await removeAttendant(bookingDetailId, removing.personId)).message, "Could not remove the person.");
           if (ok) setRemoving(null);
         }}
-      />
+      >
+        <FieldMessage error={dialogError} />
+      </ConfirmDialog>
       <ConfirmDialog
         visible={!!approving}
         title="Approve this request?"
@@ -338,13 +380,15 @@ export default function RoomAccessScreen() {
         confirmLabel="Approve"
         icon="checkmark-circle-outline"
         loading={busy === "approve"}
-        onCancel={() => setApproving(null)}
+        onCancel={closeDialog(() => setApproving(null))}
         onConfirm={async () => {
           if (!approving) return;
-          const ok = await run("approve", async () => (await approveCapacityRequest(approving.id)).message, "Could not approve the request.");
+          const ok = await runInDialog("approve", async () => (await approveCapacityRequest(approving.id)).message, "Could not approve the request.");
           if (ok) setApproving(null);
         }}
-      />
+      >
+        <FieldMessage error={dialogError} />
+      </ConfirmDialog>
       {rejecting ? (
         <RejectRequestSheet
           request={rejecting}
@@ -411,8 +455,15 @@ function AddPersonSheet({
     }
     setSaving(true);
     try {
-      if (mode === "new") id = (await createAttendant({ customerId, name, email, phone, idType, idNumber })).data.personId;
-      if (!id) throw new Error("The person could not be created. Please try again.");
+      if (mode === "new") {
+        id = (await createAttendant({ customerId, name, email, phone, idType, idNumber })).data.personId;
+        if (!id) throw new Error("The person could not be created. Please try again.");
+        // The person now exists: a retry must not create them again, so continue with them as an existing person.
+        setPersonId(id);
+        setMode("existing");
+        people.reload();
+      }
+      if (!id) throw new Error("Choose the person.");
       onDone(await addPerson(id));
     } catch (err) {
       setError(errorMessage(err, "Could not add the person."));

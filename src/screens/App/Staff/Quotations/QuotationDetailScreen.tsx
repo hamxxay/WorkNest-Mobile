@@ -11,6 +11,7 @@ import {
   ConfirmDialog,
   Divider,
   ErrorState,
+  FieldMessage,
   InfoRow,
   ListRow,
   ListSkeleton,
@@ -70,6 +71,8 @@ export default function QuotationDetailScreen() {
   const [confirmVersion, setConfirmVersion] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  // Errors of an action started from a dialog are shown in the dialog (toasts render under modals).
+  const [dialogError, setDialogError] = useState<string | null>(null);
 
   const q = data?.quotation;
   const status = normalizeStatus(q?.status);
@@ -77,13 +80,14 @@ export default function QuotationDetailScreen() {
   const send = async () => {
     if (!q) return;
     setBusy("send");
+    setDialogError(null);
     try {
       const result = await sendQuotation(q.id, q.version);
       toast.success(result.message);
       setConfirmSend(false);
       refresh();
     } catch (err) {
-      toast.error(errorMessage(err, "Could not send the quotation."));
+      setDialogError(errorMessage(err, "Could not send the quotation."));
     } finally {
       setBusy(null);
     }
@@ -92,6 +96,7 @@ export default function QuotationDetailScreen() {
   const newVersion = async () => {
     if (!q) return;
     setBusy("version");
+    setDialogError(null);
     try {
       const result = await createQuotationVersion(q.id);
       toast.success(result.message);
@@ -99,7 +104,7 @@ export default function QuotationDetailScreen() {
       if (result.data.id > 0) navigation.replace("QuotationDetail", { quotationId: result.data.id });
       else refresh();
     } catch (err) {
-      toast.error(errorMessage(err, "Could not create a new version."));
+      setDialogError(errorMessage(err, "Could not create a new version."));
     } finally {
       setBusy(null);
     }
@@ -285,9 +290,14 @@ export default function QuotationDetailScreen() {
         confirmLabel="Send"
         icon="paper-plane-outline"
         loading={busy === "send"}
-        onCancel={() => setConfirmSend(false)}
+        onCancel={() => {
+          setConfirmSend(false);
+          setDialogError(null);
+        }}
         onConfirm={send}
-      />
+      >
+        <FieldMessage error={dialogError} />
+      </ConfirmDialog>
       <ConfirmDialog
         visible={confirmVersion}
         title="Create a new version?"
@@ -295,9 +305,14 @@ export default function QuotationDetailScreen() {
         confirmLabel="Create version"
         icon="copy-outline"
         loading={busy === "version"}
-        onCancel={() => setConfirmVersion(false)}
+        onCancel={() => {
+          setConfirmVersion(false);
+          setDialogError(null);
+        }}
         onConfirm={newVersion}
-      />
+      >
+        <FieldMessage error={dialogError} />
+      </ConfirmDialog>
       {q && emailOpen ? (
         <EmailSheet
           quotation={q}

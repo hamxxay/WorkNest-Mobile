@@ -75,6 +75,7 @@ export default function SpaceListScreen() {
       </View>
       <SearchField value={query} onChangeText={setQuery} placeholder="Search name or code" />
       <AsyncList
+        key={list.listKey}
         data={rows}
         keyExtractor={(s) => String(s.id)}
         loading={list.loading}

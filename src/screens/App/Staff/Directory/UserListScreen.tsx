@@ -20,6 +20,7 @@ export default function UserListScreen() {
       <AppHeader title="Users" subtitle={list.total ? `${list.total} users` : undefined} />
       <SearchField value={query} onChangeText={setQuery} placeholder="Search name or email" />
       <AsyncList
+        key={list.listKey}
         data={list.items}
         keyExtractor={(u) => u.id || u.email}
         loading={list.loading}

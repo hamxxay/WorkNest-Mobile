@@ -75,7 +75,7 @@ export default function QuotationFormScreen() {
   const navigation = useNavigation<Nav>();
   const { params } = useRoute<Route>();
   const toast = useToast();
-  const { profile, locations, locationsLoading } = useStaffSession();
+  const { profile, locations, locationsLoading, locationsError, reloadProfile } = useStaffSession();
   const lookups = useSpaceLookups();
   const editFromId = params?.editFromId;
   const fromInquiry = params?.fromInquiry;
@@ -217,8 +217,9 @@ export default function QuotationFormScreen() {
     [months, isMeeting],
   );
 
+  // Billing can't be longer than the contract: use the longest option that fits.
   useEffect(() => {
-    if (!isMeeting && billingMonths > months) setBillingMonths(Math.max(1, Math.min(3, months)));
+    if (!isMeeting && billingMonths > months) setBillingMonths(Math.max(1, ...BILLING_OPTIONS.filter((m) => m <= months)));
   }, [months, billingMonths, isMeeting]);
 
   const priceValue = Number(basePrice.replace(/,/g, ""));
@@ -367,6 +368,8 @@ export default function QuotationFormScreen() {
                 onChange={onSelectionChange}
                 locations={locations}
                 locationsLoading={locationsLoading}
+                locationsError={locationsError}
+                onRetryLocations={reloadProfile}
                 lookups={lookups}
                 errors={errors}
               />

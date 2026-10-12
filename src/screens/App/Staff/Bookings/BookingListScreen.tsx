@@ -8,7 +8,7 @@ import { listBookings, type StaffBooking } from "../../../../services/staff";
 import { spacing } from "../../../../theme";
 import { formatDateRange, formatMoney } from "../../../../utils/format";
 import { SearchField } from "../shared/SearchField";
-import { StaffScreen } from "../shared/StaffScreen";
+import { StaffScreen, useInTabs } from "../shared/StaffScreen";
 import { useDebounced, usePagedList } from "../shared/hooks";
 
 type Nav = NativeStackNavigationProp<StaffStackParamList>;
@@ -19,6 +19,7 @@ const PAGE_SIZE = 15;
  * locations. Search by customer, email, space or challan number (the API has no status / date filter).
  */
 export default function BookingListScreen() {
+  const inTabs = useInTabs();
   const navigation = useNavigation<Nav>();
   const [query, setQuery] = useState("");
   const search = useDebounced(query.trim());
@@ -28,12 +29,14 @@ export default function BookingListScreen() {
   return (
     <StaffScreen>
       <AppHeader
+        showBack={inTabs ? false : undefined}
         title="Bookings"
         subtitle={list.total ? `${list.total} in total` : undefined}
         actions={[{ icon: "add", accessibilityLabel: "New booking", onPress: () => navigation.navigate("BookingForm") }]}
       />
       <SearchField value={query} onChangeText={setQuery} placeholder="Search customer, space or challan" />
       <AsyncList
+        key={list.listKey}
         data={list.items}
         keyExtractor={(b) => String(b.bookingId)}
         loading={list.loading}

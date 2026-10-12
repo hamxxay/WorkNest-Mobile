@@ -34,6 +34,7 @@ export default function InvoiceListScreen() {
       <SearchField value={query} onChangeText={setQuery} placeholder="Search invoice number or customer" />
       <FilterChips value={typeId} onChange={setTypeId} options={TYPE_FILTERS} accessibilityLabel="Invoice type" style={styles.chipBar} contentContainerStyle={styles.chips} />
       <AsyncList
+        key={list.listKey}
         data={list.items}
         keyExtractor={(i) => String(i.id)}
         loading={list.loading}

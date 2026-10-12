@@ -137,7 +137,8 @@ export default function CustomerFormScreen() {
         const result = await createCustomer(form);
         toast.success(result.message);
         if (params?.returnTo && result.data.id > 0) {
-          navigation.navigate({ name: params.returnTo, params: { customerId: result.data.id }, merge: true } as never);
+          // Back to the form that opened this one (keeping what was entered there), with the new customer picked.
+          navigation.popTo(params.returnTo, { customerId: result.data.id }, { merge: true });
         } else if (result.data.id > 0) {
           navigation.replace("CustomerDetail", { customerId: result.data.id });
         } else {

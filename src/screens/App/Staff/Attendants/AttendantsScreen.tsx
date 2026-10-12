@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -35,19 +35,25 @@ export default function AttendantsScreen() {
       .catch((err) => setError(errorMessage(err)));
   }, [params?.customerId]);
 
+  const generation = useRef(0);
   const load = useCallback(
     async (mode: "initial" | "refresh") => {
       if (!customer) return;
+      // A quick switch to another customer must not show the previous customer's rooms.
+      const gen = ++generation.current;
       if (mode === "initial") setLoading(true);
       else setRefreshing(true);
       setError(null);
       try {
-        setSpaces(await getCustomerBookedSpaces(customer.id));
+        const rows = await getCustomerBookedSpaces(customer.id);
+        if (gen === generation.current) setSpaces(rows);
       } catch (err) {
-        setError(errorMessage(err, "Could not load the booked spaces."));
+        if (gen === generation.current) setError(errorMessage(err, "Could not load the booked spaces."));
       } finally {
-        setLoading(false);
-        setRefreshing(false);
+        if (gen === generation.current) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
     },
     [customer],

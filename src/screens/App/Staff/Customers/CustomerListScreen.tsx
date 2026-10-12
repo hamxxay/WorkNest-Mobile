@@ -5,7 +5,7 @@ import { AppHeader, AsyncList, Card, ListRow, StatusPill } from "../../../../com
 import type { StaffStackParamList } from "../../../../navigation/staffTypes";
 import { listCustomers, type StaffCustomer } from "../../../../services/staff";
 import { SearchField } from "../shared/SearchField";
-import { StaffScreen } from "../shared/StaffScreen";
+import { StaffScreen, useInTabs } from "../shared/StaffScreen";
 import { useDebounced, usePagedList } from "../shared/hooks";
 
 type Nav = NativeStackNavigationProp<StaffStackParamList>;
@@ -16,6 +16,7 @@ const PAGE_SIZE = 20;
  * The API sends no total, so more pages load while full pages come back.
  */
 export default function CustomerListScreen() {
+  const inTabs = useInTabs();
   const navigation = useNavigation<Nav>();
   const [query, setQuery] = useState("");
   const search = useDebounced(query.trim());
@@ -29,6 +30,7 @@ export default function CustomerListScreen() {
   return (
     <StaffScreen>
       <AppHeader
+        showBack={inTabs ? false : undefined}
         title="Customers"
         actions={[
           { icon: "person-add-outline", accessibilityLabel: "New customer", onPress: () => navigation.navigate("CustomerForm") },
@@ -36,6 +38,7 @@ export default function CustomerListScreen() {
       />
       <SearchField value={query} onChangeText={setQuery} placeholder="Search name, email, phone or code" />
       <AsyncList
+        key={list.listKey}
         data={list.items}
         keyExtractor={(c) => String(c.id)}
         loading={list.loading}

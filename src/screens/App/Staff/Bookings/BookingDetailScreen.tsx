@@ -62,6 +62,8 @@ export default function BookingDetailScreen() {
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [reassignOpen, setReassignOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  // Errors of an action started from a sheet / dialog are shown there (toasts render under modals).
+  const [modalError, setModalError] = useState<string | null>(null);
 
   const status = normalizeStatus(b?.statusLabel);
   const isCancelled = b?.statusId === BOOKING_STATUS.cancelled;
@@ -69,13 +71,14 @@ export default function BookingDetailScreen() {
   const changeStatus = async (statusId: BookingStatusId) => {
     if (!b) return;
     setBusy("status");
+    setModalError(null);
     try {
       const result = await updateBookingStatus(b.bookingId, statusId);
       toast.success(result.message);
       setStatusOpen(false);
       refresh();
     } catch (err) {
-      toast.error(errorMessage(err, "Could not change the status."));
+      setModalError(errorMessage(err, "Could not change the status."));
     } finally {
       setBusy(null);
     }
@@ -84,13 +87,14 @@ export default function BookingDetailScreen() {
   const doCancel = async () => {
     if (!b) return;
     setBusy("cancel");
+    setModalError(null);
     try {
       const result = await cancelBooking(b.bookingId);
       toast.success(result.message === "Booking status updated." ? "Booking cancelled." : result.message);
       setConfirmCancel(false);
       refresh();
     } catch (err) {
-      toast.error(errorMessage(err, "Could not cancel the booking."));
+      setModalError(errorMessage(err, "Could not cancel the booking."));
     } finally {
       setBusy(null);
     }
@@ -202,7 +206,11 @@ export default function BookingDetailScreen() {
           visible={statusOpen}
           current={b.statusId}
           busy={busy === "status"}
-          onClose={() => setStatusOpen(false)}
+          error={modalError}
+          onClose={() => {
+            setStatusOpen(false);
+            setModalError(null);
+          }}
           onPick={(id) => {
             if (id === BOOKING_STATUS.cancelled) {
               setStatusOpen(false);
@@ -222,9 +230,14 @@ export default function BookingDetailScreen() {
         cancelLabel="Keep booking"
         destructive
         loading={busy === "cancel"}
-        onCancel={() => setConfirmCancel(false)}
+        onCancel={() => {
+          setConfirmCancel(false);
+          setModalError(null);
+        }}
         onConfirm={doCancel}
-      />
+      >
+        <FieldMessage error={modalError} />
+      </ConfirmDialog>
 
       {b && reassignOpen ? (
         <ReassignSheet
@@ -245,12 +258,14 @@ function StatusSheet({
   visible,
   current,
   busy,
+  error,
   onClose,
   onPick,
 }: {
   visible: boolean;
   current: BookingStatusId | null;
   busy: boolean;
+  error: string | null;
   onClose: () => void;
   onPick: (id: BookingStatusId) => void;
 }) {
@@ -276,6 +291,7 @@ function StatusSheet({
           </Pressable>
         );
       })}
+      <FieldMessage error={error} />
     </BottomSheet>
   );
 }

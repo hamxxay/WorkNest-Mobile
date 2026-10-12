@@ -89,6 +89,11 @@ const ITEM = {
   profile: { route: "StaffProfile", label: "Profile", icon: "person-circle-outline" },
 } as const satisfies Record<string, StaffMenuItem>;
 
+/** Label and icon of every menu screen, by route (also for routes that are tabs for some roles). */
+export const STAFF_MENU_ITEMS: Partial<Record<StaffRouteName, StaffMenuItem>> = Object.fromEntries(
+  Object.values(ITEM).map((item) => [item.route, item]),
+);
+
 /** "More" tab per role, grouped like the CMS sidebar (Sales, Finance, Access Control, Spaces, Administration). */
 export const STAFF_MORE_MENU: Record<StaffRole, readonly StaffMenuSection[]> = {
   sales_executive: [

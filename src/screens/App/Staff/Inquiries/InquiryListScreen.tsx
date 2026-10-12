@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Linking, StyleSheet, View, type TextInput } from "react-native";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -35,7 +35,7 @@ import { formatDate, formatRelative } from "../../../../utils/format";
 import { inquiryFeedbackText, isNewInquiry, whatsappNumber } from "../../../../utils/inquiry";
 import { phoneError, formatPhoneInput } from "../../../../utils/phone";
 import { SearchField } from "../shared/SearchField";
-import { StaffScreen } from "../shared/StaffScreen";
+import { StaffScreen, useInTabs } from "../shared/StaffScreen";
 import { useStaffSession } from "../shared/StaffSession";
 import { useDebounced, usePagedList } from "../shared/hooks";
 
@@ -49,6 +49,7 @@ const PAGE_SIZE = 50;
  * date) or converted (create the quotation); staff can add a phone / walk-in inquiry (POST book-tour).
  */
 export default function InquiryListScreen() {
+  const inTabs = useInTabs();
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
   const { refreshBadges } = useStaffSession();
@@ -76,6 +77,13 @@ export default function InquiryListScreen() {
     return [...list.items].sort((a, b) => Number(b.followUpDue) - Number(a.followUpDue));
   }, [filter, list.items, due, fresh]);
 
+  // The filters work on the loaded pages (as in the CMS). While one is on, keep loading pages until enough
+  // rows match or everything is loaded, so "No follow-ups due" never hides rows on later pages.
+  const { hasMore, loading, loadingMore, error, loadMore } = list;
+  useEffect(() => {
+    if (filter !== "all" && rows.length < 10 && hasMore && !loading && !loadingMore && !error) loadMore();
+  }, [filter, rows.length, hasMore, loading, loadingMore, error, loadMore]);
+
   const afterChange = (message: string) => {
     toast.success(message);
     list.refresh();
@@ -90,6 +98,7 @@ export default function InquiryListScreen() {
   return (
     <StaffScreen>
       <AppHeader
+        showBack={inTabs ? false : undefined}
         title="Tour inquiries"
         subtitle={list.total ? `${list.total} inquiries` : undefined}
         actions={[{ icon: "add", accessibilityLabel: "Add inquiry", onPress: () => setAdding(true) }]}
@@ -108,6 +117,7 @@ export default function InquiryListScreen() {
         contentContainerStyle={styles.chips}
       />
       <AsyncList
+        key={list.listKey}
         data={rows}
         keyExtractor={(i) => String(i.id ?? i.publicId)}
         loading={list.loading}

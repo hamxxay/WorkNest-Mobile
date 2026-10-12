@@ -24,6 +24,11 @@ export type PagedList<T> = {
   refreshing: boolean;
   loadingMore: boolean;
   error: string | null;
+  /**
+   * Changes whenever the list starts over (new query / filter, full reload). Pass it as the AsyncList `key` so
+   * the list remounts: back at the top, and AsyncList's "one onEndReached per row count" guard starts fresh.
+   */
+  listKey: string;
   /** Pull-to-refresh (keeps the rows while reloading). */
   refresh: () => void;
   /** Reload from page 1 showing the skeleton. */
@@ -35,7 +40,8 @@ export type PagedList<T> = {
 
 /**
  * Paged list for AsyncList. `fetchPage` must be stable for the same query (wrap it in useCallback with the
- * query values as deps): a new function reloads from page 1. Stale answers of an older query are ignored.
+ * query values as deps): a new function starts the list over from page 1. Answers of an older query are
+ * ignored. Coming back to the screen reloads the pages already shown, quietly (rows and scroll stay).
  */
 export function usePagedList<T>(
   fetchPage: (page: number) => Promise<Page<T>>,
@@ -44,27 +50,38 @@ export function usePagedList<T>(
   const [items, setItemsState] = useState<T[]>([]);
   const [total, setTotal] = useState(0);
   const [hasMore, setHasMore] = useState(false);
-  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [listKey, setListKey] = useState(0);
   const generation = useRef(0);
+  const pageRef = useRef(1);
   const loadedOnce = useRef(false);
+  const loadingMoreRef = useRef(false);
 
   const load = useCallback(
     async (mode: "initial" | "refresh" | "quiet") => {
       const gen = ++generation.current;
-      if (mode === "initial") setLoading(true);
+      // A page that was still loading belongs to the old list: stop showing its spinner.
+      loadingMoreRef.current = false;
+      setLoadingMore(false);
+      if (mode === "initial") {
+        setLoading(true);
+        setListKey((k) => k + 1);
+      }
       if (mode === "refresh") setRefreshing(true);
       setError(null);
       try {
-        const result = await fetchPage(1);
+        // Quiet reload (back on the screen): fetch every page already shown, so the list keeps its length.
+        const pages = mode === "quiet" ? Math.max(1, pageRef.current) : 1;
+        const results = await Promise.all(Array.from({ length: pages }, (_, i) => fetchPage(i + 1)));
         if (gen !== generation.current) return;
-        setItemsState(result.items);
-        setTotal(result.total);
-        setHasMore(result.hasMore);
-        setPage(1);
+        const last = results[results.length - 1];
+        setItemsState(results.flatMap((r) => r.items));
+        setTotal(last.total);
+        setHasMore(last.hasMore);
+        pageRef.current = pages;
         loadedOnce.current = true;
       } catch (err) {
         if (gen !== generation.current) return;
@@ -81,10 +98,14 @@ export function usePagedList<T>(
 
   useEffect(() => {
     setItemsState([]);
+    pageRef.current = 1;
     load("initial");
   }, [load]);
 
-  // Coming back to the screen (e.g. after editing a row) refreshes quietly.
+  // Coming back to the screen (e.g. after editing a row) refreshes quietly. The focus callback has stable deps
+  // (the latest load is read from a ref), so a query change does not fire a second request.
+  const loadRef = useRef(load);
+  loadRef.current = load;
   const reloadOnFocus = options.reloadOnFocus ?? true;
   const firstFocus = useRef(true);
   useFocusEffect(
@@ -93,28 +114,34 @@ export function usePagedList<T>(
         firstFocus.current = false;
         return;
       }
-      if (reloadOnFocus && loadedOnce.current) load("quiet");
-    }, [load, reloadOnFocus]),
+      if (reloadOnFocus && loadedOnce.current) loadRef.current("quiet");
+    }, [reloadOnFocus]),
   );
 
   const loadMore = useCallback(async () => {
-    if (loadingMore || !hasMore) return;
+    if (loadingMoreRef.current || !hasMore) return;
     const gen = generation.current;
+    const next = pageRef.current + 1;
+    loadingMoreRef.current = true;
     setLoadingMore(true);
     setError(null);
     try {
-      const next = await fetchPage(page + 1);
+      const result = await fetchPage(next);
       if (gen !== generation.current) return;
-      setItemsState((prev) => [...prev, ...next.items]);
-      setTotal(next.total);
-      setHasMore(next.hasMore && next.items.length > 0);
-      setPage(page + 1);
+      setItemsState((prev) => [...prev, ...result.items]);
+      setTotal(result.total);
+      setHasMore(result.hasMore && result.items.length > 0);
+      pageRef.current = next;
     } catch (err) {
       if (gen === generation.current) setError(errorMessage(err));
     } finally {
-      if (gen === generation.current) setLoadingMore(false);
+      // Always clear the spinner (a newer load may have started meanwhile; it reset the flags itself too).
+      if (gen === generation.current) {
+        loadingMoreRef.current = false;
+        setLoadingMore(false);
+      }
     }
-  }, [fetchPage, hasMore, loadingMore, page]);
+  }, [fetchPage, hasMore]);
 
   return {
     items,
@@ -124,6 +151,7 @@ export function usePagedList<T>(
     refreshing,
     loadingMore,
     error,
+    listKey: String(listKey),
     refresh: useCallback(() => load("refresh"), [load]),
     reload: useCallback(() => load("initial"), [load]),
     loadMore,
@@ -177,6 +205,8 @@ export function useAsyncData<T>(fetcher: () => Promise<T>, options: { reloadOnFo
     load("initial");
   }, [load]);
 
+  const loadRef = useRef(load);
+  loadRef.current = load;
   const reloadOnFocus = options.reloadOnFocus ?? false;
   const firstFocus = useRef(true);
   useFocusEffect(
@@ -185,8 +215,8 @@ export function useAsyncData<T>(fetcher: () => Promise<T>, options: { reloadOnFo
         firstFocus.current = false;
         return;
       }
-      if (reloadOnFocus && loadedOnce.current) load("quiet");
-    }, [load, reloadOnFocus]),
+      if (reloadOnFocus && loadedOnce.current) loadRef.current("quiet");
+    }, [reloadOnFocus]),
   );
 
   return {

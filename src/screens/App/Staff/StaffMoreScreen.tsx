@@ -8,13 +8,14 @@ import { roleLabel } from "../../../context/roles";
 import { moreMenuFor } from "../../../navigation/staff/access";
 import type { StaffStackParamList } from "../../../navigation/staffTypes";
 import { spacing } from "../../../theme";
-import { StaffScreen } from "./shared/StaffScreen";
+import { StaffScreen, useInTabs } from "./shared/StaffScreen";
 import { useStaffSession } from "./shared/StaffSession";
 
 type Nav = NativeStackNavigationProp<StaffStackParamList>;
 
 /** "More" tab: every other screen the role may open, grouped like the CMS sidebar, with waiting counts. */
 export default function StaffMoreScreen() {
+  const inTabs = useInTabs();
   const navigation = useNavigation<Nav>();
   const { user } = useAuth();
   const { role, badges, badgeTotal, profile } = useStaffSession();
@@ -24,6 +25,7 @@ export default function StaffMoreScreen() {
   return (
     <StaffScreen>
       <AppHeader
+        showBack={inTabs ? false : undefined}
         title="More"
         actions={[
           {

@@ -93,6 +93,8 @@ export function SpaceSelectionFields({
   onChange,
   locations,
   locationsLoading,
+  locationsError,
+  onRetryLocations,
   lookups,
   errors = {},
   disabled,
@@ -101,6 +103,8 @@ export function SpaceSelectionFields({
   onChange: (next: SpaceSelection) => void;
   locations: StaffLocation[];
   locationsLoading: boolean;
+  locationsError?: string | null;
+  onRetryLocations?: () => void;
   lookups: SpaceLookups;
   errors?: SpaceSelectionErrors;
   disabled?: boolean;
@@ -147,6 +151,7 @@ export function SpaceSelectionFields({
   const update = (patch: Partial<SpaceSelection>) => onChange({ ...value, ...patch });
 
   if (lookups.error) return <ErrorState compact message={lookups.error} onRetry={lookups.reload} />;
+  if (locationsError && !locations.length) return <ErrorState compact message={locationsError} onRetry={onRetryLocations} />;
 
   return (
     <View style={styles.wrap}>

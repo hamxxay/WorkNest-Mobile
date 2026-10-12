@@ -1,5 +1,5 @@
 import { STAFF_ROLES } from "../../context/roles";
-import { badgesByRoute, canOpenRoute, canOpenTab, moreMenuFor, routesFor, STAFF_ROUTE_ROLES, tabsFor } from "./access";
+import { NAV_BADGE_ROUTES, STAFF_MENU_ITEMS, badgesByRoute, canOpenRoute, canOpenTab, moreMenuFor, routesFor, STAFF_ROUTE_ROLES, tabsFor } from "./access";
 
 describe("staff tabs", () => {
   it("sales executive: Dashboard, Inquiries, Quotations, Customers, More", () => {
@@ -121,5 +121,14 @@ describe("nav badges", () => {
   it("maps CMS routes to app screens the role may open", () => {
     expect(badgesByRoute("admin", badges)).toEqual({ BookingList: 2, AccessActivity: 1 });
     expect(badgesByRoute("sales_executive", badges)).toEqual({ BookingList: 2 });
+  });
+});
+
+describe("menu items", () => {
+  it("every nav badge screen has a label and icon (notifications list)", () => {
+    for (const route of Object.values(NAV_BADGE_ROUTES)) {
+      expect(STAFF_MENU_ITEMS[route]?.label).toBeTruthy();
+      expect(STAFF_MENU_ITEMS[route]?.icon).toBeTruthy();
+    }
   });
 });

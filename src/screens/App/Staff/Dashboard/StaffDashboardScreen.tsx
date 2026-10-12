@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -70,20 +70,30 @@ export default function StaffDashboardScreen() {
 
   const locationIds = useMemo(() => (locationId ? [locationId] : []), [locationId]);
 
-  const loadSlot = useCallback(<T,>(set: (s: Slot<T> | ((p: Slot<T>) => Slot<T>)) => void, fetch: () => Promise<T>) => {
-    set((prev) => ({ ...prev, loading: !prev.data, error: null }));
-    return fetch()
-      .then((data) => set({ data, loading: false, error: null }))
-      .catch((err) => set((prev) => ({ data: prev.data, loading: false, error: errorMessage(err, "Could not load this section.") })));
-  }, []);
+  // Per section: answers of an older period / location choice are ignored.
+  const generations = useRef<Record<string, number>>({});
+  const loadSlot = useCallback(
+    <T,>(name: string, set: (s: Slot<T> | ((p: Slot<T>) => Slot<T>)) => void, fetch: () => Promise<T>) => {
+      const gen = (generations.current[name] = (generations.current[name] ?? 0) + 1);
+      const current = () => generations.current[name] === gen;
+      set((prev) => ({ ...prev, loading: !prev.data, error: null }));
+      return fetch()
+        .then((data) => current() && set({ data, loading: false, error: null }))
+        .catch(
+          (err) =>
+            current() && set((prev) => ({ data: prev.data, loading: false, error: errorMessage(err, "Could not load this section.") })),
+        );
+    },
+    [],
+  );
 
-  const loadRole = useCallback(() => loadSlot(setRoleDash, () => getRoleDashboard({ period, locationIds })), [loadSlot, period, locationIds]);
+  const loadRole = useCallback(() => loadSlot("role", setRoleDash, () => getRoleDashboard({ period, locationIds })), [loadSlot, period, locationIds]);
   const loadOverview = useCallback(
-    () => (isAdmin ? loadSlot(setOverview, () => getDashboardOverview({ period, locationIds })) : Promise.resolve()),
+    () => (isAdmin ? loadSlot("overview", setOverview, () => getDashboardOverview({ period, locationIds })) : Promise.resolve()),
     [loadSlot, isAdmin, period, locationIds],
   );
-  const loadForecast = useCallback(() => loadSlot(setForecast, () => getDashboardForecast({ locationIds, months: 3 })), [loadSlot, locationIds]);
-  const loadDoor = useCallback(() => loadSlot(setDoor, getAccessOverview), [loadSlot]);
+  const loadForecast = useCallback(() => loadSlot("forecast", setForecast, () => getDashboardForecast({ locationIds, months: 3 })), [loadSlot, locationIds]);
+  const loadDoor = useCallback(() => loadSlot("door", setDoor, getAccessOverview), [loadSlot]);
 
   useEffect(() => {
     let alive = true;
