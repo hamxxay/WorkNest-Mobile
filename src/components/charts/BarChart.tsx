@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
+import { PixelRatio, Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 import Animated, { useAnimatedProps, type SharedValue } from "react-native-reanimated";
 import Svg, { Line, Path, Rect } from "react-native-svg";
 import { useTheme, type Tone } from "../../theme";
@@ -13,12 +13,10 @@ import { defaultFormat, summarizeBars, type ValueFormatter } from "./summary";
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 
-/** Space above the top gridline so its tick label is not cut off. */
-const PLOT_TOP = 8;
-/** Height of the category label band under the plot. */
-const X_BAND = 22;
-/** Rough width of one character of caption text, for sizing the y-axis and thinning x labels. */
-const CHAR_W = 7;
+/** Line height of caption text (axis labels) at font scale 1. */
+const CAPTION_LINE = 16;
+/** Rough width of one character of caption text at font scale 1, for sizing x labels and thinning them. */
+const CHAR_W = 7.5;
 /** Each later column starts this share of the animation after the previous one. */
 const STAGGER = 0.06;
 
@@ -95,17 +93,23 @@ export function BarChart({
   const empty = !data.length || !series.length || isAllZero(flat);
   const domain = useMemo(() => niceDomain(0, Math.max(0, ...flat), { count: tickCount }), [flat, tickCount]);
   const tickLabels = domain.ticks.map(t => formatTick(t));
-  const axisWidth = Math.max(...tickLabels.map(t => t.length), 1) * CHAR_W + 8;
+  // Axis text follows the system font size, so the axis band and label widths scale with it.
+  const fontScale = PixelRatio.getFontScale() || 1;
+  const lineHeight = CAPTION_LINE * fontScale;
+  const charWidth = CHAR_W * fontScale;
+  const plotTop = Math.ceil(lineHeight / 2);
+  const xBand = Math.ceil(lineHeight + 6);
+  const axisWidth = Math.ceil(Math.max(...tickLabels.map(t => t.length), 1) * charWidth + 10);
   const plotWidth = Math.max(0, width - axisWidth);
   const baseY = height - 1;
-  const y = linearScale([domain.min, domain.max], [baseY, PLOT_TOP]);
+  const y = linearScale([domain.min, domain.max], [baseY, plotTop]);
   const layout = useMemo(
     () => bandLayout({ count: data.length, groupSize: series.length, width: plotWidth }),
     [data.length, series.length, plotWidth],
   );
   const maxLabel = Math.max(...data.map(d => d.label.length), 1);
-  const labelWidth = Math.max(layout.slot, maxLabel * CHAR_W + 8);
-  const step = labelStep(data.length, plotWidth, maxLabel * CHAR_W + 8);
+  const labelWidth = Math.max(layout.slot, maxLabel * charWidth + 8);
+  const step = labelStep(data.length, plotWidth, maxLabel * charWidth + 8);
   const labelLeft = (center: number) =>
     Math.max(axisWidth - 4, Math.min(width - labelWidth, axisWidth + center - labelWidth / 2));
   const colors = series.map((s, i) => markColor(theme, chart, s, i));
@@ -130,16 +134,16 @@ export function BarChart({
           {readout}
         </AppText>
       ) : null}
-      <View onLayout={onLayout} style={{ height: height + X_BAND }}>
+      <View onLayout={onLayout} style={{ height: height + xBand }}>
         {width > 0 ? (
           <>
             <Svg width={width} height={height}>
               {selected != null && layout.groups[selected] ? (
                 <Rect
                   x={axisWidth + selected * layout.slot + 2}
-                  y={PLOT_TOP - 4}
+                  y={plotTop - 4}
                   width={Math.max(0, layout.slot - 4)}
-                  height={baseY - PLOT_TOP + 4}
+                  height={baseY - plotTop + 4}
                   rx={6}
                   fill={chart.track}
                 />
@@ -180,7 +184,8 @@ export function BarChart({
                 color="textMuted"
                 align="right"
                 numberOfLines={1}
-                style={[styles.tick, { top: y(t) - 8, width: axisWidth - 6 }]}
+                // Anchored by its right edge and sized by its text, so a long tick never truncates.
+                style={[styles.tick, { top: y(t) - lineHeight / 2, right: width - axisWidth + 6 }]}
               >
                 {tickLabels[i]}
               </AppText>
@@ -261,7 +266,7 @@ function Column({
 const styles = StyleSheet.create({
   root: { gap: 8 },
   readout: { minHeight: 16 },
-  tick: { position: "absolute", left: 0, fontVariant: ["tabular-nums"] },
+  tick: { position: "absolute", fontVariant: ["tabular-nums"] },
   xLabel: { position: "absolute" },
   hits: { position: "absolute", top: 0, right: 0, bottom: 0, flexDirection: "row" },
   hit: { flex: 1 },
