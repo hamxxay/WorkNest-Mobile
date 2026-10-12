@@ -86,7 +86,8 @@ export function useMountProgress({ ready = true, duration = 650, delay = 0 }: Mo
 export function useLayoutWidth(): [number, (event: LayoutChangeEvent) => void] {
   const [width, setWidth] = useState(0);
   const onLayout = useCallback((event: LayoutChangeEvent) => {
-    const next = Math.round(event.nativeEvent.layout.width);
+    // Floor so a fractional layout width never draws past the edge.
+    const next = Math.floor(event.nativeEvent.layout.width);
     setWidth(prev => (prev === next ? prev : next));
   }, []);
   return [width, onLayout];
