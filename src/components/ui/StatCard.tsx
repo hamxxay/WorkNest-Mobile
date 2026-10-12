@@ -1,7 +1,8 @@
-import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
+import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { useTheme, type Tone } from "../../theme";
 import { SkeletonBlock, SkeletonGroup } from "../Skeleton";
+import { PRESS_SCALE, ScalePressable } from "../motion/ScalePressable";
 
 export type StatTrend = {
   direction: "up" | "down" | "flat";
@@ -93,7 +94,8 @@ export function StatCard({ label, value, sub, tone = "primary", icon, trend, onP
 
   if (onPress) {
     return (
-      <Pressable
+      <ScalePressable
+        pressScale={PRESS_SCALE}
         accessibilityRole="button"
         accessibilityLabel={a11y}
         onPress={onPress}
@@ -101,7 +103,7 @@ export function StatCard({ label, value, sub, tone = "primary", icon, trend, onP
         style={({ pressed }) => [styles.flex, cardStyle, { overflow: "hidden" }, pressed && { opacity: 0.92 }, style]}
       >
         {body}
-      </Pressable>
+      </ScalePressable>
     );
   }
   return (

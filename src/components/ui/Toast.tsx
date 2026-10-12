@@ -13,6 +13,9 @@ import {
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { palette, useTheme } from "../../theme";
+import { haptics, type HapticKind } from "../../utils/haptics";
+import { useReduceMotion } from "../motion/useReduceMotion";
+import { SuccessCheck } from "./SuccessCheck";
 
 export type ToastType = "success" | "error" | "info";
 
@@ -23,6 +26,11 @@ export type ToastOptions = {
   duration?: number;
   /** One text action, e.g. { label: "Undo", onPress }. */
   action?: { label: string; onPress: () => void };
+  /**
+   * Haptic played with the toast. Default: the error haptic for error toasts, none for success / info.
+   * Pass true for the type's own haptic (success -> success), a kind (e.g. "warning"), or false for none.
+   */
+  haptic?: boolean | HapticKind;
 };
 
 export type ToastApi = {
@@ -104,6 +112,8 @@ export function ToastProvider({ children, bottomOffset = 80 }: ToastProviderProp
       clearTimer();
       setToast({ id: idRef.current, type, message, ...options });
       timerRef.current = setTimeout(hide, options.duration ?? (type === "error" ? 4500 : 3000));
+      const haptic = toastHaptic(type, options.haptic);
+      if (haptic) haptics.trigger(haptic);
       AccessibilityInfo.announceForAccessibility(options.title ? `${options.title}. ${message}` : message);
     },
     [hide],
@@ -140,6 +150,14 @@ export function ToastProvider({ children, bottomOffset = 80 }: ToastProviderProp
       </ToastStateContext.Provider>
     </ToastContext.Provider>
   );
+}
+
+/** Haptic for a toast: errors buzz by default, success / info only when asked. */
+function toastHaptic(type: ToastType, option: ToastOptions["haptic"]): HapticKind | null {
+  if (option === false) return null;
+  if (typeof option === "string") return option;
+  if (option === true) return type === "error" ? "error" : type === "success" ? "success" : "light";
+  return type === "error" ? "error" : null;
 }
 
 let nextHostId = 1;
@@ -181,12 +199,22 @@ function ToastView({
   const insets = useSafeAreaInsets();
   const anim = useRef(new Animated.Value(0)).current;
   const [shown, setShown] = useState<ToastItem | null>(toast);
+  const reduceMotion = useReduceMotion();
 
   useEffect(() => {
     if (toast) {
       setShown(toast);
+      if (reduceMotion) {
+        anim.setValue(1);
+        return;
+      }
       anim.setValue(0);
       Animated.timing(anim, { toValue: 1, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+      return;
+    }
+    if (reduceMotion) {
+      anim.setValue(0);
+      setShown(null);
       return;
     }
     Animated.timing(anim, { toValue: 0, duration: 180, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(
@@ -194,6 +222,8 @@ function ToastView({
         if (finished) setShown(null);
       },
     );
+    // reduceMotion is read when a toast comes or goes; changing the setting mid-toast needs no replay.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toast, anim]);
 
   if (!shown) return null;
@@ -220,7 +250,12 @@ function ToastView({
           accessibilityLabel={`${shown.title ? `${shown.title}. ` : ""}${shown.message}. Dismiss`}
           style={styles.body}
         >
-          <Ionicons name={icon} size={22} color={accent} />
+          {shown.type === "success" ? (
+            // Drawn again for every new success toast (key = toast id).
+            <SuccessCheck key={shown.id} size={22} color={accent} filled={false} accessibilityLabel={null} />
+          ) : (
+            <Ionicons name={icon} size={22} color={accent} />
+          )}
           <View style={styles.texts}>
             {shown.title ? (
               <Text style={[typography.bodyStrong, styles.light]} numberOfLines={1}>

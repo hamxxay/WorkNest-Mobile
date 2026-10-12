@@ -13,6 +13,7 @@ import {
   Screen,
   SectionHeader,
   SegmentedControl,
+  SuccessOverlay,
   TextField,
   useToast,
 } from "../../../components/ui";
@@ -26,6 +27,7 @@ import {
   TYPED_SIGNATURE_TEXT_STYLE,
 } from "../../../services/signatureService";
 import { errorMessage } from "../../../services/apiClient";
+import { haptics } from "../../../utils/haptics";
 import type { AppStackParamList } from "../../../navigation/types";
 
 type Props = NativeStackScreenProps<AppStackParamList, "ESignAgreement">;
@@ -69,6 +71,8 @@ export default function ESignAgreementScreen({ navigation, route }: Props) {
   const [viewed, setViewed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  // Set once signed: shows the success overlay, then goes back.
+  const [signed, setSigned] = useState<{ title: string; message: string } | null>(null);
 
   const padRef = useRef<View>(null);
   const typedRef = useRef<View>(null);
@@ -78,7 +82,7 @@ export default function ESignAgreementScreen({ navigation, route }: Props) {
 
   const nameError = signerName ? signerNameError(signerName) : null;
   const hasSignature = mode === "draw" ? strokes.length > 0 : typed.trim().length >= 2;
-  const canSign = !signerNameError(signerName) && hasSignature && consent && !submitting;
+  const canSign = !signerNameError(signerName) && hasSignature && consent && !submitting && !signed;
 
   const onViewAgreement = async () => {
     if (opening) return;
@@ -149,9 +153,9 @@ export default function ESignAgreementScreen({ navigation, route }: Props) {
         signatureImage,
         consent: true,
       });
-      toast.success(result.message, { title: result.completed ? "Agreement signed" : "Signature received" });
-      navigation.goBack();
+      setSigned({ title: result.completed ? "Agreement signed" : "Signature received", message: result.message });
     } catch (err) {
+      haptics.error();
       setError(errorMessage(err, "We could not complete your signature. Please try again."));
     } finally {
       submittingRef.current = false;
@@ -260,11 +264,17 @@ export default function ESignAgreementScreen({ navigation, route }: Props) {
 
         {error ? <Banner tone="danger" title="Not signed" message={error} /> : null}
 
-        <Button title={submitting ? "Signing your agreement" : "Sign agreement"} size="lg" fullWidth loading={submitting} disabled={!canSign} onPress={onSign} />
+        <Button title={submitting ? "Signing your agreement" : "Sign agreement"} size="lg" fullWidth loading={submitting} disabled={!canSign} onPress={onSign} haptic />
         <AppText variant="caption" color="textMuted" align="center">
           Your name, email, the time and your device are recorded with your signature and added to the signed agreement.
         </AppText>
       </ScrollView>
+      <SuccessOverlay
+        visible={!!signed}
+        title={signed?.title ?? ""}
+        message={signed?.message}
+        onHidden={() => navigation.goBack()}
+      />
     </Screen>
   );
 }

@@ -289,7 +289,7 @@ export default function AgreementSendScreen() {
             <AppText variant="caption" color="textMuted" align="center">
               WorkNest builds the lease PDF from these details and emails it with a link to sign.
             </AppText>
-            <Button title="Send agreement" leftIcon="paper-plane-outline" onPress={submit} loading={sending} disabled={sending} fullWidth />
+            <Button title="Send agreement" leftIcon="paper-plane-outline" onPress={submit} loading={sending} disabled={sending} fullWidth haptic />
           </ScrollView>
         </KeyboardAvoidingView>
       )}

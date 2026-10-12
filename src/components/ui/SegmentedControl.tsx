@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { useTheme } from "../../theme";
+import { haptics } from "../../utils/haptics";
 
 export type SegmentOption<T extends string | number> = {
   label: string;
@@ -20,7 +21,10 @@ export type SegmentedControlProps<T extends string | number> = {
   style?: StyleProp<ViewStyle>;
 };
 
-/** 2-4 mutually exclusive options in a pill track (tabs like Upcoming / History, or System / Light / Dark). */
+/**
+ * 2-4 mutually exclusive options in a pill track (tabs like Upcoming / History, or System / Light / Dark).
+ * A change ticks a selection haptic.
+ */
 export function SegmentedControl<T extends string | number>({
   options,
   value,
@@ -48,7 +52,9 @@ export function SegmentedControl<T extends string | number>({
             accessibilityHint={`${index + 1} of ${options.length}`}
             disabled={disabled}
             onPress={() => {
-              if (!selected) onChange(opt.value);
+              if (selected) return;
+              haptics.selection();
+              onChange(opt.value);
             }}
             style={({ pressed }) => [
               styles.segment,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, type ReactElement, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -11,6 +11,8 @@ import {
   type ViewStyle,
 } from "react-native";
 import { useTheme } from "../../theme";
+import { FadeInView } from "../Skeleton";
+import { createEntranceTracker, type EntranceTracker } from "../motion/entrance";
 import { Button } from "./Button";
 import { EmptyState, ErrorState, ListSkeleton, type EmptyStateProps } from "./States";
 
@@ -48,6 +50,11 @@ export type AsyncListProps<T> = Omit<
   padding?: number;
   /** Gap between rows. Default 12. */
   gap?: number;
+  /**
+   * Fade + slide the first rows in when the list first shows data (staggered, first 10 rows only; rows of later
+   * pages appear at once). Off while the OS "reduce motion" setting is on. Default true.
+   */
+  animateEntrance?: boolean;
 };
 
 /**
@@ -79,6 +86,8 @@ export function AsyncList<T>({
   ListFooterComponent,
   ItemSeparatorComponent,
   onEndReachedThreshold = 0.4,
+  animateEntrance = true,
+  renderItem,
   ...rest
 }: AsyncListProps<T>): ReactElement {
   const { colors, typography } = useTheme();
@@ -104,6 +113,27 @@ export function AsyncList<T>({
     lastRequestedAt.current = rows.length;
     onEndReached();
   }, [onEndReached, hasMore, loading, loadingMore, refreshing, error, hasRows, rows.length]);
+
+  // Entrance animation of the first rows; starts over when the list is empty again (new query / filter / reload).
+  const entrance = useRef<EntranceTracker | null>(null);
+  if (!entrance.current) entrance.current = createEntranceTracker();
+  useEffect(() => {
+    if (!hasRows) entrance.current?.reset();
+  }, [hasRows]);
+  const keyExtractor = rest.keyExtractor;
+  const renderRow = useCallback<NonNullable<FlatListProps<T>["renderItem"]>>(
+    (info) => {
+      const node = renderItem ? renderItem(info) : null;
+      if (!animateEntrance || node == null || !entrance.current) return node;
+      const key = keyExtractor ? keyExtractor(info.item, info.index) : String(info.index);
+      return (
+        <EntranceRow tracker={entrance.current} rowKey={key} index={info.index}>
+          {node}
+        </EntranceRow>
+      );
+    },
+    [renderItem, animateEntrance, keyExtractor],
+  );
 
   let emptyNode: ReactNode;
   if (loading && !hasRows) {
@@ -153,6 +183,7 @@ export function AsyncList<T>({
     <FlatList
       {...rest}
       data={rows}
+      renderItem={renderRow}
       ItemSeparatorComponent={Separator}
       contentContainerStyle={[
         { padding } as StyleProp<ViewStyle>,
@@ -178,6 +209,16 @@ export function AsyncList<T>({
         ) : undefined
       }
     />
+  );
+}
+
+/** Decides once, when the row mounts, whether it plays the entrance animation. */
+function EntranceRow({ tracker, rowKey, index, children }: { tracker: EntranceTracker; rowKey: string; index: number; children: ReactNode }) {
+  const [animate] = useState(() => tracker.claim(rowKey, index));
+  return (
+    <FadeInView index={index} animate={animate}>
+      {children}
+    </FadeInView>
   );
 }
 

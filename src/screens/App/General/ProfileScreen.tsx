@@ -11,6 +11,7 @@ import {
   Button,
   Card,
   Divider,
+  HapticsSetting,
   ListRow,
   Screen,
   SectionHeader,
@@ -221,6 +222,8 @@ export default function ProfileScreen() {
         <SectionHeader title="Appearance" />
         <Card>
           <AppearanceSetting />
+          <Divider spacing={12} />
+          <HapticsSetting />
         </Card>
 
         <SectionHeader title="WorkNest" />

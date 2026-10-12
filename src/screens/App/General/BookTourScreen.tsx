@@ -254,7 +254,7 @@ export default function BookTourScreen() {
 
           {formError ? <Banner tone="danger" title="Not sent" message={formError} /> : null}
 
-          <Button title="Request tour" size="lg" fullWidth loading={submitting} onPress={submit} leftIcon="send-outline" />
+          <Button title="Request tour" size="lg" fullWidth loading={submitting} onPress={submit} leftIcon="send-outline" haptic />
           <AppText variant="caption" color="textMuted" align="center">
             No commitment. Our team will call or email you to confirm the visit.
           </AppText>

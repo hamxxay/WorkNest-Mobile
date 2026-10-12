@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
-import { Pressable, View, type StyleProp, type ViewProps, type ViewStyle } from "react-native";
+import { View, type StyleProp, type ViewProps, type ViewStyle } from "react-native";
 import { useTheme } from "../../theme";
+import { PRESS_SCALE_LARGE, ScalePressable } from "../motion/ScalePressable";
 
 export type CardVariant = "elevated" | "outlined" | "filled";
 
@@ -10,7 +11,7 @@ export type CardProps = Omit<ViewProps, "style"> & {
   variant?: CardVariant;
   /** Inner padding in dp. Default 16. */
   padding?: number;
-  /** Makes the whole card pressable (ripple + pressed state, accessibilityRole "button"). */
+  /** Makes the whole card pressable (ripple + pressed state + a slight press scale, accessibilityRole "button"). */
   onPress?: () => void;
   onLongPress?: () => void;
   disabled?: boolean;
@@ -41,8 +42,9 @@ export function Card({
 
   if (onPress || onLongPress) {
     return (
-      <Pressable
+      <ScalePressable
         {...rest}
+        pressScale={PRESS_SCALE_LARGE}
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel}
         accessibilityState={{ disabled: !!disabled }}
@@ -53,7 +55,7 @@ export function Card({
         style={({ pressed }) => [base, { overflow: "hidden" }, pressed && { opacity: 0.92 }, style]}
       >
         {children}
-      </Pressable>
+      </ScalePressable>
     );
   }
   return (
