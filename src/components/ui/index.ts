@@ -51,6 +51,7 @@ export { ConfirmProvider, useConfirm, type ConfirmOptions, type ConfirmFn } from
 export { Banner, type BannerProps, type BannerTone } from "./Banner";
 export { GoogleSignInButton, GoogleMark, type GoogleSignInButtonProps } from "./GoogleSignInButton";
 export { AppHeader, greeting, type AppHeaderProps, type AppHeaderVariant, type HeaderAction } from "./AppHeader";
+export { BrandLogo, BRAND_NAVY, BRAND_W_ASPECT, type BrandLogoProps } from "./BrandLogo";
 export { AppearanceSetting, type AppearanceSettingProps } from "./AppearanceSetting";
 export { FocusAwareStatusBar, barStyleFor } from "./FocusAwareStatusBar";
 export { useScreenChrome, type StatusBarChrome } from "./screenChrome";
