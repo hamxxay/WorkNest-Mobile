@@ -364,3 +364,17 @@ toYmdLocal(new Date())                   // "2026-10-12"
 3. Remove the `StatusBar.setBackgroundColor(colors.background)` effects; App.tsx sets the base status bar.
 4. Tab bar / drawer: use `colors.tabBar`, `colors.primary` (active), `colors.tabInactive`, `colors.surface`,
    `colors.border` so they follow dark mode.
+
+---
+
+## 6. Dark-mode checklist when restyling a screen
+
+- No hex / rgba literals in screens: `"#fff"` -> `colors.surface`, `"#0D5B5F"` -> `colors.headerBg` or `primaryStrong`,
+  `"#64748b"` -> `colors.textMuted`, status colours -> `<StatusPill>` / `useTones()`.
+- Do not import the static `colors` object; use `useThemeColors()` / `useThemedStyles()`.
+- `colors.white` is white in both modes: use it only for text/icons on teal or navy fills, never as a background.
+- White text goes on `primaryStrong` / `dangerStrong` / `headerBg`, not on `primary`.
+- Pass `placeholderTextColor={colors.placeholder}` to raw `TextInput`s (or use `TextField`).
+- Prefer `useTheme().shadows` over the static `shadows` and keep a `border` on cards (shadows are faint in dark mode).
+- Replace `Alert.alert("Saved")`-style notices with `useToast()`; keep dialogs for decisions.
+- Text sizes from `typography`; weights 400-700 only; minimum 12 (overline 11).
