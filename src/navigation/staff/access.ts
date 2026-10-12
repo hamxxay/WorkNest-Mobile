@@ -139,3 +139,31 @@ export function moreMenuFor(role: StaffRole): StaffMenuSection[] {
     .map((section) => ({ ...section, items: section.items.filter((item) => canOpenRoute(role, item.route)) }))
     .filter((section) => section.items.length > 0);
 }
+
+/**
+ * GET admin/nav-badges answers with CMS sidebar routes ({ "/admin/bookings": 2, ... }). The screen each one
+ * belongs to in the app (WhatsApp has no app screen). For admins, "/admin/attendants" also counts pending
+ * capacity requests (the Approvals tab).
+ */
+export const NAV_BADGE_ROUTES: Record<string, StaffRouteName> = {
+  "/admin/bookings": "BookingList",
+  "/admin/contacts": "TourInquiries",
+  "/admin/quotations": "QuotationList",
+  "/admin/agreements": "AgreementList",
+  "/admin/kyc": "KycList",
+  "/admin/invoices": "InvoiceList",
+  "/admin/attendants": "Attendants",
+  "/admin/complaints": "Complaints",
+  "/admin/access-dashboard": "AccessActivity",
+};
+
+/** Badge count per app screen the role may open (counts of CMS routes without an app screen are dropped). */
+export function badgesByRoute(role: StaffRole, badges: Record<string, number>): Partial<Record<StaffRouteName, number>> {
+  const out: Partial<Record<StaffRouteName, number>> = {};
+  for (const [cmsRoute, count] of Object.entries(badges)) {
+    const route = NAV_BADGE_ROUTES[cmsRoute];
+    if (!route || !(count > 0) || !canOpenRoute(role, route)) continue;
+    out[route] = (out[route] ?? 0) + count;
+  }
+  return out;
+}
