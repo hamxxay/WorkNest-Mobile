@@ -50,7 +50,7 @@ export default function CustomerListScreen() {
         gap={8}
         keyboardShouldPersistTaps="handled"
         empty={{
-          icon: "people-outline",
+          illustration: search ? "search" : "people",
           title: search ? "No customers found" : "No customers yet",
           message: search ? `Nothing matches "${search}".` : "Add a customer to quote or book a space for them.",
           actionLabel: search ? undefined : "New customer",

@@ -71,7 +71,7 @@ export default function StaffNotificationsScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} colors={[colors.primary]} tintColor={colors.primary} />}
       >
         {rows.length === 0 && approvals === 0 ? (
-          <EmptyState icon="notifications-off-outline" title="You're all caught up" message="New inquiries, bookings to confirm and other items show up here." />
+          <EmptyState illustration="bell" title="You're all caught up" message="New inquiries, bookings to confirm and other items show up here." />
         ) : (
           <>
             <Card padding={0}>

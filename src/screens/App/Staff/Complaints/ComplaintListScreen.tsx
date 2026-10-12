@@ -88,7 +88,7 @@ export default function ComplaintListScreen() {
         onEndReached={list.loadMore}
         gap={8}
         keyboardShouldPersistTaps="handled"
-        empty={{ icon: "chatbox-ellipses-outline", title: status === "all" && !search ? "No complaints" : "No complaints found" }}
+        empty={{ illustration: search ? "search" : "inbox", title: status === "all" && !search ? "No complaints" : "No complaints found" }}
         renderItem={({ item }) => (
           <Card onPress={() => setSelected(item)} accessibilityLabel={`${item.complaintNo}, ${item.category}, ${item.statusLabel}`}>
             <View style={styles.row}>

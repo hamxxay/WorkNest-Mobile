@@ -145,7 +145,7 @@ export default function KycCustomerScreen() {
           </Card>
 
           {data.checklistGroups.length === 0 ? (
-            <EmptyState icon="document-outline" title="No KYC documents" message="No documents are set up for this customer's category." />
+            <EmptyState illustration="document" title="No KYC documents" message="No documents are set up for this customer's category." />
           ) : (
             data.checklistGroups.map((group, gi) => (
               <Card key={`${group.groupCode ?? "g"}-${gi}`} padding={0}>
@@ -490,7 +490,7 @@ function HistorySheet({ customerId, item, onClose }: { customerId: number; item:
       ) : error ? (
         <ErrorState compact message={error} onRetry={reload} />
       ) : !data?.length ? (
-        <EmptyState compact title="No versions yet" />
+        <EmptyState compact illustration="document" title="No versions yet" />
       ) : (
         data.map((v) => (
           <Card key={v.id} variant="outlined">
