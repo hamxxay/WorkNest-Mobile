@@ -122,6 +122,7 @@ export type StaffSpace = {
   locationId: number | null;
   locationIdGuid: string | null;
   locationName: string | null;
+  spaceTypeId: number | null;
   spaceTypeName: string | null;
   categoryCode: string | null;
   capacity: number;
@@ -148,6 +149,7 @@ export function normalizeSpace(raw: any): StaffSpace {
     locationId: optNum(raw, "locationIdInt", "locationId"),
     locationIdGuid: optStr(raw, "locationIdGuid", "locationGuid"),
     locationName: optStr(raw, "locationName"),
+    spaceTypeId: optNum(raw, "spaceTypeId"),
     spaceTypeName: optStr(raw, "spaceTypeName", "spaceType"),
     categoryCode: optStr(raw, "categoryCode"),
     capacity: num(raw, "capacity"),

@@ -250,6 +250,7 @@ describe("space lookups", () => {
     locationId: 1,
     locationIdGuid: null,
     locationName: null,
+    spaceTypeId: null,
     spaceTypeName: null,
     categoryCode: null,
     capacity: 0,
