@@ -1,5 +1,5 @@
 import { formatMoney } from "../../../utils/format";
-import { describeTrend, sentences, summarizeBars, summarizeDonut, summarizeList } from "../summary";
+import { defaultFormat, describeTrend, sentences, summarizeBars, summarizeDonut, summarizeList } from "../summary";
 
 const money = (v: number) => formatMoney(v, { compact: true });
 
@@ -7,6 +7,19 @@ describe("sentences", () => {
   it("joins the non-empty parts as sentences", () => {
     expect(sentences(["Pipeline", null, "", "Draft 3, Sent 5", false])).toBe("Pipeline. Draft 3, Sent 5.");
     expect(sentences(["Done."])).toBe("Done.");
+  });
+  it("starts every sentence with a capital", () => {
+    expect(sentences(["Occupancy", "trend rising over 4 periods"])).toBe("Occupancy. Trend rising over 4 periods.");
+  });
+});
+
+describe("defaultFormat", () => {
+  it("groups digits and drops trailing zeros", () => {
+    expect(defaultFormat(1_250_000)).toBe("1,250,000");
+    expect(defaultFormat(72.4)).toBe("72.4");
+    expect(defaultFormat(1234.5)).toBe("1,234.5");
+    expect(defaultFormat(0)).toBe("0");
+    expect(defaultFormat(1000)).toBe("1,000");
   });
 });
 

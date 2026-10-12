@@ -7,12 +7,21 @@ import { cleanValues, compactLabel, extent, trendDirection } from "./scale";
 
 export type ValueFormatter = (value: number) => string;
 
-/** Default value text: grouped digits ("1,250,000"). */
-export const defaultFormat: ValueFormatter = value => formatNumber(value);
+/** Default value text: grouped digits, no trailing zeros ("1,250,000", "72.4"). */
+export const defaultFormat: ValueFormatter = value => {
+  const text = formatNumber(value);
+  return text.includes(".") ? text.replace(/\.?0+$/, "") : text;
+};
 
-const sentence = (text: string) => (/[.!?]$/.test(text) ? text : `${text}.`);
+const sentence = (text: string) => {
+  const capitalised = text.charAt(0).toUpperCase() + text.slice(1);
+  return /[.!?]$/.test(capitalised) ? capitalised : `${capitalised}.`;
+};
 
-/** Joins non-empty parts as sentences: ["Pipeline", "Draft 3, Sent 5"] -> "Pipeline. Draft 3, Sent 5." */
+/**
+ * Joins non-empty parts as sentences, each starting with a capital:
+ * ["Pipeline", "draft 3, sent 5"] -> "Pipeline. Draft 3, sent 5."
+ */
 export function sentences(parts: readonly (string | null | undefined | false)[]): string {
   return parts
     .map(p => (typeof p === "string" ? p.trim() : ""))
