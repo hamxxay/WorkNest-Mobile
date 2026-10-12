@@ -18,7 +18,8 @@ import {
 } from "@react-navigation/bottom-tabs";
 import { CommonActions, type Route } from "@react-navigation/native";
 import { radii, useTheme, type AppColors } from "../../theme";
-import { useReduceMotion } from "../../hooks/useReduceMotion";
+import { useReduceMotion } from "../motion/useReduceMotion";
+import { haptics } from "../../utils/haptics";
 import { Badge } from "./Badge";
 import {
   ACTIVE_TAB_EXTRA,
@@ -175,6 +176,7 @@ export function TabBar({ state, descriptors, navigation, insets, hideOnKeyboard 
             const onPress = () => {
               const event = navigation.emit({ type: "tabPress", target: route.key, canPreventDefault: true });
               if (!focused && !event.defaultPrevented) {
+                haptics.selection();
                 navigation.dispatch({ ...CommonActions.navigate(route.name, route.params), target: state.key });
               }
             };
