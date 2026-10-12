@@ -9,6 +9,8 @@ import { EmptyState, ErrorState } from "./States";
 
 jest.mock("react-native", () => ({
   ActivityIndicator: "ActivityIndicator",
+  // The theme's typography reads Platform.OS when it loads (Inter font families per platform).
+  Platform: { OS: "android", select: <T,>(o: { android?: T; default?: T }) => o.android ?? o.default },
   StyleSheet: { create: <T,>(styles: T) => styles, hairlineWidth: 1 },
   Text: "Text",
   View: "View",
