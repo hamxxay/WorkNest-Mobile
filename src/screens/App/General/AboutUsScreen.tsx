@@ -6,13 +6,6 @@ import { Screen } from "../../../components/Screen";
 import { radii, shadows, useThemeColors } from "../../../theme";
 
 
-const STATS = [
-  { value: "500+", label: "Spaces" },
-  { value: "12K+", label: "Bookings" },
-  { value: "98%", label: "Satisfaction" },
-  { value: "30+", label: "Cities" },
-];
-
 const FEATURES = [
   {
     icon: "flash-outline",
@@ -27,12 +20,12 @@ const FEATURES = [
   {
     icon: "time-outline",
     title: "Flexible Plans",
-    desc: "Book by the hour, day, week, or month — whatever fits your schedule.",
+    desc: "Meeting rooms by the hour; private offices and shared desks by the month.",
   },
   {
     icon: "shield-checkmark-outline",
     title: "Trusted & Secure",
-    desc: "Verified listings, secure payments, and real reviews from real users.",
+    desc: "Real spaces, bank challan payments and clear, signed agreements.",
   },
 ];
 
@@ -73,16 +66,6 @@ export default function AboutUsScreen() {
             A modern platform connecting professionals with flexible, inspiring
             workspaces — wherever they need to be.
           </Text>
-        </View>
-
-        {/* Stats row */}
-        <View style={styles.statsRow}>
-          {STATS.map((s) => (
-            <View key={s.label} style={styles.statPill}>
-              <Text style={styles.statValue}>{s.value}</Text>
-              <Text style={styles.statLabel}>{s.label}</Text>
-            </View>
-          ))}
         </View>
 
         {/* Mission */}

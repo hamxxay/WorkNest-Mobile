@@ -18,8 +18,9 @@ import { SmartImage } from "../../../components/SmartImage";
 import { radii, useThemeColors, useThemedStyles } from "../../../theme";
 import type { AppStackParamList } from "../../../navigation/types";
 import { useAuth } from "../../../context/AuthContext";
+import { priceUnitLabel } from "../../../services/workspaceService";
 
-type TabKey = "description" | "amenities" | "reviews";
+type TabKey = "description" | "amenities";
 
 type CalendarDay = {
   date: Date;
@@ -318,7 +319,11 @@ export default function SpaceDetailScreen() {
         <View style={styles.infoStrip}>
           {[
             { icon: "people-outline" as const, label: "Capacity", value: workspace.capacity },
-            { icon: "pricetag-outline" as const, label: "Per Day", value: `PKR ${workspace.price}` },
+            {
+              icon: "pricetag-outline" as const,
+              label: priceUnitLabel(workspace) ? `Per ${priceUnitLabel(workspace)}` : "Listed rate",
+              value: workspace.price > 0 ? `PKR ${workspace.price.toLocaleString("en-PK")}` : "On request",
+            },
             { icon: "business-outline" as const, label: "Type", value: workspace.type.replace(" Space", "") },
           ].map((item, idx) => (
             <View key={item.label} style={[styles.infoItem, idx === 2 && { borderRightWidth: 0 }]}>
@@ -332,7 +337,7 @@ export default function SpaceDetailScreen() {
         </View>
 
         <View style={styles.tabs}>
-          {(["description", "amenities", "reviews"] as TabKey[]).map((tab) => {
+          {(["description", "amenities"] as TabKey[]).map((tab) => {
             const active = tab === activeTab;
             return (
               <Pressable
@@ -351,8 +356,9 @@ export default function SpaceDetailScreen() {
         {activeTab === "description" ? (
           <View style={styles.descCard}>
             <Text style={styles.bodyText}>
-              {workspace.name} is a modern workspace located in {workspace.location}. It offers
-              flexible seating, reliable internet, and a calm atmosphere tailored for focused work.
+              {workspace.name}{workspace.location ? ` at ${workspace.location}` : ""}
+              {workspace.capacity ? `, for up to ${workspace.capacity} people` : ""}. Book a tour from the menu to
+              see the space before you book.
             </Text>
           </View>
         ) : null}
@@ -370,32 +376,6 @@ export default function SpaceDetailScreen() {
           </View>
         ) : null}
 
-        {activeTab === "reviews" ? (
-          <View style={styles.reviewList}>
-            {[
-              { name: "Sarah K.", text: "Quiet and productive atmosphere. Love it!", stars: 5 },
-              { name: "Ahmed R.", text: "Great location and very helpful staff.", stars: 5 },
-              { name: "Priya M.", text: "Loved the amenities and seating options.", stars: 4 },
-            ].map((r) => (
-              <View key={r.name} style={styles.reviewCard}>
-                <View style={styles.reviewHeader}>
-                  <View style={styles.reviewAvatar}>
-                    <Text style={styles.reviewAvatarText}>{r.name[0]}</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.reviewName}>{r.name}</Text>
-                    <View style={styles.starsRow}>
-                      {Array.from({ length: r.stars }).map((_, i) => (
-                        <Ionicons key={i} name="star" size={11} color="#F59E0B" />
-                      ))}
-                    </View>
-                  </View>
-                </View>
-                <Text style={styles.reviewText}>{r.text}</Text>
-              </View>
-            ))}
-          </View>
-        ) : null}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Availability</Text>
@@ -653,8 +633,8 @@ export default function SpaceDetailScreen() {
       {/* Fixed bottom CTA */}
       <View style={styles.ctaBar}>
         <View style={styles.ctaPriceBlock}>
-          <Text style={styles.ctaPrice}>PKR {workspace.price}</Text>
-          <Text style={styles.ctaPriceSub}>{isOffice ? "/month" : "/day"}</Text>
+          <Text style={styles.ctaPrice}>{workspace.price > 0 ? `PKR ${workspace.price.toLocaleString("en-PK")}` : "Price on request"}</Text>
+          <Text style={styles.ctaPriceSub}>{workspace.price > 0 && priceUnitLabel(workspace) ? `/${priceUnitLabel(workspace)}` : ""}</Text>
         </View>
         <Pressable
           style={[styles.ctaBtn, !isReadyToBook && styles.ctaBtnDisabled]}
@@ -1043,30 +1023,6 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
     borderColor: colors.border,
   },
   amenityChipText: { color: colors.foreground, fontSize: 13, fontWeight: "600" },
-  reviewList: { marginHorizontal: 18, gap: 12 },
-  reviewCard: {
-    backgroundColor: colors.card,
-    borderRadius: radii.lg,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: 8,
-  },
-  reviewHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
-  reviewAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    backgroundColor: colors.primaryMuted,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-  },
-  reviewAvatarText: { color: colors.primary, fontSize: 15, fontWeight: "800" },
-  reviewName: { color: colors.foreground, fontSize: 14, fontWeight: "700" },
-  starsRow: { flexDirection: "row", gap: 2, marginTop: 2 },
-  reviewText: { color: colors.mutedForeground, fontSize: 13, lineHeight: 20 },
   // Section / availability
   section: { gap: 12, paddingHorizontal: 18 },
   sectionTitle: { color: colors.foreground, fontSize: 18, fontWeight: "700" },

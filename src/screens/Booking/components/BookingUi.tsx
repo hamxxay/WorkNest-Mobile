@@ -4,6 +4,14 @@ import Ionicons from "react-native-vector-icons/Ionicons";
 import { SmartImage } from "../../../components/SmartImage";
 import { radii, shadows, spacing, useThemeColors, useThemedStyles } from "../../../theme";
 import type { WorkspaceSummary } from "../../../navigation/types";
+import { priceUnitLabel } from "../../../services/workspaceService";
+
+/** "PKR 25,000 / month" from the API's listed price, or a plain note when the API has no price. */
+function listedPrice(workspace: WorkspaceSummary): { amount: string; unit: string } {
+  if (!(Number(workspace.price) > 0)) return { amount: "Price on request", unit: "" };
+  const unit = priceUnitLabel(workspace);
+  return { amount: `PKR ${Number(workspace.price).toLocaleString()}`, unit: unit ? ` / ${unit}` : "" };
+}
 
 type StepKey = "datetime" | "guest" | "payment";
 
@@ -40,7 +48,8 @@ export function WorkspaceSummaryCard({ workspace }: { workspace: WorkspaceSummar
   const colors = useThemeColors();
   const amenities = workspace.amenities.slice(0, 3);
   const availability = getAvailability(workspace);
-  return <View style={styles.workspaceCard} accessible accessibilityLabel={`${workspace.name}, ${workspace.location}, PKR ${workspace.price} per day`}>
+  const price = listedPrice(workspace);
+  return <View style={styles.workspaceCard} accessible accessibilityLabel={`${workspace.name}, ${workspace.location}, ${price.amount}${price.unit}`}>
     <View style={styles.imageWrap}>
       <SmartImage uri={workspace.image} style={styles.image} />
       <View style={styles.imageGradient} />
@@ -48,16 +57,12 @@ export function WorkspaceSummaryCard({ workspace }: { workspace: WorkspaceSummar
         <View style={[styles.statusDot, { backgroundColor: availability.color }]} />
         <Text style={[styles.availableText, { color: availability.color }]}>{availability.label}</Text>
       </View>
-      <View style={styles.ratingBadge}><Ionicons name="star" size={13} color="#FBBF24" /><Text style={styles.ratingText}>{getRating(workspace)}</Text></View>
-      <View accessibilityElementsHidden style={styles.favoriteButton}>
-        <Ionicons name="heart-outline" size={19} color={colors.white} />
-      </View>
       <View style={styles.imageTitle}><Text style={styles.imageTitleText} numberOfLines={1}>{workspace.name}</Text></View>
     </View>
     <View style={styles.workspaceBody}>
       <View style={styles.workspaceMeta}><Ionicons name="location-outline" size={15} color={colors.mutedForeground} /><Text style={styles.workspaceMetaText} numberOfLines={1}>{workspace.location}</Text><Ionicons name="people-outline" size={15} color={colors.mutedForeground} /><Text style={styles.workspaceMetaText}>{workspace.capacity}</Text></View>
       {amenities.length ? <View style={styles.amenities}>{amenities.map((amenity) => <View key={amenity} style={styles.amenity}><Ionicons name="checkmark-circle" size={12} color={colors.primary} /><Text style={styles.amenityText}>{amenity}</Text></View>)}</View> : null}
-      <View style={styles.priceRow}><Text style={styles.priceLabel}>Your workspace</Text><Text style={styles.price}>PKR {Number(workspace.price).toLocaleString()}<Text style={styles.priceUnit}> / day</Text></Text></View>
+      <View style={styles.priceRow}><Text style={styles.priceLabel}>Your workspace</Text><Text style={styles.price}>{price.amount}<Text style={styles.priceUnit}>{price.unit}</Text></Text></View>
     </View>
   </View>;
 }
@@ -77,7 +82,7 @@ export function ErrorCard({ message }: { message: string }) {
 export function BookingSummaryCard({ workspace, dateLabel, timeLabel }: { workspace: WorkspaceSummary; dateLabel: string; timeLabel: string }) {
   const styles = useThemedStyles(createStyles);
   const colors = useThemeColors();
-  return <View style={styles.summary}><View style={styles.summaryHeader}><Text style={styles.summaryTitle}>Booking summary</Text><Ionicons name="receipt-outline" size={19} color={colors.primary} /></View><SummaryLine icon="calendar-outline" label="Date" value={dateLabel} /><SummaryLine icon="time-outline" label="Time" value={timeLabel} /><View style={styles.summaryDivider} /><View style={styles.totalRow}><View><Text style={styles.totalLabel}>Price shown at checkout</Text><Text style={styles.totalNote}>Taxes and payment details are reviewed next</Text></View><Text style={styles.total}>PKR {Number(workspace.price).toLocaleString()}</Text></View></View>;
+  return <View style={styles.summary}><View style={styles.summaryHeader}><Text style={styles.summaryTitle}>Booking summary</Text><Ionicons name="receipt-outline" size={19} color={colors.primary} /></View><SummaryLine icon="calendar-outline" label="Date" value={dateLabel} /><SummaryLine icon="time-outline" label="Time" value={timeLabel} /><View style={styles.summaryDivider} /><View style={styles.totalRow}><View><Text style={styles.totalLabel}>Listed rate</Text><Text style={styles.totalNote}>The exact amount (tax, deposit) is on your bank challan</Text></View><Text style={styles.total}>{listedPrice(workspace).amount}{listedPrice(workspace).unit}</Text></View></View>;
 }
 
 function SummaryLine({ icon, label, value }: { icon: string; label: string; value: string }) {
@@ -92,9 +97,6 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.c
   errorCard: { flexDirection: "row", alignItems: "center", gap: 9, padding: 12, borderRadius: radii.md, backgroundColor: colors.dangerMuted, borderWidth: 1, borderColor: "#FCA5A5" }, errorText: { flex: 1, color: colors.danger, fontSize: 13, fontWeight: "600", lineHeight: 19 }, summary: { backgroundColor: colors.card, padding: spacing.lg, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.border, gap: 12, ...shadows.sm }, summaryHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }, summaryTitle: { color: colors.foreground, fontSize: 17, fontWeight: "800" }, summaryLine: { flexDirection: "row", justifyContent: "space-between", gap: 12 }, summaryKey: { flexDirection: "row", gap: 7, alignItems: "center" }, summaryLabel: { color: colors.mutedForeground, fontSize: 13, fontWeight: "600" }, summaryValue: { color: colors.foreground, fontSize: 13, fontWeight: "700", flexShrink: 1, textAlign: "right" }, summaryDivider: { height: 1, backgroundColor: colors.border }, totalRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12 }, totalLabel: { color: colors.foreground, fontSize: 13, fontWeight: "800" }, totalNote: { color: colors.mutedForeground, fontSize: 10, marginTop: 2 }, total: { color: colors.primary, fontSize: 19, fontWeight: "800" },
 });
 
-function getRating(workspace: WorkspaceSummary) {
-  return (4.4 + (Math.abs(Number(workspace.id) || workspace.name.length) % 6) / 10).toFixed(1);
-}
 
 function getAvailability(workspace: WorkspaceSummary) {
   const availableCount = (workspace as WorkspaceSummary & { availableCount?: number }).availableCount;

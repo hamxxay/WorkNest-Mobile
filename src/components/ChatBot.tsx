@@ -23,75 +23,70 @@ const RULES: { keywords: string[]; answer: string }[] = [
   {
     keywords: ["book", "booking", "reserve", "how to book"],
     answer:
-      "To book a workspace:\n1. Go to the Booking tab\n2. Search or filter spaces\n3. Tap a card, then Book Now\n4. Pick your dates & slot\n5. Fill in your details\n6. Confirm & Pay",
+      "To book a workspace:\n1. Go to the Booking tab\n2. Search or filter spaces\n3. Tap a card, then Book Now\n4. Pick your dates and slot\n5. Fill in your details\n6. Confirm: you get a bank challan to pay",
   },
   {
     keywords: ["payment", "pay", "price", "cost", "pkr", "fee"],
     answer:
-      "Payments are processed on the Payment screen after you fill in your guest info. We show a full order summary before you confirm. Check the Pricing tab for plan details.",
+      "Payment is by bank challan. After you confirm a booking, your challan appears under My Bookings and Payments. Pay it at any HBL branch, ATM or in your mobile banking app under 1Bill / Bill Payment. Your booking is confirmed once the payment reaches us.",
   },
   {
     keywords: ["cancel", "cancellation", "refund"],
     answer:
-      "Cancellation and refund policies depend on the space. Please contact us via the Contact Us page in your Profile menu for help with a specific booking.",
+      "You can cancel a booking from My Bookings while it is still pending payment. For a paid booking or a refund, please contact us from the menu (Contact Us).",
   },
   {
     keywords: ["wifi", "internet", "connection"],
-    answer: "All WorkNest spaces include high-speed WiFi unless noted otherwise on the space detail page.",
+    answer: "Each space's amenities are listed on its detail page. For anything not listed, please contact us from the menu (Contact Us).",
   },
   {
     keywords: ["meeting", "conference", "boardroom"],
     answer:
-      "Meeting rooms are fully equipped with AV displays, whiteboards, and seating for up to 10 people. Catering can be arranged on request.",
+      "Meeting rooms are booked by the hour. Open the Booking tab to see the rooms, their capacity and the listed rate.",
   },
   {
     keywords: ["office", "private", "dedicated"],
     answer:
-      "Private offices come with secure keycard access, a premium desk & chair, high-speed internet, and daily cleaning.",
+      "Private offices are booked by the month. Open the Booking tab to see what is available, or book a tour from the menu to visit first.",
   },
   {
     keywords: ["hot desk", "hotdesk", "shared", "cowork", "co-work"],
     answer:
-      "Hot desks offer flexible hours, community lounge access, printer & scanner, and locker storage — perfect for freelancers and remote workers.",
+      "Shared desks are booked by the month. Open the Booking tab to see availability and the listed rate.",
   },
   {
     keywords: ["hour", "hourly", "daily", "weekly", "monthly", "plan", "duration"],
     answer:
-      "You can book by the hour, day, week, or month. Check the Booking tab for available spaces and rates.",
+      "Meeting rooms are booked by the hour; private offices and shared desks by the month. The Booking tab shows each space's listed rate, and the exact amount is on your challan.",
   },
   {
     keywords: ["location", "city", "where", "address"],
     answer:
-      "WorkNest operates in 30+ cities. Use the search bar on the Booking tab to filter spaces by location.",
+      "Use the Booking tab to see WorkNest locations and filter spaces by location.",
   },
   {
     keywords: ["amenities", "facilities", "features", "include"],
     answer:
-      "Amenities vary by space but typically include WiFi, printing, lounge access, lockers, and cleaning. Full details are on each space's detail page.",
-  },
-  {
-    keywords: ["admin", "dashboard", "manage"],
-    answer:
-      "The Admin Panel is accessible from the Profile menu if you have admin privileges. It provides read-only visibility into users, spaces, bookings, and payments.",
+      "Amenities vary by space. The ones a space offers are listed on its detail page.",
   },
   {
     keywords: ["contact", "support", "help", "issue", "problem"],
     answer:
-      "For support, go to Profile > Contact Us. Our team will get back to you as soon as possible.",
+      "For support, open the menu and choose Contact Us. Our team will get back to you as soon as possible.",
   },
   {
     keywords: ["gallery", "photo", "image", "picture"],
     answer:
-      "Browse workspace photos in the Gallery tab. Tap any image to open the full-screen lightbox with zoom and swipe support.",
+      "Browse workspace photos in the Gallery (open the menu and choose Gallery).",
   },
   {
     keywords: ["history", "past booking", "my booking"],
     answer:
-      "View all your bookings in the My Bookings tab or via Profile > Booking History.",
+      "View all your bookings, and their challans, under Profile > My Bookings.",
   },
   {
     keywords: ["hello", "hi", "hey", "greet"],
-    answer: "Hey there! I'm the WorkNest assistant. Ask me anything about booking, payments, spaces, or plans!",
+    answer: "Hello! I'm the WorkNest assistant. Ask me about booking, payments or spaces.",
   },
   {
     keywords: ["thank", "thanks", "great", "awesome"],
@@ -109,7 +104,7 @@ const QUICK_QUESTIONS = [
 ];
 
 const FALLBACK =
-  "I'm not sure about that one. Try rephrasing, or contact our support team via Profile > Contact Us for detailed help.";
+  "I'm not sure about that one. Try rephrasing, or contact our team from the menu (Contact Us) for detailed help.";
 
 function getBotReply(input: string): string {
   const lower = input.toLowerCase();
@@ -129,7 +124,7 @@ export function ChatBot({ visible = true }: { visible?: boolean }) {
     {
       id: "0",
       from: "bot",
-      text: "Hi! I'm your WorkNest assistant. Ask me about booking, payments, spaces, or plans — or pick a quick question below.",
+      text: "Hi! I'm your WorkNest assistant. Ask me about booking, payments or spaces, or pick a quick question below.",
     },
   ]);
   const [input, setInput] = useState("");

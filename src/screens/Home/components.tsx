@@ -13,11 +13,11 @@ import { useNavigation } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { colors, radii, shadows, useThemeColors } from '../../theme';
 import {
-  DEFAULT_AMENITIES,
   HOME_FILTERS,
   HOME_SPACING,
   PREMIUM_COPY,
 } from './constants';
+import { priceUnitLabel } from '../../services/workspaceService';
 import type { HomeFilter, Workspace } from './types';
 import { useResponsive } from '../../utils/responsive';
 
@@ -298,9 +298,9 @@ export const WorkspaceCard = memo(function WorkspaceCard({
   const colors = useThemeColors();
   const cardWidth = useCardWidth();
   const availability = getAvailability(workspace);
-  const amenities = workspace.amenities?.length
-    ? workspace.amenities.slice(0, 4)
-    : DEFAULT_AMENITIES;
+  // Only the amenities the API lists for this space (no made-up defaults).
+  const amenities = (workspace.amenities ?? []).slice(0, 4);
+  const unit = priceUnitLabel(workspace);
   return (
     <View style={[styles.workspaceCardShadow, shadows.md, { width: cardWidth }]}>
       <View style={[styles.workspaceCard, { backgroundColor: colors.card }]}>
@@ -338,10 +338,6 @@ export const WorkspaceCard = memo(function WorkspaceCard({
             >
               {availability.label}
             </Text>
-          </View>
-          <View style={styles.ratingBadge}>
-            <Ionicons name="star" size={13} color="#FBBF24" />
-            <Text style={styles.ratingText}>{getRating(workspace)}</Text>
           </View>
         </Pressable>
         <View style={styles.cardBody}>
@@ -393,7 +389,7 @@ export const WorkspaceCard = memo(function WorkspaceCard({
               }
             </Text>
           )}
-          {!premium && (
+          {!premium && amenities.length > 0 && (
             <View style={styles.amenityRow}>
               {amenities.map(amenity => (
                 <View
@@ -418,12 +414,14 @@ export const WorkspaceCard = memo(function WorkspaceCard({
                 {premium ? 'Starting from' : 'From'}
               </Text>
               <Text style={[styles.price, { color: colors.foreground }]}>
-                PKR {formatPrice(workspace.price)}
-                <Text
-                  style={[styles.priceUnit, { color: colors.mutedForeground }]}
-                >
-                  /day
-                </Text>
+                {workspace.price > 0 ? `PKR ${formatPrice(workspace.price)}` : 'Price on request'}
+                {workspace.price > 0 && unit ? (
+                  <Text
+                    style={[styles.priceUnit, { color: colors.mutedForeground }]}
+                  >
+                    /{unit}
+                  </Text>
+                ) : null}
               </Text>
             </View>
             <Pressable
@@ -512,12 +510,6 @@ function formatPrice(value: number) {
   return new Intl.NumberFormat('en-PK', { maximumFractionDigits: 0 }).format(
     Number(value) || 0,
   );
-}
-function getRating(workspace: Workspace) {
-  return (
-    4.4 +
-    (Math.abs(Number(workspace.id) || workspace.name.length) % 6) / 10
-  ).toFixed(1);
 }
 function getAvailability(workspace: Workspace) {
   if (!workspace.available)
@@ -762,19 +754,6 @@ avatarInitial: {
   },
   statusDot: { width: 7, height: 7, borderRadius: 4 },
   availabilityText: { fontSize: 11, fontWeight: '800' },
-  ratingBadge: {
-    position: 'absolute',
-    right: HOME_SPACING.sm,
-    top: HOME_SPACING.sm,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: radii.pill,
-    backgroundColor: 'rgba(10,22,40,0.78)',
-  },
-  ratingText: { color: '#fff', fontSize: 11, fontWeight: '800' },
   premiumBadge: {
     position: 'absolute',
     left: HOME_SPACING.sm,

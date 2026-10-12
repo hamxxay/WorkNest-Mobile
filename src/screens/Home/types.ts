@@ -4,7 +4,9 @@ export type Workspace = {
   type: string;
   location: string;
   capacity?: string;
+  /** Listed price from the API, per priceUnit (Monthly, Hourly...). */
   price: number;
+  priceUnit?: string;
   amenities: string[];
   image: string;
   available: boolean;

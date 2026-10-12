@@ -16,8 +16,6 @@ export const HOME_FILTERS = [
   "Monthly",
 ] as const;
 
-export const DEFAULT_AMENITIES = ["WiFi", "Coffee", "Parking", "Air Conditioning"];
-
 export const PREMIUM_COPY = [
   "A refined, quiet setting for your most important work.",
   "Designed for teams who value comfort, focus, and privacy.",

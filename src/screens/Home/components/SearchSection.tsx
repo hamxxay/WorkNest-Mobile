@@ -24,8 +24,7 @@ export const SearchSection = () => {
 
   const quickSections = [
     { label: 'Quotation', icon: 'document-text-outline', screen: 'QuotationList' },
-    { label: 'Invoices', icon: 'receipt-outline', screen: 'MyPayments' },
-    { label: 'Attendees', icon: 'people-outline', screen: 'Attendees' },
+    { label: 'Payments', icon: 'receipt-outline', screen: 'MyPayments' },
     { label: 'Booking', icon: 'calendar-outline', screen: 'Booking' },
     doorAccess?.canOpenDoor
       ? { label: 'Unlock Door', icon: 'lock-open-outline', screen: 'UnlockDoor' }
@@ -76,7 +75,7 @@ export const SearchSection = () => {
                 unlock();
                 return;
               }
-              if (['QuotationList', 'MyPayments', 'BookingHistory', 'Booking', 'Profile', 'AccessRequest'].includes(item.screen)) {
+              if (['QuotationList', 'MyPayments', 'MyBookings', 'Booking', 'Profile', 'AccessRequest'].includes(item.screen)) {
                 navigation.navigate(item.screen);
               }
             }}
