@@ -138,6 +138,7 @@ export default function HomeScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         onScrollBeginDrag={() => setChatVisible(false)}
+        onScrollEndDrag={() => setChatVisible(true)}
         onMomentumScrollEnd={() => setChatVisible(true)}
         refreshControl={
           <RefreshControl
