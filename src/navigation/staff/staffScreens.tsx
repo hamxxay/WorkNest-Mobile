@@ -22,6 +22,9 @@ import InvoiceListScreen from "../../screens/App/Staff/Invoices/InvoiceListScree
 import InvoiceDetailScreen from "../../screens/App/Staff/Invoices/InvoiceDetailScreen";
 import InquiryListScreen from "../../screens/App/Staff/Inquiries/InquiryListScreen";
 import ComplaintListScreen from "../../screens/App/Staff/Complaints/ComplaintListScreen";
+import AttendantsScreen from "../../screens/App/Staff/Attendants/AttendantsScreen";
+import RoomAccessScreen from "../../screens/App/Staff/Attendants/RoomAccessScreen";
+import CapacityRequestsScreen from "../../screens/App/Staff/Approvals/CapacityRequestsScreen";
 
 // Route name -> screen for the staff navigators. Every staff screen draws its own AppHeader (back button,
 // title, actions), so the navigators render no header of their own.
@@ -43,9 +46,9 @@ export const STAFF_SCREENS: Record<StaffRouteName, ComponentType<any>> = {
   AgreementSend: AgreementSendScreen,
   InvoiceList: InvoiceListScreen,
   InvoiceDetail: InvoiceDetailScreen,
-  Attendants: makeStaffPlaceholder("Attendants & access"),
-  RoomAccess: makeStaffPlaceholder("Room access"),
-  CapacityRequests: makeStaffPlaceholder("Approvals"),
+  Attendants: AttendantsScreen,
+  RoomAccess: RoomAccessScreen,
+  CapacityRequests: CapacityRequestsScreen,
   Complaints: ComplaintListScreen,
   AccessActivity: makeStaffPlaceholder("Access activity log"),
   Users: makeStaffPlaceholder("Users"),

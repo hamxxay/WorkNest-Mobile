@@ -1,0 +1,131 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { StyleSheet, View } from "react-native";
+import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { AppHeader, AppText, AsyncList, Card, EmptyState, FilterChips, StatusPill } from "../../../../components/ui";
+import type { StaffStackParamList } from "../../../../navigation/staffTypes";
+import { errorMessage } from "../../../../services/apiClient";
+import { getCustomer, getCustomerBookedSpaces, type BookedSpace, type StaffCustomer } from "../../../../services/staff";
+import { spacing } from "../../../../theme";
+import { formatDateRange, parseDate } from "../../../../utils/format";
+import { CustomerPickerField } from "../shared/CustomerPickerField";
+import { StaffScreen } from "../shared/StaffScreen";
+
+type Nav = NativeStackNavigationProp<StaffStackParamList>;
+type Route = RouteProp<StaffStackParamList, "Attendants">;
+
+/** A booked space is current until its end date (the API also returns ended ones). */
+function isCurrent(space: BookedSpace, today = new Date()): boolean {
+  const end = parseDate(space.endDateTime);
+  return !end || end.getTime() >= new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+}
+
+/**
+ * Attendants & Access: pick a customer, then one of their booked spaces (GET customers/{id}/active-spaces) to
+ * manage the people with door access in it.
+ */
+export default function AttendantsScreen() {
+  const navigation = useNavigation<Nav>();
+  const { params } = useRoute<Route>();
+  const [customer, setCustomer] = useState<StaffCustomer | null>(null);
+  const [spaces, setSpaces] = useState<BookedSpace[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [show, setShow] = useState<"current" | "all">("current");
+
+  useEffect(() => {
+    if (!params?.customerId) return;
+    getCustomer(params.customerId)
+      .then(setCustomer)
+      .catch((err) => setError(errorMessage(err)));
+  }, [params?.customerId]);
+
+  const load = useCallback(
+    async (mode: "initial" | "refresh") => {
+      if (!customer) return;
+      if (mode === "initial") setLoading(true);
+      else setRefreshing(true);
+      setError(null);
+      try {
+        setSpaces(await getCustomerBookedSpaces(customer.id));
+      } catch (err) {
+        setError(errorMessage(err, "Could not load the booked spaces."));
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [customer],
+  );
+
+  useEffect(() => {
+    setSpaces([]);
+    load("initial");
+  }, [load]);
+
+  const rows = useMemo(() => (show === "current" ? spaces.filter((s) => isCurrent(s)) : spaces), [spaces, show]);
+
+  return (
+    <StaffScreen>
+      <AppHeader title="Attendants & access" subtitle={customer?.fullName} />
+      <View style={styles.top}>
+        <CustomerPickerField required value={customer} onChange={setCustomer} />
+        {customer ? (
+          <FilterChips
+            value={show}
+            onChange={setShow}
+            options={[
+              { label: "Current", value: "current", count: spaces.filter((s) => isCurrent(s)).length },
+              { label: "All bookings", value: "all", count: spaces.length },
+            ]}
+            accessibilityLabel="Booked spaces to show"
+          />
+        ) : null}
+      </View>
+      {!customer ? (
+        <EmptyState icon="people-circle-outline" title="Choose a customer" message="See the rooms they have booked and who can open the doors." />
+      ) : (
+        <AsyncList
+          data={rows}
+          keyExtractor={(s) => String(s.bookingDetailId)}
+          loading={loading}
+          refreshing={refreshing}
+          onRefresh={() => load("refresh")}
+          error={error}
+          gap={8}
+          empty={{ icon: "business-outline", title: show === "current" ? "No current bookings" : "No bookings", message: "This customer has no booked space to give access to." }}
+          renderItem={({ item }) => {
+            const full = item.activeAttendantsCount >= item.capacity;
+            return (
+              <Card
+                onPress={() =>
+                  navigation.navigate("RoomAccess", { bookingDetailId: item.bookingDetailId, customerId: customer.id, spaceName: item.spaceName })
+                }
+                accessibilityLabel={`${item.spaceName}, ${item.activeAttendantsCount} of ${item.capacity} seats`}
+              >
+                <View style={styles.row}>
+                  <View style={styles.flex}>
+                    <AppText variant="bodyStrong" numberOfLines={1}>
+                      {[item.spaceName, item.spaceCode].filter(Boolean).join(" · ")}
+                    </AppText>
+                    <AppText variant="caption" color="textMuted">
+                      {[item.spaceCategory, formatDateRange(item.startDateTime, item.endDateTime)].join(" · ")}
+                    </AppText>
+                  </View>
+                  <StatusPill tone={full ? "warning" : "success"} label={`${item.activeAttendantsCount} / ${item.capacity} seats`} />
+                </View>
+              </Card>
+            );
+          }}
+        />
+      )}
+    </StaffScreen>
+  );
+}
+
+const styles = StyleSheet.create({
+  top: { paddingHorizontal: spacing.screen, paddingTop: spacing.md, gap: spacing.sm },
+  row: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  flex: { flex: 1 },
+});
