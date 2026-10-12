@@ -94,7 +94,7 @@ export default function ChallanScreen() {
       {loading ? (
         <LoadingState message="Loading challan" />
       ) : error || !challan ? (
-        <ErrorState message={error || "This booking has no challan yet."} onRetry={() => load()} />
+        <ErrorState illustration={error ? "cloud-off" : "receipt"} message={error || "This booking has no challan yet."} onRetry={() => load()} />
       ) : (
         <ScrollView
           contentContainerStyle={styles.content}

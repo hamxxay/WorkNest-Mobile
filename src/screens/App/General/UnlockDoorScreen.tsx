@@ -89,7 +89,7 @@ export default function UnlockDoorScreen() {
         <LoadingState message="Loading your doors" />
       ) : needsVerification ? (
         <EmptyState
-          icon="key-outline"
+          illustration="door"
           title="Verify your access first"
           message="Confirm your details once (Access Request) and you can unlock your room door from the app."
           actionLabel="Access request"
