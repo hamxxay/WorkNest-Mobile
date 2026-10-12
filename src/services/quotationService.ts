@@ -164,9 +164,12 @@ export async function getQuotations(
   locationId?: number
 ): Promise<{ data: QuotationRecord[]; total: number; page: number; limit: number }> {
   const path = API_ENDPOINTS.quotation.adminList(page, limit, search, locationId);
+  // unwrapData: false keeps `total`: the backend returns { data: [...], total, page, limit } (not wrapped in
+  // ApiResponse), and apiClient's default unwrapping would hand back only the array (total = page size).
   const raw = await apiRequest<any>(path, {
     method: "GET",
     requiresAuth: true,
+    unwrapData: false,
   });
 
   // Backend returns { data: [...], total, page, limit }
