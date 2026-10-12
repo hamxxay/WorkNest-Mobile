@@ -35,7 +35,17 @@ export type ToastApi = {
 
 type ToastItem = { id: number; type: ToastType; message: string } & ToastOptions;
 
+type ToastState = {
+  toast: ToastItem | null;
+  hide: () => void;
+  /** Ids of mounted ToastModalHosts, oldest first. The last one shows the toast. */
+  hosts: number[];
+  register: (id: number) => void;
+  unregister: (id: number) => void;
+};
+
 const ToastContext = createContext<ToastApi | null>(null);
+const ToastStateContext = createContext<ToastState | null>(null);
 
 /** Without a provider (tests, isolated previews) fall back to the platform toast. */
 const fallbackApi: ToastApi = (() => {
@@ -66,18 +76,43 @@ type ToastProviderProps = {
   bottomOffset?: number;
 };
 
-/** Mount once near the root (App.tsx does). Shows one toast at a time; a new toast replaces the current one. */
+/**
+ * Mount once near the root (App.tsx does). Shows one toast at a time; a new toast replaces the current one.
+ * While a native Modal that contains a <ToastModalHost/> is open (BottomSheet and ConfirmDialog include one),
+ * the toast is drawn inside that Modal so it stays visible above it.
+ */
 export function ToastProvider({ children, bottomOffset = 80 }: ToastProviderProps) {
   const [toast, setToast] = useState<ToastItem | null>(null);
+  const [hosts, setHosts] = useState<number[]>([]);
   const idRef = useRef(0);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const hide = useCallback(() => setToast(null), []);
-  const show = useCallback((message: string, type: ToastType = "info", options: ToastOptions = {}) => {
-    if (!message) return;
-    idRef.current += 1;
-    setToast({ id: idRef.current, type, message, ...options });
-    AccessibilityInfo.announceForAccessibility(options.title ? `${options.title}. ${message}` : message);
+  const clearTimer = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = null;
+  };
+
+  const hide = useCallback(() => {
+    clearTimer();
+    setToast(null);
   }, []);
+
+  const show = useCallback(
+    (message: string, type: ToastType = "info", options: ToastOptions = {}) => {
+      if (!message) return;
+      idRef.current += 1;
+      clearTimer();
+      setToast({ id: idRef.current, type, message, ...options });
+      timerRef.current = setTimeout(hide, options.duration ?? (type === "error" ? 4500 : 3000));
+      AccessibilityInfo.announceForAccessibility(options.title ? `${options.title}. ${message}` : message);
+    },
+    [hide],
+  );
+
+  useEffect(() => clearTimer, []);
+
+  const register = useCallback((id: number) => setHosts(prev => (prev.includes(id) ? prev : [...prev, id])), []);
+  const unregister = useCallback((id: number) => setHosts(prev => prev.filter(h => h !== id)), []);
 
   const api = useMemo<ToastApi>(
     () => ({
@@ -90,17 +125,58 @@ export function ToastProvider({ children, bottomOffset = 80 }: ToastProviderProp
     [show, hide],
   );
 
+  const state = useMemo<ToastState>(
+    () => ({ toast, hide, hosts, register, unregister }),
+    [toast, hide, hosts, register, unregister],
+  );
+
   return (
     <ToastContext.Provider value={api}>
-      <View style={styles.root}>
-        {children}
-        <ToastHost toast={toast} onHide={hide} bottomOffset={bottomOffset} />
-      </View>
+      <ToastStateContext.Provider value={state}>
+        <View style={styles.root}>
+          {children}
+          {hosts.length === 0 ? <ToastView toast={toast} onHide={hide} placement="bottom" offset={bottomOffset} /> : null}
+        </View>
+      </ToastStateContext.Provider>
     </ToastContext.Provider>
   );
 }
 
-function ToastHost({ toast, onHide, bottomOffset }: { toast: ToastItem | null; onHide: () => void; bottomOffset: number }) {
+let nextHostId = 1;
+
+/**
+ * Put this as the LAST child inside your own <Modal> so toasts shown while it is open appear above it.
+ * BottomSheet and ConfirmDialog already include one. Inside a modal the toast sits at the top.
+ */
+export function ToastModalHost({ placement = "top" }: { placement?: "top" | "bottom" }) {
+  const state = useContext(ToastStateContext);
+  const idRef = useRef(0);
+  if (idRef.current === 0) idRef.current = nextHostId++;
+  const register = state?.register;
+  const unregister = state?.unregister;
+
+  useEffect(() => {
+    if (!register || !unregister) return undefined;
+    const id = idRef.current;
+    register(id);
+    return () => unregister(id);
+  }, [register, unregister]);
+
+  if (!state || state.hosts[state.hosts.length - 1] !== idRef.current) return null;
+  return <ToastView toast={state.toast} onHide={state.hide} placement={placement} offset={16} />;
+}
+
+function ToastView({
+  toast,
+  onHide,
+  placement,
+  offset,
+}: {
+  toast: ToastItem | null;
+  onHide: () => void;
+  placement: "top" | "bottom";
+  offset: number;
+}) {
   const { isDark, typography } = useTheme();
   const insets = useSafeAreaInsets();
   const anim = useRef(new Animated.Value(0)).current;
@@ -111,37 +187,31 @@ function ToastHost({ toast, onHide, bottomOffset }: { toast: ToastItem | null; o
       setShown(toast);
       anim.setValue(0);
       Animated.timing(anim, { toValue: 1, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
-      const ms = toast.duration ?? (toast.type === "error" ? 4500 : 3000);
-      const timer = setTimeout(onHide, ms);
-      return () => clearTimeout(timer);
+      return;
     }
     Animated.timing(anim, { toValue: 0, duration: 180, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(
       ({ finished }) => {
         if (finished) setShown(null);
       },
     );
-    return undefined;
-  }, [toast, anim, onHide]);
+  }, [toast, anim]);
 
   if (!shown) return null;
 
   const accent =
     shown.type === "success" ? palette.emerald[400] : shown.type === "error" ? palette.red[400] : palette.teal[300];
   const icon = shown.type === "success" ? "checkmark-circle" : shown.type === "error" ? "alert-circle" : "information-circle";
-  const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [24, 0] });
+  const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [placement === "top" ? -24 : 24, 0] });
+  const position = placement === "top" ? { top: insets.top + offset } : { bottom: insets.bottom + offset };
 
   return (
-    <View pointerEvents="box-none" style={[styles.host, { bottom: insets.bottom + bottomOffset }]}>
+    <View pointerEvents="box-none" style={[styles.host, position]}>
       <Animated.View
         accessibilityRole="alert"
         style={[
           styles.toast,
-          {
-            backgroundColor: isDark ? "#243049" : palette.slate[800],
-            borderColor: isDark ? palette.slate[600] : "transparent",
-            opacity: anim,
-            transform: [{ translateY }],
-          },
+          isDark ? styles.toastDark : styles.toastLight,
+          { opacity: anim, transform: [{ translateY }] },
         ]}
       >
         <Pressable
@@ -171,9 +241,9 @@ function ToastHost({ toast, onHide, bottomOffset }: { toast: ToastItem | null; o
               shown.action?.onPress();
               onHide();
             }}
-            style={({ pressed }) => [styles.action, pressed && { opacity: 0.7 }]}
+            style={({ pressed }) => [styles.action, pressed && styles.pressed]}
           >
-            <Text style={[typography.label, { color: palette.teal[300] }]}>{shown.action.label}</Text>
+            <Text style={[typography.label, styles.actionText]}>{shown.action.label}</Text>
           </Pressable>
         ) : null}
       </Animated.View>
@@ -200,8 +270,12 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
   },
+  toastLight: { backgroundColor: palette.slate[800], borderColor: "transparent" },
+  toastDark: { backgroundColor: "#243049", borderColor: palette.slate[600] },
   body: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 12 },
   texts: { flex: 1, gap: 2 },
   light: { color: "#f8fafc" },
   action: { minHeight: 44, paddingHorizontal: 10, justifyContent: "center" },
+  actionText: { color: palette.teal[300] },
+  pressed: { opacity: 0.7 },
 });

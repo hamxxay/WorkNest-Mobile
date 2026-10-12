@@ -18,6 +18,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "../../theme";
 import { IconButton } from "./Button";
+import { ToastModalHost } from "./Toast";
 
 export type BottomSheetProps = {
   visible: boolean;
@@ -184,6 +185,7 @@ export function BottomSheet({
             </View>
           ) : null}
         </Animated.View>
+        <ToastModalHost />
       </KeyboardAvoidingView>
     </Modal>
   );

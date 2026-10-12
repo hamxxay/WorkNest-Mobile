@@ -8,8 +8,9 @@ import { AuthProvider } from "./src/context/AuthContext";
 import { ThemeProvider, useTheme } from "./src/theme";
 import { ErrorBoundary } from "./src/components/ErrorBoundary";
 import { ToastProvider } from "./src/components/ui/Toast";
+import { ConfirmProvider } from "./src/components/ui/useConfirm";
 
-/** Everything below the providers: themed page background, base status bar, toasts and the navigator. */
+/** Everything below the providers: themed page background, base status bar, toasts, confirm dialog, navigator. */
 function ThemedRoot() {
   const { colors, isDark } = useTheme();
   return (
@@ -22,9 +23,11 @@ function ThemedRoot() {
         animated
       />
       <ToastProvider>
-        <ErrorBoundary>
-          <RootNavigator />
-        </ErrorBoundary>
+        <ConfirmProvider>
+          <ErrorBoundary>
+            <RootNavigator />
+          </ErrorBoundary>
+        </ConfirmProvider>
       </ToastProvider>
     </View>
   );
