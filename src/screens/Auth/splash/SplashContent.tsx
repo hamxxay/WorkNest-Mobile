@@ -1,6 +1,7 @@
-import { Animated, Image, View } from "react-native";
+import { Animated, View } from "react-native";
+import { BrandLogo } from "../../../components/ui/BrandLogo";
 import type { useSplashAnimation } from "./useSplashAnimation";
-import type { SplashStyles } from "./styles";
+import { SPLASH_LOGO_WIDTH, type SplashStyles } from "./styles";
 
 type SplashAnimation = ReturnType<typeof useSplashAnimation>;
 
@@ -18,9 +19,7 @@ export function SplashContent({ animation, styles }: { animation: SplashAnimatio
       <Animated.View
         style={[styles.brandBlock, { opacity: animation.logoOpacity, transform: [{ scale: animation.logoScale }] }]}
       >
-        <View style={styles.logoTile}>
-          <Image source={require("../../../../public/Logo1.png")} style={styles.logo} resizeMode="contain" />
-        </View>
+        <BrandLogo size={SPLASH_LOGO_WIDTH} accessible={false} />
       </Animated.View>
 
       <Animated.View

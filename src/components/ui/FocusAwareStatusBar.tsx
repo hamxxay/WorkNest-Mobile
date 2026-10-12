@@ -3,11 +3,18 @@ import { StatusBar, type StatusBarProps } from "react-native";
 import { NavigationContext } from "@react-navigation/native";
 
 /**
+ * The status bar is transparent (Android edge-to-edge), so only the icon style is set here: whatever is drawn under
+ * the bar shows through (<Screen> paints the strip, AppHeader extends its background). `backgroundColor` and
+ * `translucent` are ignored by Android in edge-to-edge mode and are not accepted.
+ */
+export type FocusAwareStatusBarProps = Omit<StatusBarProps, "backgroundColor" | "translucent">;
+
+/**
  * StatusBar that only applies while its screen is focused. Tab screens stay mounted after you leave them, so a
  * plain <StatusBar/> in an unfocused tab would keep overriding the visible screen. Outside a navigator it behaves
  * like a normal <StatusBar/>.
  */
-export function FocusAwareStatusBar(props: StatusBarProps) {
+export function FocusAwareStatusBar(props: FocusAwareStatusBarProps) {
   const navigation = useContext(NavigationContext);
   const [focused, setFocused] = useState(() => navigation?.isFocused() ?? true);
 

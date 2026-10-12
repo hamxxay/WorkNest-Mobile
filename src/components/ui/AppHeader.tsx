@@ -1,8 +1,9 @@
 import { useContext, type ReactNode } from "react";
-import { Image, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
+import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import { NavigationContext, NavigationRouteContext } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "../../theme";
+import { BrandLogo } from "./BrandLogo";
 import { IconButton } from "./Button";
 import { FocusAwareStatusBar, barStyleFor } from "./FocusAwareStatusBar";
 import { useScreenChrome } from "./screenChrome";
@@ -27,6 +28,7 @@ export type AppHeaderProps = {
    * brand: logo + title/greeting on the page surface (customer home, tab roots).
    * stack (default): back button (automatic when there is a screen to go back to), title, subtitle, actions.
    * dashboard: navy (or teal) bar with logo, overline + title and light icon buttons (staff dashboards).
+   * Logo: the WorkNest navy tile on light bars, the silver W on the navy bar (see BrandLogo).
    */
   variant?: AppHeaderVariant;
   title?: string;
@@ -56,8 +58,6 @@ export type AppHeaderProps = {
   bordered?: boolean;
   style?: StyleProp<ViewStyle>;
 };
-
-const LOGO = require("../../../public/Logo1.png");
 
 /** "Good morning" / "Good afternoon" / "Good evening" for brand headers. */
 export function greeting(date: Date = new Date()): string {
@@ -138,14 +138,12 @@ export function AppHeader({
         style={styles.backBtn}
       />
     ) : logo ? (
-      <Image
-        source={LOGO}
-        accessibilityIgnoresInvertColors
-        accessible
-        accessibilityLabel="WorkNest"
-        resizeMode="contain"
-        style={[styles.logo, { tintColor: dark ? colors.onHeader : colors.primary }]}
-      />
+      dark ? (
+        // Silver W on the navy bar; one-colour white W on the teal bar (silver is too faint on teal).
+        <BrandLogo size={34} color={tone === "teal" ? colors.onHeader : undefined} style={styles.logo} />
+      ) : (
+        <BrandLogo variant="tile" size={36} style={styles.logo} />
+      )
     ) : null);
 
   return (
@@ -161,7 +159,7 @@ export function AppHeader({
         style,
       ]}
     >
-      {!screen ? <FocusAwareStatusBar barStyle={barStyle} backgroundColor={bg} /> : null}
+      {!screen ? <FocusAwareStatusBar barStyle={barStyle} /> : null}
       <View style={styles.row}>
         {leading}
         <View style={styles.titles}>
@@ -215,7 +213,7 @@ const styles = StyleSheet.create({
   bordered: { borderBottomWidth: StyleSheet.hairlineWidth },
   row: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 44 },
   backBtn: { marginLeft: -4 },
-  logo: { width: 36, height: 36, marginLeft: 4 },
+  logo: { marginLeft: 4 },
   titles: { flex: 1, justifyContent: "center", gap: 1, paddingLeft: 2 },
   brandTitle: { fontSize: 19, lineHeight: 24, fontWeight: "700", letterSpacing: -0.2 },
   actions: { flexDirection: "row", alignItems: "center", gap: 4 },
