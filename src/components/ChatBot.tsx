@@ -123,8 +123,6 @@ export function ChatBot({ visible = true }: { visible?: boolean }) {
   const colors = useThemeColors();
   const { shadows } = useTheme();
   const s = useThemedStyles(makeStyles);
-  // On a tab screen the button floats above the floating tab bar.
-  const tabBarSpace = useTabBarSpace();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -151,6 +149,8 @@ export function ChatBot({ visible = true }: { visible?: boolean }) {
     }, 650);
   }
 
+  // On a tab screen the button floats above the floating tab bar.
+  const tabBarSpace = useTabBarSpace();
   const fabVisibility = useRef(new Animated.Value(visible ? 1 : 0)).current;
   useEffect(() => {
     Animated.spring(fabVisibility, { toValue: visible ? 1 : 0, useNativeDriver: true, friction: 7 }).start();

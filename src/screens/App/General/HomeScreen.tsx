@@ -20,7 +20,6 @@ import {
   greeting,
 } from "../../../components/ui";
 import { ChatBot } from "../../../components/ChatBot";
-import { useTabBarSpace } from "../../../components/ui/TabBar";
 import { useTheme, useThemedStyles, type AppColors, type Theme } from "../../../theme";
 import { formatDate, formatMoney } from "../../../utils/format";
 import { useAuth } from "../../../context/AuthContext";
@@ -32,6 +31,7 @@ import { getWorkspaces, type Workspace } from "../../../services/workspaceServic
 import { getMyBookings, isPendingBooking, type MyBooking } from "../../../services/bookingService";
 import { WorkspaceCard } from "../../Home/WorkspaceCard";
 import type { AppStackParamList } from "../../../navigation/types";
+import { useTabBarSpace } from "../../../components/ui/TabBar";
 
 type Nav = NativeStackNavigationProp<AppStackParamList>;
 

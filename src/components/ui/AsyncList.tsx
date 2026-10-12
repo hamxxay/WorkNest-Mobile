@@ -185,16 +185,16 @@ export function AsyncList<T>({
   );
 }
 
-/** The list's own bottom padding (contentContainerStyle, else the `padding` prop), before the tab-bar space. */
-function bottomPadding(style: StyleProp<ViewStyle>, padding: number): number {
-  const flat = StyleSheet.flatten(style) ?? {};
-  const own = flat.paddingBottom ?? flat.paddingVertical ?? flat.padding;
-  return typeof own === "number" ? own : padding;
-}
-
 const styles = StyleSheet.create({
   grow: { flexGrow: 1 },
   shrink: { flexShrink: 1 },
   footer: { paddingVertical: 16, alignItems: "center", justifyContent: "center" },
   footerError: { flexDirection: "row", gap: 8, paddingHorizontal: 4 },
 });
+
+/** The list's own bottom padding (contentContainerStyle, else the `padding` prop), before the tab-bar space. */
+function bottomPadding(style: StyleProp<ViewStyle>, padding: number): number {
+  const flat = StyleSheet.flatten(style) ?? {};
+  const own = flat.paddingBottom ?? flat.paddingVertical ?? flat.padding;
+  return typeof own === "number" ? own : padding;
+}
