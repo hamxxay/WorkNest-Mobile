@@ -29,7 +29,7 @@ export default function LocationListScreen() {
         onRefresh={list.refresh}
         error={list.error}
         gap={8}
-        empty={{ icon: "location-outline", title: "No locations" }}
+        empty={{ illustration: "building", title: "No locations" }}
         renderItem={({ item }) => (
           <Card padding={0}>
             <ListRow

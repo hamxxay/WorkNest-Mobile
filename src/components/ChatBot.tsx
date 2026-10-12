@@ -12,8 +12,10 @@ import {
   View,
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme, useThemeColors, useThemedStyles, type AppColors, type Theme } from "../theme";
 import { IconButton } from "./ui";
+import { useTabBarSpace } from "./ui/TabBar";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Message = { id: string; text: string; from: "user" | "bot" };
@@ -122,6 +124,7 @@ export function ChatBot({ visible = true }: { visible?: boolean }) {
   const colors = useThemeColors();
   const { shadows } = useTheme();
   const s = useThemedStyles(makeStyles);
+  const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -148,6 +151,8 @@ export function ChatBot({ visible = true }: { visible?: boolean }) {
     }, 650);
   }
 
+  // On a tab screen the button floats above the floating tab bar.
+  const tabBarSpace = useTabBarSpace();
   const fabVisibility = useRef(new Animated.Value(visible ? 1 : 0)).current;
   useEffect(() => {
     Animated.spring(fabVisibility, { toValue: visible ? 1 : 0, useNativeDriver: true, friction: 7 }).start();
@@ -157,7 +162,7 @@ export function ChatBot({ visible = true }: { visible?: boolean }) {
     <>
       <Animated.View
         pointerEvents={visible ? "box-none" : "none"}
-        style={[s.fabWrap, { opacity: fabVisibility, transform: [{ scale: fabVisibility }] }]}
+        style={[s.fabWrap, { bottom: s.fabWrap.bottom + tabBarSpace, opacity: fabVisibility, transform: [{ scale: fabVisibility }] }]}
       >
         <Pressable
           accessibilityRole="button"
@@ -170,7 +175,14 @@ export function ChatBot({ visible = true }: { visible?: boolean }) {
         </Pressable>
       </Animated.View>
 
-      <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)} statusBarTranslucent>
+      <Modal
+        visible={open}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setOpen(false)}
+        statusBarTranslucent
+        navigationBarTranslucent
+      >
         <KeyboardAvoidingView style={s.overlay} behavior={Platform.OS === "ios" ? "padding" : "height"}>
           <Pressable style={s.backdrop} onPress={() => setOpen(false)} accessibilityRole="button" accessibilityLabel="Close assistant" />
 
@@ -221,7 +233,8 @@ export function ChatBot({ visible = true }: { visible?: boolean }) {
               </View>
             )}
 
-            <View style={s.inputRow}>
+            {/* Edge-to-edge: keep the input above the gesture bar / navigation buttons. */}
+            <View style={[s.inputRow, { paddingBottom: 12 + insets.bottom }]}>
               <TextInput
                 style={s.input}
                 value={input}

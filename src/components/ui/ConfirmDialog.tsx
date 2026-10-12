@@ -1,7 +1,8 @@
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { useTheme } from "../../theme";
+import { haptics } from "../../utils/haptics";
 import { Banner } from "./Banner";
 import { Button } from "./Button";
 import { ToastModalHost } from "./Toast";
@@ -26,7 +27,10 @@ export type ConfirmDialogProps = {
   error?: string | null | false;
 };
 
-/** Centred confirmation dialog. Use for blocking yes/no decisions; use useToast() for plain messages. */
+/**
+ * Centred confirmation dialog. Use for blocking yes/no decisions; use useToast() for plain messages.
+ * The confirm button plays a light haptic; an `error` shown inside plays the error haptic.
+ */
 export function ConfirmDialog({
   visible,
   title,
@@ -43,6 +47,10 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   const { colors, radii, typography, shadows } = useTheme();
   const iconName = icon ?? (destructive ? "warning-outline" : undefined);
+  // A failure shown inside the dialog buzzes like an error toast would.
+  useEffect(() => {
+    if (visible && error) haptics.error();
+  }, [visible, error]);
   const cancel = () => {
     if (!loading) onCancel();
   };
@@ -80,6 +88,7 @@ export function ConfirmDialog({
             <Button
               title={confirmLabel}
               variant={destructive ? "danger" : "primary"}
+              haptic
               onPress={onConfirm}
               loading={loading}
               style={styles.flex}

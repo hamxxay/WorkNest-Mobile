@@ -84,7 +84,7 @@ export default function AttendantsScreen() {
         ) : null}
       </View>
       {!customer ? (
-        <EmptyState icon="people-circle-outline" title="Choose a customer" message="See the rooms they have booked and who can open the doors." />
+        <EmptyState illustration="people" title="Choose a customer" message="See the rooms they have booked and who can open the doors." />
       ) : (
         <AsyncList
           data={rows}
@@ -94,7 +94,7 @@ export default function AttendantsScreen() {
           onRefresh={() => load("refresh")}
           error={error}
           gap={8}
-          empty={{ icon: "business-outline", title: show === "current" ? "No current bookings" : "No bookings", message: "This customer has no booked space to give access to." }}
+          empty={{ illustration: "building", title: show === "current" ? "No current bookings" : "No bookings", message: "This customer has no booked space to give access to." }}
           renderItem={({ item }) => {
             const full = item.activeAttendantsCount >= item.capacity;
             return (

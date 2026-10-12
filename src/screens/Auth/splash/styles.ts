@@ -1,7 +1,13 @@
 import { StyleSheet } from "react-native";
 import { palette, type AppColors, type Theme } from "../../../theme";
 
-/** Branded splash: navy (headerBg) in both modes, teal logo tile, white wordmark. */
+/**
+ * Width of the silver W on the splash: the same size as the Android 12+ system splash icon
+ * (scripts/make-app-icons.py, SPLASH_W_RADIUS_DP), so the hand-over from the system splash does not jump.
+ */
+export const SPLASH_LOGO_WIDTH = 108;
+
+/** Branded splash: navy (headerBg) in both modes, the silver W, white wordmark. */
 export const createSplashStyles = (colors: AppColors, theme: Theme) =>
   StyleSheet.create({
     container: { flex: 1, alignItems: "center", justifyContent: "center", overflow: "hidden", backgroundColor: colors.headerBg },
@@ -26,20 +32,7 @@ export const createSplashStyles = (colors: AppColors, theme: Theme) =>
       opacity: 0.08,
     },
     brandBlock: { alignItems: "center" },
-    logoTile: {
-      width: 88,
-      height: 88,
-      borderRadius: 26,
-      backgroundColor: colors.primaryStrong,
-      borderWidth: 1,
-      borderColor: colors.headerLine,
-      alignItems: "center",
-      justifyContent: "center",
-      ...theme.shadows.lg,
-      shadowColor: colors.shadow,
-    },
-    logo: { width: 52, height: 52, tintColor: colors.onHeader },
-    copyBlock: { alignItems: "center", marginTop: 22, gap: 6 },
+    copyBlock: { alignItems: "center", marginTop: 28, gap: 6 },
     wordmark: { ...theme.typography.display, color: colors.onHeader },
     tagline: { ...theme.typography.body, color: colors.onHeaderMuted },
     loaderWrap: { position: "absolute", bottom: 72, width: 72 },

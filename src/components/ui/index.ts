@@ -31,6 +31,7 @@ export { SegmentedControl, type SegmentedControlProps, type SegmentOption } from
 export { Chip, FilterChips, type ChipProps, type FilterChipsProps, type FilterOption } from "./Chip";
 export { Badge, type BadgeProps } from "./Badge";
 export { Avatar, initialsOf, type AvatarProps } from "./Avatar";
+export { TabBar, useTabBarSpace, type TabBarProps } from "./TabBar";
 export {
   LoadingState,
   ListSkeleton,
@@ -44,6 +45,8 @@ export {
   type ErrorStateProps,
 } from "./States";
 export { AsyncList, type AsyncListProps } from "./AsyncList";
+export { SuccessCheck, type SuccessCheckProps } from "./SuccessCheck";
+export { SuccessOverlay, type SuccessOverlayProps } from "./SuccessOverlay";
 export { ToastProvider, ToastModalHost, useToast, type ToastApi, type ToastOptions, type ToastType } from "./Toast";
 export { BottomSheet, type BottomSheetProps } from "./BottomSheet";
 export { ConfirmDialog, type ConfirmDialogProps } from "./ConfirmDialog";
@@ -51,8 +54,10 @@ export { ConfirmProvider, useConfirm, type ConfirmOptions, type ConfirmFn } from
 export { Banner, type BannerProps, type BannerTone } from "./Banner";
 export { GoogleSignInButton, GoogleMark, type GoogleSignInButtonProps } from "./GoogleSignInButton";
 export { AppHeader, greeting, type AppHeaderProps, type AppHeaderVariant, type HeaderAction } from "./AppHeader";
+export { BrandLogo, BRAND_NAVY, BRAND_W_ASPECT, type BrandLogoProps } from "./BrandLogo";
 export { AppearanceSetting, type AppearanceSettingProps } from "./AppearanceSetting";
-export { FocusAwareStatusBar, barStyleFor } from "./FocusAwareStatusBar";
+export { HapticsSetting, type HapticsSettingProps } from "./HapticsSetting";
+export { FocusAwareStatusBar, barStyleFor, type FocusAwareStatusBarProps } from "./FocusAwareStatusBar";
 export { useScreenChrome, type StatusBarChrome } from "./screenChrome";
 
 // Re-exported so screens can get everything UI-related from one import.

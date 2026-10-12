@@ -50,7 +50,7 @@ export default function NotificationsScreen() {
         actions={unread > 0 ? [{ icon: "checkmark-done-outline", accessibilityLabel: "Mark all as read", onPress: markAll }] : []}
       />
       {!user ? (
-        <GuestState icon="notifications-outline" title="Sign in for notifications" message="Announcements and alerts from WorkNest appear here." />
+        <GuestState illustration="bell" title="Sign in for notifications" message="Announcements and alerts from WorkNest appear here." />
       ) : (
         <AsyncList
           data={items}
@@ -60,7 +60,7 @@ export default function NotificationsScreen() {
           onRefresh={refresh}
           error={error}
           empty={{
-            icon: "notifications-off-outline",
+            illustration: "bell",
             title: "No notifications yet",
             message: "Announcements and alerts from WorkNest appear here.",
           }}

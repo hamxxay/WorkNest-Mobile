@@ -1,8 +1,11 @@
 <resources>
 
-    <!-- Android 12+: the system splash shows the launcher icon on the brand navy, matching the JS splash. -->
+    <!-- Android 12+ system splash: the silver W on brand navy, matching the JS splash (src/screens/Auth/SplashScreen).
+         splash_icon is the W alone (no icon background) on a 288dp canvas, inside the 192dp circle the system
+         clips to; regenerate it with scripts/make-app-icons.py. -->
     <style name="AppTheme" parent="Base.AppTheme">
         <item name="android:windowSplashScreenBackground">@color/splash_background</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_icon</item>
     </style>
 
 </resources>

@@ -1,6 +1,7 @@
 import { ActivityIndicator, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { useTheme } from "../../theme";
+import { Illustration, type IllustrationName } from "../illustrations";
 import { SkeletonBlock, SkeletonGroup } from "../Skeleton";
 import { Button } from "./Button";
 
@@ -112,26 +113,53 @@ export function KpiSkeleton({ count = 4, columns = 2, style }: KpiSkeletonProps)
 
 // ─── EmptyState ───────────────────────────────────────────────────────────────
 
+/** Illustration size in dp: full states / compact states (inside cards and sheets). */
+const ART_SIZE = 140;
+const ART_SIZE_COMPACT = 96;
+/** The picture above the title is decorative: screen readers skip it and read the title and message. */
+const decorative = { accessibilityElementsHidden: true, importantForAccessibility: "no-hide-descendants" as const };
+
 export type EmptyStateProps = {
-  /** Ionicons name. Default "file-tray-outline". */
+  /**
+   * Illustration from components/illustrations ("calendar", "receipt", "search"...). Takes precedence over `icon`.
+   * Decorative: hidden from screen readers. Guide: ./docs/illustrations.md
+   */
+  illustration?: IllustrationName;
+  /** Ionicons name in a small tinted well, used when there is no illustration. Default "file-tray-outline". */
   icon?: string;
+  /** Illustration size in dp. Default 140 (96 when compact). */
+  illustrationSize?: number;
   title: string;
   message?: string;
   actionLabel?: string;
   onAction?: () => void;
-  /** Smaller paddings for use inside a card. */
+  /** Smaller paddings (and a smaller illustration) for use inside a card. */
   compact?: boolean;
   style?: StyleProp<ViewStyle>;
 };
 
-/** Nothing to show yet: icon, title, message and an optional action. */
-export function EmptyState({ icon = "file-tray-outline", title, message, actionLabel, onAction, compact = false, style }: EmptyStateProps) {
+/** Nothing to show yet: illustration (or icon), title, message and an optional action. */
+export function EmptyState({
+  illustration,
+  icon = "file-tray-outline",
+  illustrationSize,
+  title,
+  message,
+  actionLabel,
+  onAction,
+  compact = false,
+  style,
+}: EmptyStateProps) {
   const { colors, typography } = useTheme();
   return (
     <View style={[styles.center, compact ? styles.compact : styles.roomy, style]}>
-      <View style={[styles.iconWell, { backgroundColor: colors.primarySoft }]}>
-        <Ionicons name={icon} size={28} color={colors.onPrimarySoft} />
-      </View>
+      {illustration ? (
+        <Illustration name={illustration} size={illustrationSize ?? (compact ? ART_SIZE_COMPACT : ART_SIZE)} />
+      ) : (
+        <View style={[styles.iconWell, { backgroundColor: colors.primarySoft }]} {...decorative}>
+          <Ionicons name={icon} size={28} color={colors.onPrimarySoft} />
+        </View>
+      )}
       <Text accessibilityRole="header" style={[typography.subheading, styles.textCenter, { color: colors.text }]}>
         {title}
       </Text>
@@ -148,6 +176,15 @@ export function EmptyState({ icon = "file-tray-outline", title, message, actionL
 // ─── ErrorState ───────────────────────────────────────────────────────────────
 
 export type ErrorStateProps = {
+  /**
+   * Illustration from components/illustrations. Default "cloud-off" (unless `icon` is set); an explicit
+   * illustration takes precedence over `icon`. Decorative: hidden from screen readers.
+   */
+  illustration?: IllustrationName;
+  /** Ionicons name in a small danger well, shown instead of the default illustration. */
+  icon?: string;
+  /** Illustration size in dp. Default 140 (96 when compact). */
+  illustrationSize?: number;
   title?: string;
   /** What went wrong, in plain words. */
   message?: string;
@@ -159,8 +196,11 @@ export type ErrorStateProps = {
   style?: StyleProp<ViewStyle>;
 };
 
-/** Load failed: message and a Retry button. */
+/** Load failed: illustration (cloud-off by default), message and a Retry button. */
 export function ErrorState({
+  illustration,
+  icon,
+  illustrationSize,
   title = "Could not load this",
   message = "Check your connection and try again.",
   onRetry,
@@ -170,11 +210,16 @@ export function ErrorState({
   style,
 }: ErrorStateProps) {
   const { colors, typography } = useTheme();
+  const art = illustration ?? (icon ? undefined : "cloud-off");
   return (
     <View accessibilityRole="alert" style={[styles.center, compact ? styles.compact : styles.roomy, style]}>
-      <View style={[styles.iconWell, { backgroundColor: colors.dangerSoft }]}>
-        <Ionicons name="cloud-offline-outline" size={28} color={colors.danger} />
-      </View>
+      {art ? (
+        <Illustration name={art} size={illustrationSize ?? (compact ? ART_SIZE_COMPACT : ART_SIZE)} />
+      ) : (
+        <View style={[styles.iconWell, { backgroundColor: colors.dangerSoft }]} {...decorative}>
+          <Ionicons name={icon ?? "cloud-offline-outline"} size={28} color={colors.danger} />
+        </View>
+      )}
       <Text style={[typography.subheading, styles.textCenter, { color: colors.text }]}>{title}</Text>
       {message ? (
         <Text style={[typography.bodySmall, styles.textCenter, styles.message, { color: colors.textMuted }]}>{message}</Text>

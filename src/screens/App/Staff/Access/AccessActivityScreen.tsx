@@ -144,7 +144,7 @@ function DoorEvents() {
         gap={8}
         keyboardShouldPersistTaps="handled"
         initialNumToRender={20}
-        empty={{ icon: "pulse-outline", title: "No door events", message: "Nothing matches this period and filter." }}
+        empty={{ illustration: "door", title: "No door events", message: "Nothing matches this period and filter." }}
         renderItem={({ item }) => <EventRow event={item} />}
       />
     </>
@@ -191,7 +191,7 @@ function SystemLog() {
       onRefresh={list.refresh}
       error={list.error}
       gap={8}
-      empty={{ icon: "server-outline", title: "No sync activity" }}
+      empty={{ illustration: "chart", title: "No sync activity" }}
       renderItem={({ item: a }) => (
         <Card padding={12}>
           <View style={styles.row}>

@@ -1,5 +1,5 @@
-import { Text, type TextProps, type TextStyle } from "react-native";
-import { useTheme, type AppColors, type TypographyVariant } from "../../theme";
+import { StyleSheet, Text, type TextProps, type TextStyle } from "react-native";
+import { useTheme, withBrandFont, type AppColors, type TypographyVariant } from "../../theme";
 
 /** Semantic text colours; any other string is used as a raw colour. */
 export type TextColor =
@@ -32,19 +32,18 @@ export function resolveColor(colors: AppColors, color: string | undefined, fallb
   return (colors as Record<string, string>)[color] ?? color;
 }
 
-/** Text that follows the type scale and the active palette. */
+/**
+ * Text that follows the type scale and the active palette. The font file follows the FINAL weight (variant,
+ * `weight` prop or a fontWeight in `style`), so `<AppText weight="700">` really renders Inter Bold on Android.
+ */
 export function AppText({ variant = "body", color, align, weight, style, ...rest }: AppTextProps) {
   const { colors, typography } = useTheme();
-  return (
-    <Text
-      {...rest}
-      style={[
-        typography[variant],
-        { color: resolveColor(colors, color, colors.text) },
-        align ? { textAlign: align } : null,
-        weight ? { fontWeight: weight } : null,
-        style,
-      ]}
-    />
-  );
+  const flat = StyleSheet.flatten([
+    typography[variant],
+    { color: resolveColor(colors, color, colors.text) },
+    align ? { textAlign: align } : null,
+    weight ? { fontWeight: weight } : null,
+    style,
+  ]);
+  return <Text {...rest} style={withBrandFont(flat)} />;
 }

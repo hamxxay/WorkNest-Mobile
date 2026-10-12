@@ -13,6 +13,17 @@ import { formatMoney, formatDate, formatRelative } from "../../utils/format";
 Rules: no emojis in UI text (use Ionicons names), Android first, every pressable has a 44dp touch target and an
 accessibility label, use semantic colours (never hex codes in screens).
 
+More guides in [`docs/`](docs/):
+
+| Guide | Covers |
+| --- | --- |
+| [Brand and edge-to-edge](docs/brand-and-edge-to-edge.md) | App icon, splash, `BrandLogo`, transparent system bars and safe-area insets |
+| [Font](docs/font.md) | Inter, `fontFor()` / `withBrandFont()`, the `amount` variant, tabular numbers |
+| [Tab bar](docs/tab-bar.md) | Floating pill `TabBar`, `useTabBarSpace()`, screen transitions |
+| [Motion and haptics](docs/motion-and-haptics.md) | Press scale, shimmer, list entrance, `SuccessCheck`, `haptics`, reduce motion |
+| [Illustrations](docs/illustrations.md) | Empty and error state drawings, the `illustration` prop |
+| [Charts](docs/charts.md) | `Donut`, `BarChart`, `HBarList`, `Sparkline`, `StatCard` `trendSeries` |
+
 ---
 
 ## 1. Theme
@@ -85,8 +96,9 @@ via `useTones()` / `useTheme().tones`. Light values match the CMS badges (e.g. s
 | `captionStrong` | 12 / 16 | 600 |
 | `overline` | 11 / 14, uppercase, tracked | 600 |
 | `kpi` | 24 / 30, tabular numbers | 700 |
+| `amount` | 15 / 22, tabular numbers (money lines) | 600 |
 
-Weights 800 / 900 are retired; use 600 / 700. Or use `<AppText variant="caption" color="textMuted">`.
+Weights 800 / 900 are retired; use 600 / 700. All variants render in Inter (see [docs/font.md](docs/font.md)). Or use `<AppText variant="caption" color="textMuted">`.
 
 ### Spacing, radii, misc
 

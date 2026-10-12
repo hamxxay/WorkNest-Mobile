@@ -75,7 +75,7 @@ export default function MyPaymentsScreen() {
       <Screen edges={["top", "left", "right"]}>
         <AppHeader variant="brand" title="Payments" />
         <GuestState
-          icon="receipt-outline"
+          illustration="receipt"
           title="Sign in to see your payments"
           message="Your challans and their payment status appear here once you sign in."
         />
@@ -103,7 +103,7 @@ export default function MyPaymentsScreen() {
           </View>
         }
         empty={{
-          icon: "receipt-outline",
+          illustration: "receipt",
           title: "No payments yet",
           message: "When you book, the challan to pay appears here.",
           actionLabel: "Book a space",

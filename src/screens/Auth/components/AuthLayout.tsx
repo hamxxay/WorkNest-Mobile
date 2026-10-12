@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import {
-  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -10,6 +9,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { Screen } from "../../../components/Screen";
+import { BrandLogo } from "../../../components/ui/BrandLogo";
 import { useTheme } from "../../../theme";
 
 type AuthLayoutProps = {
@@ -21,11 +21,11 @@ type AuthLayoutProps = {
 };
 
 /**
- * Shared frame for Login / Signup: brand tile, title, subtitle, keyboard-aware scrolling form,
+ * Shared frame for Login / Signup: WorkNest logo (navy tile + wordmark), title, subtitle, keyboard-aware scrolling form,
  * max 440dp wide (centred on tablets).
  */
 export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProps) {
-  const { colors, typography, radii } = useTheme();
+  const { colors, typography } = useTheme();
   const { width } = useWindowDimensions();
   const glow = Math.round(width * 1.1);
 
@@ -46,19 +46,7 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.column}>
-            <View style={styles.brand}>
-              <View style={[styles.tile, { backgroundColor: colors.primaryStrong, borderRadius: radii.card }]}>
-                <Image
-                  source={require("../../../../public/Logo1.png")}
-                  style={[styles.logo, { tintColor: colors.onPrimary }]}
-                  resizeMode="contain"
-                  accessibilityIgnoresInvertColors
-                />
-              </View>
-              <Text style={[typography.overline, { color: colors.primary }]} accessibilityLabel="WorkNest">
-                WorkNest
-              </Text>
-            </View>
+            <BrandLogo variant="tile" size={44} wordmark wordmarkVariant="heading" style={styles.brand} />
 
             <Text accessibilityRole="header" style={[typography.display, { color: colors.text }]}>
               {title}
@@ -92,9 +80,7 @@ const styles = StyleSheet.create({
   glow: { position: "absolute" },
   content: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 32, paddingBottom: 32 },
   column: { width: "100%", maxWidth: 440, alignSelf: "center", flexGrow: 1 },
-  brand: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 28 },
-  tile: { width: 48, height: 48, alignItems: "center", justifyContent: "center" },
-  logo: { width: 28, height: 28 },
+  brand: { marginBottom: 28 },
   subtitle: { marginTop: 6 },
   form: { marginTop: 28, gap: 16 },
   footer: { marginTop: 24, alignItems: "center" },

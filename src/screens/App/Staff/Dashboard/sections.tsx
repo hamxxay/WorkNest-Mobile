@@ -2,6 +2,7 @@ import { Fragment, useMemo, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { BarChart, Donut, HBarList, percentOf, type HBarItem } from "../../../../components/charts";
 import { AppText, Card, Divider, FilterChips, InfoRow, ListRow, SegmentedControl, StatusPill } from "../../../../components/ui";
 import type { StaffStackParamList } from "../../../../navigation/staffTypes";
 import { dashboardTrend } from "../../../../services/staff";
@@ -14,28 +15,31 @@ import type {
   SystemHealth,
   TeamDashboard,
 } from "../../../../services/staff";
-import { spacing } from "../../../../theme";
+import { spacing, type Tone } from "../../../../theme";
 import { formatDate, formatNumber, formatRelative } from "../../../../utils/format";
-import { AttentionList, BarRow, KpiGrid, money } from "./parts";
+import { AttentionList, Fact, FigureTable, KpiGrid, money } from "./parts";
 
 type Nav = NativeStackNavigationProp<StaffStackParamList>;
 
 const pct = (v: number) => `${formatNumber(v, Number.isInteger(v) ? 0 : 1)}%`;
+/** 0..100, one decimal: for donut meters and percentage bars. */
+const clampPct = (v: number) => Math.round(Math.max(0, Math.min(100, Number(v) || 0)) * 10) / 10;
+const DONUT_SIZE = 112;
 
 // ─── Sales executive ──────────────────────────────────────────────────────────────────────────────────────
 
 export function SalesSection({ sales, periodWord }: { sales: SalesDashboard; periodWord: string }) {
   const navigation = useNavigation<Nav>();
   const s = sales;
-  const stages = [
-    { label: "Draft", n: s.draft, tone: "neutral" as const },
-    { label: "Sent", n: s.sent, tone: "info" as const },
-    { label: "Accepted", n: s.accepted, tone: "success" as const },
-    { label: "Agreement", n: s.agreementStage, tone: "indigo" as const },
-    { label: "Converted", n: s.converted, tone: "primary" as const },
-    { label: "Lost", n: s.lost, tone: "danger" as const },
+  // One series, one colour (brand teal); "Lost" is de-emphasised. Each bar is labelled, so colour carries nothing else.
+  const stages: { label: string; n: number; tone?: Tone }[] = [
+    { label: "Draft", n: s.draft },
+    { label: "Sent", n: s.sent },
+    { label: "Accepted", n: s.accepted },
+    { label: "Agreement", n: s.agreementStage },
+    { label: "Converted", n: s.converted },
+    { label: "Lost", n: s.lost, tone: "neutral" },
   ];
-  const max = Math.max(1, ...stages.map((x) => x.n));
   return (
     <>
       <KpiGrid
@@ -84,11 +88,26 @@ export function SalesSection({ sales, periodWord }: { sales: SalesDashboard; per
       />
       <Card>
         <AppText variant="subheading">Pipeline {periodWord}</AppText>
-        <View style={styles.bars}>
-          {stages.map((st) => (
-            <BarRow key={st.label} label={st.label} value={String(st.n)} pct={(st.n / max) * 100} tone={st.tone} />
-          ))}
+        <View style={styles.donutRow}>
+          <Donut
+            size={DONUT_SIZE}
+            segments={[{ label: "Converted", value: clampPct(s.conversionPct) }]}
+            total={100}
+            centerLabel={pct(s.conversionPct)}
+            centerCaption="converted"
+            accessibilityLabel={`Conversion ${periodWord}: ${pct(s.conversionPct)}. ${s.converted} of ${s.quotationsCreated} quotations converted, worth ${money(s.convertedValue)}.`}
+          />
+          <View style={styles.facts}>
+            <Fact label="Quotations" value={String(s.quotationsCreated)} />
+            <Fact label="Converted" value={`${s.converted} · ${money(s.convertedValue)}`} />
+            <Fact label="Lost" value={String(s.lost)} />
+          </View>
         </View>
+        <HBarList
+          style={styles.chart}
+          label={`Pipeline ${periodWord}`}
+          items={stages.map((st) => ({ label: st.label, value: st.n, tone: st.tone }))}
+        />
       </Card>
       {s.followUps.length ? (
         <Card padding={0}>
@@ -156,7 +175,9 @@ export function OverviewSection({ data, periodWord }: { data: DashboardOverview;
   const navigation = useNavigation<Nav>();
   const [tab, setTab] = useState<"overdue" | "ending" | "pending">("overdue");
   const d = data;
-  const maxMonth = Math.max(1, ...d.months.map((m) => Math.max(m.invoiced, m.paid)));
+  const recent = d.months.slice(-12);
+  const lastSix = d.months.slice(-6);
+  const spaceTypes = d.spaceTypes.filter((t) => t.total > 0);
   return (
     <>
       <KpiGrid
@@ -168,6 +189,7 @@ export function OverviewSection({ data, periodWord }: { data: DashboardOverview;
             icon: "business-outline",
             tone: d.occupancyPct >= 70 ? "success" : d.occupancyPct >= 40 ? "primary" : "warning",
             trend: dashboardTrend(d.occupancyPct, d.occupancyPctLastMonth, "pts"),
+            trendSeries: recent.map((m) => m.occupancyPct),
             onPress: () => navigation.navigate("Spaces"),
           },
           {
@@ -208,6 +230,7 @@ export function OverviewSection({ data, periodWord }: { data: DashboardOverview;
             sub: `${money(d.paidThisPeriod)} paid ${periodWord}`,
             icon: "receipt-outline",
             trend: dashboardTrend(d.invoicedThisPeriod, d.invoicedPrevPeriod, "%"),
+            trendSeries: recent.map((m) => m.invoiced),
           },
         ]}
       />
@@ -240,16 +263,61 @@ export function OverviewSection({ data, periodWord }: { data: DashboardOverview;
           <AttentionList items={d.pendingBookings} empty="No bookings waiting." dateLabel="starts" onOpen={(it) => navigation.navigate("BookingDetail", { bookingId: it.bookingId as number })} />
         )}
       </Card>
-      {d.months.length ? (
+      <Card>
+        <AppText variant="subheading">Occupancy</AppText>
+        <View style={styles.donutRow}>
+          <Donut
+            size={DONUT_SIZE}
+            segments={[{ label: "Occupied", value: clampPct(d.occupancyPct) }]}
+            total={100}
+            centerLabel={pct(d.occupancyPct)}
+            centerCaption={d.totalSpaces ? "occupied" : "no spaces"}
+            accessibilityLabel={`Occupancy ${pct(d.occupancyPct)}: ${d.occupiedSpaces} of ${d.totalSpaces} spaces in use. Last month ${pct(d.occupancyPctLastMonth)}.`}
+          />
+          <View style={styles.facts}>
+            <Fact label="In use" value={`${d.occupiedSpaces} of ${d.totalSpaces} spaces`} />
+            <Fact label="Free" value={`${Math.max(0, d.totalSpaces - d.occupiedSpaces)} spaces`} />
+            <Fact label="Last month" value={pct(d.occupancyPctLastMonth)} />
+          </View>
+        </View>
+        {spaceTypes.length ? (
+          <>
+            <AppText variant="label" color="textSecondary" style={styles.chart}>
+              By space type
+            </AppText>
+            <HBarList
+              style={styles.gapTop}
+              label="Occupancy by space type"
+              max={100}
+              items={spaceTypes.map((t) => {
+                const share = Math.round(percentOf(t.occupied, t.total) * 10) / 10;
+                return { label: t.spaceType || "Other", value: share, valueLabel: `${pct(share)} · ${t.occupied}/${t.total}` };
+              })}
+            />
+          </>
+        ) : null}
+      </Card>
+      {lastSix.length ? (
         <Card>
           <AppText variant="subheading">Invoiced and paid</AppText>
-          <View style={styles.bars}>
-            {d.months.slice(-6).map((m) => (
-              <View key={m.month} style={styles.monthBlock}>
-                <BarRow label={`${monthLabel(m.month)} invoiced`} value={money(m.invoiced)} pct={(m.invoiced / maxMonth) * 100} tone="info" />
-                <BarRow label="paid" value={`${money(m.paid)} · ${pct(m.occupancyPct)} occupied`} pct={(m.paid / maxMonth) * 100} tone="success" />
-              </View>
-            ))}
+          <BarChart
+            style={styles.chart}
+            label="Invoiced and paid by month"
+            series={[{ label: "Invoiced" }, { label: "Paid" }]}
+            data={lastSix.map((m) => ({ label: monthShort(m.month), title: monthLabel(m.month), values: [m.invoiced, m.paid] }))}
+            formatValue={money}
+            emptyText="Nothing invoiced in these months."
+          />
+          <View style={styles.chart}>
+            <FigureTable
+              columns={[
+                { label: "Month", flex: 1.1 },
+                { label: "Invoiced", align: "right" },
+                { label: "Paid", align: "right" },
+                { label: "Occupied", flex: 0.8, align: "right" },
+              ]}
+              rows={lastSix.map((m) => ({ key: m.month, cells: [monthLabel(m.month), money(m.invoiced), money(m.paid), pct(m.occupancyPct)] }))}
+            />
           </View>
         </Card>
       ) : null}
@@ -261,6 +329,11 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 function monthLabel(ym: string): string {
   const [y, m] = ym.split("-").map(Number);
   return m ? `${MONTHS[m - 1]} ${y}` : ym;
+}
+/** "2026-10" -> "Oct" (chart axis). */
+function monthShort(ym: string): string {
+  const m = Number(ym.split("-")[1]);
+  return m >= 1 && m <= 12 ? MONTHS[m - 1] : ym;
 }
 
 export function TeamSection({ team }: { team: TeamDashboard }) {
@@ -298,7 +371,6 @@ export function ForecastSection({ forecast }: { forecast: DashboardForecast }) {
     () => (locationId ? forecast.locations.find((l) => l.locationId === locationId)?.months ?? [] : forecast.totals),
     [forecast, locationId],
   );
-  const maxRent = Math.max(1, ...rows.map((r) => r.expectedRent));
   return (
     <Card>
       {forecast.locations.length > 1 ? (
@@ -315,17 +387,38 @@ export function ForecastSection({ forecast }: { forecast: DashboardForecast }) {
           No current leases to forecast from.
         </AppText>
       ) : (
-        <View style={styles.bars}>
-          {rows.map((r) => (
-            <View key={r.month} style={styles.monthBlock}>
-              <BarRow label={r.label || monthLabel(r.month)} value={money(r.expectedRent)} pct={(r.expectedRent / maxRent) * 100} tone="primary" />
-              <AppText variant="caption" color="textMuted">
-                {pct(r.occupancyPct)} occupied · {r.leasesEnding} ending · {r.leasesStarting} starting
-                {r.pendingStarting ? ` (${r.pendingStarting} waiting)` : ""}
-              </AppText>
-            </View>
-          ))}
-        </View>
+        <>
+          <BarChart
+            style={styles.gapTop}
+            height={140}
+            label="Expected rent by month"
+            series={[{ label: "Expected rent" }]}
+            data={rows.map((r) => ({ label: r.month ? monthShort(r.month) : r.label, title: r.label || monthLabel(r.month), values: [r.expectedRent] }))}
+            formatValue={money}
+            selectable={false}
+          />
+          <View style={styles.bars}>
+            {rows.map((r) => {
+              const caption = `${pct(r.occupancyPct)} occupied · ${r.leasesEnding} ending · ${r.leasesStarting} starting${
+                r.pendingStarting ? ` (${r.pendingStarting} waiting)` : ""
+              }`;
+              const title = r.label || monthLabel(r.month);
+              return (
+                <View key={r.month} style={styles.monthBlock} accessible accessibilityLabel={`${title}: expected rent ${money(r.expectedRent)}. ${caption}`}>
+                  <View style={styles.rowBetween}>
+                    <AppText variant="bodySmall" color="textSecondary" style={styles.flex}>
+                      {title}
+                    </AppText>
+                    <AppText variant="bodyStrong">{money(r.expectedRent)}</AppText>
+                  </View>
+                  <AppText variant="caption" color="textMuted">
+                    {caption}
+                  </AppText>
+                </View>
+              );
+            })}
+          </View>
+        </>
       )}
     </Card>
   );
@@ -379,43 +472,88 @@ export function DoorAccessSection({ overview }: { overview: Record<string, any> 
 
 // ─── Super admin ──────────────────────────────────────────────────────────────────────────────────────────
 
-export function LocationsSection({ locations }: { locations: LocationComparison[] }) {
+type LocationMetric = "occupancy" | "invoiced" | "outstanding";
+
+const LOCATION_METRICS: { label: string; value: LocationMetric }[] = [
+  { label: "Occupancy", value: "occupancy" },
+  { label: "Invoiced", value: "invoiced" },
+  { label: "Outstanding", value: "outstanding" },
+];
+
+/** Collected as a whole percentage of invoiced (0 when nothing was invoiced). */
+const collectedRate = (inv: number, col: number) => (inv > 0 ? Math.round((col / inv) * 100) : 0);
+
+/** One bar per location for the chosen measure, largest first. */
+function locationBars(locations: LocationComparison[], metric: LocationMetric): HBarItem[] {
+  const items = locations.map((l): HBarItem => {
+    if (metric === "occupancy") {
+      return { key: l.locationId, label: l.name, value: l.occupancyPct, valueLabel: `${pct(l.occupancyPct)} · ${l.occupiedSpaces}/${l.totalSpaces}` };
+    }
+    if (metric === "invoiced") {
+      return { key: l.locationId, label: l.name, value: l.invoiced, valueLabel: `${money(l.invoiced)} · ${collectedRate(l.invoiced, l.collected)}% collected` };
+    }
+    return {
+      key: l.locationId,
+      label: l.name,
+      value: l.outstanding,
+      valueLabel: l.overdue ? `${money(l.outstanding)} · ${money(l.overdue)} overdue` : money(l.outstanding),
+    };
+  });
+  return items.sort((a, b) => b.value - a.value);
+}
+
+export function LocationsSection({ locations, periodWord }: { locations: LocationComparison[]; periodWord?: string }) {
+  const [metric, setMetric] = useState<LocationMetric>("occupancy");
+  const bars = useMemo(() => locationBars(locations, metric), [locations, metric]);
   if (!locations.length) return null;
   const sum = (k: keyof LocationComparison) => locations.reduce((a, l) => a + Number(l[k] || 0), 0);
   const spaces = sum("totalSpaces");
   const occupied = sum("occupiedSpaces");
-  const rate = (inv: number, col: number) => (inv > 0 ? Math.round((col / inv) * 100) : 0);
+  const metricWord = LOCATION_METRICS.find((m) => m.value === metric)?.label.toLowerCase() ?? metric;
   return (
-    <Card padding={0}>
-      {locations.map((l, i) => (
-        <Fragment key={l.locationId}>
-          {i > 0 ? <Divider /> : null}
-          <View style={styles.block}>
-            <View style={styles.rowBetween}>
-              <AppText variant="bodyStrong" style={styles.flex}>
-                {l.name}
+    <>
+      {locations.length > 1 ? (
+        <Card>
+          <SegmentedControl accessibilityLabel="Compare locations by" options={LOCATION_METRICS} value={metric} onChange={setMetric} />
+          <HBarList
+            style={styles.chart}
+            label={`Locations by ${metricWord}${periodWord && metric !== "occupancy" ? ` ${periodWord}` : ""}`}
+            max={metric === "occupancy" ? 100 : undefined}
+            items={bars}
+          />
+        </Card>
+      ) : null}
+      <Card padding={0}>
+        {locations.map((l, i) => (
+          <Fragment key={l.locationId}>
+            {i > 0 ? <Divider /> : null}
+            <View style={styles.block}>
+              <View style={styles.rowBetween}>
+                <AppText variant="bodyStrong" style={styles.flex}>
+                  {l.name}
+                </AppText>
+                <StatusPill tone={l.occupancyPct >= 70 ? "success" : l.occupancyPct >= 40 ? "primary" : "warning"} label={`${pct(l.occupancyPct)} occupied`} />
+              </View>
+              <AppText variant="caption" color="textMuted">
+                {l.occupiedSpaces}/{l.totalSpaces} spaces · {l.activeBookings} active bookings
               </AppText>
-              <StatusPill tone={l.occupancyPct >= 70 ? "success" : l.occupancyPct >= 40 ? "primary" : "warning"} label={`${pct(l.occupancyPct)} occupied`} />
+              <AppText variant="caption" color="textMuted">
+                Invoiced {money(l.invoiced)} · collected {money(l.collected)} ({collectedRate(l.invoiced, l.collected)}%) · outstanding {money(l.outstanding)}
+                {l.overdue ? ` · overdue ${money(l.overdue)}` : ""}
+              </AppText>
             </View>
-            <AppText variant="caption" color="textMuted">
-              {l.occupiedSpaces}/{l.totalSpaces} spaces · {l.activeBookings} active bookings
-            </AppText>
-            <AppText variant="caption" color="textMuted">
-              Invoiced {money(l.invoiced)} · collected {money(l.collected)} ({rate(l.invoiced, l.collected)}%) · outstanding {money(l.outstanding)}
-              {l.overdue ? ` · overdue ${money(l.overdue)}` : ""}
-            </AppText>
-          </View>
-        </Fragment>
-      ))}
-      <Divider />
-      <View style={styles.block}>
-        <AppText variant="bodyStrong">All locations</AppText>
-        <AppText variant="caption" color="textMuted">
-          {occupied}/{spaces} spaces ({spaces ? pct(Math.round((occupied * 1000) / spaces) / 10) : "0%"}) · invoiced {money(sum("invoiced"))} · collected{" "}
-          {money(sum("collected"))} · overdue {money(sum("overdue"))}
-        </AppText>
-      </View>
-    </Card>
+          </Fragment>
+        ))}
+        <Divider />
+        <View style={styles.block}>
+          <AppText variant="bodyStrong">All locations</AppText>
+          <AppText variant="caption" color="textMuted">
+            {occupied}/{spaces} spaces ({spaces ? pct(Math.round((occupied * 1000) / spaces) / 10) : "0%"}) · invoiced {money(sum("invoiced"))} · collected{" "}
+            {money(sum("collected"))} · overdue {money(sum("overdue"))}
+          </AppText>
+        </View>
+      </Card>
+    </>
   );
 }
 
@@ -492,4 +630,7 @@ const styles = StyleSheet.create({
   gapTop: { marginTop: spacing.sm },
   block: { padding: spacing.lg, gap: 4 },
   rowBetween: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  chart: { marginTop: spacing.md },
+  donutRow: { flexDirection: "row", alignItems: "center", gap: spacing.lg, marginTop: spacing.md },
+  facts: { flex: 1, gap: spacing.sm },
 });

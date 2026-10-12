@@ -106,7 +106,7 @@ export default function AgreementListScreen() {
       <Screen edges={["top", "left", "right"]}>
         <AppHeader variant="brand" title="Agreements" />
         <GuestState
-          icon="document-text-outline"
+          illustration="document"
           title="Sign in to see your agreements"
           message="Lease agreements our team sends you appear here, ready to read and sign."
         />
@@ -125,7 +125,7 @@ export default function AgreementListScreen() {
         onRefresh={() => load(true)}
         error={error}
         empty={{
-          icon: "document-text-outline",
+          illustration: "document",
           title: "No agreements yet",
           message: "After you accept a quotation, our team sends the lease agreement here.",
           actionLabel: "My quotations",

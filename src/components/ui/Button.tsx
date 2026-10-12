@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import {
   ActivityIndicator,
-  Pressable,
   StyleSheet,
   Text,
   View,
@@ -11,7 +10,9 @@ import {
   type ViewStyle,
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
-import { touchTarget, useTheme, type AppColors } from "../../theme";
+import { fontFor, touchTarget, useTheme, type AppColors } from "../../theme";
+import type { HapticKind } from "../../utils/haptics";
+import { PRESS_SCALE, ScalePressable } from "../motion/ScalePressable";
 import { Badge } from "./Badge";
 
 export type ButtonVariant = "primary" | "secondary" | "outline" | "ghost" | "danger";
@@ -30,6 +31,11 @@ export type ButtonProps = Omit<PressableProps, "children" | "style"> & {
   rightIcon?: string;
   /** Stretch to the parent's width. */
   fullWidth?: boolean;
+  /**
+   * Haptic on press, for the actions that matter (confirm, sign, send, approve), not every tap.
+   * true = a light tap; or a kind such as "medium". Default none.
+   */
+  haptic?: boolean | HapticKind;
   style?: StyleProp<ViewStyle>;
   textStyle?: StyleProp<TextStyle>;
 };
@@ -61,7 +67,7 @@ function variantColors(variant: ButtonVariant, c: AppColors): VariantColors {
 
 /**
  * Themed button. Variants: primary | secondary | outline | ghost | danger. Sizes: sm (36) | md (48) | lg (54).
- * Every size has a >= 44dp touch target, android_ripple, a pressed state and button accessibility.
+ * Every size has a >= 44dp touch target, android_ripple, a pressed state, a press scale and button accessibility.
  */
 export function Button({
   title,
@@ -72,6 +78,7 @@ export function Button({
   leftIcon,
   rightIcon,
   fullWidth = false,
+  haptic,
   style,
   textStyle,
   accessibilityLabel,
@@ -85,8 +92,10 @@ export function Button({
   const slop = Math.max(0, Math.ceil((touchTarget - s.height) / 2));
 
   return (
-    <Pressable
+    <ScalePressable
       {...rest}
+      haptic={haptic === true ? "light" : haptic || undefined}
+      pressScale={PRESS_SCALE}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? title}
       accessibilityState={{ disabled: inactive, busy: loading }}
@@ -123,11 +132,14 @@ export function Button({
         </Text>
         {rightIcon && !loading ? <Ionicons name={rightIcon} size={s.icon} color={v.fg} /> : null}
       </View>
-    </Pressable>
+    </ScalePressable>
   );
 }
 
 // ─── IconButton ───────────────────────────────────────────────────────────────
+
+/** Small round targets need a slightly deeper press to be seen. */
+const ICON_PRESS_SCALE = 0.92;
 
 export type IconButtonVariant = "plain" | "tonal" | "outline" | "onDark" | "primary";
 
@@ -150,7 +162,7 @@ export type IconButtonProps = Omit<PressableProps, "children" | "style"> & {
   style?: StyleProp<ViewStyle>;
 };
 
-/** Round 44dp icon button (header actions, card actions). */
+/** Round 44dp icon button (header actions, card actions). Shrinks a little while pressed. */
 export function IconButton({
   icon,
   accessibilityLabel,
@@ -178,8 +190,9 @@ export function IconButton({
   const label = badge && badge > 0 ? `${accessibilityLabel}, ${badge} new` : accessibilityLabel;
 
   return (
-    <Pressable
+    <ScalePressable
       {...rest}
+      pressScale={ICON_PRESS_SCALE}
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ disabled }}
@@ -206,7 +219,7 @@ export function IconButton({
           <Badge count={badge} dot={dot && !badge} ring={variant === "onDark" ? colors.headerBg : colors.surface} />
         </View>
       ) : null}
-    </Pressable>
+    </ScalePressable>
   );
 }
 
@@ -217,7 +230,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   row: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
-  label: { fontWeight: "600", includeFontPadding: false, textAlign: "center" },
+  label: { ...fontFor("600"), includeFontPadding: false, textAlign: "center" },
   fullWidth: { alignSelf: "stretch" },
   disabled: { opacity: 0.5 },
   iconBtn: { alignItems: "center", justifyContent: "center" },

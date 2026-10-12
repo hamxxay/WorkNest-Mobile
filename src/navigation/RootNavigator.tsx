@@ -1,4 +1,5 @@
 import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { BrandLogo } from "../components/ui";
 import { useAuth } from "../context/AuthContext";
 import { usePushNotifications } from "../hooks/usePushNotifications";
 import { useThemeColors } from "../theme";
@@ -32,12 +33,13 @@ export default function RootNavigator() {
   // the per-role navigators, so switching navigator on sign-in / sign-out never skips either step.
   usePushNotifications(typeof user?.email === "string" ? user.email : null);
 
-  // While the session is being restored from storage, show a minimal spinner
-  // so we never flash the wrong navigator before the role is known.
+  // While the session is being restored, keep the splash look (navy + the W) so the launch goes system splash ->
+  // this -> JS splash without a white flash, and never shows the wrong navigator before the role is known.
   if (isLoadingUser) {
     return (
-      <View style={[styles.center, { backgroundColor: colors.background }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={[styles.center, { backgroundColor: colors.headerBg }]}>
+        <BrandLogo size={108} />
+        <ActivityIndicator style={styles.spinner} size="small" color={colors.onHeaderMuted} />
       </View>
     );
   }
@@ -60,4 +62,5 @@ export default function RootNavigator() {
 
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  spinner: { marginTop: 28 },
 });

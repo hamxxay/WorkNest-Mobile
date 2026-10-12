@@ -11,11 +11,13 @@ import {
   ErrorState,
   LoadingState,
   Screen,
+  SuccessCheck,
 } from "../../../components/ui";
 import { useTheme, useThemedStyles, type AppColors, type Theme } from "../../../theme";
 import { useAuth } from "../../../context/AuthContext";
 import { getDoorAccess, getDoors, unlockDoor, type DoorAccess, type DoorInfo } from "../../../services/doorAccessService";
 import { errorMessage } from "../../../services/apiClient";
+import { haptics } from "../../../utils/haptics";
 
 type Status = { kind: "ok" | "error"; text: string } | null;
 
@@ -69,10 +71,13 @@ export default function UnlockDoorScreen() {
     if (!access || unlocking !== null) return;
     setUnlocking(door.deviceId);
     setStatus((prev) => ({ ...prev, [door.deviceId]: null }));
+    haptics.medium();
     try {
       const message = await unlockDoor(access, door.deviceId);
       setStatus((prev) => ({ ...prev, [door.deviceId]: { kind: "ok", text: message } }));
+      haptics.success();
     } catch (err) {
+      haptics.error();
       setStatus((prev) => ({
         ...prev,
         [door.deviceId]: { kind: "error", text: errorMessage(err, "The door did not unlock. Please try again.") },
@@ -89,7 +94,7 @@ export default function UnlockDoorScreen() {
         <LoadingState message="Loading your doors" />
       ) : needsVerification ? (
         <EmptyState
-          icon="key-outline"
+          illustration="door"
           title="Verify your access first"
           message="Confirm your details once (Access Request) and you can unlock your room door from the app."
           actionLabel="Access request"
@@ -123,8 +128,15 @@ export default function UnlockDoorScreen() {
                     onPress={() => onUnlock(door)}
                   />
                 </View>
-                {s ? (
-                  <AppText variant="bodySmall" color={s.kind === "ok" ? "success" : "danger"} style={styles.status} accessibilityLiveRegion="polite">
+                {s?.kind === "ok" ? (
+                  <View style={[styles.status, styles.okRow]}>
+                    <SuccessCheck size={24} accessibilityLabel={null} />
+                    <AppText variant="bodySmall" color="success" style={styles.flex} accessibilityLiveRegion="polite">
+                      {s.text}
+                    </AppText>
+                  </View>
+                ) : s ? (
+                  <AppText variant="bodySmall" color="danger" style={styles.status} accessibilityLiveRegion="polite">
                     {s.text}
                   </AppText>
                 ) : null}
@@ -148,4 +160,5 @@ const createStyles = (c: AppColors, t: Theme) =>
     iconWell: { width: 44, height: 44, borderRadius: 12, backgroundColor: c.primarySoft, alignItems: "center", justifyContent: "center" },
     flex: { flex: 1 },
     status: { marginTop: t.spacing.sm },
+    okRow: { flexDirection: "row", alignItems: "center", gap: t.spacing.sm },
   });

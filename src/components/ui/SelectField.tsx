@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
-import { useTheme } from "../../theme";
+import { fontFor, useTheme } from "../../theme";
 import { BottomSheet } from "./BottomSheet";
 import { FieldShell, fieldA11yLabel, fieldBoxColors, fieldStyles, type FieldBaseProps } from "./Field";
 import { TextField } from "./TextField";
@@ -200,7 +200,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 10,
   },
-  bold: { fontWeight: "600" },
+  bold: fontFor("600"),
   empty: { textAlign: "center", paddingVertical: 24 },
   center: { paddingVertical: 32, alignItems: "center" },
 });

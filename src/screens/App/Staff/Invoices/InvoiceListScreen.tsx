@@ -45,7 +45,7 @@ export default function InvoiceListScreen() {
         onEndReached={list.loadMore}
         gap={8}
         keyboardShouldPersistTaps="handled"
-        empty={{ icon: "receipt-outline", title: search || typeId ? "No invoices found" : "No invoices yet" }}
+        empty={{ illustration: search || typeId ? "search" : "receipt", title: search || typeId ? "No invoices found" : "No invoices yet" }}
         renderItem={({ item }) => (
           <InvoiceCard invoice={item} onPress={() => navigation.navigate("InvoiceDetail", { invoiceId: item.id, invoice: item })} />
         )}
@@ -73,7 +73,7 @@ export function InvoiceCard({ invoice: inv, onPress }: { invoice: StaffInvoice; 
           {[inv.spaceName, `Due ${formatDate(inv.dueOn)}`].filter(Boolean).join(" · ")}
         </AppText>
         <View style={styles.amount}>
-          <AppText variant="bodyStrong">{formatMoney(inv.grandTotal)}</AppText>
+          <AppText variant="amount">{formatMoney(inv.grandTotal)}</AppText>
           {inv.balanceDue > 0 && inv.balanceDue !== inv.grandTotal ? (
             <AppText variant="caption" color="warning">
               {formatMoney(inv.balanceDue)} due

@@ -11,7 +11,11 @@ const ALL_EDGES: Edge[] = ["top", "left", "right", "bottom"];
 type ScreenProps = PropsWithChildren<{
   /** Applied to the content area (below the top safe-area strip). */
   style?: StyleProp<ViewStyle>;
-  /** Safe-area edges to respect. Default all four. */
+  /**
+   * Safe-area edges to pad. Default all four. Leave out "bottom" only when something below the screen already
+   * covers the bottom inset (the tab bar); never leave out "top" unless the screen paints under the status bar
+   * on purpose.
+   */
   edges?: Edge[];
   /** Page background. Default theme `background`. */
   backgroundColor?: string;
@@ -24,9 +28,13 @@ type ScreenProps = PropsWithChildren<{
 /**
  * Root of every screen: page background, safe areas, tablet column and the status bar.
  *
- * Status-bar policy: the bar is painted the colour of whatever sits under it — the header (AppHeader
- * registers its colour automatically) or the page background — with light or dark
- * icons to match. It only applies while the screen is focused, so tabs do not fight over it.
+ * Edge-to-edge (Android): the status and navigation bars are transparent and the app draws behind them. Screen
+ * paints the strip under the status bar itself (a View of the top-inset height) and pads the other edges with the
+ * safe-area insets, so nothing is drawn under the status bar, the gesture bar or a side cutout.
+ *
+ * Status-bar policy: the strip takes the colour of whatever sits under it — the header (AppHeader registers its
+ * colour automatically) or the page background — with light or dark icons to match. The icon style only applies
+ * while the screen is focused, so tabs do not fight over it.
  */
 export function Screen({ children, style, edges = ALL_EDGES, backgroundColor, statusBarColor, statusBarStyle }: ScreenProps) {
   const { colors, isDark } = useTheme();
@@ -59,7 +67,7 @@ export function Screen({ children, style, edges = ALL_EDGES, backgroundColor, st
   return (
     <ScreenChromeContext.Provider value={ctx}>
       <View style={[styles.root, { backgroundColor: bg }]}>
-        <FocusAwareStatusBar barStyle={barStyle} backgroundColor={topColor} />
+        <FocusAwareStatusBar barStyle={barStyle} />
         {applyTop && insets.top > 0 ? <View style={{ height: insets.top, backgroundColor: topColor }} /> : null}
         <SafeAreaView edges={innerEdges} style={[styles.root, { backgroundColor: bg }, style]}>
           {isTablet ? <View style={styles.column}>{children}</View> : children}

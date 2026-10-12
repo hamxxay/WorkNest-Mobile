@@ -365,7 +365,7 @@ function ReassignSheet({ booking, onClose, onDone }: { booking: StaffBookingDeta
       ) : !spaces ? (
         <ListSkeleton rows={3} variant="rows" />
       ) : spaces.length === 0 ? (
-        <EmptyState compact icon="business-outline" title="No free spaces" message="No other space of this type is free for these dates." />
+        <EmptyState compact illustration="building" title="No free spaces" message="No other space of this type is free for these dates." />
       ) : (
         spaces.map((s) => {
           const selected = picked?.id === s.id;

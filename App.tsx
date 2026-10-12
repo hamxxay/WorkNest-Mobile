@@ -15,13 +15,9 @@ function ThemedRoot() {
   const { colors, isDark } = useTheme();
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
-      {/* Base status bar; each <Screen> / header overrides it while focused. */}
-      <StatusBar
-        barStyle={isDark ? "light-content" : "dark-content"}
-        backgroundColor={colors.background}
-        translucent={false}
-        animated
-      />
+      {/* Base status-bar icon style; each <Screen> / header overrides it while focused. The bar itself is
+          transparent (Android edge-to-edge): screens paint what is under it. */}
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} animated />
       <ToastProvider>
         <ConfirmProvider>
           <ErrorBoundary>

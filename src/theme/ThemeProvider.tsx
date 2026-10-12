@@ -3,7 +3,7 @@ import { Appearance, Platform, useColorScheme } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { Theme as NavigationTheme } from "@react-navigation/native";
 import { darkColors, darkTones, lightColors, lightTones, type AppColors, type Tone, type ToneColors } from "./colors";
-import { typography } from "./typography";
+import { fontFamilies, hasBrandFont, typography } from "./typography";
 import { getShadows, iconSizes, radii, spacing, touchTarget, type ShadowScale } from "./tokens";
 
 export type ThemeMode = "system" | "light" | "dark";
@@ -170,10 +170,17 @@ export function useTones(): Record<Tone, ToneColors> {
   return useTheme().tones;
 }
 
-// Same font set React Navigation's DefaultTheme uses. Built here (instead of importing DefaultTheme) so the theme
-// module has no runtime dependency on @react-navigation (keeps unit tests of plain components simple).
-const NAV_FONTS: NavigationTheme["fonts"] =
-  Platform.OS === "ios"
+// Inter where the app bundles it (tab labels, badges, native headers); elsewhere the font set React Navigation's
+// DefaultTheme uses. Built here (instead of importing DefaultTheme) so the theme module has no runtime dependency on
+// @react-navigation (keeps unit tests of plain components simple).
+const NAV_FONTS: NavigationTheme["fonts"] = hasBrandFont()
+  ? {
+      regular: { fontFamily: fontFamilies.regular, fontWeight: "400" },
+      medium: { fontFamily: fontFamilies.medium, fontWeight: "500" },
+      bold: { fontFamily: fontFamilies.semibold, fontWeight: "600" },
+      heavy: { fontFamily: fontFamilies.bold, fontWeight: "700" },
+    }
+  : Platform.OS === "ios"
     ? {
         regular: { fontFamily: "System", fontWeight: "400" },
         medium: { fontFamily: "System", fontWeight: "500" },

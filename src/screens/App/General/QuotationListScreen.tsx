@@ -67,7 +67,7 @@ export default function QuotationListScreen() {
     <Screen>
       <AppHeader title="My quotations" />
       {!user ? (
-        <GuestState icon="document-text-outline" title="Sign in to see your quotations" message="Quotations from our sales team appear here." />
+        <GuestState illustration="document" title="Sign in to see your quotations" message="Quotations from our sales team appear here." />
       ) : (
         <AsyncList
           data={quotations}
@@ -77,7 +77,7 @@ export default function QuotationListScreen() {
           onRefresh={() => load(true)}
           error={error}
           empty={{
-            icon: "document-text-outline",
+            illustration: "document",
             title: "No quotations yet",
             message: "Book a tour or contact us and our sales team will send you a quotation.",
             actionLabel: "Book a tour",

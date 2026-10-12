@@ -11,6 +11,7 @@ import {
   Button,
   Card,
   Divider,
+  HapticsSetting,
   ListRow,
   Screen,
   SectionHeader,
@@ -19,6 +20,7 @@ import {
   useConfirm,
   useToast,
 } from "../../../components/ui";
+import { useTabBarSpace } from "../../../components/ui/TabBar";
 import { useThemedStyles, type AppColors, type Theme } from "../../../theme";
 import { useAuth } from "../../../context/AuthContext";
 import { useNotificationsAction } from "../../../hooks/useHeaderActions";
@@ -55,6 +57,7 @@ function summarize(bookings: MyBooking[]): Summary {
 export default function ProfileScreen() {
   const navigation = useNavigation<Nav>();
   const styles = useThemedStyles(createStyles);
+  const tabBarSpace = useTabBarSpace();
   const { user, setUser, clearSession } = useAuth();
   const bell = useNotificationsAction();
   const doorAccess = useDoorAccess();
@@ -150,7 +153,10 @@ export default function ProfileScreen() {
   return (
     <Screen edges={["top", "left", "right"]}>
       <AppHeader variant="brand" title="Profile" actions={bell} />
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingBottom: styles.content.paddingBottom + tabBarSpace }]}
+        showsVerticalScrollIndicator={false}
+      >
         {user ? (
           <>
             <Card>
@@ -221,6 +227,8 @@ export default function ProfileScreen() {
         <SectionHeader title="Appearance" />
         <Card>
           <AppearanceSetting />
+          <Divider spacing={12} />
+          <HapticsSetting />
         </Card>
 
         <SectionHeader title="WorkNest" />

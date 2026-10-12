@@ -112,7 +112,7 @@ export default function MyBookingsScreen() {
       <Screen edges={["top", "left", "right"]}>
         <AppHeader variant="brand" title="My bookings" />
         <GuestState
-          icon="calendar-outline"
+          illustration="calendar"
           title="Sign in to see your bookings"
           message="Your bookings, their challans and their status appear here once you sign in."
         />
@@ -149,13 +149,13 @@ export default function MyBookingsScreen() {
         empty={
           tab === "upcoming"
             ? {
-                icon: "calendar-outline",
+                illustration: "calendar",
                 title: "No upcoming bookings",
                 message: "Book a desk, an office or a meeting room.",
                 actionLabel: "Book a space",
                 onAction: () => navigation.navigate("Spaces"),
               }
-            : { icon: "time-outline", title: "No past bookings", message: "Finished and cancelled bookings appear here." }
+            : { illustration: "calendar", title: "No past bookings", message: "Finished and cancelled bookings appear here." }
         }
         renderItem={({ item }) => (
           <Card onPress={() => navigation.navigate("BookingDetail", { bookingId: item.id || item.publicId || "" })}

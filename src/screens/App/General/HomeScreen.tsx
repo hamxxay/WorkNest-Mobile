@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
+import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Ionicons from "react-native-vector-icons/Ionicons";
@@ -20,6 +20,7 @@ import {
   greeting,
 } from "../../../components/ui";
 import { ChatBot } from "../../../components/ChatBot";
+import { ScalePressable } from "../../../components/motion";
 import { useTheme, useThemedStyles, type AppColors, type Theme } from "../../../theme";
 import { formatDate, formatMoney } from "../../../utils/format";
 import { useAuth } from "../../../context/AuthContext";
@@ -31,6 +32,7 @@ import { getWorkspaces, type Workspace } from "../../../services/workspaceServic
 import { getMyBookings, isPendingBooking, type MyBooking } from "../../../services/bookingService";
 import { WorkspaceCard } from "../../Home/WorkspaceCard";
 import type { AppStackParamList } from "../../../navigation/types";
+import { useTabBarSpace } from "../../../components/ui/TabBar";
 
 type Nav = NativeStackNavigationProp<AppStackParamList>;
 
@@ -46,6 +48,7 @@ export default function HomeScreen() {
   const navigation = useNavigation<Nav>();
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
+  const tabBarSpace = useTabBarSpace();
   const { user } = useAuth();
   const bell = useNotificationsAction();
   const doorAccess = useDoorAccess();
@@ -135,7 +138,7 @@ export default function HomeScreen() {
         }
       />
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingBottom: styles.content.paddingBottom + tabBarSpace }]}
         showsVerticalScrollIndicator={false}
         onScrollBeginDrag={() => setChatVisible(false)}
         onScrollEndDrag={() => setChatVisible(true)}
@@ -184,7 +187,7 @@ export default function HomeScreen() {
 
         <View style={styles.quickGrid}>
           {quickActions.map((action) => (
-            <Pressable
+            <ScalePressable
               key={action.key}
               accessibilityRole="button"
               accessibilityLabel={action.label}
@@ -204,7 +207,7 @@ export default function HomeScreen() {
               <AppText variant="label" numberOfLines={2} style={styles.quickLabel}>
                 {action.label}
               </AppText>
-            </Pressable>
+            </ScalePressable>
           ))}
         </View>
 
@@ -220,7 +223,7 @@ export default function HomeScreen() {
         ) : spaces.length === 0 ? (
           <EmptyState
             compact
-            icon="business-outline"
+            illustration="building"
             title="No spaces open right now"
             message="Book a tour and our team will show you what fits."
             actionLabel="Book a tour"

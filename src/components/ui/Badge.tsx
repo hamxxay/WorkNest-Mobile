@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
-import { useTheme, type Tone } from "../../theme";
+import { fontFor, useTheme, type Tone } from "../../theme";
 
 export type BadgeProps = {
   /** Number to show. Hidden when 0 / undefined unless `dot`. */
@@ -55,6 +55,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  text: { fontSize: 12, lineHeight: 14, fontWeight: "700", includeFontPadding: false },
+  text: { fontSize: 12, lineHeight: 14, ...fontFor("700"), includeFontPadding: false },
   dot: { width: 10, height: 10, borderRadius: 5 },
 });

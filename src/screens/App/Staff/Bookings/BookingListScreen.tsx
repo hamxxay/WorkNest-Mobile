@@ -47,7 +47,7 @@ export default function BookingListScreen() {
         onEndReached={list.loadMore}
         gap={8}
         keyboardShouldPersistTaps="handled"
-        empty={{ icon: "calendar-outline", title: search ? "No bookings found" : "No bookings yet", message: search ? `Nothing matches "${search}".` : undefined }}
+        empty={{ illustration: search ? "search" : "calendar", title: search ? "No bookings found" : "No bookings yet", message: search ? `Nothing matches "${search}".` : undefined }}
         renderItem={({ item }) => (
           <BookingCard booking={item} onPress={() => navigation.navigate("BookingDetail", { bookingId: item.bookingId })} />
         )}
@@ -78,7 +78,7 @@ function BookingCard({ booking: b, onPress }: { booking: StaffBooking; onPress: 
         <AppText variant="caption" color="textMuted" style={styles.flex}>
           {formatDateRange(b.contractStartDate || b.startOn, b.contractEndDate || b.endOn)}
         </AppText>
-        {b.totalAmount ? <AppText variant="bodyStrong">{formatMoney(b.totalAmount)}</AppText> : null}
+        {b.totalAmount ? <AppText variant="amount">{formatMoney(b.totalAmount)}</AppText> : null}
       </View>
     </Card>
   );

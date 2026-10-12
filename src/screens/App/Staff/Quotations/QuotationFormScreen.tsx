@@ -295,13 +295,13 @@ export default function QuotationFormScreen() {
   const save = async () => {
     const valid = validate();
     if (!valid) {
-      toast.error("Please fix the highlighted fields.");
+      toast.error("Please fix the highlighted fields.", { haptic: "warning" });
       return;
     }
     setSaving(true);
     try {
       const result = await createQuotation(valid.payload);
-      toast.success(result.message);
+      toast.success(result.message, { haptic: true });
       if (fromInquiry && result.data.id > 0) {
         saveInquiryFeedback(
           { id: fromInquiry.inquiryId, publicId: fromInquiry.publicId },
@@ -512,7 +512,7 @@ export default function QuotationFormScreen() {
               </Card>
             ) : null}
 
-            <Button title={editFromId ? "Create new quotation" : "Create quotation"} onPress={save} loading={saving} disabled={saving} leftIcon="checkmark" fullWidth />
+            <Button title={editFromId ? "Create new quotation" : "Create quotation"} onPress={save} loading={saving} disabled={saving} leftIcon="checkmark" fullWidth haptic />
           </ScrollView>
         </KeyboardAvoidingView>
       )}

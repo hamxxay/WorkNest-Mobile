@@ -1,6 +1,8 @@
 import { Pressable, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { useTheme } from "../../theme";
+import { haptics } from "../../utils/haptics";
+import { PRESS_SCALE, ScalePressable } from "../motion/ScalePressable";
 
 export type ChipProps = {
   label: string;
@@ -17,7 +19,7 @@ export type ChipProps = {
   style?: StyleProp<ViewStyle>;
 };
 
-/** Filter / choice chip. 36dp tall with a 44dp touch target. */
+/** Filter / choice chip. 36dp tall with a 44dp touch target; shrinks a little while pressed (not when removable). */
 export function Chip({ label, selected = false, onPress, icon, count, onRemove, disabled = false, accessibilityLabel, style }: ChipProps) {
   const { colors, typography } = useTheme();
   const fg = selected ? colors.onPrimary : colors.text;
@@ -27,7 +29,9 @@ export function Chip({ label, selected = false, onPress, icon, count, onRemove, 
 
   return (
     <View style={[styles.wrap, style]}>
-      <Pressable
+      <ScalePressable
+        // A removable chip is joined to its remove button: scaling one half alone would break the seam.
+        pressScale={onRemove ? 1 : PRESS_SCALE}
         accessibilityRole={onPress ? "button" : "text"}
         accessibilityLabel={spoken}
         accessibilityState={{ selected, disabled }}
@@ -52,7 +56,7 @@ export function Chip({ label, selected = false, onPress, icon, count, onRemove, 
             <Text style={[typography.captionStrong, { color: fg }]}>{count}</Text>
           </View>
         ) : null}
-      </Pressable>
+      </ScalePressable>
       {onRemove ? (
         <Pressable
           accessibilityRole="button"
@@ -83,7 +87,7 @@ export type FilterChipsProps<T extends string | number> =
   | (FilterChipsBase<T> & { multiple?: false; value: T; onChange: (value: T) => void })
   | (FilterChipsBase<T> & { multiple: true; value: T[]; onChange: (value: T[]) => void });
 
-/** A row of chips for filtering a list (single choice by default, `multiple` for multi-select). */
+/** A row of chips for filtering a list (single choice by default, `multiple` for multi-select). A change ticks a selection haptic. */
 export function FilterChips<T extends string | number>(props: FilterChipsProps<T>) {
   const { options, scrollable = true, style, contentContainerStyle, accessibilityLabel } = props;
 
@@ -91,8 +95,10 @@ export function FilterChips<T extends string | number>(props: FilterChipsProps<T
   const toggle = (v: T) => {
     if (props.multiple) {
       const next = props.value.includes(v) ? props.value.filter(x => x !== v) : [...props.value, v];
+      haptics.selection();
       props.onChange(next);
     } else if (props.value !== v) {
+      haptics.selection();
       props.onChange(v);
     }
   };

@@ -216,7 +216,7 @@ export default function RoomAccessScreen() {
             </Card>
           ) : null}
           {data.people.length === 0 ? (
-            <EmptyState compact icon="people-outline" title="Nobody added yet" message="Add the people who use this space so they can open the doors." />
+            <EmptyState compact illustration="people" title="Nobody added yet" message="Add the people who use this space so they can open the doors." />
           ) : (
             <Card padding={0}>
               {data.people.map((p, i) => (

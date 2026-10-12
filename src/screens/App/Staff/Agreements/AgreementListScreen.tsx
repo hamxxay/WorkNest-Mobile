@@ -60,7 +60,7 @@ export default function AgreementListScreen() {
         onEndReached={list.loadMore}
         gap={8}
         keyboardShouldPersistTaps="handled"
-        empty={{ icon: "document-attach-outline", title: "No agreements", message: "Agreements are sent from accepted quotations." }}
+        empty={{ illustration: "document", title: "No agreements", message: "Agreements are sent from accepted quotations." }}
         renderItem={({ item }) => <AgreementCard agreement={item} onPress={() => navigation.navigate("AgreementDetail", { agreement: item })} />}
       />
     </StaffScreen>

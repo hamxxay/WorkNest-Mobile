@@ -16,6 +16,7 @@ import {
   ListSkeleton,
   SectionHeader,
   StatusPill,
+  SuccessOverlay,
   TextField,
   useToast,
 } from "../../../../components/ui";
@@ -72,6 +73,8 @@ export default function QuotationDetailScreen() {
   const [busy, setBusy] = useState<string | null>(null);
   // Errors of an action started from a dialog are shown in the dialog (toasts render under modals).
   const [dialogError, setDialogError] = useState<string | null>(null);
+  // "Quotation sent" / "Quotation emailed" moment: shown in the success overlay.
+  const [sent, setSent] = useState<{ title: string; message: string } | null>(null);
 
   const q = data?.quotation;
   const status = normalizeStatus(q?.status);
@@ -82,8 +85,8 @@ export default function QuotationDetailScreen() {
     setDialogError(null);
     try {
       const result = await sendQuotation(q.id, q.version);
-      toast.success(result.message);
       setConfirmSend(false);
+      setSent({ title: "Quotation sent", message: result.message });
       refresh();
     } catch (err) {
       setDialogError(errorMessage(err, "Could not send the quotation."));
@@ -214,7 +217,7 @@ export default function QuotationDetailScreen() {
               />
             ) : null}
             {!CLOSED.has(status) && status !== "accepted" ? (
-              <Button title="Send to customer" leftIcon="paper-plane-outline" onPress={() => setConfirmSend(true)} fullWidth />
+              <Button title="Send to customer" leftIcon="paper-plane-outline" onPress={() => setConfirmSend(true)} fullWidth haptic />
             ) : null}
             <View style={styles.row}>
               <Button title="Email PDF" variant="outline" leftIcon="mail-outline" onPress={() => setEmailOpen(true)} style={styles.flex} />
@@ -316,10 +319,11 @@ export default function QuotationDetailScreen() {
           onClose={() => setEmailOpen(false)}
           onSent={(message) => {
             setEmailOpen(false);
-            toast.success(message);
+            setSent({ title: "Quotation emailed", message });
           }}
         />
       ) : null}
+      <SuccessOverlay visible={!!sent} title={sent?.title ?? ""} message={sent?.message} onHidden={() => setSent(null)} />
     </StaffScreen>
   );
 }
@@ -351,7 +355,7 @@ function EmailSheet({ quotation, onClose, onSent }: { quotation: StaffQuotation;
       footer={
         <>
           <Button title="Cancel" variant="outline" onPress={onClose} disabled={sending} style={styles.flex} />
-          <Button title="Send email" leftIcon="mail-outline" onPress={submit} loading={sending} style={styles.flex} />
+          <Button title="Send email" leftIcon="mail-outline" onPress={submit} loading={sending} style={styles.flex} haptic />
         </>
       }
     >

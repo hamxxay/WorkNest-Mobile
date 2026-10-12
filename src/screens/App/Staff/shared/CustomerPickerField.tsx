@@ -116,7 +116,7 @@ export function CustomerPickerField({
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={styles.list}
             ListEmptyComponent={
-              <EmptyState compact icon="people-outline" title="No customers found" message={q ? `Nothing matches "${q}".` : undefined} />
+              <EmptyState compact illustration={q ? "search" : "people"} title="No customers found" message={q ? `Nothing matches "${q}".` : undefined} />
             }
             renderItem={({ item }) => (
               <ListRow

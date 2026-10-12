@@ -48,7 +48,7 @@ export default function QuotationListScreen() {
         gap={8}
         keyboardShouldPersistTaps="handled"
         empty={{
-          icon: "document-text-outline",
+          illustration: search ? "search" : "document",
           title: search ? "No quotations found" : "No quotations yet",
           message: search ? `Nothing matches "${search}".` : "Create a quotation for a customer.",
           actionLabel: search ? undefined : "New quotation",
@@ -80,7 +80,7 @@ export function QuotationCard({ quotation: q, onPress }: { quotation: StaffQuota
         <AppText variant="bodySmall" color="textSecondary" style={styles.flex} numberOfLines={1}>
           {[q.spaceName, q.locationName].filter(Boolean).join(" · ") || "Space"}
         </AppText>
-        <AppText variant="bodyStrong">{formatMoney(q.totalPayable || q.totalAmount)}</AppText>
+        <AppText variant="amount">{formatMoney(q.totalPayable || q.totalAmount)}</AppText>
       </View>
       {q.validUntil ? (
         <AppText variant="caption" color="textMuted" style={styles.gapTop}>
