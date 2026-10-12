@@ -95,6 +95,18 @@ export function withBrandFont<T extends TextStyle>(style: T, os: string = Platfo
   return { ...style, ...fontFor(style.fontWeight, os) };
 }
 
+/**
+ * Font props for react-native-svg `<Text>` / `<TSpan>` (chart labels). On Android react-native-svg opens
+ * `assets/fonts/<fontFamily>.ttf` itself and ignores the `_bold` rule, so 700 must name the bold file directly
+ * (`fontFor("700")` there would draw the regular file). Elsewhere it is the same as `fontFor`.
+ *
+ *   <SvgText {...svgFontFor("600")} fontSize={12} fill={c.textMuted}>Jan</SvgText>
+ */
+export function svgFontFor(weight: TextStyle["fontWeight"] = "400", os: string = Platform.OS): FontStyle {
+  const font = fontFor(weight, os);
+  return font.fontFamily && font.fontWeight === "700" ? { ...font, fontFamily: "Inter_bold" } : font;
+}
+
 /** Equal-width digits (Inter `tnum`): money, counts and times that line up or change in place. */
 export const tabularNums = { fontVariant: ["tabular-nums"] } satisfies TextStyle;
 

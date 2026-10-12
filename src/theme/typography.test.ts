@@ -7,6 +7,7 @@ import {
   fontFamilies,
   fontFor,
   normalizeFontWeight,
+  svgFontFor,
   withBrandFont,
   type FontWeight,
 } from "./typography";
@@ -88,5 +89,17 @@ describe("withBrandFont", () => {
     expect(withBrandFont(cursive, "android")).toBe(cursive);
     const plain = { fontWeight: "600" as const };
     expect(withBrandFont(plain, "ios")).toBe(plain);
+  });
+});
+
+describe("svgFontFor", () => {
+  it("names the file react-native-svg opens on Android", () => {
+    for (const weight of ["400", "500", "600", "700"] as const) {
+      const file = `${svgFontFor(weight, "android").fontFamily}.ttf`;
+      expect([weight, existsSync(join(FONTS_DIR, file))]).toEqual([weight, true]);
+    }
+    expect(svgFontFor("700", "android")).toEqual({ fontFamily: "Inter_bold", fontWeight: "700" });
+    expect(svgFontFor("600", "android")).toEqual(fontFor("600", "android"));
+    expect(svgFontFor("700", "ios")).toEqual({ fontWeight: "700" });
   });
 });

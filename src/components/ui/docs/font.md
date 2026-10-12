@@ -82,6 +82,10 @@ Rules:
   `style` or the `weight` prop switches to the right file. Raw `<Text>` / `<TextInput>` do not do this; spread a
   variant or `fontFor()` into them. `withBrandFont(style)` is exported for the rare custom text component.
 - Weights 800 / 900 are retired; `fontFor("800")` gives 700. Below 400 gives 400 (no light files shipped).
+- Chart labels drawn with react-native-svg (`<Text>` / `<TSpan>` from `react-native-svg`): use `svgFontFor(weight)`,
+  not `fontFor`. react-native-svg opens `assets/fonts/<fontFamily>.ttf` itself and ignores the `_bold` rule, so
+  `fontFor("700")` would draw the regular file there; `svgFontFor("700")` names `Inter_bold`.
+  `<SvgText {...svgFontFor("600")} fontSize={12} fill={c.textMuted}>Jan</SvgText>`
 
 New variant: `amount` (15/22, 600, tabular figures) for money in rows and lists. The staff booking, invoice and
 quotation lists use it; emphasised `InfoRow` values (totals) and `kpi` (StatCard) are tabular as well.

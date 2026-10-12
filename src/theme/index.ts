@@ -19,6 +19,7 @@ export {
   fontWeights,
   fontFamilies,
   fontFor,
+  svgFontFor,
   withBrandFont,
   tabularNums,
   normalizeFontWeight,
