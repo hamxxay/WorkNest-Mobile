@@ -103,7 +103,7 @@ export function FigureTable({ columns, rows }: { columns: TableColumn[]; rows: {
               numberOfLines={1}
               adjustsFontSizeToFit
               minimumFontScale={0.8}
-              style={[cellStyle(columns[i] ?? {}), styles.tabular]}
+              style={[cellStyle(columns[i] ?? { label: "" }), styles.tabular]}
             >
               {cell}
             </AppText>

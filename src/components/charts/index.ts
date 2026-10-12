@@ -9,7 +9,7 @@ export { Sparkline, type SparklineProps } from "./Sparkline";
 export { HBarList, type HBarListProps, type HBarItem } from "./HBarList";
 export { Legend, type LegendProps, type LegendItem } from "./Legend";
 export { useChartColors, chartColors, type ChartColors } from "./palette";
-export { useReduceMotion, useMountProgress } from "./motion";
+export { useReduceMotion, useMountProgress, useLayoutWidth, type MountProgressOptions } from "./motion";
 export {
   bandLayout,
   compactLabel,
