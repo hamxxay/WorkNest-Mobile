@@ -97,6 +97,7 @@ export default function ChallanScreen() {
         <LoadingState message="Loading challan" />
       ) : error || !challan ? (
         <ErrorState
+          illustration={error ? "cloud-off" : "receipt"}
           title={justBooked ? "Booking created, challan not loaded" : undefined}
           message={error || "This booking has no challan yet."}
           onRetry={() => load()}

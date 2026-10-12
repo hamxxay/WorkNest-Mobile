@@ -123,7 +123,7 @@ export default function CustomerDetailScreen() {
           {data.quotationsError ? (
             <ErrorState compact message={data.quotationsError} onRetry={refresh} />
           ) : !data.quotations?.length ? (
-            <EmptyState compact icon="document-text-outline" title="No quotations yet" />
+            <EmptyState compact illustration="document" title="No quotations yet" />
           ) : (
             <Card padding={0}>
               {data.quotations.map((q, i) => (
@@ -144,7 +144,7 @@ export default function CustomerDetailScreen() {
           {data.invoicesError ? (
             <ErrorState compact message={data.invoicesError} onRetry={refresh} />
           ) : !data.invoices?.length ? (
-            <EmptyState compact icon="receipt-outline" title="No invoices yet" />
+            <EmptyState compact illustration="receipt" title="No invoices yet" />
           ) : (
             <Card padding={0}>
               {data.invoices.map((inv, i) => (

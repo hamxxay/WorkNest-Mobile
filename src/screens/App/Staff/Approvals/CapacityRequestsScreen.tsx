@@ -105,7 +105,7 @@ export default function CapacityRequestsScreen() {
         error={list.error}
         gap={8}
         empty={{
-          icon: "checkmark-done-circle-outline",
+          illustration: "inbox",
           title: status === "Pending" ? "Nothing waiting" : "No requests",
           message: status === "Pending" ? "Requests from sales executives show up here." : undefined,
         }}

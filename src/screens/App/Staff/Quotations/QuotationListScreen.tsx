@@ -48,7 +48,7 @@ export default function QuotationListScreen() {
         gap={8}
         keyboardShouldPersistTaps="handled"
         empty={{
-          icon: "document-text-outline",
+          illustration: search ? "search" : "document",
           title: search ? "No quotations found" : "No quotations yet",
           message: search ? `Nothing matches "${search}".` : "Create a quotation for a customer.",
           actionLabel: search ? undefined : "New quotation",

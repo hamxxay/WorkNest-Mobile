@@ -128,7 +128,7 @@ export default function InquiryListScreen() {
         gap={8}
         keyboardShouldPersistTaps="handled"
         empty={{
-          icon: "walk-outline",
+          illustration: "inbox",
           title: filter === "due" ? "No follow-ups due" : filter === "new" ? "No new inquiries" : "No inquiries",
           message: filter === "all" ? "Tour requests from the website and app show up here." : undefined,
         }}

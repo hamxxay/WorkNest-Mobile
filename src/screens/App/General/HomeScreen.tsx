@@ -221,7 +221,7 @@ export default function HomeScreen() {
         ) : spaces.length === 0 ? (
           <EmptyState
             compact
-            icon="business-outline"
+            illustration="building"
             title="No spaces open right now"
             message="Book a tour and our team will show you what fits."
             actionLabel="Book a tour"

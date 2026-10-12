@@ -45,7 +45,7 @@ export default function InvoiceListScreen() {
         onEndReached={list.loadMore}
         gap={8}
         keyboardShouldPersistTaps="handled"
-        empty={{ icon: "receipt-outline", title: search || typeId ? "No invoices found" : "No invoices yet" }}
+        empty={{ illustration: search || typeId ? "search" : "receipt", title: search || typeId ? "No invoices found" : "No invoices yet" }}
         renderItem={({ item }) => (
           <InvoiceCard invoice={item} onPress={() => navigation.navigate("InvoiceDetail", { invoiceId: item.id, invoice: item })} />
         )}

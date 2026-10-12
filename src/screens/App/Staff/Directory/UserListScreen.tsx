@@ -31,7 +31,7 @@ export default function UserListScreen() {
         onEndReached={list.loadMore}
         gap={8}
         keyboardShouldPersistTaps="handled"
-        empty={{ icon: "person-outline", title: search ? "No users found" : "No users" }}
+        empty={{ illustration: search ? "search" : "people", title: search ? "No users found" : "No users" }}
         renderItem={({ item }) => <UserRow user={item} />}
       />
     </StaffScreen>

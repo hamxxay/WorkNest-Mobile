@@ -77,7 +77,7 @@ export default function GalleryScreen() {
             />
           ) : null
         }
-        empty={{ icon: "images-outline", title: "No photos yet", message: "Photos of our spaces will appear here." }}
+        empty={{ illustration: "image", title: "No photos yet", message: "Photos of our spaces will appear here." }}
         renderItem={({ item, index }) => (
           <Pressable
             accessibilityRole="imagebutton"

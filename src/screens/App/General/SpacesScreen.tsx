@@ -128,7 +128,7 @@ export default function SpacesScreen() {
         empty={
           filtersActive
             ? {
-                icon: "search-outline",
+                illustration: "search",
                 title: "No spaces match",
                 message: "Try another type or location, or clear the search.",
                 actionLabel: "Clear filters",
@@ -139,7 +139,7 @@ export default function SpacesScreen() {
                 },
               }
             : {
-                icon: "business-outline",
+                illustration: "building",
                 title: "No spaces open right now",
                 message: "Book a tour and our team will show you what fits.",
                 actionLabel: "Book a tour",

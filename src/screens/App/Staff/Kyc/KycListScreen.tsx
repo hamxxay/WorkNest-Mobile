@@ -38,7 +38,7 @@ export default function KycListScreen() {
         onEndReached={list.loadMore}
         gap={8}
         keyboardShouldPersistTaps="handled"
-        empty={{ icon: "id-card-outline", title: search ? "No customers found" : "No customers yet" }}
+        empty={{ illustration: search ? "search" : "people", title: search ? "No customers found" : "No customers yet" }}
         renderItem={({ item }) => (
           <KycRow item={item} onPress={() => navigation.navigate("KycCustomer", { customerId: item.id, customerName: item.fullName })} />
         )}

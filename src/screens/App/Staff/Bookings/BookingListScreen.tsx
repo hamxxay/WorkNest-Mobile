@@ -47,7 +47,7 @@ export default function BookingListScreen() {
         onEndReached={list.loadMore}
         gap={8}
         keyboardShouldPersistTaps="handled"
-        empty={{ icon: "calendar-outline", title: search ? "No bookings found" : "No bookings yet", message: search ? `Nothing matches "${search}".` : undefined }}
+        empty={{ illustration: search ? "search" : "calendar", title: search ? "No bookings found" : "No bookings yet", message: search ? `Nothing matches "${search}".` : undefined }}
         renderItem={({ item }) => (
           <BookingCard booking={item} onPress={() => navigation.navigate("BookingDetail", { bookingId: item.bookingId })} />
         )}

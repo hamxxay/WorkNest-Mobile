@@ -83,7 +83,7 @@ export default function SpaceListScreen() {
         error={list.error}
         gap={8}
         keyboardShouldPersistTaps="handled"
-        empty={{ icon: "business-outline", title: "No spaces found" }}
+        empty={{ illustration: search ? "search" : "building", title: "No spaces found" }}
         renderItem={({ item: s }) => (
           <Card padding={12}>
             <View style={styles.row}>

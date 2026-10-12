@@ -117,7 +117,7 @@ export default function ChallanValidityScreen() {
           </Card>
 
           {result === null ? (
-            <EmptyState icon="receipt-outline" title="No challan found" message="Check the number and try again." />
+            <EmptyState illustration="search" title="No challan found" message="Check the number and try again." />
           ) : result ? (
             <>
               <SectionHeader title="Challan" variant="overline" />
