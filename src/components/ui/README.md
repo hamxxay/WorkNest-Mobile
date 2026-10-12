@@ -1,8 +1,8 @@
 # WorkNest UI kit
 
-Shared design tokens, theme (light / dark) and components for the mobile app.
-Owner: Phase 3 (UI/UX). Phase 1 and Phase 2 use it; please do not edit `src/theme/**` or `src/components/**`
-(except `ChatBot.tsx`). Ask for changes instead.
+Shared design tokens, theme (light / dark) and components for the mobile app (customer and staff screens).
+Change the kit here, not by copying styles into screens: a field box, checkbox or status colour that a screen
+needs belongs in this folder.
 
 ```ts
 import { Button, TextField, Card, StatusPill, AsyncList, AppHeader, useToast } from "../../components/ui";
@@ -56,7 +56,8 @@ Static exports (`colors`, `shadows`) are the LIGHT values and never change. A sc
 | Lines | `border` (decorative), `borderStrong`, `inputBorder` (>= 3:1 on surface), `focus` |
 | Brand | `primary` (teal text / icons / selected borders), `primaryStrong` (fills that carry white text), `primaryPressed`, `onPrimary` (= `primaryText`, text on a teal fill), `primarySoft` + `onPrimarySoft` (tinted wells), `brand` (#0d9488 decorative), `link` |
 | Feedback | `success`, `successSoft`, `warning`, `warningSoft`, `danger`, `dangerSoft`, `dangerStrong` (fill with white text), `dangerPressed`, `info`, `infoSoft` |
-| Chrome | `headerBg` (navy), `onHeader`, `onHeaderMuted`, `overlay`, `skeleton`, `ripple`, `rippleOnPrimary`, `tabBar`, `tabInactive` |
+| Chrome | `headerBg` (navy), `onHeader`, `onHeaderMuted`, `headerLine` (lines / tracks on navy), `onHeaderFill` (subtle fills on navy), `overlay`, `skeleton`, `ripple`, `rippleOnPrimary`, `tabBar`, `tabInactive` |
+| Paper | `paper` (always white, also in dark mode), `onPaper` (ink), `paperBorder`: signature pads and previews, document thumbnails |
 | Legacy (still work) | `card` = surface, `foreground` = text, `mutedForeground` = textMuted, `muted` = surfaceAlt, `primaryMuted`, `secondary`, `accent`, `accentMuted`, `successMuted`, `dangerMuted`, `shadow`, `white` (always #fff) |
 
 Light `primary` is now `#0f766e` (accessible on white); the brand `#0d9488` is `brand`. Put white text on
@@ -147,7 +148,7 @@ background, with matching light / dark icons, applied only while the screen is f
     title="Dashboard"
     actions={[
       { icon: "notifications-outline", accessibilityLabel: "Notifications", badge: unread, onPress: openInbox },
-      { icon: "menu-outline", accessibilityLabel: "Open menu", onPress: () => drawerNavRef.open() },
+      { icon: "person-circle-outline", accessibilityLabel: "Profile", onPress: openProfile },
     ]}
   />
 </Screen>
@@ -161,8 +162,6 @@ background, with matching light / dark icons, applied only while the screen is f
 `showLogo`, `tone` (`"navy" | "teal"`), `safeArea` (`"auto"`: no double inset inside `<Screen>`), `bordered`, `style`.
 
 `Screen` props: `style`, `edges` (default all), `backgroundColor`, `statusBarColor`, `statusBarStyle`.
-Legacy `Header`, `HomeHeader` and `DashboardHeader({ role, title, subtitle?, actions?, showMenu?, onMenuPress? })`
-still work and now render AppHeader.
 
 ---
 
@@ -197,6 +196,31 @@ const emailRef = useRef<TextInput>(null);
 
 Props: all `TextInput` props plus `label`, `required`, `helperText`, `error`, `disabled`, `leftIcon`, `rightIcon`,
 `onRightIconPress`, `rightIconLabel`, `rows`, `containerStyle`, `inputStyle`. The ref is the `TextInput`.
+
+### PressableField (field-shaped button)
+
+For anything that opens a picker, sheet or search instead of typing (customer search, space picker):
+
+```tsx
+<PressableField label="Customer" required value={customer?.fullName} subtitle={customer?.email}
+  placeholder="Search customers" leftIcon="person-outline" active={open} error={errors.customer}
+  onPress={() => setOpen(true)} accessibilityHint="Opens customer search" />
+```
+
+Same box, label, helper and error as TextField. `fieldStyles` and `fieldBoxColors(colors, { focused, error,
+disabled })` are exported for the rare custom field; prefer PressableField.
+
+### Checkbox, Switch, SwitchRow
+
+```tsx
+<Checkbox checked={accepted} onChange={setAccepted} error={termsError}
+  label="I agree to the WorkNest terms and conditions." />
+<Switch value={p.isEnabled} onValueChange={toggle} accessibilityLabel={`Door access for ${p.name}`} />
+<SwitchRow label="Booking reminders" description="A push the day before" value={on} onValueChange={setOn} />
+```
+
+Checkbox: whole row toggles (44dp), role checkbox, optional `description`, `disabled`, `error`. Switch: theme
+colours (teal on, visible grey off), role switch. SwitchRow: label + description + switch; the whole row toggles.
 
 ### SelectField (alias PickerField) and DateField
 
@@ -297,6 +321,9 @@ FlatList with loading skeleton, pull-to-refresh, empty, error + retry and guarde
 
 Extra props: `onRetry`, `skeleton`, `skeletonRows`, `padding` (16), `gap` (12). All other FlatList props pass through.
 
+Paging guard: `onEndReached` fires at most once per row count, and the guard starts over when the rows shrink
+(new search / filter / reload) and when `loadingMore` turns false. No `key` remount is needed to reset it.
+
 ### Toast (replaces `Alert.alert` for non-blocking messages)
 
 ```tsx
@@ -390,8 +417,12 @@ dark variants with Google's own colours). `GoogleMark` is exported for other "Go
 ```
 
 BottomSheet props: `title`, `subtitle`, `overline`, `footer`, `scrollable` (false when the child is a FlatList),
-`dismissible` (false while saving), `showClose`, `maxHeight`, `fullHeight`, `contentStyle`.
-Legacy `ConfirmModal` keeps its API (`confirmText`, `cancelText`) and gains `destructive`, `loading`, `icon`.
+`dismissible` (false while saving), `showClose`, `maxHeight`, `fullHeight`, `contentStyle`, `error`.
+ConfirmDialog props: `title`, `message`, `confirmLabel`, `cancelLabel`, `destructive`, `loading`, `icon`,
+`children`, `error`.
+
+`error` on both shows a danger Banner inside (in sheets it is pinned above the footer, so it stays visible while
+the form scrolls). Keep the sheet / dialog open on failure and set `error`, rather than closing and toasting.
 
 ### AppearanceSetting (Profile screens)
 
@@ -418,16 +449,13 @@ toYmdLocal(new Date())                   // "2026-10-12"
 
 ---
 
-## 5. Notes for the navigation owners (files Phase 3 does not edit)
+## 5. Navigation and the status bar
 
-1. Pass the theme to every container: `const navTheme = useNavigationTheme(); <NavigationContainer theme={navTheme}>`
-   (AppNavigator.tsx, AdminStack.tsx, SaleStack.tsx).
-2. Remove `statusBarStyle: "dark"` (and `statusBarTranslucent`) from native-stack `screenOptions`. When any screen
-   sets a status-bar option, react-native-screens takes over the icon colour on every transition, which gives dark
-   icons on dark headers and in dark mode. `Screen` / `AppHeader` already manage the status bar.
-3. Remove the `StatusBar.setBackgroundColor(colors.background)` effects; App.tsx sets the base status bar.
-4. Tab bar / drawer: use `colors.tabBar`, `colors.primary` (active), `colors.tabInactive`, `colors.surface`,
-   `colors.border` so they follow dark mode.
+- Every NavigationContainer gets `theme={useNavigationTheme()}` (customer AppNavigator and the staff
+  StaffNavigator do), and stack `contentStyle` / tab bar colours come from the theme.
+- No `statusBarStyle` / `statusBarTranslucent` in native-stack options and no imperative `StatusBar` calls:
+  when any screen sets a status-bar option, react-native-screens takes over the icon colour on every transition.
+  `Screen` / `AppHeader` manage the status bar; App.tsx sets the base one.
 
 ---
 
