@@ -177,7 +177,7 @@ export default function StaffDashboardScreen() {
         {role === "super_admin" ? (
           <>
             <Section title="Locations" subtitle={`Compared ${periodWord}`} loading={roleDash.loading} error={roleDash.error} onRetry={loadRole} skeleton="card">
-              {r?.locations ? <LocationsSection locations={r.locations} /> : null}
+              {r?.locations ? <LocationsSection locations={r.locations} periodWord={periodWord} /> : null}
             </Section>
             <Section title="Staff" subtitle={`Quotations and conversions ${periodWord}`} loading={roleDash.loading} error={roleDash.error} onRetry={loadRole} skeleton="card">
               {r?.staff ? <StaffSection staff={r.staff} /> : null}

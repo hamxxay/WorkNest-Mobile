@@ -2,7 +2,7 @@ import { Fragment, type ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
 import { AppText, Card, Divider, ErrorState, KpiSkeleton, ListRow, SectionHeader, StatCard, type StatCardProps } from "../../../../components/ui";
 import type { AttentionItem } from "../../../../services/staff";
-import { spacing, useTheme, type Tone } from "../../../../theme";
+import { spacing, useTheme } from "../../../../theme";
 import { formatDate, formatMoney } from "../../../../utils/format";
 
 // Building blocks of the staff dashboard sections.
@@ -56,21 +56,60 @@ export function Section({
   );
 }
 
-/** Horizontal bar with a label and value (pipeline stages, monthly amounts). */
-export function BarRow({ label, value, pct, tone = "primary" }: { label: string; value: string; pct: number; tone?: Tone }) {
-  const { colors, tones } = useTheme();
-  const width = Math.max(0, Math.min(100, pct));
+/** A small label-over-value figure (next to a donut). */
+export function Fact({ label, value }: { label: string; value: string }) {
   return (
-    <View style={styles.bar} accessible accessibilityLabel={`${label}: ${value}`}>
-      <View style={styles.barTop}>
-        <AppText variant="bodySmall" color="textSecondary" style={styles.flex}>
-          {label}
-        </AppText>
-        <AppText variant="captionStrong">{value}</AppText>
+    <View style={styles.fact}>
+      <AppText variant="caption" color="textMuted" numberOfLines={1}>
+        {label}
+      </AppText>
+      <AppText variant="bodyStrong" numberOfLines={1}>
+        {value}
+      </AppText>
+    </View>
+  );
+}
+
+export type TableColumn = { label: string; flex?: number; align?: "left" | "right" };
+
+/**
+ * A compact table of figures under a chart, so every value stays readable as text. Each row is read as one
+ * sentence by screen readers ("Oct 2026, Invoiced PKR 1.2M, Paid PKR 900K").
+ */
+export function FigureTable({ columns, rows }: { columns: TableColumn[]; rows: { key: string; cells: string[] }[] }) {
+  const { colors } = useTheme();
+  const cellStyle = (c: TableColumn) => [styles.cell, { flex: c.flex ?? 1 }, c.align === "right" ? styles.right : null];
+  return (
+    <View style={styles.table}>
+      <View style={[styles.tableRow, styles.tableHead, { borderBottomColor: colors.border }]} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+        {columns.map((c) => (
+          <AppText key={c.label} variant="caption" color="textMuted" numberOfLines={1} style={cellStyle(c)}>
+            {c.label}
+          </AppText>
+        ))}
       </View>
-      <View style={[styles.track, { backgroundColor: colors.surfaceAlt }]}>
-        <View style={[styles.fill, { width: `${width}%`, backgroundColor: tones[tone].solid }]} />
-      </View>
+      {rows.map((r) => (
+        <View
+          key={r.key}
+          style={styles.tableRow}
+          accessible
+          accessibilityLabel={r.cells.map((cell, i) => (i === 0 ? cell : `${columns[i]?.label ?? ""} ${cell}`)).join(", ")}
+        >
+          {r.cells.map((cell, i) => (
+            <AppText
+              key={columns[i]?.label ?? i}
+              variant="bodySmall"
+              color={i === 0 ? "textSecondary" : "text"}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.8}
+              style={[cellStyle(columns[i] ?? {}), styles.tabular]}
+            >
+              {cell}
+            </AppText>
+          ))}
+        </View>
+      ))}
     </View>
   );
 }
@@ -117,10 +156,12 @@ const styles = StyleSheet.create({
   grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md },
   tile: { flexBasis: "46%", flexGrow: 1 },
   section: { gap: spacing.sm },
-  bar: { gap: 4 },
-  barTop: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  flex: { flex: 1 },
-  track: { height: 8, borderRadius: 4, overflow: "hidden" },
-  fill: { height: 8, borderRadius: 4 },
+  fact: { gap: 2 },
+  table: { gap: 2 },
+  tableRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: 4 },
+  tableHead: { borderBottomWidth: StyleSheet.hairlineWidth, paddingBottom: 6, marginBottom: 2 },
+  cell: { minWidth: 0 },
+  right: { textAlign: "right" },
+  tabular: { fontVariant: ["tabular-nums"] },
   empty: { padding: spacing.lg },
 });
