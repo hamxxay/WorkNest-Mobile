@@ -1,4 +1,4 @@
-import { Linking, PermissionsAndroid, Platform, Alert } from "react-native";
+import { Linking, PermissionsAndroid, Platform } from "react-native";
 import {
   launchCamera,
   launchImageLibrary,
@@ -20,13 +20,19 @@ const LIBRARY_OPTIONS: ImageLibraryOptions = {
   assetRepresentationMode: "compatible",
 };
 
-/** Asks the user to open Settings after camera access was denied (a decision, so a dialog). */
-function showCameraSettings() {
-  Alert.alert("Camera access needed", "Allow camera access in Settings to photograph the document.", [
-    { text: "Not now", style: "cancel" },
-    { text: "Open Settings", onPress: () => Linking.openSettings().catch(() => undefined) },
-  ]);
+/** Opens this app's system settings (after camera access was denied). */
+export function openAppSettings(): void {
+  Linking.openSettings().catch(() => undefined);
 }
+
+/** Options for useConfirm() when camera access was denied: confirming should call openAppSettings(). */
+export const CAMERA_SETTINGS_CONFIRM = {
+  title: "Camera access needed",
+  message: "Allow camera access in Settings to photograph the document.",
+  confirmLabel: "Open Settings",
+  cancelLabel: "Not now",
+  icon: "camera-outline",
+} as const;
 
 async function ensureCameraPermission(): Promise<boolean> {
   if (Platform.OS !== "android") return true;
@@ -37,9 +43,7 @@ async function ensureCameraPermission(): Promise<boolean> {
     buttonPositive: "Allow",
     buttonNegative: "Not now",
   });
-  if (result === PermissionsAndroid.RESULTS.GRANTED) return true;
-  showCameraSettings();
-  return false;
+  return result === PermissionsAndroid.RESULTS.GRANTED;
 }
 
 function toKycFile(asset: Asset, code: string): KycFile | string {
@@ -56,15 +60,15 @@ function toKycFile(asset: Asset, code: string): KycFile | string {
   return { uri: asset.uri, name: `${safe}_${Date.now()}.${isPng ? "png" : "jpg"}`, type: isPng ? "image/png" : "image/jpeg" };
 }
 
-/** Result: the file, null when cancelled, or an error message. */
-export type PickResult = { file: KycFile } | { error: string } | null;
+/**
+ * Result: the file, null when cancelled, an error message, or `permissionDenied` (camera access refused: ask
+ * with useConfirm(CAMERA_SETTINGS_CONFIRM) and call openAppSettings() when confirmed).
+ */
+export type PickResult = { file: KycFile } | { error: string } | { permissionDenied: true } | null;
 
 function handle(res: ImagePickerResponse, code: string): PickResult {
   if (res.didCancel) return null;
-  if (res.errorCode === "permission") {
-    showCameraSettings();
-    return null;
-  }
+  if (res.errorCode === "permission") return { permissionDenied: true };
   if (res.errorCode) {
     return { error: res.errorCode === "camera_unavailable" ? "No camera is available on this device." : "Could not get the photo." };
   }
@@ -76,7 +80,7 @@ function handle(res: ImagePickerResponse, code: string): PickResult {
 
 export async function takeDocumentPhoto(code: string): Promise<PickResult> {
   try {
-    if (!(await ensureCameraPermission())) return null;
+    if (!(await ensureCameraPermission())) return { permissionDenied: true };
     return handle(await launchCamera(CAMERA_OPTIONS), code);
   } catch {
     return { error: "Could not open the camera." };

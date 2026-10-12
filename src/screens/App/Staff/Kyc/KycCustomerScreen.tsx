@@ -17,6 +17,7 @@ import {
   SelectField,
   StatusPill,
   TextField,
+  useConfirm,
   useToast,
 } from "../../../../components/ui";
 import type { StaffStackParamList } from "../../../../navigation/staffTypes";
@@ -43,7 +44,7 @@ import { CompletenessBar } from "./CompletenessBar";
 import { StaffScreen } from "../shared/StaffScreen";
 import { isAdminRole, useStaffSession } from "../shared/StaffSession";
 import { useAsyncData } from "../shared/hooks";
-import { chooseDocumentPhoto, takeDocumentPhoto } from "../shared/photoPicker";
+import { CAMERA_SETTINGS_CONFIRM, chooseDocumentPhoto, openAppSettings, takeDocumentPhoto } from "../shared/photoPicker";
 import { useOpenFile } from "../shared/useOpenFile";
 
 type Route = RouteProp<StaffStackParamList, "KycCustomer">;
@@ -309,6 +310,7 @@ function UploadSheet({
   const [expiry, setExpiry] = useState<Date | null>(item.expiryDate ? new Date(item.expiryDate) : null);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
+  const confirm = useConfirm();
 
   const slotOptions = useMemo(
     () => [
@@ -321,6 +323,10 @@ function UploadSheet({
   const pick = async (fromCamera: boolean) => {
     const result = fromCamera ? await takeDocumentPhoto(item.code) : await chooseDocumentPhoto(item.code);
     if (!result) return;
+    if ("permissionDenied" in result) {
+      if (await confirm(CAMERA_SETTINGS_CONFIRM)) openAppSettings();
+      return;
+    }
     if ("error" in result) setError(result.error);
     else {
       setError(null);
