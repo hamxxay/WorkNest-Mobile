@@ -33,8 +33,6 @@ import LoginScreen from "../screens/Auth/LoginScreen";
 import OnboardingScreen from "../screens/Auth/OnboardingScreen";
 
 import { onSessionExpired } from "../services/apiClient";
-import { usePushNotifications } from "../hooks/usePushNotifications";
-import { useAuth } from "../context/AuthContext";
 import { useNavigationTheme, useThemeColors } from "../theme";
 import { useToast } from "../components/ui";
 import { linking } from "./linking";
@@ -160,11 +158,7 @@ function AuthStackNavigator() {
 export function AppNavigator() {
   const colors = useThemeColors();
   const navTheme = useNavigationTheme();
-  const { user } = useAuth();
   const toast = useToast();
-
-  // Push notifications and announcements: signed-in users only (guests are never asked for permission).
-  usePushNotifications(typeof user?.email === "string" ? user.email : null);
 
   // The API refused the session (see apiClient / authService): open Login with a short explanation.
   useEffect(

@@ -1,5 +1,6 @@
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { useAuth } from "../context/AuthContext";
+import { usePushNotifications } from "../hooks/usePushNotifications";
 import { useThemeColors } from "../theme";
 
 // ─── Staff navigators (one per role, all built by ./staff/StaffNavigator) ─────
@@ -23,8 +24,13 @@ import { AppNavigator } from "./AppNavigator";
 // Staff sign in from the customer app's Login screen; once the role is known this switches navigator. Signing
 // out clears the user, so the role becomes "general" and the customer app shows again.
 export default function RootNavigator() {
-  const { role, isLoadingUser } = useAuth();
+  const { role, isLoadingUser, user } = useAuth();
   const colors = useThemeColors();
+
+  // Push notifications for every signed-in role (customers and staff): registers the FCM token at
+  // POST /mobile/device-token after sign-in ([Authorize], any role) and deletes it on sign-out. Lives here, above
+  // the per-role navigators, so switching navigator on sign-in / sign-out never skips either step.
+  usePushNotifications(typeof user?.email === "string" ? user.email : null);
 
   // While the session is being restored from storage, show a minimal spinner
   // so we never flash the wrong navigator before the role is known.
