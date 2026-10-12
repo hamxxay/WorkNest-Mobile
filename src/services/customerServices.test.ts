@@ -5,7 +5,9 @@ import {
   categoryCodeForMode,
   createSmartBooking,
   CustomerProfileRequiredError,
+  getBookingDetails,
   getMyBookings,
+  getSmartAvailability,
   normalizeChallan,
   normalizeMyBooking,
 } from "./bookingService";
@@ -18,7 +20,7 @@ import {
   normalizeAgreement,
   signedUploadError,
 } from "./agreementService";
-import { buildTourMessage, submitTourRequest } from "./tourService";
+import { buildTourMessage, submitContactMessage, submitTourRequest } from "./tourService";
 import { canRespondToQuotation, normalizeQuotationApiId } from "./customerQuotationService";
 
 jest.mock("react-native-share", () => ({ __esModule: true, default: { open: jest.fn() } }));
@@ -177,6 +179,47 @@ describe("bookings (website My Bookings rules)", () => {
   });
 });
 
+describe("availability and booking details", () => {
+  it("asks /booking/smart/available for the period and reports count and lowest listed price", async () => {
+    const fetchMock = installFetch(
+      jsonResponse(200, {
+        isSuccessful: true,
+        data: [
+          { id: 1, seatPrice: 30000, billingPeriodCode: "Monthly", securityDeposit: 50000 },
+          { id: 2, seatPrice: 25000, billingPeriodCode: "Monthly" },
+        ],
+      }),
+    );
+    const result = await getSmartAvailability({
+      categoryCode: "PrivateOffice",
+      startOn: "2026-11-01T00:00:00",
+      endOn: "2027-02-01T00:00:00",
+      capacity: 4,
+    });
+    const url = String(fetchMock.mock.calls[0][0]);
+    expect(url).toContain("/booking/smart/available?");
+    expect(url).toContain("categoryCode=PrivateOffice");
+    expect(url).toContain("capacity=4");
+    expect(result).toEqual({ count: 2, fromPrice: 25000, billingPeriodCode: "Monthly", securityDeposit: 50000 });
+  });
+
+  it("reports no space as count 0", async () => {
+    installFetch(jsonResponse(200, { isSuccessful: true, data: [] }));
+    const result = await getSmartAvailability({ categoryCode: "MeetingRoom", startOn: "a", endOn: "b" });
+    expect(result.count).toBe(0);
+    expect(result.fromPrice).toBeNull();
+  });
+
+  it("loads booking details from GET /booking/{id} in the challan shape", async () => {
+    const fetchMock = installFetch(
+      jsonResponse(200, { isSuccessful: true, data: { bookingStatusLabel: "Confirmed", spaceName: "Office 3", totalPayable: 1000 } }),
+    );
+    const details = await getBookingDetails(12);
+    expect(String(fetchMock.mock.calls[0][0])).toMatch(/\/booking\/12$/);
+    expect(details).toMatchObject({ bookingId: 12, bookingStatus: "Confirmed", spaceName: "Office 3", totalPayable: 1000 });
+  });
+});
+
 describe("payments (challan only, status from the API)", () => {
   it("keeps the API's status and never infers Paid", () => {
     const pending = normalizePayment({ id: 3, bookingId: 41, amount: 5000, paymentStatus: "Pending", paymentMethodLabel: "Bank Transfer / Challan" });
@@ -272,6 +315,29 @@ describe("book a tour", () => {
     expect(fetchMock.mock.calls[0][0]).toMatch(/\/book-tour$/);
     expect(sentBody(fetchMock)).toMatchObject({ fullName: "Ali Khan", email: "ali@example.com", message: "Tour Request" });
     expect(message).toBe("Thank you.");
+  });
+});
+
+describe("contact us", () => {
+  it("posts the message to /contact", async () => {
+    const fetchMock = installFetch(jsonResponse(201, { isSuccessful: true, message: "Thanks." }));
+    const message = await submitContactMessage({
+      fullName: "Ali Khan",
+      email: "ali@example.com",
+      phone: "",
+      message: "Do you have parking?",
+    });
+    expect(String(fetchMock.mock.calls[0][0])).toMatch(/\/contact$/);
+    expect(sentBody(fetchMock)).toMatchObject({ fullName: "Ali Khan", message: "Do you have parking?" });
+    expect(message).toBe("Thanks.");
+  });
+
+  it("refuses an empty message before calling the API", async () => {
+    const fetchMock = installFetch();
+    await expect(
+      submitContactMessage({ fullName: "Ali", email: "ali@example.com", phone: "", message: " " }),
+    ).rejects.toBeInstanceOf(ApiError);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 

@@ -27,8 +27,9 @@ import type { AppStackParamList, BookingDraft } from "../../../navigation/types"
 type Nav = NativeStackNavigationProp<AppStackParamList>;
 type Mode = BookingDraft["mode"];
 
-/** Meeting rooms: hourly from 8 AM; the last start leaves room for a one-hour booking before 9 PM. */
+/** Meeting rooms: hourly starts from 8 AM to 8 PM; bookings end by 10 PM. */
 const START_HOURS = Array.from({ length: 13 }, (_, i) => 8 + i);
+const CLOSING_HOUR = 22;
 const DURATIONS = [1, 2, 3, 4, 5, 6, 7, 8];
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 
@@ -213,6 +214,8 @@ export default function BookingInfoScreen() {
                     value={startHour}
                     onChange={(h) => {
                       setStartHour(h);
+                      // Keep the duration inside opening hours (last booking ends at 10 PM).
+                      setHours((d) => Math.min(d, CLOSING_HOUR - h));
                       setErrors((e) => ({ ...e, startHour: "" }));
                     }}
                     options={START_HOURS.map((h) => ({ label: hourLabel(h), value: h }))}
@@ -223,7 +226,7 @@ export default function BookingInfoScreen() {
                     required
                     value={hours}
                     onChange={setHours}
-                    options={DURATIONS.filter((d) => startHour + d <= 22).map((d) => ({
+                    options={DURATIONS.filter((d) => startHour + d <= CLOSING_HOUR).map((d) => ({
                       label: `${d} hour${d === 1 ? "" : "s"}`,
                       value: d,
                     }))}
