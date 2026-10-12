@@ -33,7 +33,7 @@ import LoginScreen from "../screens/Auth/LoginScreen";
 import OnboardingScreen from "../screens/Auth/OnboardingScreen";
 
 import { onSessionExpired } from "../services/apiClient";
-import { useNavigationTheme, useThemeColors } from "../theme";
+import { typography, useNavigationTheme, useThemeColors } from "../theme";
 import { useToast } from "../components/ui";
 import { linking } from "./linking";
 
@@ -86,7 +86,7 @@ function MainTabs() {
             minHeight: 60,
           },
           tabBarItemStyle: { minHeight: 48, paddingVertical: 4 },
-          tabBarLabelStyle: { fontSize: 12, fontWeight: "600" },
+          tabBarLabelStyle: typography.captionStrong,
           tabBarLabel: icon.label,
           tabBarAccessibilityLabel: `${icon.label} tab`,
           tabBarIcon: tabIcon(icon),

@@ -4,7 +4,7 @@ import { createBottomTabNavigator, type BottomTabNavigationOptions } from "@reac
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import type { StaffRole } from "../../context/roles";
-import { useNavigationTheme, useThemeColors } from "../../theme";
+import { typography, useNavigationTheme, useThemeColors } from "../../theme";
 import { StaffSessionProvider, useStaffSession } from "../../screens/App/Staff/shared/StaffSession";
 import type { StaffRouteName, StaffStackParamList, StaffTabName, StaffTabParamList } from "../staffTypes";
 import { moreMenuFor, routesFor, tabsFor } from "./access";
@@ -65,7 +65,7 @@ function StaffTabs() {
     tabBarActiveTintColor: colors.primary,
     tabBarInactiveTintColor: colors.tabInactive,
     tabBarStyle: { backgroundColor: colors.tabBar, borderTopColor: colors.border },
-    tabBarLabelStyle: { fontSize: 12, fontWeight: "600" },
+    tabBarLabelStyle: typography.captionStrong,
     tabBarBadgeStyle: { backgroundColor: colors.dangerStrong, color: colors.onPrimary, fontSize: 12 },
     sceneStyle: { backgroundColor: colors.background },
   };
