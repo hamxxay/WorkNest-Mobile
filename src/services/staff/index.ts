@@ -34,6 +34,7 @@ export {
   normalizeSpace,
   privateRoomCapacities,
   spaceInGroup,
+  spaceMonthlyPrice,
   spaceTypeGroup,
   SPACE_GROUP_LABELS,
   type BillingPeriod,

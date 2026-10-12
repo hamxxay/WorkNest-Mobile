@@ -125,8 +125,12 @@ export type StaffSpace = {
   spaceTypeName: string | null;
   categoryCode: string | null;
   capacity: number;
-  /** Monthly price per seat / room as the API lists it. */
+  /** Price as the API lists it (`price`). */
   price: number;
+  pricePerHour: number;
+  pricePerDay: number;
+  pricePerMonth: number;
+  seatPrice: number;
   /** Available | Booked | Occupied ... */
   status: string;
   bookedTill: string | null;
@@ -148,6 +152,10 @@ export function normalizeSpace(raw: any): StaffSpace {
     categoryCode: optStr(raw, "categoryCode"),
     capacity: num(raw, "capacity"),
     price: num(raw, "price"),
+    pricePerHour: num(raw, "pricePerHour"),
+    pricePerDay: num(raw, "pricePerDay"),
+    pricePerMonth: num(raw, "pricePerMonth"),
+    seatPrice: num(raw, "seatPrice"),
     status: str(raw, "status") || "Available",
     bookedTill: optStr(raw, "bookedTill", "bookedUntil", "endOn"),
     floorId: optNum(raw, "floorId"),
@@ -206,6 +214,14 @@ export function privateRoomCapacities(spaces: StaffSpace[], locationId?: number 
     }
   }
   return [...caps].sort((a, b) => a - b);
+}
+
+/**
+ * Standard monthly price per seat of a space, as the CMS quotation form reads it (getSpacePrice): pricePerMonth,
+ * else pricePerDay, seatPrice, price. The API refuses a base price below the standard one.
+ */
+export function spaceMonthlyPrice(space: Pick<StaffSpace, "pricePerMonth" | "pricePerDay" | "seatPrice" | "price">): number {
+  return space.pricePerMonth || space.pricePerDay || space.seatPrice || space.price || 0;
 }
 
 /** True when the space is taken now (status Booked / Occupied). */

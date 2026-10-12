@@ -22,7 +22,7 @@ import { agreementStatusLabel, validateSendAgreement } from "../agreements";
 import { effectiveInvoiceStatus, normalizeInvoice } from "../invoices";
 import { complaintStatusLabel, normalizeComplaint, normalizeComplaintStatus, validateComplaintInput } from "../complaints";
 import { challanBookingStatusLabel, challanDateToIso, isValidChallanQuery } from "../challan";
-import { filterSpaces, floorLabel, privateRoomCapacities, spaceInGroup, spaceTypeGroup, type StaffSpace } from "../lookups";
+import { filterSpaces, floorLabel, privateRoomCapacities, spaceInGroup, spaceMonthlyPrice, spaceTypeGroup, type StaffSpace } from "../lookups";
 
 describe("adding a person to a room (capacity rule)", () => {
   const free = { wouldExceedCapacity: false, allowsOverCapacity: false };
@@ -254,6 +254,10 @@ describe("space lookups", () => {
     categoryCode: null,
     capacity: 0,
     price: 0,
+    pricePerHour: 0,
+    pricePerDay: 0,
+    pricePerMonth: 0,
+    seatPrice: 0,
     status: "Available",
     bookedTill: null,
     floorId: null,
@@ -285,6 +289,12 @@ describe("space lookups", () => {
     expect(privateRoomCapacities(spaces, 1)).toEqual([4, 6]);
     expect(privateRoomCapacities(spaces)).toEqual([4, 6]);
     expect(spaceInGroup(space({ name: "Board meeting" }), "meeting")).toBe(true);
+  });
+
+  it("standard monthly price like the CMS", () => {
+    expect(spaceMonthlyPrice(space({ pricePerMonth: 40000, price: 1 }))).toBe(40000);
+    expect(spaceMonthlyPrice(space({ seatPrice: 30000, price: 1 }))).toBe(30000);
+    expect(spaceMonthlyPrice(space({ price: 25000 }))).toBe(25000);
   });
 
   it("floor labels", () => {

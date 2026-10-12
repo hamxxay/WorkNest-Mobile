@@ -9,14 +9,17 @@ import CustomerDetailScreen from "../../screens/App/Staff/Customers/CustomerDeta
 import CustomerFormScreen from "../../screens/App/Staff/Customers/CustomerFormScreen";
 import KycListScreen from "../../screens/App/Staff/Kyc/KycListScreen";
 import KycCustomerScreen from "../../screens/App/Staff/Kyc/KycCustomerScreen";
+import QuotationListScreen from "../../screens/App/Staff/Quotations/QuotationListScreen";
+import QuotationDetailScreen from "../../screens/App/Staff/Quotations/QuotationDetailScreen";
+import QuotationFormScreen from "../../screens/App/Staff/Quotations/QuotationFormScreen";
 
 // Route name -> screen for the staff navigators. Every staff screen draws its own AppHeader (back button,
 // title, actions), so the navigators render no header of their own.
 
 export const STAFF_SCREENS: Record<StaffRouteName, ComponentType<any>> = {
-  QuotationList: makeStaffPlaceholder("Quotations"),
-  QuotationDetail: makeStaffPlaceholder("Quotation"),
-  QuotationForm: makeStaffPlaceholder("New quotation"),
+  QuotationList: QuotationListScreen,
+  QuotationDetail: QuotationDetailScreen,
+  QuotationForm: QuotationFormScreen,
   CustomerDetail: CustomerDetailScreen,
   CustomerForm: CustomerFormScreen,
   KycList: KycListScreen,
