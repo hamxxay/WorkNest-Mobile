@@ -1,47 +1,38 @@
-import { useEffect, useCallback } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback } from 'react';
+import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
 import { Screen } from '../../../components/Screen';
 import { useThemeColors, shadows, radii, spacing } from '../../../theme';
 import { useAppDispatch, useAppSelector } from '../../../store/hooks';
 import {
-  markRead,
-  markAllRead,
-  clearAll,
-  type AppNotification,
+  fetchAnnouncements,
+  markAllAnnouncementsRead,
+  markAnnouncementAsRead,
+  selectUnreadCount,
 } from '../../../store/slices/notificationSlice';
-import { persistNotifications } from '../../../store/slices/notificationSlice';
 
+// The signed-in user's announcements from the API (GET /mobile/announcements); read state is saved on the API.
 export default function NotificationsScreen() {
   const colors = useThemeColors();
   const navigation = useNavigation();
   const dispatch = useAppDispatch();
   const notifications = useAppSelector(s => s.notifications.items);
+  const loading = useAppSelector(s => s.notifications.loading);
+  const error = useAppSelector(s => s.notifications.error);
+  const unreadCount = useAppSelector(selectUnreadCount);
 
-  const save = useCallback(
-    (items: AppNotification[]) => {
-      dispatch(persistNotifications(items) as any);
-    },
-    [dispatch],
-  );
+  const refresh = useCallback(() => {
+    dispatch(fetchAnnouncements());
+  }, [dispatch]);
 
   const handleMarkAllRead = () => {
-    dispatch(markAllRead());
-    save(notifications.map(n => ({ ...n, read: true })));
+    dispatch(markAllAnnouncementsRead());
   };
 
-  const handleClear = () => {
-    dispatch(clearAll());
-    save([]);
+  const handleRead = (id: string, isRead: boolean) => {
+    if (!isRead) dispatch(markAnnouncementAsRead(id));
   };
-
-  const handleRead = (id: string) => {
-    dispatch(markRead(id));
-    save(notifications.map(n => (n.id === id ? { ...n, read: true } : n)));
-  };
-
-  const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
     <Screen>
@@ -72,13 +63,7 @@ export default function NotificationsScreen() {
               </Text>
             </Pressable>
           )}
-          {notifications.length > 0 && (
-            <Pressable onPress={handleClear} hitSlop={10}>
-              <Text style={[styles.actionText, { color: colors.danger }]}>
-                Clear
-              </Text>
-            </Pressable>
-          )}
+
         </View>
       </View>
 
@@ -89,6 +74,7 @@ export default function NotificationsScreen() {
           notifications.length === 0 ? styles.emptyContainer : styles.list
         }
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} colors={[colors.primary]} />}
         ListEmptyComponent={
           <View style={styles.empty}>
             <Ionicons
@@ -97,35 +83,35 @@ export default function NotificationsScreen() {
               color={colors.mutedForeground}
             />
             <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
-              No notifications yet
+              {error ? 'Notifications not loaded' : 'No notifications yet'}
             </Text>
             <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-              You'll see booking updates and alerts here.
+              {error ?? "You'll see announcements and alerts from WorkNest here."}
             </Text>
           </View>
         }
         renderItem={({ item }) => (
           <Pressable
-            onPress={() => handleRead(item.id)}
+            onPress={() => handleRead(item.id, item.isRead)}
             style={[
               {
-                backgroundColor: item.read ? colors.card : colors.primaryMuted,
-                borderColor: item.read ? colors.border : colors.primary + '40',
+                backgroundColor: item.isRead ? colors.card : colors.primaryMuted,
+                borderColor: item.isRead ? colors.border : colors.primary + '40',
               },
               styles.card,
-               item.read && shadows.lg,
+               item.isRead && shadows.lg,
             ]}
           >
             <View
               style={[
                 styles.iconWell,
-                { backgroundColor: item.read ? colors.muted : colors.primary },
+                { backgroundColor: item.isRead ? colors.muted : colors.primary },
               ]}
             >
               <Ionicons
-                name={item.read ? 'notifications-outline' : 'notifications'}
+                name={item.isRead ? 'notifications-outline' : 'notifications'}
                 size={18}
-                color={item.read ? colors.mutedForeground : '#fff'}
+                color={item.isRead ? colors.mutedForeground : '#fff'}
               />
             </View>
             <View style={styles.cardBody}>
@@ -136,7 +122,7 @@ export default function NotificationsScreen() {
                 >
                   {item.title}
                 </Text>
-                {!item.read && (
+                {!item.isRead && (
                   <View
                     style={[
                       styles.unreadDot,
@@ -154,7 +140,7 @@ export default function NotificationsScreen() {
               <Text
                 style={[styles.cardTime, { color: colors.mutedForeground }]}
               >
-                {formatTime(item.receivedAt)}
+                {formatTime(item.sentAt ?? item.createdAt)}
               </Text>
             </View>
           </Pressable>
@@ -164,8 +150,10 @@ export default function NotificationsScreen() {
   );
 }
 
-function formatTime(iso: string): string {
+function formatTime(iso: string | null): string {
+  if (!iso) return '';
   const date = new Date(iso);
+  if (isNaN(date.getTime())) return '';
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffMins = Math.floor(diffMs / 60000);

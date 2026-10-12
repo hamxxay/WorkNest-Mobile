@@ -20,7 +20,12 @@ import { Screen } from "../../../components/Screen";
 import { radii, useThemeColors, useThemedStyles } from "../../../theme";
 import type { AppStackParamList } from "../../../navigation/types";
 import { createContact } from "../../../services/contactService";
-import { ApiError } from "../../../services/apiClient";
+import { errorMessage } from "../../../services/apiClient";
+import {
+  buildTourWhatsAppText,
+  SALES_WHATSAPP_NUMBER,
+  submitTourRequest,
+} from "../../../services/tourService";
 import {
   INPUT_LIMITS,
   sanitizeEmailInput,
@@ -32,7 +37,7 @@ import {
 import { formatPhoneInput } from "../../../utils/phone";
 import { useAuth } from "../../../context/AuthContext";
 
-const WHATSAPP_NUMBER = "923160577702";
+const WHATSAPP_NUMBER = SALES_WHATSAPP_NUMBER;
 
 export default function ContactUsScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
@@ -58,7 +63,8 @@ export default function ContactUsScreen() {
     }
   }, [user, isPrepopulated]);
 
-  const introTitle = route.params?.source === "tour" ? "Book a Tour" : "Contact Us";
+  const isTour = route.params?.source === "tour";
+  const introTitle = isTour ? "Book a Tour" : "Contact Us";
   const introText = useMemo(
     () =>
       route.params?.source === "tour"
@@ -68,34 +74,37 @@ export default function ContactUsScreen() {
   );
 
   const whatsappMessage = useMemo(() => {
+    if (isTour) {
+      return buildTourWhatsAppText({ fullName: fullName.trim(), email: email.trim(), phone: phone.trim(), notes: message });
+    }
     const name = fullName.trim() || "Hi";
-    return `Hello WorkNest, I would like to book a tour. My name is ${name}.`;
-  }, [fullName]);
+    return `Hello WorkNest, my name is ${name}. ${message.trim()}`.trim();
+  }, [email, fullName, isTour, message, phone]);
 
   const handleSubmit = async () => {
     try {
       setSubmitting(true);
       setError(null);
       setSuccess(null);
-      await createContact({
-        fullName: sanitizeNameInput(fullName, "Full name"),
-        email: sanitizeEmailInput(email),
-        phone: sanitizePhoneInput(phone),
-        message: sanitizeMessageInput(message),
-      });
-      setSuccess("Your message has been sent. We will contact you soon.");
+      if (isTour) {
+        // Same as the website's Book a Tour form: POST /book-tour.
+        const sent = await submitTourRequest({ fullName, email, phone, notes: message });
+        setSuccess(`${sent} Our team will contact you to confirm the visit.`);
+      } else {
+        await createContact({
+          fullName: sanitizeNameInput(fullName, "Full name"),
+          email: sanitizeEmailInput(email),
+          phone: sanitizePhoneInput(phone),
+          message: sanitizeMessageInput(message),
+        });
+        setSuccess("Your message has been sent. We will contact you soon.");
+      }
       setFullName("");
       setEmail("");
       setPhone("");
       setMessage("");
     } catch (err) {
-      const nextMessage =
-        err instanceof ApiError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : "Unable to send your message right now.";
-      setError(nextMessage);
+      setError(errorMessage(err, "Unable to send your message right now."));
     } finally {
       setSubmitting(false);
     }
@@ -139,9 +148,11 @@ export default function ContactUsScreen() {
           </View>
 
           <View style={styles.formCard}>
-            <Text style={styles.sectionTitle}>Tour Request Form</Text>
+            <Text style={styles.sectionTitle}>{isTour ? "Tour Request Form" : "Send us a message"}</Text>
             <Text style={styles.sectionSubtitle}>
-              Leave your details and our team will reach out with available slots.
+              {isTour
+                ? "Leave your details and our team will reach out with available slots."
+                : "Leave your details and message and our team will get back to you."}
             </Text>
 
             <Text style={styles.label}>Full name</Text>

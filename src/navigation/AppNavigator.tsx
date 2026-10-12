@@ -13,7 +13,7 @@ import {
   type DrawerContentComponentProps,
 } from "@react-navigation/drawer";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { Animated, InteractionManager, Pressable, useWindowDimensions } from "react-native";
+import { Alert, Animated, InteractionManager, Pressable, useWindowDimensions } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { StyleSheet, View, Text, Image, StatusBar } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -23,8 +23,9 @@ import BookingScreen from "../screens/App/General/BookingScreen";
 import MyPaymentsScreen from "../screens/App/General/MyPaymentsScreen";
 import SpaceDetailScreen from "../screens/App/General/SpaceDetailScreen";
 import BookingInfoScreen from "../screens/App/General/BookingInfoScreen";
-import PaymentScreen from "../screens/App/General/PaymentScreen";
+import BookingConfirmScreen from "../screens/App/General/BookingConfirmScreen";
 import ContactUsScreen from "../screens/App/General/ContactUsScreen";
+import GalleryScreen from "../screens/App/General/GalleryScreen";
 import SignupScreen from "../screens/Auth/SignupScreen";
 import SplashScreen from "../screens/Auth/SplashScreen";
 import LoginScreen from "../screens/Auth/LoginScreen";
@@ -32,31 +33,21 @@ import OnboardingScreen from "../screens/Auth/OnboardingScreen";
 import ProfileScreen from "../screens/App/General/ProfileScreen";
 import AccessRequestScreen from "../screens/App/General/AccessRequestScreen";
 import UnlockDoorScreen from "../screens/App/General/UnlockDoorScreen";
-import AttendeesScreen from "../screens/App/General/AttendeesScreen";
 import MyBookingsScreen from "../screens/App/General/MyBookingsScreen";
 import BookingDetailScreen from "../screens/App/General/BookingDetailScreen";
 import PrivacyPolicyScreen from "../screens/App/General/PrivacyPolicyScreen";
 import AboutUsScreen from "../screens/App/General/AboutUsScreen";
 import UserManualScreen from "../screens/App/General/UserManualScreen";
 import ChallanScreen from "../screens/App/General/ChallanScreen";
-import AdminPanelScreen from "../screens/App/General/AdminPanelScreen";
 import NotificationsScreen from "../screens/App/General/NotificationsScreen";
 import QuotationScreen from "../screens/App/General/QuotationScreen";
 import QuotationListScreen from "../screens/App/General/QuotationListScreen";
-import CustomerInfoScreen from "../screens/App/General/CustomerInfoScreen";
-import CustomerCreateScreen from "../screens/App/Sales/CustomerCreateScreen";
-import CustomerListScreen from "../screens/App/Sales/CustomerListScreen";
-import KycDocumentsScreen from "../screens/App/Sales/KycDocumentsScreen";
-import ModifyOrderScreen from "../screens/App/General/ModifyOrderScreen";
-import QuotationPaymentScreen from "../screens/App/General/QuotationPaymentScreen";
-import ShareQuotationScreen from "../screens/App/General/ShareQuotationScreen";
 import AgreementListScreen from "../screens/App/General/AgreementListScreen";
 import ESignAgreementScreen from "../screens/App/General/ESignAgreementScreen";
 
 import { logoutUser } from "../services/authService";
-import { setupPushNotifications, registerFCMToken } from "../services/notificationService";
-import { loadNotifications } from "../store/slices/notificationSlice";
-import { store } from "../store/store";
+import { onSessionExpired } from "../services/apiClient";
+import { usePushNotifications } from "../hooks/usePushNotifications";
 import { useAuth } from "../context/AuthContext";
 import { useThemeColors, useThemedStyles } from "../theme";
 import { ConfirmModal } from "../components/ConfirmModal";
@@ -193,7 +184,7 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
           focused={state.index === i}
           activeIcon={item.activeIcon}
           inactiveIcon={item.inactiveIcon}
-          label={item.name === "MyPayments" ? "Invoices" : item.name}
+          label={item.name === "MyPayments" ? "Payments" : item.name}
           onPress={() => {
             const isProtected = PROTECTED_TABS.includes(item.name);
             if (isProtected && !user) {
@@ -273,6 +264,9 @@ function MainTabs() {
 // screen: string → push that screen onto AppStack
 const MENU_ITEMS = [
   { label: "Home", icon: "grid-outline", screen: null },
+  { label: "Gallery", icon: "images-outline", screen: "Gallery" },
+  { label: "Book a Tour", icon: "calendar-number-outline", screen: "BookTour" },
+  { label: "Contact Us", icon: "chatbubble-ellipses-outline", screen: "ContactUs" },
 ] as const;
 
 function AppDrawerContent(props: DrawerContentComponentProps) {
@@ -456,31 +450,23 @@ function InnerStackNavigator() {
       <InnerStack.Screen name="Profile"        component={ProfileScreen} />
       <InnerStack.Screen name="AccessRequest"  component={AccessRequestScreen} />
       <InnerStack.Screen name="UnlockDoor"     component={UnlockDoorScreen} />
-      <InnerStack.Screen name="Attendees"      component={AttendeesScreen} />
       <InnerStack.Screen name="MyBookings"     component={MyBookingsScreen} />
       <InnerStack.Screen name="BookingDetail"  component={BookingDetailScreen} />
-      <InnerStack.Screen name="BookingHistory" component={MyBookingsScreen} />
       <InnerStack.Screen name="PrivacyPolicy"  component={PrivacyPolicyScreen} />
       <InnerStack.Screen name="AboutUs"        component={AboutUsScreen} />
       <InnerStack.Screen name="UserManual"     component={UserManualScreen} />
-      <InnerStack.Screen name="AdminPanel"     component={AdminPanelScreen} />
       <InnerStack.Screen name="ContactUs"      component={ContactUsScreen} />
+      <InnerStack.Screen name="BookTour"       component={ContactUsScreen} initialParams={{ source: "tour" }} />
+      <InnerStack.Screen name="Gallery"        component={GalleryScreen} />
       <InnerStack.Screen name="SpaceDetail"    component={SpaceDetailScreen} />
       <InnerStack.Screen name="BookingInfo"    component={BookingInfoScreen} />
-      <InnerStack.Screen name="Payment"        component={PaymentScreen} />
+      <InnerStack.Screen name="BookingConfirm" component={BookingConfirmScreen} />
       <InnerStack.Screen name="Login"          component={LoginScreen} />
       <InnerStack.Screen name="Signup"         component={SignupScreen} />
       <InnerStack.Screen name="Challan"        component={ChallanScreen} />
       <InnerStack.Screen name="Notifications"   component={NotificationsScreen} />
       <InnerStack.Screen name="Quotation"       component={QuotationScreen} />
       <InnerStack.Screen name="QuotationList"   component={QuotationListScreen} />
-      <InnerStack.Screen name="CustomerInfo"    component={CustomerInfoScreen} />
-      <InnerStack.Screen name="CustomerCreate"  component={CustomerCreateScreen} />
-      <InnerStack.Screen name="CustomerList"    component={CustomerListScreen} />
-      <InnerStack.Screen name="KycDocuments"    component={KycDocumentsScreen} />
-      <InnerStack.Screen name="ModifyOrder"     component={ModifyOrderScreen} />
-      <InnerStack.Screen name="QuotationPayment" component={QuotationPaymentScreen} />
-      <InnerStack.Screen name="ShareQuotation"   component={ShareQuotationScreen} />
       <InnerStack.Screen name="AgreementList"    component={AgreementListScreen} />
       <InnerStack.Screen name="ESignAgreement"   component={ESignAgreementScreen} />
     </InnerStack.Navigator>
@@ -553,15 +539,21 @@ function AppStackNavigator() {
 // ─── Root navigator ────────────────────────────────────────────────────────────
 export function AppNavigator() {
   const colors = useThemeColors();
+  const { user } = useAuth();
   useEffect(() => { StatusBar.setBackgroundColor(colors.background); }, [colors.background]);
 
-  useEffect(() => {
-    store.dispatch(loadNotifications() as any);
-    let cleanup = () => {};
-    setupPushNotifications().then(unsub => { cleanup = unsub; });
-    registerFCMToken();
-    return () => cleanup();
-  }, []);
+  // Push notifications and announcements: signed-in users only (guests are never asked for permission).
+  usePushNotifications(typeof user?.email === "string" ? user.email : null);
+
+  // The API refused the session (see apiClient / authService): open Login with a short explanation.
+  useEffect(
+    () =>
+      onSessionExpired(() => {
+        rootNavRef.current?.reset({ index: 0, routes: [{ name: "AuthStack", params: { screen: "Login" } }] });
+        Alert.alert("Session expired", "Please sign in again to continue.");
+      }),
+    [],
+  );
 
   return (
     <NavigationContainer

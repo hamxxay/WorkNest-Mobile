@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useState } from "react";
+import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Ionicons from "react-native-vector-icons/Ionicons";
@@ -7,17 +7,15 @@ import { Header } from "../../../components/Header";
 import { Screen } from "../../../components/Screen";
 import { radii, shadows, useThemeColors, useThemedStyles } from "../../../theme";
 import type { AppStackParamList } from "../../../navigation/types";
-import { cancelBooking, getMyBookings } from "../../../services/workspaceService";
+import { errorMessage } from "../../../services/apiClient";
+import {
+  canCancelBooking,
+  cancelMyBooking,
+  getMyBookings,
+  type MyBooking,
+} from "../../../services/bookingService";
 
-type BookingItem = {
-  id: number | string;
-  idGuid?: string;
-  spaceName?: string;
-  startDateTime?: string;
-  endDateTime?: string;
-  totalAmount?: number | null;
-  bookingStatus?: string | null;
-};
+type BookingItem = MyBooking;
 
 function getStatusConfig(status?: string | null) {
   const s = (status ?? "").toLowerCase();
@@ -33,13 +31,13 @@ function getStatusConfig(status?: string | null) {
 }
 
 function isUpcoming(item: BookingItem) {
-  if (!item.endDateTime) return false;
-  return new Date(item.endDateTime) > new Date();
+  // A booking without an end date is still open (e.g. pending), so it is listed as upcoming.
+  if (!item.endOn) return true;
+  return new Date(item.endOn) > new Date();
 }
 
 function isHistory(item: BookingItem) {
-  if (!item.endDateTime) return false;
-  return new Date(item.endDateTime) <= new Date();
+  return !isUpcoming(item);
 }
 
 export default function MyBookingsScreen() {
@@ -48,37 +46,43 @@ export default function MyBookingsScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const [bookings, setBookings] = useState<BookingItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState("");
+  const [cancellingId, setCancellingId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<"upcoming" | "history">("upcoming");
 
-  const loadBookings = async () => {
-    setLoading(true);
+  const loadBookings = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
+    setError("");
     try {
-      const items = await getMyBookings();
-      setBookings(items as BookingItem[]);
-    } catch {
-      setBookings([]);
+      setBookings(await getMyBookings());
+    } catch (err) {
+      setError(errorMessage(err, "Your bookings could not be loaded. Please try again."));
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  };
+  }, []);
 
-  useEffect(() => { loadBookings(); }, []);
+  useEffect(() => { loadBookings(); }, [loadBookings]);
 
+  // Website rule: only a booking that is still Pending (challan not paid) can be cancelled by the customer.
   const handleCancel = (booking: BookingItem) => {
-    const cancelId = booking.idGuid || booking.id;
-    Alert.alert("Cancel booking", "Are you sure you want to cancel this booking?", [
+    if (!canCancelBooking(booking)) return;
+    Alert.alert("Cancel booking", "Are you sure you want to cancel this booking? Its challan will no longer be valid.", [
       { text: "No", style: "cancel" },
       {
-        text: "Yes",
+        text: "Yes, cancel",
         style: "destructive",
         onPress: async () => {
-          setCancellingId(String(cancelId));
+          setCancellingId(booking.id);
           try {
-            await cancelBooking(cancelId);
+            const message = await cancelMyBooking(booking);
             await loadBookings();
-          } catch {
-            Alert.alert("Error", "Failed to cancel booking.");
+            Alert.alert("Booking cancelled", message);
+          } catch (err) {
+            Alert.alert("Could not cancel", errorMessage(err, "The booking could not be cancelled. Please try again."));
           } finally {
             setCancellingId(null);
           }
@@ -93,7 +97,11 @@ export default function MyBookingsScreen() {
 
   return (
     <Screen>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadBookings(true)} colors={[colors.primary]} />}
+      >
         <Header />
 
         {/* Stats strip */}
@@ -133,6 +141,15 @@ export default function MyBookingsScreen() {
             <Ionicons name="hourglass-outline" size={36} color={colors.mutedForeground} />
             <Text style={styles.emptyText}>Loading bookings…</Text>
           </View>
+        ) : error ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="alert-circle-outline" size={40} color={colors.danger} />
+            <Text style={styles.emptyTitle}>Bookings not loaded</Text>
+            <Text style={styles.emptyText}>{error}</Text>
+            <Pressable onPress={() => loadBookings()} accessibilityRole="button">
+              <Text style={[styles.emptyTitle, { color: colors.primary }]}>Try again</Text>
+            </Pressable>
+          </View>
         ) : displayed.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="calendar-outline" size={44} color={colors.border} />
@@ -143,16 +160,14 @@ export default function MyBookingsScreen() {
           </View>
         ) : (
           displayed.map((booking) => {
-            const status = getStatusConfig(booking.bookingStatus);
-            const isCancelling = cancellingId === String(booking.idGuid || booking.id);
-            const canCancel = !["cancel", "complet"].some((s) =>
-              (booking.bookingStatus ?? "").toLowerCase().includes(s)
-            );
+            const status = getStatusConfig(booking.status);
+            const isCancelling = cancellingId === booking.id;
+            const canCancel = canCancelBooking(booking);
             return (
               <Pressable
                 key={String(booking.id)}
                 style={styles.card}
-                onPress={() => navigation.navigate("BookingDetail", { bookingId: booking.idGuid ?? booking.id })}
+                onPress={() => navigation.navigate("BookingDetail", { bookingId: booking.publicId ?? booking.id })}
               >
                 {/* Header row */}
                 <View style={styles.cardHeader}>
@@ -161,7 +176,7 @@ export default function MyBookingsScreen() {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.cardTitle} numberOfLines={1}>
-                      {booking.spaceName ?? `Booking #${booking.id}`}
+                      {booking.spaceName}
                     </Text>
                     <Text style={styles.cardSubtitle}>Booking #{booking.id}</Text>
                   </View>
@@ -175,14 +190,14 @@ export default function MyBookingsScreen() {
                 <View style={styles.dateRow}>
                   <View style={styles.dateBlock}>
                     <Text style={styles.dateLabel}>Start Date</Text>
-                    <Text style={styles.dateValue}>{formatDate(booking.startDateTime)}</Text>
+                    <Text style={styles.dateValue}>{formatDate(booking.startOn)}</Text>
                   </View>
                   <View style={styles.dateDivider}>
                     <Ionicons name="arrow-forward" size={14} color={colors.mutedForeground} />
                   </View>
                   <View style={styles.dateBlock}>
                     <Text style={styles.dateLabel}>End Date</Text>
-                    <Text style={styles.dateValue}>{formatDate(booking.endDateTime)}</Text>
+                    <Text style={styles.dateValue}>{formatDate(booking.endOn)}</Text>
                   </View>
                 </View>
 
@@ -190,9 +205,21 @@ export default function MyBookingsScreen() {
                 <View style={styles.cardFooter}>
                   <View style={styles.amountRow}>
                     <Ionicons name="pricetag-outline" size={14} color={colors.primary} />
-                    <Text style={styles.amount}>PKR {Number(booking.totalAmount ?? 0).toFixed(2)}</Text>
+                    <Text style={styles.amount}>
+                      {booking.totalAmount !== null ? `PKR ${booking.totalAmount.toLocaleString("en-PK")}` : "Amount on challan"}
+                    </Text>
                   </View>
-                  {canCancel && activeTab === "upcoming" && (
+                  {booking.challanNumber ? (
+                    <Pressable
+                      style={styles.cancelBtn}
+                      onPress={() => navigation.navigate("Challan", { bookingId: booking.id, challanNumber: booking.challanNumber ?? undefined })}
+                      accessibilityRole="button"
+                    >
+                      <Ionicons name="document-text-outline" size={14} color={colors.primary} />
+                      <Text style={[styles.cancelText, { color: colors.primary }]}>Challan</Text>
+                    </Pressable>
+                  ) : null}
+                  {canCancel && (
                     <Pressable
                       style={[styles.cancelBtn, isCancelling && { opacity: 0.6 }]}
                       onPress={() => handleCancel(booking)}
@@ -212,9 +239,10 @@ export default function MyBookingsScreen() {
   );
 }
 
-function formatDate(value?: string) {
-  if (!value) return "N/A";
+function formatDate(value?: string | null) {
+  if (!value) return "Not set";
   const d = new Date(value);
+  if (isNaN(d.getTime())) return value;
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
     + " · " + d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 }

@@ -1,7 +1,14 @@
+import { API_ENDPOINTS } from "../config/api";
+import { ApiError, apiDownload, apiRequest, apiUpload } from "./apiClient";
+import { sharePdf } from "./pdfService";
 
-import { API_BASE_URL, API_ENDPOINTS } from "../config/api";
-import { ApiError, apiRequest, friendlyApiMessage } from "./apiClient";
-import { getToken, getUser } from "../utils/authStorage";
+// Customer agreements, like the website's My Agreements + e-sign panel:
+//   GET  /Agreement/my                     my agreements
+//   GET  /Agreement/my/{id}/pdf            the agreement (with the sign-in token)
+//   GET  /Agreement/my/{id}/signed-pdf     the signed copy
+//   POST /Agreement/my/{id}/esign          sign electronically: drawn or typed signature as a PNG
+//   POST /Agreement/my/{id}/upload-signed  upload a signed PDF + the date it was signed (staff verify it)
+// The staff functions further down (list, send, mark signed) are used by the sales / admin screens.
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -102,7 +109,7 @@ export function normalizeAgreement(raw: any): AgreementRecord {
     spaceName: raw?.spaceName ?? raw?.SpaceName ?? "",
     locationName: raw?.locationName ?? raw?.LocationName ?? "",
     status: raw?.status ?? raw?.Status ?? "Pending",
-    sentAt: raw?.sentAt ?? raw?.SentAt ?? "",
+    sentAt: raw?.sentAt ?? raw?.SentAt ?? raw?.sentDate ?? raw?.SentDate ?? "",
     signedAt: raw?.signedAt ?? raw?.SignedAt ?? "",
     contractStartDate: raw?.contractStartDate ?? raw?.ContractStartDate ?? "",
     contractEndDate: raw?.contractEndDate ?? raw?.ContractEndDate ?? "",
@@ -172,49 +179,6 @@ export async function sendAgreement(
 }
 
 /**
- * POST /api/Agreement/my/{id}/upload-signed  (multipart/form-data)
- * Customer uploads their signed PDF. Status becomes SignedUploaded.
- * Booking is created when admin confirms.
- */
-export async function uploadSignedAgreement(
-  id: number | string,
-  fileUri: string,
-  fileName = "signed_agreement.pdf",
-  mimeType = "application/pdf",
-): Promise<void> {
-  const token = await getToken();
-  const user = await getUser();
-
-  const formData = new FormData();
-  formData.append("file", { uri: fileUri, name: fileName, type: mimeType } as any);
-
-  const headers: Record<string, string> = {
-    Accept: "application/json",
-    "Content-Type": "multipart/form-data",
-  };
-  if (token) headers.Authorization = `Bearer ${token}`;
-  if (user?.email) {
-    headers["X-User-Email"] = user.email;
-    headers["x-user-email"] = user.email;
-  }
-
-  const url = `${API_BASE_URL}${API_ENDPOINTS.agreement.myUploadSigned(id)}`;
-  let res: Response;
-  try {
-    res = await fetch(url, { method: "POST", headers, body: formData, credentials: "omit" });
-  } catch {
-    throw new Error("Can't reach the server. Check your internet connection and try again.");
-  }
-  if (!res.ok) {
-    // Never show the raw response (it can be an HTML error page): use the API's message or a plain one.
-    const text = await res.text().catch(() => "");
-    let payload: unknown = text;
-    try { payload = JSON.parse(text); } catch {}
-    throw new Error(friendlyApiMessage(res.status, payload));
-  }
-}
-
-/**
  * POST /api/Agreement/{id}/mark-signed  (admin)
  */
 export async function markAgreementSigned(
@@ -228,27 +192,49 @@ export async function markAgreementSigned(
   });
 }
 
-/** URL helper — agreement PDF for customer view */
-export function getAgreementPdfUrl(id: number | string): string {
-  return `${API_BASE_URL}${API_ENDPOINTS.agreement.myPdf(id)}`;
-}
-
-/** URL helper — customer's uploaded signed PDF */
-export function getSignedPdfUrl(id: number | string): string {
-  return `${API_BASE_URL}${API_ENDPOINTS.agreement.mySignedPdf(id)}`;
-}
-
-
 // ─── E-signature ──────────────────────────────────────────────────────────────
 
 /** Statuses the API accepts for e-signing (see AgreementController.ESignMyAgreement). */
 const SIGNABLE_STATUSES = ["agreementsent", "sent", "emailfailed"];
 
-/** True when the customer can still sign this agreement in the app. */
-export function isAgreementSignable(agreement: AgreementRecord): boolean {
-  if (agreement.bookingId !== undefined && agreement.bookingId !== null && agreement.bookingId !== "") return false;
-  const status = String(agreement.status ?? "").toLowerCase().replace(/\s/g, "");
-  return SIGNABLE_STATUSES.includes(status);
+function hasBooking(agreement: AgreementRecord): boolean {
+  return agreement.bookingId !== undefined && agreement.bookingId !== null && agreement.bookingId !== "";
+}
+
+function statusKey(agreement: AgreementRecord): string {
+  return String(agreement.status ?? "").toLowerCase().replace(/\s/g, "");
+}
+
+/**
+ * A newer agreement was sent for the same quotation: only the latest one can be signed (the API refuses older
+ * ones). Same rule as the website.
+ */
+export function isAgreementSuperseded(agreement: AgreementRecord, all: AgreementRecord[]): boolean {
+  const quotationId = Number(agreement.quotationId);
+  const id = Number(agreement.id);
+  if (!Number.isFinite(quotationId) || !Number.isFinite(id)) return false;
+  return all.some((other) => Number(other.quotationId) === quotationId && Number(other.id) > id);
+}
+
+/**
+ * True when the customer can still sign this agreement in the app (pass the whole list to also rule out
+ * superseded agreements).
+ */
+export function isAgreementSignable(agreement: AgreementRecord, all?: AgreementRecord[]): boolean {
+  if (hasBooking(agreement)) return false;
+  if (all && isAgreementSuperseded(agreement, all)) return false;
+  return SIGNABLE_STATUSES.includes(statusKey(agreement));
+}
+
+/** Where an agreement stands for the customer (website My Agreements). */
+export type AgreementStage = "sign" | "review" | "booked" | "other";
+
+export function agreementStage(agreement: AgreementRecord): AgreementStage {
+  if (hasBooking(agreement)) return "booked";
+  const status = statusKey(agreement);
+  if (status === "signeduploaded" || agreement.hasSignedCopy === true || agreement.HasSignedCopy === true) return "review";
+  if (SIGNABLE_STATUSES.includes(status)) return "sign";
+  return "other";
 }
 
 /**
@@ -290,42 +276,95 @@ export async function eSignMyAgreement(
 
 /**
  * GET /api/Agreement/my/{id}/pdf
- * Downloads the agreement PDF (authenticated) and returns it as a
+ * Downloads the agreement PDF (with the sign-in token) and returns it as a
  * "data:application/pdf;base64,..." URL that react-native-share can open.
  */
 export async function downloadMyAgreementPdf(id: number | string): Promise<string> {
-  const token = await getToken();
-  const user = await getUser();
-  const headers: Record<string, string> = { Accept: "application/pdf, application/json" };
-  if (token) headers.Authorization = `Bearer ${token}`;
-  if (user?.email) {
-    headers["X-User-Email"] = user.email;
-    headers["x-user-email"] = user.email;
-  }
-
-  let res: Response;
-  try {
-    res = await fetch(getAgreementPdfUrl(id), { method: "GET", headers, credentials: "omit" });
-  } catch {
-    throw new Error("Could not download the agreement. Check your connection and try again.");
-  }
-  if (!res.ok) {
-    let body: unknown = null;
-    try { body = await res.json(); } catch {}
-    throw new Error(
-      res.status === 429 ? "Too many downloads. Please wait a minute and try again." : friendlyApiMessage(res.status, body),
-    );
-  }
-
-  const blob = await res.blob();
-  const dataUrl = await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(String(reader.result ?? ""));
-    reader.onerror = () => reject(new Error("Could not read the agreement PDF."));
-    reader.readAsDataURL(blob);
-  });
-  const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
-  if (!base64) throw new Error("The agreement PDF is empty.");
+  const file = await apiDownload(API_ENDPOINTS.agreement.myPdf(id));
   // Normalise the MIME type (some servers send application/octet-stream).
-  return `data:application/pdf;base64,${base64}`;
+  return `data:application/pdf;base64,${file.base64}`;
+}
+
+/** The agreement PDF in the share / viewer sheet (read it before signing, print it to sign by hand). */
+export async function openMyAgreementPdf(id: number | string): Promise<void> {
+  const file = await apiDownload(API_ENDPOINTS.agreement.myPdf(id));
+  await sharePdf(file, `WorkNest-Agreement-${id}`, `WorkNest Agreement #${id}`);
+}
+
+/** GET /api/Agreement/my/{id}/signed-pdf — the signed copy (uploaded or e-signed), in the share sheet. */
+export async function openMySignedAgreementPdf(id: number | string): Promise<void> {
+  const file = await apiDownload(API_ENDPOINTS.agreement.mySignedPdf(id));
+  await sharePdf(file, `WorkNest-Agreement-${id}-signed`, `Signed agreement #${id}`);
+}
+
+// ─── Signed copy upload ───────────────────────────────────────────────────────
+
+/** Largest signed PDF the API accepts (AgreementController: 10 MB). */
+export const MAX_SIGNED_PDF_BYTES = 10 * 1024 * 1024;
+
+export type SignedPdfFile = {
+  /** content:// or file:// URI from a document picker. */
+  uri: string;
+  name?: string | null;
+  type?: string | null;
+  size?: number | null;
+};
+
+function localIsoDate(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+/** Today as yyyy-MM-dd (the default "date I signed"). */
+export function todayIsoDate(): string {
+  return localIsoDate(new Date());
+}
+
+/**
+ * Checks a signed copy before upload, with the API's rules: a PDF, at most 10 MB, a signed date that is not in
+ * the future and not before the agreement was sent. Returns the message to show, or null when it is fine.
+ */
+export function signedUploadError(file: SignedPdfFile | null, signedDate: string, sentAt?: string | null): string | null {
+  if (!file?.uri) return "Choose the signed agreement (PDF).";
+  const name = (file.name ?? "").toLowerCase();
+  const type = (file.type ?? "").toLowerCase();
+  if (!(type === "application/pdf" || name.endsWith(".pdf"))) return "Please choose a PDF file.";
+  if (file.size != null && file.size > MAX_SIGNED_PDF_BYTES) return "The file is larger than 10 MB.";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(signedDate)) return "Enter the date you signed the agreement.";
+  if (signedDate > todayIsoDate()) return "The signed date cannot be in the future.";
+  const sent = (sentAt ?? "").slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(sent) && signedDate < sent) {
+    return "The signed date cannot be before the agreement was sent.";
+  }
+  return null;
+}
+
+/**
+ * POST /api/Agreement/my/{id}/upload-signed (multipart: file + signedDate).
+ * The customer printed, signed and scanned the agreement; it is held as SignedUploaded until staff verify it
+ * and create the booking. Resolves with the API's message; throws a readable ApiError otherwise.
+ */
+export async function uploadSignedAgreement(
+  id: number | string,
+  file: SignedPdfFile,
+  signedDate: string,
+  sentAt?: string | null,
+): Promise<string> {
+  const problem = signedUploadError(file, signedDate, sentAt);
+  if (problem) throw new ApiError(problem, 400);
+
+  const form = new FormData();
+  form.append("file", {
+    uri: file.uri,
+    name: file.name || `signed-agreement-${id}.pdf`,
+    type: "application/pdf",
+  } as unknown as Blob);
+  form.append("signedDate", signedDate);
+
+  const payload = await apiUpload<{ message?: string }>(API_ENDPOINTS.agreement.myUploadSigned(id), form, {
+    unwrapData: false,
+  });
+  return (
+    (typeof payload?.message === "string" && payload.message.trim()) ||
+    "Your signed agreement was received. We will verify it and confirm your booking."
+  );
 }

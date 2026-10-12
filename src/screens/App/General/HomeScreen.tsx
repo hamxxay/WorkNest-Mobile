@@ -25,7 +25,6 @@ import type {
 import { useAuth } from '../../../context/AuthContext';
 import { useDoorAccess } from '../../../hooks/useDoorAccess';
 import { useUnlockRoomDoor } from '../../../hooks/useUnlockRoomDoor';
-import { getCustomerAttendants } from '../../../services/attendantService';
 import { getWorkspaces } from '../../../services/workspaceService';
 import {
   INPUT_LIMITS,
@@ -33,6 +32,7 @@ import {
 } from '../../../utils/inputSanitizer';
 import { shadows, useThemeColors } from '../../../theme';
 import { useAppSelector } from '../../../store/hooks';
+import { selectUnreadCount } from '../../../store/slices/notificationSlice';
 import { HOME_SPACING } from '../../Home/constants';
 import {
   EmptyState,
@@ -56,17 +56,13 @@ export default function HomeScreen() {
   const { user, isLoadingUser } = useAuth();
   const doorAccess = useDoorAccess();
   const { unlock: unlockRoomDoor, unlocking } = useUnlockRoomDoor(doorAccess);
-  const unreadCount = useAppSelector(
-    s => s.notifications.items.filter(n => !n.read).length,
-  );
+  const unreadCount = useAppSelector(selectUnreadCount);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<HomeFilter | null>(null);
   const [focused, setFocused] = useState(false);
   const [chatVisible, setChatVisible] = useState(true);
-  const [attendeeCount, setAttendeeCount] = useState(0);
-  const [attendeeLoading, setAttendeeLoading] = useState(false);
   const heroOpacity = useRef(new Animated.Value(0)).current;
   const lastOffset = useRef(0);
 
@@ -87,39 +83,6 @@ export default function HomeScreen() {
     }).start();
   }, [heroOpacity]);
 
-  useEffect(() => {
-    const customerId = (user as any)?.customerId ?? (user as any)?.customerCode;
-    if (isLoadingUser || !customerId) {
-      setAttendeeCount(0);
-      setAttendeeLoading(false);
-      return;
-    }
-
-    let active = true;
-    setAttendeeLoading(true);
-
-    getCustomerAttendants(String(customerId))
-      .then(result => {
-        if (!active) return;
-        setAttendeeCount(Array.isArray(result?.items) ? result.items.length : 0);
-      })
-      .catch(() => {
-        if (!active) return;
-        setAttendeeCount(0);
-      })
-      .finally(() => {
-        if (active) setAttendeeLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [isLoadingUser, user]);
-
-  const attendanceCapacity = Math.max(10, attendeeCount + 5);
-  const attendancePercent = attendeeCount === 0 ? 0 : Math.min(100, Math.round((attendeeCount / attendanceCapacity) * 100));
-  const seatsFree = Math.max(0, attendanceCapacity - attendeeCount);
-
   const filtered = useMemo(
     () =>
       workspaces.filter(workspace =>
@@ -127,33 +90,15 @@ export default function HomeScreen() {
       ),
     [filter, query, workspaces],
   );
+  // One real list: the spaces the API reports as open for booking (no invented "top rated" or
+  // "recently viewed" sections built from the same data).
   const sections = useMemo(
     () =>
       [
         {
-          title: 'Popular Near You',
-          subtitle: 'Workspaces people are booking now',
+          title: 'Available Workspaces',
+          subtitle: 'Spaces open for booking now',
           data: filtered,
-        },
-        {
-          title: 'Recommended',
-          subtitle: 'Chosen for the way you work',
-          data: filtered.filter((_, index) => index % 2 === 0),
-        },
-        {
-          title: 'Recently Viewed',
-          subtitle: 'Continue exploring spaces',
-          data: filtered.slice().reverse(),
-        },
-        {
-          title: 'Top Rated',
-          subtitle: 'Highly rated by our community',
-          data: filtered,
-        },
-        {
-          title: 'Newest Spaces',
-          subtitle: 'Fresh places to do your best work',
-          data: filtered.slice().reverse(),
         },
       ].filter(section => section.data.length > 0),
     [filtered],
@@ -277,57 +222,13 @@ export default function HomeScreen() {
         />
 
         <View style={styles.quickAccessWrap}>
-          <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>Live occupancy</Text>
-
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Open attendees"
-            onPress={() => navigation.navigate('Attendees')}
-          >
-            <View style={[styles.occupancyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <View style={styles.occupancyHeaderRow}>
-                <Text style={[styles.occupancyTitle, { color: colors.foreground }]}>Attendance</Text>
-                <Text style={[styles.occupancyValue, { color: colors.foreground }]}>
-                  {attendeeLoading ? '…' : attendeeCount}
-                </Text>
-              </View>
-              <View style={styles.occupancyMetaRow}>
-                <Text style={[styles.occupancyMeta, { color: colors.mutedForeground }]}>
-                  {attendeeLoading ? 'Refreshing data…' : 'Active people on this account'}
-                </Text>
-                <Text style={[styles.occupancyMeta, { color: colors.mutedForeground }]}>
-                  {attendeeLoading ? 'API' : `of ${attendanceCapacity} seats`}
-                </Text>
-              </View>
-              <View style={[styles.progressTrack, { backgroundColor: colors.border }]}>
-                <View
-                  style={[
-                    styles.progressFill,
-                    {
-                      width: `${attendancePercent}%`,
-                      backgroundColor: colors.primary,
-                    },
-                  ]}
-                />
-              </View>
-              <View style={styles.occupancyFooterRow}>
-                <Text style={[styles.occupancyFooter, { color: colors.foreground }]}>
-                  {attendeeLoading ? 'Loading attendees' : `${attendeeCount} present now`}
-                </Text>
-                <Text style={[styles.occupancyFooter, { color: colors.mutedForeground }]}>
-                  {attendeeLoading ? '…' : `${seatsFree} seats free`}
-                </Text>
-              </View>
-            </View>
-          </Pressable>
-
           <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>Quick access</Text>
 
           <View style={styles.quickGrid}>
             {[
               { label: 'Quotation', icon: 'document-text-outline', screen: 'QuotationList' },
               { label: 'Booking', icon: 'calendar-outline', screen: 'Booking' },
-              { label: 'Invoice', icon: 'receipt-outline', screen: 'MyPayments' },
+              { label: 'Payments', icon: 'receipt-outline', screen: 'MyPayments' },
               doorAccess?.canOpenDoor
                 ? { label: 'Unlock Door', icon: 'lock-open-outline', screen: 'UnlockDoor' }
                 : { label: 'Access Request', icon: 'key-outline', screen: 'AccessRequest' },
@@ -491,60 +392,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     marginBottom: HOME_SPACING.xs,
-  },
-  occupancyCard: {
-    borderWidth: 1,
-    borderRadius: 18,
-    padding: HOME_SPACING.md,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 2,
-  },
-  occupancyHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  occupancyTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    letterSpacing: -0.4,
-  },
-  occupancyValue: {
-    fontSize: 21,
-    fontWeight: '800',
-    letterSpacing: -0.4,
-  },
-  occupancyMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 6,
-  },
-  occupancyMeta: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  progressTrack: {
-    height: 8,
-    borderRadius: 999,
-    overflow: 'hidden',
-    marginTop: HOME_SPACING.sm,
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 999,
-  },
-  occupancyFooterRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: HOME_SPACING.sm,
-  },
-  occupancyFooter: {
-    fontSize: 12,
-    fontWeight: '600',
   },
   quickGrid: {
     flexDirection: 'row',

@@ -18,6 +18,7 @@ import type { AppStackParamList, MainTabParamList } from "../../../navigation/ty
 import { Screen } from "../../../components/Screen";
 import { radii, useThemeColors, useThemedStyles } from "../../../theme";
 import { createBooking, getWorkspaces, getLocations } from "../../../services/workspaceService";
+import { errorMessage } from "../../../services/apiClient";
 import { useAuth } from "../../../context/AuthContext";
 import { SmartImage } from "../../../components/SmartImage";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -115,11 +116,11 @@ export default function BookingScreen() {
         if (Array.isArray(items)) {
           setWorkspaces(items);
         } else {
-          console.warn("getWorkspaces did not return an array:", items);
+          if (__DEV__) console.warn("getWorkspaces did not return an array");
         }
       })
       .catch((err) => {
-        console.warn("Failed to load workspaces:", err);
+        if (__DEV__) console.warn("Failed to load workspaces:", err);
       });
 
     const locationsPromise = getLocations()
@@ -127,11 +128,11 @@ export default function BookingScreen() {
         if (Array.isArray(items)) {
           setDbLocations(items.map((loc) => loc?.name).filter(Boolean));
         } else {
-          console.warn("getLocations did not return an array:", items);
+          if (__DEV__) console.warn("getLocations did not return an array");
         }
       })
       .catch((err) => {
-        console.warn("Failed to load locations:", err);
+        if (__DEV__) console.warn("Failed to load locations:", err);
       });
 
     Promise.allSettled([workspacesPromise, locationsPromise]).finally(() => {
@@ -347,20 +348,25 @@ export default function BookingScreen() {
     setBookingInProgress(true);
 
     try {
-      await createBooking(
+      // The API prices the booking and issues the bank challan; open it so the customer can pay.
+      const created = await createBooking(
         selectedSpace.id,
         startDateTime,
         endDateTime,
         { notes: sanitizeNotesInput(bookingNotes) || undefined }
       );
-      setBookingSuccess("Booking created successfully!");
+      setBookingSuccess("Booking created. Opening your challan...");
       setTimeout(() => {
         closeBookingModal();
-      }, 1200);
+        if (created.bookingId) {
+          navigation.navigate("Challan", {
+            bookingId: created.bookingId,
+            challanNumber: created.challanNumber ?? undefined,
+          });
+        }
+      }, 800);
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to create booking.";
-      setBookingError(message);
+      setBookingError(errorMessage(error, "Failed to create booking."));
     } finally {
       setBookingInProgress(false);
     }

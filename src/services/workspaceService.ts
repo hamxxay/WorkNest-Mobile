@@ -1,15 +1,7 @@
 import { API_ENDPOINTS } from "../config/api";
-import { ApiError, apiRequest } from "./apiClient";
+import { apiRequest } from "./apiClient";
 import { resolveMediaUrl } from "../utils/mediaUrl";
-import {
-  INPUT_LIMITS,
-  sanitizeEmailInput,
-  sanitizeNameInput,
-  sanitizeNotesInput,
-  sanitizePhoneInput,
-  sanitizeTextForState,
-} from "../utils/inputSanitizer";
-export type Faq = {};
+import { createSpaceBooking, type CreatedBooking } from "./bookingService";
 
 export type ApiLocation = {
   id: number;
@@ -27,80 +19,40 @@ export type Workspace = {
   location: string;
   availableCount: number;
   totalCount: number;
+  /** Listed seat price from the API (per billing period, see priceUnit); 0 when the API has no active price. */
   price: number;
+  /** Billing period of `price` from the API (e.g. Monthly, Hourly). */
+  priceUnit?: string;
+  /** API category code (SharedSpace / PrivateOffice / MeetingRoom ...), used for smart booking. */
+  categoryCode?: string;
+  /** Seats in the space, as text (the screens display it). */
+  capacity?: string;
+  securityDeposit?: number;
   amenities: string[];
   image: string;
   available: boolean;
 };
 
-type ApiListResponse<T> =
-  | T[]
-  | {
-      data?: T[];
-      items?: T[];
-      workspaces?: T[];
-      total?: number;
-    };
-
-function extractList<T>(payload: ApiListResponse<T> | null | undefined): T[] {
-  if (!payload) return [];
-  if (Array.isArray(payload)) return payload;
-  return payload.data ?? payload.items ?? payload.workspaces ?? [];
-}
-
 type ApiWorkspace = {
   id?: number | string;
   numericId?: number;
   idGuid?: string;
+  publicId?: string;
   name?: string;
   locationName?: string;
   spaceTypeName?: string;
+  categoryCode?: string | null;
+  categoryLabel?: string | null;
   capacity?: number | string | null;
   amenities?: string | null;
+  seatPrice?: number | null;
+  roomPrice?: number | null;
+  securityDeposit?: number | null;
+  billingPeriodCode?: string | null;
   pricePerDay?: number | null;
   status?: string | number | null;
   spaceStatus?: string | null;
   imageUrl?: string | null;
-};
-
-type ApiBooking = {
-  id?: number | string;
-  idGuid?: string;
-  spaceName?: string;
-  spaceId?: number | string;
-  startDateTime?: string;
-  endDateTime?: string;
-  startOn?: string;
-  endOn?: string;
-  totalAmount?: number | null;
-  paidAmount?: number | null;
-  pricePerDay?: number | null;
-  bookingStatus?: string | null;
-  paymentStatus?: string | null;
-  notes?: string | null;
-  spaceImageUrl?: string | null;
-  locationName?: string | null;
-};
-
-export type BookingGuestDetails = {
-  name: string;
-  email: string;
-  phone: string;
-};
-
-export type BookingPaymentDetails = {
-  method: string;
-  amount: number;
-  voucherCode?: string;
-  bankDepositId?: string;
-  referenceNumber?: string;
-};
-
-export type BookingCreateDetails = {
-  notes?: string;
-  spaceType?: string;
-  guest?: BookingGuestDetails;
-  payment?: BookingPaymentDetails;
 };
 
 function isAvailable(item: ApiWorkspace): boolean {
@@ -108,16 +60,27 @@ function isAvailable(item: ApiWorkspace): boolean {
   return raw == null ? true : String(raw).toLowerCase() === "available" || raw === 1;
 }
 
+function numberOrUndefined(value: unknown): number | undefined {
+  if (value === null || value === undefined || value === "") return undefined;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : undefined;
+}
+
 function mapWorkspace(item: ApiWorkspace, availableCount: number, totalCount: number): Workspace {
   const resolvedImageUrl = resolveMediaUrl(item.imageUrl ?? undefined);
   return {
     id: Number(item.numericId ?? item.id ?? 0),
     name: item.name ?? "Workspace",
-    type: normalizeSpaceType(item.spaceTypeName),
-    location: item.locationName ?? "Unknown location",
+    type: normalizeSpaceType(item.spaceTypeName ?? item.categoryLabel ?? item.categoryCode ?? undefined),
+    location: item.locationName ?? "",
     availableCount,
     totalCount,
-    price: Number(item.pricePerDay ?? 0),
+    // GET /space/available sends seatPrice (per billing period); pricePerDay is kept for older servers.
+    price: Number(item.seatPrice ?? item.pricePerDay ?? 0) || 0,
+    priceUnit: item.billingPeriodCode ?? undefined,
+    categoryCode: item.categoryCode ?? undefined,
+    capacity: numberOrUndefined(item.capacity)?.toString(),
+    securityDeposit: numberOrUndefined(item.securityDeposit),
     amenities: item.amenities
       ? item.amenities.split(",").map((part) => part.trim()).filter(Boolean)
       : [],
@@ -130,18 +93,27 @@ function mapWorkspace(item: ApiWorkspace, availableCount: number, totalCount: nu
 
 function normalizeSpaceType(type?: string): Workspace["type"] {
   const value = (type ?? "").toLowerCase();
-  if (value.includes("meeting")) return "Meeting Room";
-  if (value.includes("co")) return "Co-Working Space";
+  if (value.includes("meeting") || value.includes("conference")) return "Meeting Room";
+  if (value.includes("shared") || value.includes("co")) return "Co-Working Space";
   if (value.includes("event")) return "Event Space";
   return "Private Office";
 }
 
-/** Fetch the raw list from one endpoint, throws on failure. */
-async function fetchSpaceList(path: string): Promise<ApiWorkspace[]> {
-  const payload = await apiRequest<ApiListResponse<ApiWorkspace>>(path, {
-    requiresAuth: true,
-  });
-  return payload ? extractList(payload) : [];
+/** Readable unit for a listed price: "month", "hour", ... (empty when the API sent none). */
+export function priceUnitLabel(workspace: Pick<Workspace, "priceUnit">): string {
+  const unit = (workspace.priceUnit ?? "").toLowerCase();
+  if (unit.startsWith("month")) return "month";
+  if (unit.startsWith("hour")) return "hour";
+  if (unit.startsWith("day") || unit === "daily") return "day";
+  if (unit.startsWith("week")) return "week";
+  return unit;
+}
+
+function extractSpaces(payload: unknown): ApiWorkspace[] {
+  if (!payload) return [];
+  if (Array.isArray(payload)) return payload as ApiWorkspace[];
+  const p = payload as { data?: ApiWorkspace[]; items?: ApiWorkspace[]; workspaces?: ApiWorkspace[] };
+  return p.data ?? p.items ?? p.workspaces ?? [];
 }
 
 /** Build the deduped, counted Workspace[] from a raw list. */
@@ -167,141 +139,35 @@ function buildWorkspaceList(items: ApiWorkspace[]): Workspace[] {
   return result;
 }
 
+/**
+ * GET /space/available — spaces open for booking, one card per location + space type.
+ * Throws a readable ApiError on failure (callers show an error state, not an empty list).
+ */
 export async function getWorkspaces(): Promise<Workspace[]> {
-  // 1️⃣ Try the primary endpoint
-  try {
-    const items = await fetchSpaceList(API_ENDPOINTS.workspaces.list);
-    return buildWorkspaceList(items);
-  } catch (primaryErr) {
-    if (!(primaryErr instanceof ApiError)) {
-      // Genuine network / parse error — not a server-side 4xx/5xx
-      console.warn("[workspaceService] getWorkspaces network error:", primaryErr);
-      return [];
-    }
-    console.warn(
-      `[workspaceService] ${API_ENDPOINTS.workspaces.list} failed (${primaryErr.status}), trying fallback.`
-    );
-  }
-
-  // 2️⃣ Fallback: /space/available-by-type
-  try {
-    const items = await fetchSpaceList(API_ENDPOINTS.workspaces.availableByType);
-    return buildWorkspaceList(items);
-  } catch (fallbackErr) {
-    const status = fallbackErr instanceof ApiError ? fallbackErr.status : "?";
-    console.warn(
-      `[workspaceService] Fallback ${API_ENDPOINTS.workspaces.availableByType} also failed (${status}). Returning [].`
-    );
-    return [];
-  }
+  const payload = await apiRequest<unknown>(API_ENDPOINTS.workspaces.list, { requiresAuth: true });
+  return buildWorkspaceList(extractSpaces(payload));
 }
 
-
+/**
+ * POST /booking — books one specific space for the signed-in customer. The API prices the booking and issues
+ * the bank challan; the result carries the booking id and challan (show the challan next).
+ * Kept for the Booking tab's quick-book form; see bookingService.createSpaceBooking.
+ */
 export async function createBooking(
   workspaceId: number,
   startDateTime: string,
   endDateTime: string,
-  details?: string | BookingCreateDetails
-) {
-  const payloadDetails: BookingCreateDetails =
-    typeof details === "string" ? { notes: details } : details ?? {};
-  const notes = payloadDetails.notes ? sanitizeNotesInput(payloadDetails.notes) : null;
-  const guest = payloadDetails.guest
-    ? {
-        name: sanitizeNameInput(payloadDetails.guest.name, "Guest name"),
-        email: sanitizeEmailInput(payloadDetails.guest.email),
-        phone: sanitizePhoneInput(payloadDetails.guest.phone),
-      }
-    : null;
-  const payment = payloadDetails.payment
-    ? {
-        method: sanitizeTextForState(payloadDetails.payment.method, {
-          maxLength: INPUT_LIMITS.name,
-          collapse: true,
-        }),
-        amount: payloadDetails.payment.amount,
-        voucherCode: payloadDetails.payment.voucherCode
-          ? sanitizeTextForState(payloadDetails.payment.voucherCode, {
-              maxLength: 40,
-              collapse: true,
-            })
-          : undefined,
-        bankDepositId: payloadDetails.payment.bankDepositId
-          ? sanitizeTextForState(payloadDetails.payment.bankDepositId, {
-              maxLength: 40,
-              collapse: true,
-            })
-          : undefined,
-        referenceNumber: payloadDetails.payment.referenceNumber
-          ? sanitizeTextForState(payloadDetails.payment.referenceNumber, {
-              maxLength: 64,
-              collapse: true,
-            })
-          : undefined,
-      }
-    : null;
-
-  return apiRequest(API_ENDPOINTS.workspaces.book, {
-    method: "POST",
-    requiresAuth: true,
-    body: {
-      spaceId: String(workspaceId),
-      spaceType: payloadDetails.spaceType ?? undefined,
-      startDateTime,
-      endDateTime,
-      notes,
-      guest,
-      payment,
-    },
-  });
+  details?: string | { notes?: string }
+): Promise<CreatedBooking> {
+  const notes = typeof details === "string" ? details : details?.notes;
+  return createSpaceBooking({ spaceId: workspaceId, startDateTime, endDateTime, notes });
 }
 
-export async function getMyBookings() {
-  try {
-    const payload = await apiRequest<ApiListResponse<ApiBooking>>(
-      API_ENDPOINTS.workspaces.myBookings,
-      { requiresAuth: true }
-    );
-    return extractList(payload).map((item) => ({
-      ...item,
-      startDateTime: item.startDateTime ?? item.startOn ?? "",
-      endDateTime: item.endDateTime ?? item.endOn ?? "",
-    }));
-  } catch {
-    return [];
-  }
-}
-
-export async function updateBooking(
-  bookingId: number | string,
-  startDateTime: string,
-  endDateTime: string,
-  notes?: string
-) {
-  return apiRequest(API_ENDPOINTS.workspaces.updateBooking(bookingId), {
-    method: "PUT",
-    requiresAuth: true,
-    body: { startDateTime, endDateTime, notes: notes ?? null },
-  });
-}
-
-export async function cancelBooking(bookingId: number | string) {
-  return apiRequest(API_ENDPOINTS.workspaces.cancelBooking(bookingId), {
-    method: "PATCH",
-    requiresAuth: true,
-  });
-}
-
+/** GET /location/all — active locations. Throws a readable ApiError on failure. */
 export async function getLocations(): Promise<ApiLocation[]> {
-  try {
-    const payload = await apiRequest<ApiListResponse<ApiLocation>>(
-      API_ENDPOINTS.locations.list,
-      { requiresAuth: true }
-    );
-    if (!payload) return [];
-    return extractList(payload);
-  } catch (err) {
-    console.error("Error fetching locations:", err);
-    return [];
-  }
+  const payload = await apiRequest<unknown>(API_ENDPOINTS.locations.list, { requiresAuth: true });
+  if (!payload) return [];
+  if (Array.isArray(payload)) return payload as ApiLocation[];
+  const p = payload as { data?: ApiLocation[]; items?: ApiLocation[] };
+  return p.data ?? p.items ?? [];
 }

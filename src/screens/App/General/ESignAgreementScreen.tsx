@@ -12,13 +12,14 @@ import {
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { Gesture, GestureDetector, ScrollView } from 'react-native-gesture-handler';
 import Svg, { Path } from 'react-native-svg';
-import { captureRef } from 'react-native-view-shot';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Screen } from '../../../components/Screen';
 import { Header } from '../../../components/Header';
 import { useThemeColors, useThemedStyles } from '../../../theme';
 import { useAuth } from '../../../context/AuthContext';
 import { eSignMyAgreement } from '../../../services/agreementService';
+import { captureSignatureImage } from '../../../services/signatureService';
+import { errorMessage } from '../../../services/apiClient';
 import { openAgreementPdf } from '../../../utils/openAgreementPdf';
 import type { AppStackParamList } from '../../../navigation/types';
 
@@ -28,7 +29,6 @@ type Props = NativeStackScreenProps<AppStackParamList, 'ESignAgreement'>;
 const PAD_BACKGROUND = '#FFFFFF';
 const PAD_INK = '#0A1628';
 const PAD_HEIGHT = 200;
-const MAX_SIGNATURE_BYTES = 300 * 1024;
 const CONSENT_TEXT =
   'I have read the agreement and agree to sign it electronically. My electronic signature has the same effect as a handwritten one.';
 
@@ -146,20 +146,11 @@ export default function ESignAgreementScreen({ navigation, route }: Props) {
     setSubmitting(true);
     setError(null);
     try {
-      let base64: string;
-      try {
-        base64 = await captureRef(padRef, { format: 'png', quality: 1, result: 'base64', width: 600 });
-      } catch {
-        throw new Error('Could not capture your signature. Please try again.');
-      }
-      if (!base64) throw new Error('Could not capture your signature. Please try again.');
-      if (base64.length * 0.75 > MAX_SIGNATURE_BYTES) {
-        throw new Error('Your signature image is too large. Clear it and sign again with a simpler signature.');
-      }
+      const signatureImage = await captureSignatureImage(padRef);
 
       const result = await eSignMyAgreement(agreementId, {
         signerName: trimmedName,
-        signatureImage: `data:image/png;base64,${base64}`,
+        signatureImage,
         consent: true,
       });
 
@@ -170,7 +161,7 @@ export default function ESignAgreementScreen({ navigation, route }: Props) {
         { cancelable: false },
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'We could not complete your signature. Please try again.');
+      setError(errorMessage(err, 'We could not complete your signature. Please try again.'));
     } finally {
       submittingRef.current = false;
       setSubmitting(false);

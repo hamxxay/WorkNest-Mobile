@@ -18,13 +18,16 @@ import { Screen } from "../../../components/Screen";
 import { radii, shadows, useThemeColors, useThemedStyles } from "../../../theme";
 import {
   acceptQuotation,
+  canRespondToQuotation,
   declineQuotation,
   getQuotationActivities,
   getQuotationById,
   getQuotationVersions,
+  openQuotationPdf,
+  type Quotation,
   type QuotationActivity,
-} from "../../../services/mockQuotationService";
-import type { Quotation } from "../../../data/mockQuotationData";
+} from "../../../services/customerQuotationService";
+import { errorMessage } from "../../../services/apiClient";
 import type { AppStackParamList } from "../../../navigation/types";
 import { useAuth } from "../../../context/AuthContext";
 
@@ -60,7 +63,10 @@ export default function QuotationScreen() {
   const route = useRoute<RouteProp<AppStackParamList, "Quotation">>();
   const { quotationId } = route.params;
 
-  const { user, isLoadingUser } = useAuth();
+  const { user, isLoadingUser, role } = useAuth();
+  // Shared with the sales stack: customers may accept / decline; staff see the activity log instead.
+  const isCustomer = role === "general";
+  const [pdfBusy, setPdfBusy] = useState(false);
   const [quotation, setQuotation] = useState<Quotation | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -84,17 +90,34 @@ export default function QuotationScreen() {
     setError("");
     getQuotationById(quotationId)
       .then(setQuotation)
-      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load quotation."))
+      .catch((e) => setError(errorMessage(e, "Failed to load quotation.")))
       .finally(() => setLoading(false));
   }, [quotationId]);
 
+  // Activities are a staff endpoint: only loaded when a staff member opens this screen.
+  const loadActivities = () => (isCustomer ? Promise.resolve([] as QuotationActivity[]) : getQuotationActivities(quotationId));
+
   useEffect(() => {
-    Promise.allSettled([getQuotationVersions(quotationId), getQuotationActivities(quotationId)])
+    if (isLoadingUser) return;
+    Promise.allSettled([getQuotationVersions(quotationId), loadActivities()])
       .then(([versionsResult, activitiesResult]) => {
         if (versionsResult.status === "fulfilled") setVersions(versionsResult.value);
         if (activitiesResult.status === "fulfilled") setActivities(activitiesResult.value);
       });
-  }, [quotationId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quotationId, isCustomer, isLoadingUser]);
+
+  async function handleOpenPdf() {
+    if (!quotation || pdfBusy) return;
+    setPdfBusy(true);
+    try {
+      await openQuotationPdf(quotation.id, quotation.quotationNumber);
+    } catch (e) {
+      Alert.alert("PDF not available", errorMessage(e, "The quotation PDF could not be downloaded. Please try again."));
+    } finally {
+      setPdfBusy(false);
+    }
+  }
 
   function handleAccept() {
     if (!quotation) return;
@@ -109,14 +132,9 @@ export default function QuotationScreen() {
             setActioning("accept");
             try {
               await acceptQuotation(quotationId, undefined, quotation.version);
-              const [updated, latestActivities] = await Promise.all([
-                getQuotationById(quotationId),
-                getQuotationActivities(quotationId),
-              ]);
-              setQuotation(updated);
-              setActivities(latestActivities);
+              setQuotation(await getQuotationById(quotationId));
             } catch (e) {
-              Alert.alert("Unable to Accept", e instanceof Error ? e.message : "The quotation could not be accepted.");
+              Alert.alert("Unable to Accept", errorMessage(e, "The quotation could not be accepted."));
             } finally {
               setActioning(null);
             }
@@ -136,15 +154,10 @@ export default function QuotationScreen() {
     setActioning("decline");
     try {
       await declineQuotation(quotationId, rejectNote.trim(), quotation.version);
-      const [updated, latestActivities] = await Promise.all([
-        getQuotationById(quotationId),
-        getQuotationActivities(quotationId),
-      ]);
-      setQuotation(updated);
-      setActivities(latestActivities);
+      setQuotation(await getQuotationById(quotationId));
       setRejectNote("");
     } catch (e) {
-      Alert.alert("Unable to Reject", e instanceof Error ? e.message : "The quotation could not be rejected.");
+      Alert.alert("Unable to Reject", errorMessage(e, "The quotation could not be rejected."));
     } finally {
       setActioning(null);
     }
@@ -177,7 +190,7 @@ export default function QuotationScreen() {
   }
   const status = quotation.status?.toLowerCase() ?? "";
   const statusCfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.pending;
-  const isActionable = ["active", "pending", "sent", "open", "new", "awaiting", "senttocustomer"].includes(status);
+  const isActionable = isCustomer && canRespondToQuotation(quotation);
   const isAccepted = status === "approved" || status === "accepted";
   const isRejected = status === "rejected" || status === "declined";
 
@@ -194,9 +207,15 @@ export default function QuotationScreen() {
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <Pressable
               style={s.shareBtn}
-              onPress={() => navigation.navigate("ShareQuotation", { quotationId: quotation.id })}
+              onPress={handleOpenPdf}
+              disabled={pdfBusy}
+              accessibilityLabel="Download quotation PDF"
             >
-              <Ionicons name="mail-outline" size={18} color={colors.primary} />
+              {pdfBusy ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : (
+                <Ionicons name="download-outline" size={18} color={colors.primary} />
+              )}
             </Pressable>
             <View style={[s.statusBadge, { backgroundColor: statusCfg.bg, borderColor: statusCfg.border }]}>
               <Text style={[s.statusText, { color: statusCfg.text }]}>{statusCfg.label}</Text>

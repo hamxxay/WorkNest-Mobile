@@ -1,83 +1,40 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-import { generatePDF } from "react-native-html-to-pdf";
-import RNShare from "react-native-share";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { Screen } from "../../../components/Screen";
 import { radii, useThemeColors, useThemedStyles } from "../../../theme";
-import { apiRequest } from "../../../services/apiClient";
-import { API_ENDPOINTS } from "../../../config/api";
+import { errorMessage } from "../../../services/apiClient";
+import {
+  getBookingChallan,
+  isPendingBooking,
+  openBookingChallanPdf,
+  type BookingChallan,
+} from "../../../services/bookingService";
 import type { AppStackParamList } from "../../../navigation/types";
 
-type BookingDetail = {
-  feeType?: string;
-  FeeType?: string;
-  amount?: number;
-  Amount?: number;
-  status?: number;
-};
+// Bank challan of one booking, exactly as the API issued it (GET /booking/{id}/challan). Customers pay it at
+// HBL / 1Bill like on worknestpk.com; the status shown is the API's, never set by the app.
 
-type ChallanData = {
-  id?: number;
-  idGuid?: string;
-  challanNumber?: string;
-  validityDate?: string;
-  totalAmount?: number;
-  bookingStatus?: number | string;
-  startDateTime?: string;
-  endDateTime?: string;
-  notes?: string;
-  customerCode?: string;
-  spaceName?: string;
-  spaceCode?: string;
-  spaceTypeName?: string;
-  locationName?: string;
-  customerName?: string;
-  customerEmail?: string;
-  bookingDetails?: BookingDetail[];
-};
-
-type ApiChallanResponse = {
-  booking?: ChallanData;
-  bookingDetails?: BookingDetail[];
-};
-
-function formatDateTime(value?: string) {
-  if (!value) return "—";
-  const d = new Date(value);
-  if (isNaN(d.getTime())) return value;
-  return d.toLocaleString("en-PK", {
-    day: "2-digit", month: "short", year: "numeric",
-    hour: "2-digit", minute: "2-digit",
-  });
-}
-
-function formatDate(value?: string) {
-  if (!value) return "—";
+function formatDate(value?: string | null) {
+  if (!value) return "Not set";
   const d = new Date(value);
   if (isNaN(d.getTime())) return value;
   return d.toLocaleDateString("en-PK", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-function statusLabel(status?: number | string) {
-  const s = String(status ?? "").toLowerCase();
-  if (s === "1" || s === "confirmed") return "Confirmed";
-  if (s === "2" || s === "cancelled") return "Cancelled";
-  if (s === "3" || s === "completed") return "Completed";
-  if (s === "4" || s === "pending")   return "Pending";
-  return "Pending";
+function formatAmount(value: number | null | undefined) {
+  if (value === null || value === undefined) return "Not available";
+  return `PKR ${Number(value).toLocaleString("en-PK", { maximumFractionDigits: 2 })}`;
 }
 
 export default function ChallanScreen() {
@@ -85,184 +42,42 @@ export default function ChallanScreen() {
   const styles = useThemedStyles(createStyles);
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const route = useRoute<RouteProp<AppStackParamList, "Challan">>();
-  const { challanNumber, bookingGuid } = route.params;
+  const bookingId = Number(route.params?.bookingId);
 
-  const [challan, setChallan] = useState<ChallanData | null>(null);
+  const [challan, setChallan] = useState<BookingChallan | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [sharing, setSharing] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfError, setPdfError] = useState("");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      setChallan(await getBookingChallan(bookingId));
+    } catch (err) {
+      setChallan(null);
+      setError(errorMessage(err, "The challan could not be loaded. Please try again."));
+    } finally {
+      setLoading(false);
+    }
+  }, [bookingId]);
 
   useEffect(() => {
-    const fetchChallan = async () => {
-      setLoading(true);
-      setError("");
-      try {
-        let data: ChallanData | null = null;
-        let details: BookingDetail[] | undefined;
+    load();
+  }, [load]);
 
-        if (challanNumber) {
-          const res = await apiRequest<ApiChallanResponse>(
-            API_ENDPOINTS.booking.challan(challanNumber),
-            { requiresAuth: true }
-          );
-          data = res?.booking ?? (res as unknown as ChallanData);
-          details = res?.bookingDetails ?? (data as any)?.bookingDetails;
-        } else if (bookingGuid) {
-          const res = await apiRequest<ApiChallanResponse>(
-            API_ENDPOINTS.booking.details(bookingGuid),
-            { requiresAuth: true }
-          );
-          data = res?.booking ?? (res as unknown as ChallanData);
-          details = res?.bookingDetails ?? (data as any)?.bookingDetails;
-        }
-
-        if (!data) {
-          setError("Challan not found.");
-        } else {
-          if (details?.length && !data.bookingDetails?.length) {
-            data = { ...data, bookingDetails: details };
-          }
-          setChallan(data);
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load challan.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchChallan();
-  }, [challanNumber, bookingGuid]);
-
-  const buildChallanHtml = (c: ChallanData) => {
-    const detailRows = (c.bookingDetails ?? []).map((d) => {
-      const label = d.feeType ?? d.FeeType ?? "Fee";
-      const amt = Number(d.amount ?? d.Amount ?? 0).toFixed(2);
-      const isDeposit = label.toLowerCase().includes("security") || label.toLowerCase().includes("deposit");
-      return `<tr><td>${label}${isDeposit ? ' <span style="color:#64748b;font-size:11px">(refundable)</span>' : ""}</td><td style="text-align:right">PKR ${amt}</td></tr>`;
-    }).join("");
-
-    return `<!DOCTYPE html><html><head><meta charset="utf-8"/>
-<style>
-  body{font-family:sans-serif;margin:0;padding:24px;background:#f1f5f9}
-  .card{background:#fff;border-radius:12px;overflow:hidden;max-width:480px;margin:0 auto;box-shadow:0 4px 24px rgba(30,58,95,.12)}
-  .header{background:#1e3a5f;color:#fff;padding:20px 24px;display:flex;justify-content:space-between;align-items:center}
-  .brand{font-size:20px;font-weight:800;letter-spacing:.5px}.brand-sub{font-size:11px;opacity:.75;margin-top:2px}
-  .challan-no{text-align:right}.challan-no-label{font-size:10px;opacity:.65}.challan-no-val{font-size:15px;font-weight:700;letter-spacing:1px;margin-top:2px}
-  .validity{background:#fef3c7;border-bottom:1px solid #fde68a;padding:8px 24px;display:flex;justify-content:space-between;font-size:12px;font-weight:600;color:#92400e}
-  .status{padding:14px 24px 4px}
-  .badge{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700}
-  .confirmed{background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);color:#059669}
-  .pending{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);color:#d97706}
-  .dot{width:6px;height:6px;border-radius:50%;display:inline-block}
-  .block{margin:12px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px}
-  .block-label{font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px}
-  .row{display:flex;justify-content:space-between;padding:5px 0;font-size:13px}
-  .row-label{color:#64748b}.row-val{font-weight:600;color:#1e293b;text-align:right}
-  .divider{height:1px;background:#e2e8f0;margin:6px 0}
-  table{width:100%;border-collapse:collapse}
-  td{padding:9px 0;font-size:13px;color:#475569}
-  td:last-child{text-align:right;font-weight:600;color:#1e293b}
-  .total-row td{border-top:1px solid #e2e8f0;font-size:14px;font-weight:800;color:#1e3a5f;padding-top:10px}
-  .ref{margin:12px 16px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:9px 14px;font-size:13px;color:#1e40af}
-  .footer{text-align:center;padding:14px 20px 16px;border-top:1px dashed #e2e8f0;margin-top:12px;color:#94a3b8;font-size:11px}
-  .footer-brand{color:#1e3a5f;font-weight:700;font-size:12px;margin-top:4px}
-</style></head><body>
-<div class="card">
-  <div class="header">
-    <div><div class="brand">WORKNEST</div><div class="brand-sub">Payment Challan</div></div>
-    <div class="challan-no"><div class="challan-no-label">Challan No.</div><div class="challan-no-val">${c.challanNumber ?? "N/A"}</div></div>
-  </div>
-  <div class="validity"><span>Valid until: <strong>${formatDate(c.validityDate)}</strong></span><span>Pay before expiry</span></div>
-  <div class="status"><span class="badge ${statusLabel(c.bookingStatus) === "Confirmed" || statusLabel(c.bookingStatus) === "Completed" ? "confirmed" : "pending"}"><span class="dot" style="background:${statusLabel(c.bookingStatus) === "Confirmed" || statusLabel(c.bookingStatus) === "Completed" ? "#10b981" : "#f59e0b"}"></span>${statusLabel(c.bookingStatus)}</span></div>
-  <div class="block">
-    <div class="row"><span class="row-label">Space</span><span class="row-val">${c.spaceName ?? "—"}${c.spaceCode ? ` (${c.spaceCode})` : ""}</span></div>
-    <div class="row"><span class="row-label">Type</span><span class="row-val">${c.spaceTypeName ?? "—"}</span></div>
-    <div class="row"><span class="row-label">Location</span><span class="row-val">${c.locationName ?? "—"}</span></div>
-    <div class="divider"></div>
-    <div class="row"><span class="row-label">Check-In</span><span class="row-val">${formatDateTime(c.startDateTime)}</span></div>
-    <div class="row"><span class="row-label">Check-Out</span><span class="row-val">${formatDateTime(c.endDateTime)}</span></div>
-  </div>
-  <div class="block">
-    <div class="block-label">Customer</div>
-    <div class="row"><span class="row-label">Name</span><span class="row-val">${c.customerName ?? "—"}</span></div>
-    <div class="row"><span class="row-label">Email</span><span class="row-val">${c.customerEmail ?? "—"}</span></div>
-    ${c.customerCode ? `<div class="row"><span class="row-label">Code</span><span class="row-val">${c.customerCode}</span></div>` : ""}
-  </div>
-  <div class="block">
-    <div class="block-label">Amount Breakdown</div>
-    <table>${detailRows}<tr class="total-row"><td>Total Payable</td><td>PKR ${Number(c.totalAmount ?? 0).toFixed(2)}</td></tr></table>
-  </div>
-  <div class="ref">Booking Ref: <strong>#${c.id ?? "—"}</strong></div>
-  <div class="footer">Present this challan at the WorkNest counter to complete payment.<div class="footer-brand">worknestpk.com</div></div>
-</div>
-</body></html>`;
-  };
-
-  const getPdfPath = async (): Promise<string> => {
-    if (!challan) throw new Error("No challan data");
-    const result = await generatePDF({
-      html: buildChallanHtml(challan),
-      fileName: `WorkNest_Challan_${challan.challanNumber ?? "challan"}`,
-      directory: Platform.OS === "ios" ? "Documents" : undefined,
-    });
-    const path = result?.filePath;
-    if (!path) throw new Error("PDF generation failed: no file path returned");
-    return path;
-  };
-
-  const handleSave = async () => {
-    if (!challan) return;
-    setSharing(true);
+  // The PDF is generated by the API (same document as the website) and fetched with the sign-in token.
+  const openPdf = async () => {
+    if (pdfBusy) return;
+    setPdfBusy(true);
+    setPdfError("");
     try {
-      const path = await getPdfPath();
-      await RNShare.open({
-        url: `file://${path}`,
-        type: "application/pdf",
-        title: `Save Challan — ${challan.challanNumber ?? ""}`,
-        saveToFiles: true,
-        failOnCancel: false,
-      });
-    } catch (e) {
-      Alert.alert("Error", e instanceof Error ? e.message : "Failed to save PDF.");
+      await openBookingChallanPdf(bookingId, challan?.challanNumber ?? route.params?.challanNumber);
+    } catch (err) {
+      setPdfError(errorMessage(err, "The challan PDF could not be downloaded. Please try again."));
     } finally {
-      setSharing(false);
-    }
-  };
-
-  const handleShare = async () => {
-    if (!challan) return;
-    setSharing(true);
-    try {
-      const path = await getPdfPath();
-      await RNShare.open({
-        url: `file://${path}`,
-        type: "application/pdf",
-        title: `WorkNest Challan — ${challan.challanNumber ?? ""}`,
-        failOnCancel: false,
-      });
-    } catch {
-      // user cancelled
-    } finally {
-      setSharing(false);
-    }
-  };
-
-  const handlePrint = async () => {
-    if (!challan) return;
-    setSharing(true);
-    try {
-      const path = await getPdfPath();
-      await RNShare.open({
-        url: `file://${path}`,
-        type: "application/pdf",
-        title: `Print Challan — ${challan.challanNumber ?? ""}`,
-        failOnCancel: false,
-      });
-    } catch {
-      Alert.alert("Error", "Failed to open print dialog.");
-    } finally {
-      setSharing(false);
+      setPdfBusy(false);
     }
   };
 
@@ -282,142 +97,138 @@ export default function ChallanScreen() {
       <Screen>
         <View style={styles.center}>
           <Ionicons name="alert-circle-outline" size={48} color={colors.danger} />
-          <Text style={styles.errorText}>{error || "Challan not found."}</Text>
-          <Pressable style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <Text style={styles.backBtnText}>Go Back</Text>
+          <Text style={styles.errorText}>{error || "This booking has no challan yet."}</Text>
+          <Pressable style={styles.backBtn} onPress={load}>
+            <Text style={styles.backBtnText}>Try again</Text>
+          </Pressable>
+          <Pressable onPress={() => navigation.goBack()}>
+            <Text style={styles.loadingText}>Go back</Text>
           </Pressable>
         </View>
       </Screen>
     );
   }
 
-  const status = statusLabel(challan.bookingStatus);
-  const isConfirmed = status === "Confirmed" || status === "Completed";
-  const hasDetails = (challan.bookingDetails?.length ?? 0) > 0;
+  const status = challan.bookingStatus ?? "Pending";
+  const pending = isPendingBooking({ status, statusCode: challan.bookingStatusCode });
 
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-
-        {/* Top bar */}
         <View style={styles.topBar}>
-          <Pressable style={styles.topBackBtn} onPress={() => navigation.goBack()}>
+          <Pressable style={styles.topBackBtn} onPress={() => navigation.goBack()} accessibilityLabel="Go back">
             <Ionicons name="chevron-back" size={20} color={colors.foreground} />
           </Pressable>
           <Text style={styles.topTitle}>Payment Challan</Text>
-          <Pressable style={styles.shareBtn} onPress={handleShare} disabled={sharing} hitSlop={8}>
-            <Ionicons name="share-outline" size={20} color={colors.primary} />
+          <Pressable style={styles.shareBtn} onPress={openPdf} disabled={pdfBusy} hitSlop={8} accessibilityLabel="Download challan PDF">
+            {pdfBusy ? <ActivityIndicator size="small" color={colors.primary} /> : <Ionicons name="download-outline" size={20} color={colors.primary} />}
           </Pressable>
         </View>
 
-        {/* ── Bank-style challan card (mirrors web design) ── */}
         <View style={styles.challanCard}>
-
-          {/* Bank header — dark blue like web */}
           <View style={styles.bankHeader}>
             <View>
               <Text style={styles.bankBrand}>WORKNEST</Text>
-              <Text style={styles.bankSubtitle}>Payment Challan</Text>
+              <Text style={styles.bankSubtitle}>Bank Challan / 1Bill Voucher</Text>
             </View>
             <View style={styles.bankRight}>
-              <Text style={styles.bankChallanLabel}>Challan No.</Text>
-              <Text style={styles.bankChallanNumber}>{challan.challanNumber ?? "N/A"}</Text>
+              <Text style={styles.bankChallanLabel}>Challan / Consumer No.</Text>
+              <Text style={styles.bankChallanNumber}>{challan.challanNumber ?? "Not issued"}</Text>
             </View>
           </View>
 
-          {/* Validity banner — amber like web */}
           <View style={styles.validityBanner}>
             <Text style={styles.validityText}>
-              <Ionicons name="warning-outline" size={13} /> Valid until: <Text style={styles.validityDate}>{formatDate(challan.validityDate)}</Text>
+              Valid until: <Text style={styles.validityDate}>{formatDate(challan.validUntil)}</Text>
             </Text>
-            <Text style={styles.validityRight}>Pay before expiry</Text>
+            <Text style={styles.validityRight}>Pay before the due date</Text>
           </View>
 
-          {/* Status badge */}
           <View style={styles.statusRow}>
-            <View style={[styles.statusBadge, isConfirmed ? styles.statusConfirmed : styles.statusPending]}>
-              <View style={[styles.statusDot, { backgroundColor: isConfirmed ? "#10b981" : "#f59e0b" }]} />
-              <Text style={[styles.statusText, { color: isConfirmed ? "#059669" : "#d97706" }]}>{status}</Text>
+            <View style={[styles.statusBadge, pending ? styles.statusPending : styles.statusConfirmed]}>
+              <View style={[styles.statusDot, { backgroundColor: pending ? "#f59e0b" : "#10b981" }]} />
+              <Text style={[styles.statusText, { color: pending ? "#d97706" : "#059669" }]}>{status}</Text>
             </View>
           </View>
 
-          {/* Space & Period block */}
           <View style={styles.infoBlock}>
-            <InfoRow label="Space" value={`${challan.spaceName ?? "—"}${challan.spaceCode ? ` (${challan.spaceCode})` : ""}`} />
-            <InfoRow label="Type" value={challan.spaceTypeName ?? "—"} />
-            <InfoRow label="Location" value={challan.locationName ?? "—"} />
+            <InfoRow label="Space" value={`${challan.spaceName ?? "Not set"}${challan.spaceCode ? ` (${challan.spaceCode})` : ""}`} />
+            {challan.spaceTypeName ? <InfoRow label="Type" value={challan.spaceTypeName} /> : null}
+            <InfoRow label="Location" value={challan.branchName ?? challan.locationName ?? "Not set"} />
             <View style={styles.infoBlockDivider} />
-            <InfoRow label="Check-In" value={formatDateTime(challan.startDateTime)} />
-            <InfoRow label="Check-Out" value={formatDateTime(challan.endDateTime)} />
+            <InfoRow label="From" value={formatDate(challan.startOn)} />
+            <InfoRow label="To" value={formatDate(challan.endOn)} />
+            {challan.billingPeriodLabel ? <InfoRow label="Advance period" value={challan.billingPeriodLabel} /> : null}
           </View>
 
-          {/* Customer block */}
           <View style={styles.infoBlock}>
             <Text style={styles.blockSectionLabel}>CUSTOMER</Text>
-            <InfoRow label="Name" value={challan.customerName ?? "—"} />
-            <InfoRow label="Email" value={challan.customerEmail ?? "—"} />
-            {challan.customerCode ? <InfoRow label="Code" value={challan.customerCode} /> : null}
+            <InfoRow label="Name" value={challan.customerName ?? "Not set"} />
+            {challan.customerCompany ? <InfoRow label="Company" value={challan.customerCompany} /> : null}
+            <InfoRow label="Email" value={challan.customerEmail ?? "Not set"} />
           </View>
 
-          {/* Amount breakdown — matches web table */}
           <View style={styles.amountBlock}>
             <View style={styles.amountBlockHeader}>
               <Text style={styles.amountBlockTitle}>AMOUNT BREAKDOWN</Text>
             </View>
             <View style={styles.amountBlockBody}>
-              {hasDetails ? (
-                challan.bookingDetails!.map((d, i) => {
-                  const label = d.feeType ?? d.FeeType ?? "Fee";
-                  const amt = d.amount ?? d.Amount ?? 0;
-                  const isDeposit = label.toLowerCase().includes("security") || label.toLowerCase().includes("deposit");
-                  return (
-                    <View key={i} style={[styles.amountRow, i < challan.bookingDetails!.length - 1 && styles.amountRowBorder]}>
-                      <Text style={styles.amountLabel}>
-                        {label}
-                        {isDeposit ? <Text style={styles.refundableTag}> (refundable)</Text> : null}
-                      </Text>
-                      <Text style={styles.amountValue}>PKR {Number(amt).toFixed(2)}</Text>
-                    </View>
-                  );
-                })
+              {challan.lines.map((line, i) => (
+                <View key={line.lineId ?? i} style={[styles.amountRow, styles.amountRowBorder]}>
+                  <Text style={styles.amountLabel}>{line.label}</Text>
+                  <Text style={styles.amountValue}>{formatAmount(line.lineTotal)}</Text>
+                </View>
+              ))}
+              {challan.lines.length === 0 && challan.taxAmount ? (
+                <View style={[styles.amountRow, styles.amountRowBorder]}>
+                  <Text style={styles.amountLabel}>Tax</Text>
+                  <Text style={styles.amountValue}>{formatAmount(challan.taxAmount)}</Text>
+                </View>
               ) : null}
               <View style={[styles.amountRow, styles.amountTotalRow]}>
                 <Text style={styles.amountTotalLabel}>Total Payable</Text>
-                <Text style={styles.amountTotalValue}>PKR {Number(challan.totalAmount ?? 0).toFixed(2)}</Text>
+                <Text style={styles.amountTotalValue}>{formatAmount(challan.totalPayable)}</Text>
               </View>
             </View>
           </View>
 
-          {/* Booking ref row */}
           <View style={styles.bookingRefRow}>
             <Text style={styles.bookingRefText}>
-              Booking Ref: <Text style={styles.bookingRefId}>#{challan.id ?? "—"}</Text>
+              Booking Ref: <Text style={styles.bookingRefId}>#{challan.bookingId}</Text>
             </Text>
           </View>
 
-          {/* Footer note */}
+          <View style={styles.infoBlock}>
+            <Text style={styles.blockSectionLabel}>HOW TO PAY</Text>
+            <Text style={styles.amountLabel}>
+              Pay this challan at any HBL branch counter, ATM, or in your mobile banking app under 1Bill / Bill
+              Payment using the consumer number above. Bank: Habib Bank Limited (HBL). Account title: WorkNest
+              (Private) Limited.
+            </Text>
+            <Text style={[styles.amountLabel, { marginTop: 8 }]}>
+              Keep your bank receipt. Your booking is confirmed once the payment reaches us; the status here updates
+              automatically.
+            </Text>
+          </View>
+
           <Text style={styles.footerNote}>
-            Present this challan at the WorkNest counter to complete payment.
+            If paying in cash, hand over the original challan at reception.
           </Text>
           <Text style={styles.footerBrand}>worknestpk.com</Text>
         </View>
 
-        {/* Action buttons */}
+        {pdfError ? <Text style={styles.errorText}>{pdfError}</Text> : null}
+
         <View style={styles.actions}>
-          <Pressable style={styles.actionBtn} onPress={handleSave} disabled={sharing}>
-            <Ionicons name="download-outline" size={18} color={colors.primary} />
-            <Text style={styles.actionBtnText}>Save PDF</Text>
-          </Pressable>
-          <Pressable style={styles.actionBtn} onPress={handleShare} disabled={sharing}>
-            <Ionicons name="share-outline" size={18} color={colors.primary} />
-            <Text style={styles.actionBtnText}>Share</Text>
-          </Pressable>
-          <Pressable style={[styles.actionBtn, styles.actionBtnPrimary]} onPress={handlePrint} disabled={sharing}>
-            <Ionicons name="print-outline" size={18} color="#fff" />
-            <Text style={[styles.actionBtnText, { color: "#fff" }]}>Print</Text>
+          <Pressable style={[styles.actionBtn, styles.actionBtnPrimary]} onPress={openPdf} disabled={pdfBusy}>
+            {pdfBusy ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Ionicons name="download-outline" size={18} color="#fff" />
+            )}
+            <Text style={[styles.actionBtnText, { color: "#fff" }]}>Download / Share PDF</Text>
           </Pressable>
         </View>
-
       </ScrollView>
     </Screen>
   );

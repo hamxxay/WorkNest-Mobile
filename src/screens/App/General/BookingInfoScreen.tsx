@@ -153,7 +153,7 @@ export default function BookingInfoScreen() {
     }
     if (activeStep === "guest") {
       try {
-        navigation.navigate("Payment", {
+        navigation.navigate("BookingConfirm", {
           workspace,
           booking: {
             ...booking,
@@ -257,8 +257,8 @@ export default function BookingInfoScreen() {
 
         {error ? <ErrorCard message={error} /> : null}
 
-        <Pressable accessibilityRole="button" accessibilityLabel={activeStep === "datetime" ? "Continue to guest details" : "Continue to payment"} style={styles.nextButton} onPress={onNext} android_ripple={{ color: "rgba(255,255,255,0.18)" }}>
-          <Text style={styles.nextButtonText}>{activeStep === "datetime" ? "Continue to guest details" : "Review payment"}</Text><Ionicons name="arrow-forward" size={18} color={colors.white} />
+        <Pressable accessibilityRole="button" accessibilityLabel={activeStep === "datetime" ? "Continue to guest details" : "Review booking"} style={styles.nextButton} onPress={onNext} android_ripple={{ color: "rgba(255,255,255,0.18)" }}>
+          <Text style={styles.nextButtonText}>{activeStep === "datetime" ? "Continue to guest details" : "Review booking"}</Text><Ionicons name="arrow-forward" size={18} color={colors.white} />
         </Pressable>
       </ScrollView>
 

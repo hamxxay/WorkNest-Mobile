@@ -1,5 +1,5 @@
 import { normalizeApiBaseUrl } from "./api";
-import { normalizeQuotation } from "../services/mockQuotationService";
+import { normalizeQuotation } from "../services/customerQuotationService";
 import {
   ApiError,
   apiRequest,
@@ -10,6 +10,13 @@ import {
 } from "../services/apiClient";
 import { getToken, getUser } from "../utils/authStorage";
 import { normalizeQuotationPayload } from "../services/quotationService";
+
+// Native modules the services import (no native side in unit tests).
+jest.mock("react-native-share", () => ({ __esModule: true, default: { open: jest.fn() } }));
+jest.mock("@react-native-async-storage/async-storage", () => ({
+  __esModule: true,
+  default: { getItem: jest.fn(), setItem: jest.fn(), removeItem: jest.fn(() => Promise.resolve()) },
+}));
 
 jest.mock("../utils/authStorage", () => ({
   getToken: jest.fn(),

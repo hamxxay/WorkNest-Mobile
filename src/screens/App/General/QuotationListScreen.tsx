@@ -13,7 +13,12 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { Screen } from '../../../components/Screen';
 import { radii, shadows, useThemeColors, useThemedStyles } from '../../../theme';
-import { getMyQuotations, type QuotationRecord } from '../../../services/quotationService';
+import {
+  canRespondToQuotation,
+  getMyQuotations,
+  type Quotation,
+} from '../../../services/customerQuotationService';
+import { errorMessage } from '../../../services/apiClient';
 import type { AppStackParamList } from '../../../navigation/types';
 import { useAuth } from '../../../context/AuthContext';
 
@@ -105,55 +110,24 @@ function getStatusCfg(status: string) {
   return STATUS_CONFIG[status?.toLowerCase()] ?? STATUS_CONFIG.active;
 }
 
-const STATUS_ACTIONS: Record<
-  string,
-  {
-    label: string;
-    icon: string;
-    action: 'view' | 'challan' | 'modify' | 'payment';
-  }[]
-> = {
-  active: [
-    { label: 'View', icon: 'eye-outline', action: 'view' },
-    {
-      label: 'Request Challan',
-      icon: 'document-text-outline',
-      action: 'challan',
-    },
-    { label: 'Modify', icon: 'create-outline', action: 'modify' },
-  ],
-  sent: [
-    { label: 'View', icon: 'eye-outline', action: 'view' },
-    {
-      label: 'Request Challan',
-      icon: 'document-text-outline',
-      action: 'challan',
-    },
-  ],
-  draft: [{ label: 'View', icon: 'eye-outline', action: 'view' }],
-  converted: [{ label: 'View', icon: 'eye-outline', action: 'view' }],
-  accepted: [{ label: 'View', icon: 'eye-outline', action: 'view' }],
-  declined: [{ label: 'View', icon: 'eye-outline', action: 'view' }],
-  inactive: [{ label: 'View', icon: 'eye-outline', action: 'view' }],
-  pending: [
-    { label: 'View', icon: 'eye-outline', action: 'view' },
-    {
-      label: 'Request Challan',
-      icon: 'document-text-outline',
-      action: 'challan',
-    },
-    { label: 'Modify', icon: 'create-outline', action: 'modify' },
-  ],
-  approved: [
-    { label: 'View', icon: 'eye-outline', action: 'view' },
-    { label: 'Pay Now', icon: 'card-outline', action: 'payment' },
-  ],
-  rejected: [
-    { label: 'View', icon: 'eye-outline', action: 'view' },
-    { label: 'Modify & Resubmit', icon: 'create-outline', action: 'modify' },
-  ],
-  expired: [{ label: 'View', icon: 'eye-outline', action: 'view' }],
-};
+// Customer actions only: open the quotation (accept / decline happen there, like the website). Requesting a
+// challan, paying or modifying a quotation are not customer actions: after acceptance the team sends the
+// agreement, and the booking's bank challan follows.
+type QuotationAction = 'view' | 'respond' | 'agreements';
+
+function actionsFor(quotation: Quotation): { label: string; icon: string; action: QuotationAction }[] {
+  const status = (quotation.status ?? '').toLowerCase();
+  if (canRespondToQuotation(quotation)) {
+    return [{ label: 'View and respond', icon: 'eye-outline', action: 'respond' }];
+  }
+  if (status === 'accepted' || status === 'approved' || status === 'converted') {
+    return [
+      { label: 'View', icon: 'eye-outline', action: 'view' },
+      { label: 'My Agreements', icon: 'create-outline', action: 'agreements' },
+    ];
+  }
+  return [{ label: 'View', icon: 'eye-outline', action: 'view' }];
+}
 
 function formatDate(iso: string) {
   return iso ? iso.split('T')[0] : '';
@@ -166,7 +140,7 @@ export default function QuotationListScreen() {
     useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const { user, isLoadingUser } = useAuth();
 
-  const [quotations, setQuotations] = useState<QuotationRecord[]>([]);
+  const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -187,7 +161,6 @@ export default function QuotationListScreen() {
     setError('');
     try {
       const data = await getMyQuotations();
-      console.log('[QuotationListScreen] Loaded', data.length, 'quotations from API');
       const order = [
         'active',
         'sent',
@@ -208,7 +181,7 @@ export default function QuotationListScreen() {
         }),
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load quotations.');
+      setError(errorMessage(e, 'Your quotations could not be loaded. Please try again.'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -219,23 +192,11 @@ export default function QuotationListScreen() {
     load();
   }, [load]);
 
-  function handleAction(
-    quotationId: string | number | undefined,
-    action: 'view' | 'challan' | 'modify' | 'payment',
-  ) {
+  function handleAction(quotationId: string | number | undefined, action: QuotationAction) {
     const raw = String(quotationId ?? '').trim();
     const routeId = raw.match(/\d+/)?.[0] ?? raw;
-    console.log('handleAction', { quotationId, routeId, action });
-    switch (action) {
-      case 'view':
-        return navigation.navigate('Quotation', { quotationId: routeId });
-      case 'challan':
-        return navigation.navigate('CustomerInfo', { quotationId: routeId });
-      case 'modify':
-        return navigation.navigate('ModifyOrder', { quotationId: routeId });
-      case 'payment':
-        return navigation.navigate('QuotationPayment', { quotationId: routeId });
-    }
+    if (action === 'agreements') return navigation.navigate('AgreementList');
+    return navigation.navigate('Quotation', { quotationId: routeId });
   }
 
   function handleBack() {
@@ -339,9 +300,7 @@ export default function QuotationListScreen() {
         }
         renderItem={({ item }) => {
           const cfg = getStatusCfg(item.status ?? '');
-          const statusKey = (item.status ?? '').toLowerCase();
-          const actions =
-            STATUS_ACTIONS[statusKey] ?? STATUS_ACTIONS.active;
+          const actions = actionsFor(item);
 
           return (
             <Pressable
@@ -400,7 +359,7 @@ export default function QuotationListScreen() {
                 <View style={s.metaSpacer} />
 
                 <Text style={s.cardTotal}>
-                  PKR {Number(item.totalAmount ?? item.total ?? 0).toLocaleString()}
+                  PKR {Number(item.total ?? 0).toLocaleString()}
                 </Text>
               </View>
 
@@ -412,21 +371,21 @@ export default function QuotationListScreen() {
                   color={colors.mutedForeground}
                 />
                 <Text style={s.metaText}>
-                  Total PKR {Number(item.totalAmount ?? item.total ?? 0).toLocaleString()}
+                  Total PKR {Number(item.total ?? 0).toLocaleString()}
                 </Text>
-                {Number(item.subtotalAmount ?? 0) > 0 && (
+                {Number(item.subtotal ?? 0) > 0 && (
                   <>
                     <View style={s.metaDot} />
                     <Text style={s.metaText}>
-                      Subtotal PKR {Number(item.subtotalAmount).toLocaleString()}
+                      Subtotal PKR {Number(item.subtotal).toLocaleString()}
                     </Text>
                   </>
                 )}
-                {Number(item.taxAmount ?? 0) > 0 && (
+                {Number(item.tax ?? 0) > 0 && (
                   <>
                     <View style={s.metaDot} />
                     <Text style={s.metaText}>
-                      Tax PKR {Number(item.taxAmount).toLocaleString()}
+                      Tax PKR {Number(item.tax).toLocaleString()}
                     </Text>
                   </>
                 )}
@@ -434,9 +393,8 @@ export default function QuotationListScreen() {
 
               {/* Action chips */}
               <View style={s.actionsRow}>
-                {actions.map((a: { label: string; icon: string; action: 'view' | 'challan' | 'modify' | 'payment' }) => {
-                  const isPrimary =
-                    a.action === 'payment' || a.action === 'challan';
+                {actions.map(a => {
+                  const isPrimary = a.action === 'respond';
 
                   return (
                     <Pressable

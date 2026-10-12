@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Linking,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -13,14 +12,20 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Header } from '../../../components/Header';
 import { Screen } from '../../../components/Screen';
 import { radii, useThemedStyles, useThemeColors } from '../../../theme';
+import { errorMessage } from '../../../services/apiClient';
 import {
-  buildInvoicePdfUrl,
-  getCustomerInvoices,
-  type InvoiceItemSummary,
-} from '../../../services/invoiceService';
+  getMyPayments,
+  isPaid,
+  summarizePayments,
+  type MyPayment,
+} from '../../../services/paymentService';
 import { useAuth } from '../../../context/AuthContext';
 import type { AppStackParamList } from '../../../navigation/types';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+
+// My Payments, like worknestpk.com: GET /payment/my plus the bank challan of each booking. Payment is by
+// challan only (1Bill / HBL); every status shown comes from the API, the app never marks anything paid.
+// (The API has no customer "my invoices" list yet.)
 
 export default function MyPaymentsScreen() {
   const styles = useThemedStyles(createStyles);
@@ -28,69 +33,35 @@ export default function MyPaymentsScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const { user } = useAuth();
-  const [invoices, setInvoices] = useState<InvoiceItemSummary[]>([]);
-  const [loadingInvoices, setLoadingInvoices] = useState(true);
+  const [payments, setPayments] = useState<MyPayment[]>([]);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState('');
 
-  const resolveCustomerId = () => {
-    const raw =
-      (user as any)?.customerId ??
-      (user as any)?.customerCode ??
-      (user as any)?.id ??
-      '';
-    return raw ? String(raw) : '';
-  };
-
-  const fetchInvoices = (isRefresh = false) => {
-    const customerId = resolveCustomerId();
-
+  const fetchPayments = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
-    else setLoadingInvoices(true);
-
-    if (!customerId) {
-      setInvoices([]);
-      setLoadingInvoices(false);
+    else setLoading(true);
+    setError('');
+    try {
+      setPayments(await getMyPayments());
+    } catch (err) {
+      setError(errorMessage(err, 'Your payments could not be loaded. Please try again.'));
+    } finally {
+      setLoading(false);
       setRefreshing(false);
-      return;
     }
-
-    getCustomerInvoices(1, 50, undefined, customerId)
-      .then(result => setInvoices(result.items ?? []))
-      .catch(() => setInvoices([]))
-      .finally(() => {
-        setLoadingInvoices(false);
-        setRefreshing(false);
-      });
-  };
+  }, []);
 
   useEffect(() => {
-    fetchInvoices();
-  }, [user]);
+    if (user) fetchPayments();
+    else {
+      setPayments([]);
+      setLoading(false);
+    }
+  }, [user, fetchPayments]);
 
   // Hooks run before the guest wall: the tab stays mounted across sign in / out (hooks must not change count).
-  const totalPaid = useMemo(
-    () =>
-      invoices
-        .filter(invoice => getInvoiceStatus(invoice) === 'Paid')
-        .reduce(
-          (sum, invoice) =>
-            sum + Number(invoice.paidTotal ?? invoice.grandTotal ?? 0),
-          0,
-        ),
-    [invoices],
-  );
-
-  const totalUnpaid = useMemo(
-    () =>
-      invoices
-        .filter(invoice => getInvoiceStatus(invoice) !== 'Paid')
-        .reduce(
-          (sum, invoice) =>
-            sum + Number(invoice.balanceDue ?? invoice.grandTotal ?? 0),
-          0,
-        ),
-    [invoices],
-  );
+  const totals = useMemo(() => summarizePayments(payments), [payments]);
 
   if (!user) {
     return (
@@ -103,10 +74,9 @@ export default function MyPaymentsScreen() {
             color={colors.primary}
             style={{ opacity: 0.5 }}
           />
-          <Text style={styles.guestTitle}>Sign in to view invoices</Text>
+          <Text style={styles.guestTitle}>Sign in to view payments</Text>
           <Text style={styles.guestSub}>
-            Your paid and unpaid invoice history will appear here once you're
-            signed in.
+            Your challans and payments will appear here once you're signed in.
           </Text>
           <Pressable
             style={styles.guestBtn}
@@ -129,101 +99,108 @@ export default function MyPaymentsScreen() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={() => fetchInvoices(true)}
+            onRefresh={() => fetchPayments(true)}
           />
         }
       >
-        <Text style={styles.title}>My Invoices</Text>
+        <Text style={styles.title}>My Payments</Text>
 
         <View style={styles.summaryRow}>
           <View style={styles.summaryCard}>
             <Text style={styles.summaryLabel}>Paid</Text>
-            <Text style={styles.summaryValue}>
-              PKR {formatMoney(totalPaid)}
-            </Text>
+            <Text style={styles.summaryValue}>PKR {formatMoney(totals.paid)}</Text>
           </View>
           <View style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>Unpaid</Text>
-            <Text style={styles.summaryValue}>
-              PKR {formatMoney(totalUnpaid)}
-            </Text>
+            <Text style={styles.summaryLabel}>Pending</Text>
+            <Text style={styles.summaryValue}>PKR {formatMoney(totals.pending)}</Text>
           </View>
         </View>
 
-        <Text style={styles.sectionTitle}>Paid & Unpaid Invoices</Text>
-        {loadingInvoices && !invoices.length ? (
-          <Text style={styles.helper}>Loading invoices...</Text>
+        <Text style={styles.helper}>
+          Pay pending challans at any HBL branch, ATM or in your mobile banking app under 1Bill / Bill Payment.
+          The status updates once the payment reaches us.
+        </Text>
+
+        {loading && !payments.length ? (
+          <Text style={styles.helper}>Loading payments...</Text>
         ) : null}
-        {!loadingInvoices && invoices.length === 0 ? (
-          <Text style={styles.helper}>
-            No invoices found for this customer.
-          </Text>
+        {!loading && error ? (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Payments not loaded</Text>
+            <Text style={styles.meta}>{error}</Text>
+            <Pressable style={styles.challanBtn} onPress={() => fetchPayments()}>
+              <Ionicons name="refresh-outline" size={14} color={colors.primary} />
+              <Text style={styles.challanBtnText}>Try again</Text>
+            </Pressable>
+          </View>
+        ) : null}
+        {!loading && !error && payments.length === 0 ? (
+          <Text style={styles.helper}>No payments yet.</Text>
         ) : null}
 
-        {invoices.map(invoice => {
-          const status = getInvoiceStatus(invoice);
-          const isPaid = status === 'Paid';
-
+        {payments.map(payment => {
+          const paid = isPaid(payment);
           return (
-            <View key={invoice.id} style={styles.card}>
+            <View key={payment.id} style={styles.card}>
               <View style={styles.cardHeader}>
                 <View style={styles.cardBody}>
                   <Text style={styles.voucherCode}>
-                    {invoice.invoiceNumber || `INV-${invoice.id}`}
+                    {payment.challanNumber ? `Challan ${payment.challanNumber}` : `Payment #${payment.id}`}
                   </Text>
+                  {payment.spaceName ? (
+                    <Text style={styles.meta}>Space: {payment.spaceName}</Text>
+                  ) : null}
                   <Text style={styles.meta}>
-                    Issued: {formatDate(invoice.issuedOn)}
+                    Amount: {payment.amount !== null ? `PKR ${formatMoney(payment.amount)}` : 'Not available'}
                   </Text>
-                  <Text style={styles.meta}>
-                    Due: {formatDate(invoice.dueOn)}
-                  </Text>
-                  <Text style={styles.meta}>
-                    Amount: PKR {formatMoney(invoice.grandTotal)}
-                  </Text>
-                  <Text style={styles.meta}>
-                    Balance: PKR{' '}
-                    {formatMoney(invoice.balanceDue ?? invoice.grandTotal ?? 0)}
-                  </Text>
-                  {invoice.publicId ? (
-                    <Text style={styles.meta}>
-                      Public ID: {invoice.publicId}
-                    </Text>
+                  {payment.methodLabel ? (
+                    <Text style={styles.meta}>Method: {payment.methodLabel}</Text>
+                  ) : null}
+                  <Text style={styles.meta}>Created: {formatDate(payment.createdOn)}</Text>
+                  {paid ? (
+                    <Text style={styles.meta}>Paid on: {formatDate(payment.paidOn)}</Text>
+                  ) : payment.challanValidUntil ? (
+                    <Text style={styles.meta}>Pay before: {formatDate(payment.challanValidUntil)}</Text>
                   ) : null}
                 </View>
 
                 <View style={styles.cardRight}>
-                  <Text style={styles.cardTitle}>#{invoice.id}</Text>
                   <View
                     style={[
                       styles.statusBadge,
-                      isPaid ? styles.statusPaid : styles.statusPending,
+                      paid ? styles.statusPaid : styles.statusPending,
                     ]}
                   >
                     <Text
                       style={[
                         styles.statusText,
-                        isPaid
-                          ? styles.statusPaidText
-                          : styles.statusPendingText,
+                        paid ? styles.statusPaidText : styles.statusPendingText,
                       ]}
                     >
-                      {status}
+                      {payment.status}
                     </Text>
                   </View>
                 </View>
               </View>
 
-              <Pressable
-                style={styles.challanBtn}
-                onPress={() => Linking.openURL(buildInvoicePdfUrl(invoice.id))}
-              >
-                <Ionicons
-                  name="document-text-outline"
-                  size={14}
-                  color={colors.primary}
-                />
-                <Text style={styles.challanBtnText}>View Invoice PDF</Text>
-              </Pressable>
+              {payment.bookingId ? (
+                <Pressable
+                  style={styles.challanBtn}
+                  onPress={() =>
+                    navigation.navigate('Challan', {
+                      bookingId: payment.bookingId!,
+                      challanNumber: payment.challanNumber ?? undefined,
+                    })
+                  }
+                >
+                  <Ionicons
+                    name="document-text-outline"
+                    size={14}
+                    color={colors.primary}
+                  />
+                  <Text style={styles.challanBtnText}>View challan</Text>
+                </Pressable>
+              ) : null}
             </View>
           );
         })}
@@ -232,22 +209,15 @@ export default function MyPaymentsScreen() {
   );
 }
 
-function getInvoiceStatus(invoice: InvoiceItemSummary): string {
-  const label = (invoice.statusLabel ?? '').toString().trim().toLowerCase();
-  if (label.includes('paid') || invoice.statusId === 2) return 'Paid';
-  return 'Unpaid';
-}
-
-function formatDate(value?: string) {
-  if (!value) return 'N/A';
+function formatDate(value?: string | null) {
+  if (!value) return 'Not set';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString();
+  return date.toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-function formatMoney(value: number | string) {
-  const numeric = Number(value ?? 0);
-  return Number.isFinite(numeric) ? numeric.toFixed(2) : '0.00';
+function formatMoney(value: number) {
+  return Number.isFinite(value) ? value.toLocaleString('en-PK', { maximumFractionDigits: 2 }) : '0';
 }
 
 const createStyles = (colors: ReturnType<typeof useThemeColors>) =>

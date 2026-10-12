@@ -11,15 +11,10 @@ import { logoutUser, updateUserProfile } from "../../../services/authService";
 import { useAuth } from "../../../context/AuthContext";
 import type { AppStackParamList } from "../../../navigation/types";
 import { rootNavRef } from "../../../navigation/AppNavigator";
-import { getMyBookings } from "../../../services/workspaceService";
+import { getMyBookings, type MyBooking } from "../../../services/bookingService";
 import { formatPhoneInput, phoneError, PHONE_MAX_LENGTH } from "../../../utils/phone";
 
-type BookingItem = {
-  id: number;
-  startDateTime?: string;
-  endDateTime?: string;
-  bookingStatus?: string;
-};
+type BookingItem = Pick<MyBooking, "id" | "endOn" | "status">;
 
 type BookingSummary = {
   upcoming: number;
@@ -86,21 +81,21 @@ export default function ProfileScreen() {
   const isFocused = useIsFocused();
 
   useEffect(() => {
+    if (!user || !isFocused) return;
     let active = true;
     getMyBookings()
       .then((items) => {
         if (!active) return;
-        setSummary(buildSummary(items as BookingItem[]));
+        setSummary(buildSummary(items));
       })
       .catch(() => {
-        if (!active) return;
-        setSummary({ upcoming: 0, completed: 0, cancelled: 0 });
+        // Keep the last counts the API gave us; never show made-up zeros as if they were real.
       });
 
     return () => {
       active = false;
     };
-  }, [isFocused]);
+  }, [isFocused, user]);
 
   const summaryItems = useMemo(
     () => [
@@ -202,7 +197,6 @@ export default function ProfileScreen() {
             { icon: "document-text-outline" as const, label: "Quotations", onPress: () => navigation.navigate("QuotationList") },
             { icon: "create-outline" as const, label: "My Agreements", onPress: () => navigation.navigate("AgreementList") },
             { icon: "time-outline" as const, label: "My Bookings", onPress: () => navigation.navigate("MyBookings") },
-            { icon: "time-outline" as const, label: "Booking History", onPress: () => navigation.navigate("BookingHistory") },
             { icon: "shield-checkmark-outline" as const, label: "Privacy Policy", onPress: () => navigation.navigate("PrivacyPolicy") },
             { icon: "information-circle-outline" as const, label: "About WorkNest", onPress: () => navigation.navigate("AboutUs") },
             { icon: "book-outline" as const, label: "User Manual", onPress: () => navigation.navigate("UserManual") },
@@ -341,7 +335,7 @@ function buildSummary(bookings: BookingItem[]): BookingSummary {
   let cancelled = 0;
 
   bookings.forEach((booking) => {
-    const status = (booking.bookingStatus ?? "").toLowerCase();
+    const status = (booking.status ?? "").toLowerCase();
     if (status.includes("cancel")) {
       cancelled += 1;
       return;
@@ -351,7 +345,7 @@ function buildSummary(bookings: BookingItem[]): BookingSummary {
       return;
     }
 
-    const endDate = booking.endDateTime ? new Date(booking.endDateTime) : null;
+    const endDate = booking.endOn ? new Date(booking.endOn) : null;
     if (endDate && endDate < now) {
       completed += 1;
       return;
