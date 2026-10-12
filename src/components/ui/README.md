@@ -308,8 +308,72 @@ toast.hide();
 ```
 
 One toast at a time (a new one replaces the current), 3 s (errors 4.5 s), tap to dismiss, announced to
-screen readers, positioned above the tab bar. Toasts render under native Modals; inside a BottomSheet or dialog,
-show inline errors instead. Keep `ConfirmDialog` / `Alert` for questions that need an answer.
+screen readers, positioned above the tab bar. Keep `useConfirm` / `ConfirmDialog` for questions that need an answer.
+
+Toasts and native Modals: a toast shown while a `BottomSheet` or `ConfirmDialog` is open is drawn inside that
+modal (top of the screen), so it stays visible. If your screen renders its own `<Modal>`, add
+`<ToastModalHost />` as the last child inside it to get the same behaviour (otherwise the toast appears behind
+the modal and is seen once it closes).
+
+```tsx
+<Modal visible={open} transparent onRequestClose={close}>
+  ...your content...
+  <ToastModalHost />            {/* placement="top" (default) or "bottom" */}
+</Modal>
+```
+
+### Banner (persistent inline message)
+
+```tsx
+<Banner tone="success" title="Password reset email sent" message={`Check your inbox at ${email}.`}
+  onDismiss={() => setSent(false)} />
+<Banner tone="danger" message={error} actionLabel="Try again" onAction={retry} />
+<Banner tone="warning" message="You are offline. Changes will sync later." />
+```
+
+Props: `tone` (`info | success | warning | danger`), `title`, `message`, `icon`, `actionLabel` + `onAction`,
+`onDismiss`. Use it for results that must stay on screen (form outcomes, offline state); use toasts for brief notices.
+
+### useConfirm (promise-based ConfirmDialog)
+
+`<ConfirmProvider>` is mounted in App.tsx, so any screen can ask without local dialog state:
+
+```tsx
+const confirm = useConfirm();
+const toast = useToast();
+
+const onCancelBooking = async () => {
+  const ok = await confirm({
+    title: "Cancel this booking?",
+    message: "This cannot be undone.",
+    confirmLabel: "Cancel booking",
+    cancelLabel: "Keep booking",
+    destructive: true,
+  });
+  if (ok) await cancelBooking(id);
+};
+
+// Optional: run the work inside the dialog (spinner on the confirm button, dialog stays open until done).
+try {
+  await confirm({ title: "Delete document?", destructive: true, confirmLabel: "Delete", onConfirm: () => deleteDoc(id) });
+} catch (e) {
+  toast.error(e instanceof Error ? e.message : "Could not delete.");
+}
+```
+
+Options: `title`, `message`, `confirmLabel`, `cancelLabel`, `destructive`, `icon`, `onConfirm`. Resolves `true`
+(confirmed) or `false` (cancelled / back button / replaced by another confirm). If `onConfirm` throws, the dialog
+closes and the promise rejects with that error. Without the provider it falls back to a native `Alert`.
+
+### GoogleSignInButton
+
+```tsx
+<GoogleSignInButton onPress={signInWithGoogle} loading={googleLoading} />              // "Continue with Google"
+<GoogleSignInButton label="Sign up with Google" onPress={...} />
+```
+
+Follows Google's branding guidelines (pill, standard multi-colour G mark drawn with react-native-svg, light and
+dark variants with Google's own colours). `GoogleMark` is exported for other "Google" affordances.
 
 ### BottomSheet and ConfirmDialog
 
@@ -376,5 +440,18 @@ toYmdLocal(new Date())                   // "2026-10-12"
 - White text goes on `primaryStrong` / `dangerStrong` / `headerBg`, not on `primary`.
 - Pass `placeholderTextColor={colors.placeholder}` to raw `TextInput`s (or use `TextField`).
 - Prefer `useTheme().shadows` over the static `shadows` and keep a `border` on cards (shadows are faint in dark mode).
-- Replace `Alert.alert("Saved")`-style notices with `useToast()`; keep dialogs for decisions.
+- Replace `Alert.alert("Saved")`-style notices with `useToast()`, and yes/no `Alert.alert` questions with
+  `useConfirm()` (themed, follows dark mode). Persistent results go in a `<Banner>`.
+- Your own `<Modal>`s: add `<ToastModalHost />` inside so toasts stay visible.
 - Text sizes from `typography`; weights 400-700 only; minimum 12 (overline 11).
+
+---
+
+## 7. Android resources (`android/app/src/main/res`)
+
+- `values/colors.xml` / `values-night/colors.xml`: `picker_*` (Material 3 date / time pickers, native dialogs,
+  `colorPrimary`): teal `#0F766E` on white in light mode; teal-400 `#2DD4BF` with dark text on `#131C2E` in dark mode.
+  `window_background` = theme `background`; `splash_background` = theme `headerBg`.
+- `values/styles.xml`: `AppTheme` extends `Base.AppTheme` (`Theme.Material3.DayNight.NoActionBar`). ThemeProvider sets
+  Android's night mode when the user forces Light / Dark, so these follow the in-app choice.
+- `values-v31/styles.xml`: Android 12+ system splash background in brand navy (matches the JS splash).
