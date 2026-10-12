@@ -39,7 +39,7 @@ export function Badge({ count, max = 99, dot = false, tone = "danger", ring, acc
       accessibilityLabel={accessibilityLabel ?? `${n} new`}
       style={[styles.badge, { backgroundColor: bg }, ringStyle, style]}
     >
-      <Text style={styles.text} maxFontSizeMultiplier={1.2} numberOfLines={1}>
+      <Text style={[styles.text, { color: colors.onPrimary }]} maxFontSizeMultiplier={1.2} numberOfLines={1}>
         {text}
       </Text>
     </View>
@@ -48,13 +48,13 @@ export function Badge({ count, max = 99, dot = false, tone = "danger", ring, acc
 
 const styles = StyleSheet.create({
   badge: {
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
     paddingHorizontal: 5,
     alignItems: "center",
     justifyContent: "center",
   },
-  text: { color: "#ffffff", fontSize: 11, lineHeight: 13, fontWeight: "700", includeFontPadding: false },
+  text: { fontSize: 12, lineHeight: 14, fontWeight: "700", includeFontPadding: false },
   dot: { width: 10, height: 10, borderRadius: 5 },
 });

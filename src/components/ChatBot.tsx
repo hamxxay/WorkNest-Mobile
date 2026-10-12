@@ -172,7 +172,7 @@ export function ChatBot({ visible = true }: { visible?: boolean }) {
 
       <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)} statusBarTranslucent>
         <KeyboardAvoidingView style={s.overlay} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-          <Pressable style={s.backdrop} onPress={() => setOpen(false)} accessibilityLabel="Close assistant" />
+          <Pressable style={s.backdrop} onPress={() => setOpen(false)} accessibilityRole="button" accessibilityLabel="Close assistant" />
 
           <View style={s.sheet}>
             <View style={s.header}>

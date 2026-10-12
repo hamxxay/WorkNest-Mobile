@@ -66,7 +66,7 @@ function StaffTabs() {
     tabBarInactiveTintColor: colors.tabInactive,
     tabBarStyle: { backgroundColor: colors.tabBar, borderTopColor: colors.border },
     tabBarLabelStyle: { fontSize: 12, fontWeight: "600" },
-    tabBarBadgeStyle: { backgroundColor: colors.dangerStrong, color: colors.white, fontSize: 11 },
+    tabBarBadgeStyle: { backgroundColor: colors.dangerStrong, color: colors.onPrimary, fontSize: 12 },
     sceneStyle: { backgroundColor: colors.background },
   };
 

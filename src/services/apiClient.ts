@@ -274,7 +274,7 @@ function throwForStatus(response: Response, payload: unknown, method: string, ur
 function throwIfRefused(response: Response, payload: unknown): void {
   if (payload && typeof payload === "object") {
     const p = payload as Record<string, unknown>;
-    if (p["isSuccessful"] === false || p["IsSuccessful"] === false || p["success"] === false) {
+    if (p.isSuccessful === false || p.IsSuccessful === false || p.success === false) {
       throw new ApiError(serverMessage(payload) ?? FALLBACK_MESSAGE, response.status, payload);
     }
   }

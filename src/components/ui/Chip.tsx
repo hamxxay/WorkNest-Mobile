@@ -48,7 +48,7 @@ export function Chip({ label, selected = false, onPress, icon, count, onRemove, 
           {label}
         </Text>
         {count !== undefined ? (
-          <View style={[styles.count, { backgroundColor: selected ? "rgba(255,255,255,0.22)" : colors.surfaceAlt }]}>
+          <View style={[styles.count, selected ? styles.countOnFill : { backgroundColor: colors.surfaceAlt }]}>
             <Text style={[typography.captionStrong, { color: fg }]}>{count}</Text>
           </View>
         ) : null}
@@ -152,6 +152,8 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 999,
   },
   count: { minWidth: 20, paddingHorizontal: 6, borderRadius: 999, alignItems: "center" },
+  // Count bubble on the teal fill of a selected chip.
+  countOnFill: { backgroundColor: "rgba(255, 255, 255, 0.22)" },
   scrollRow: { flexDirection: "row", gap: 8, paddingVertical: 4 },
   wrapRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
 });

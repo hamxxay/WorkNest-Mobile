@@ -134,7 +134,7 @@ export default function ChallanValidityScreen() {
                 {result.voucherNumber ? <InfoRow label="Voucher" value={result.voucherNumber} /> : null}
                 {result.consumerNumber ? <InfoRow label="Consumer no." value={result.consumerNumber} /> : null}
                 {result.spaceName ? <InfoRow label="Space" value={result.spaceName} /> : null}
-                {result.voucherStatus ? <InfoRow label="Voucher status" value={result.voucherStatus} /> : null}
+                {result.voucherStatus ? <InfoRow label="Voucher status" value={<StatusPill status={result.voucherStatus} />} /> : null}
                 <InfoRow
                   label="Valid until"
                   value={result.currentExpiryDate ? formatDate(result.currentExpiryDate) : result.currentExpiryText ?? "—"}

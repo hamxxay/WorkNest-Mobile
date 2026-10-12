@@ -20,7 +20,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     // Details stay in the developer log; the user only sees the friendly screen.
-    console.error("[ErrorBoundary]", error, info.componentStack);
+    if (__DEV__) console.error("[ErrorBoundary]", error, info.componentStack);
   }
 
   private retry = () => this.setState({ hasError: false });

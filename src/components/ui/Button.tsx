@@ -170,7 +170,7 @@ export function IconButton({
     plain: { bg: "transparent", fg: colors.text, border: "transparent", ripple: colors.ripple },
     tonal: { bg: colors.surfaceAlt, fg: colors.text, border: "transparent", ripple: colors.ripple },
     outline: { bg: colors.surface, fg: colors.text, border: colors.border, ripple: colors.ripple },
-    onDark: { bg: "rgba(255,255,255,0.12)", fg: colors.onHeader, border: "rgba(255,255,255,0.18)", ripple: colors.rippleOnPrimary },
+    onDark: { bg: colors.onHeaderFill, fg: colors.onHeader, border: colors.headerLine, ripple: colors.rippleOnPrimary },
     primary: { bg: colors.primaryStrong, fg: colors.onPrimary, border: "transparent", ripple: colors.rippleOnPrimary },
   };
   const p = palette[variant];

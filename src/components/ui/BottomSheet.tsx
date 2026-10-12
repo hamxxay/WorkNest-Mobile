@@ -104,6 +104,8 @@ export function BottomSheet({
     if (dismissible) onClose();
   };
 
+  // With a footer, the footer pads the bottom inset itself.
+  const sheetBottomPadding = footer ? 0 : Math.max(insets.bottom, 16);
   const translateY = progress.interpolate({ inputRange: [0, 1], outputRange: [windowHeight, 0] });
   const withClose = showClose ?? !!title;
   const hasHeader = !!(title || overline || subtitle || withClose);
@@ -137,7 +139,7 @@ export function BottomSheet({
               borderTopLeftRadius: radii.sheet,
               borderTopRightRadius: radii.sheet,
               maxHeight,
-              paddingBottom: footer ? 0 : Math.max(insets.bottom, 16),
+              paddingBottom: sheetBottomPadding,
               transform: [{ translateY }],
             },
             fullHeight && { height: maxHeight },

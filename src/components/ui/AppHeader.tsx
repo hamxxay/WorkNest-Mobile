@@ -155,9 +155,9 @@ export function AppHeader({
         {
           backgroundColor: bg,
           paddingTop: (padTop ? insets.top : 0) + 8,
-          borderBottomColor: dark ? "rgba(255,255,255,0.08)" : colors.border,
-          borderBottomWidth: border ? StyleSheet.hairlineWidth : 0,
+          borderBottomColor: dark ? colors.headerLine : colors.border,
         },
+        border && styles.bordered,
         style,
       ]}
     >
@@ -212,6 +212,7 @@ export function AppHeader({
 
 const styles = StyleSheet.create({
   bar: { paddingHorizontal: 12, paddingBottom: 10 },
+  bordered: { borderBottomWidth: StyleSheet.hairlineWidth },
   row: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 44 },
   backBtn: { marginLeft: -4 },
   logo: { width: 36, height: 36, marginLeft: 4 },

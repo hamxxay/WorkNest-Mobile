@@ -41,7 +41,7 @@ export function StatusPill({ status, label, tone, icon, size = "sm", style }: St
       <Text
         numberOfLines={1}
         maxFontSizeMultiplier={1.3}
-        style={[styles.text, { color: t.fg, fontSize: md ? 13 : 12 }]}
+        style={[styles.text, md ? styles.textMd : styles.textSm, { color: t.fg }]}
       >
         {text}
       </Text>
@@ -62,4 +62,6 @@ const styles = StyleSheet.create({
   md: { paddingHorizontal: 12, paddingVertical: 4, minHeight: 28 },
   dot: { width: 6, height: 6, borderRadius: 3 },
   text: { fontWeight: "600", includeFontPadding: false },
+  textSm: { fontSize: 12 },
+  textMd: { fontSize: 13 },
 });

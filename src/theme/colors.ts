@@ -82,6 +82,10 @@ export type AppColors = {
   onHeader: string;
   /** Secondary text on headerBg. */
   onHeaderMuted: string;
+  /** Hairlines, borders and progress tracks on headerBg. */
+  headerLine: string;
+  /** Subtle fills on headerBg (icon buttons, chips). */
+  onHeaderFill: string;
   /** Modal / sheet backdrop. */
   overlay: string;
   /** Skeleton placeholder blocks. */
@@ -169,6 +173,8 @@ export const lightColors: AppColors = {
   headerBg: slate[900],
   onHeader: "#ffffff",
   onHeaderMuted: "rgba(255, 255, 255, 0.72)",
+  headerLine: "rgba(255, 255, 255, 0.14)",
+  onHeaderFill: "rgba(255, 255, 255, 0.12)",
   overlay: "rgba(15, 23, 42, 0.55)",
   skeleton: slate[200],
   ripple: "rgba(15, 23, 42, 0.08)",
@@ -235,6 +241,8 @@ export const darkColors: AppColors = {
   headerBg: night.header,
   onHeader: "#ffffff",
   onHeaderMuted: "rgba(255, 255, 255, 0.7)",
+  headerLine: "rgba(255, 255, 255, 0.14)",
+  onHeaderFill: "rgba(255, 255, 255, 0.12)",
   overlay: "rgba(0, 0, 0, 0.62)",
   skeleton: night.surfaceAlt,
   ripple: "rgba(255, 255, 255, 0.10)",
