@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
+import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { useTheme, type Tone } from "../../theme";
+import { PRESS_SCALE_LARGE, ScalePressable } from "../motion/ScalePressable";
 import { Avatar } from "./Avatar";
 
 export type ListRowProps = {
@@ -106,7 +107,8 @@ export function ListRow({
     );
   }
   return (
-    <Pressable
+    <ScalePressable
+      pressScale={PRESS_SCALE_LARGE}
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityHint={accessibilityHint}
@@ -118,7 +120,7 @@ export function ListRow({
       style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.surfaceAlt }, disabled && styles.disabled, style]}
     >
       {content}
-    </Pressable>
+    </ScalePressable>
   );
 }
 
