@@ -38,12 +38,12 @@ export const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com
 // Old /invoice links open the Payments tab: customers have challans and payments, not an invoice list.
 
 export const linking: LinkingOptions<RootStackParamList> = {
+  // https and the custom scheme only: plain http links are not accepted (the Android intent filters are https
+  // only too), so a link can't be intercepted or rewritten on the way.
   prefixes: [
     "myapp://",
     "https://work-nest-3936a.web.app",
-    "http://work-nest-3936a.web.app",
     "https://worknestpk.com",
-    "http://worknestpk.com",
   ],
   async getInitialURL() {
     const url = await Linking.getInitialURL();

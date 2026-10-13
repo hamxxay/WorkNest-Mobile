@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug builds only (this file replaces src/main/res/xml/network_security_config.xml in the debug variant).
+  Same rules as release (HTTPS only, user CAs trusted while debuggable), except that plain http is allowed to
+  the local development hosts:
+    - localhost / 127.0.0.1: Metro (8081 / 8082) and the local API (5200) on a phone through `adb reverse`
+    - 10.0.2.2: the Mac as seen from the Android emulator
+  Metro on a LAN address (192.168.x.x) is not allowed: use adb reverse, or add the address here locally.
+-->
+<network-security-config>
+    <debug-overrides>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </debug-overrides>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">10.0.2.2</domain>
+    </domain-config>
+</network-security-config>
