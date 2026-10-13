@@ -1,6 +1,7 @@
 import { API_ENDPOINTS } from "../config/api";
 import { ApiError, apiRequest } from "./apiClient";
 import { openApiPdf } from "./pdfService";
+import { normalizeBreakdownFields, type BreakdownField } from "./amountBreakdown";
 
 // Quotations for customers (QuotationController): list my quotations, view one (and its versions), download
 // its PDF, accept, or decline with a reason. Everything else (create, versions, send, share, convert,
@@ -39,6 +40,16 @@ export type Quotation = {
   notes?: string;
   version?: number;
   isActive?: boolean;
+  /**
+   * The API's own answer to "can this customer accept or decline now?" (true only while the quotation is Sent).
+   * Undefined when an older API did not send it.
+   */
+  canRespond?: boolean;
+  /**
+   * The API's amount breakdown (same as the quotation PDF): advance rent, security deposit, tax... adding up to
+   * the total payable. Empty when the API sent none.
+   */
+  fields: BreakdownField[];
 };
 
 /** "QUO-12" or "12" → "12" (the API's numeric id). */
@@ -88,7 +99,10 @@ export function normalizeQuotation(q: any): Quotation {
   }));
 
   const subtotal = Number(q?.subtotalAmount ?? q?.SubtotalAmount ?? q?.subtotal ?? q?.Subtotal ?? totalFromItems(items));
-  const total = Number(q?.totalAmount ?? q?.TotalAmount ?? q?.total ?? q?.Total ?? totalFromItems(items) ?? 0);
+  // The total payable (advance rent + deposit + tax) comes first; totalAmount is the same figure on current APIs.
+  const total = Number(
+    q?.totalPayable ?? q?.TotalPayable ?? q?.totalAmount ?? q?.TotalAmount ?? q?.total ?? q?.Total ?? totalFromItems(items) ?? 0,
+  );
 
   return {
     id: String(q?.id ?? q?.Id ?? q?.quotationId ?? q?.QuotationId ?? q?.quotationNumber ?? q?.QuotationNumber ?? ""),
@@ -114,6 +128,8 @@ export function normalizeQuotation(q: any): Quotation {
     notes: q?.remarks ?? q?.Remarks ?? q?.notes ?? q?.Notes ?? undefined,
     version: Number(q?.version ?? q?.Version ?? 1),
     isActive: q?.isActive ?? q?.IsActive ?? true,
+    canRespond: typeof (q?.canRespond ?? q?.CanRespond) === "boolean" ? (q?.canRespond ?? q?.CanRespond) : undefined,
+    fields: normalizeBreakdownFields(q),
   };
 }
 
@@ -126,10 +142,20 @@ function listFrom(payload: unknown): any[] {
   return [];
 }
 
-/** GET /quotation/my — the signed-in customer's quotations. Throws a readable ApiError on failure. */
+/** A draft is still being prepared by the sales team: never shown to the customer. */
+export function isDraftQuotation(quotation: Pick<Quotation, "status">): boolean {
+  return (quotation.status ?? "").toLowerCase() === "draft";
+}
+
+/**
+ * GET /quotation/my — the signed-in customer's quotations (drafts left out, like the API does now). Throws a
+ * readable ApiError on failure.
+ */
 export async function getMyQuotations(): Promise<Quotation[]> {
   const payload = await apiRequest<unknown>(API_ENDPOINTS.quotation.my, { requiresAuth: true });
-  return listFrom(payload).map(normalizeQuotation);
+  return listFrom(payload)
+    .map(normalizeQuotation)
+    .filter((q) => !isDraftQuotation(q));
 }
 
 /** GET /quotation/{id} — staff: any; customer: their own (404 otherwise). */
@@ -193,11 +219,16 @@ export async function openQuotationPdf(id: string, quotationNumber?: string): Pr
   });
 }
 
-/** Statuses a customer can still accept or decline. */
-export function canRespondToQuotation(quotation: Pick<Quotation, "status" | "isActive">): boolean {
+/**
+ * Whether the customer can accept or decline: the API's `canRespond` when it sent one, otherwise only a Sent
+ * quotation that is still active (the API's own rule).
+ */
+export function canRespondToQuotation(
+  quotation: Pick<Quotation, "status" | "isActive"> & { canRespond?: boolean },
+): boolean {
+  if (typeof quotation.canRespond === "boolean") return quotation.canRespond;
   if (quotation.isActive === false) return false;
-  const status = (quotation.status ?? "").toLowerCase();
-  return ["active", "pending", "sent", "open", "new", "awaiting", "senttocustomer"].includes(status);
+  return (quotation.status ?? "").toLowerCase() === "sent";
 }
 
 // ─── Staff view of the shared Quotation screen ───────────────────────────────

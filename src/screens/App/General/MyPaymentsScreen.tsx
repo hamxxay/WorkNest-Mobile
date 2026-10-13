@@ -18,7 +18,14 @@ import { formatDate, formatMoney } from "../../../utils/format";
 import { useAuth } from "../../../context/AuthContext";
 import { useNotificationsAction } from "../../../hooks/useHeaderActions";
 import { errorMessage } from "../../../services/apiClient";
-import { getMyPayments, isPaid, summarizePayments, type MyPayment } from "../../../services/paymentService";
+import {
+  getMyPayments,
+  isPaid,
+  isPendingPayment,
+  summarizePayments,
+  type MyPayment,
+} from "../../../services/paymentService";
+import { isChallanExpired } from "../../../services/bookingService";
 import { ChallanPayHelp } from "./shared/ChallanPayHelp";
 import { GuestState } from "./shared/GuestState";
 import type { AppStackParamList } from "../../../navigation/types";
@@ -136,8 +143,13 @@ export default function MyPaymentsScreen() {
                 {item.methodLabel ? <InfoRow label="Method" value={item.methodLabel} /> : null}
                 {paid ? (
                   <InfoRow label="Paid on" value={formatDate(item.paidOn)} />
-                ) : item.challanValidUntil ? (
-                  <InfoRow label="Pay before" value={formatDate(item.challanValidUntil)} />
+                ) : item.challanValidUntil && isPendingPayment(item) ? (
+                  // A last day to pay only for a challan still waiting for payment; an expired one says so.
+                  isChallanExpired(item.challanValidUntil) ? (
+                    <InfoRow label="Expired on" value={formatDate(item.challanValidUntil)} />
+                  ) : (
+                    <InfoRow label="Pay before" value={formatDate(item.challanValidUntil)} />
+                  )
                 ) : null}
                 <InfoRow label="Created" value={formatDate(item.createdOn)} />
               </View>

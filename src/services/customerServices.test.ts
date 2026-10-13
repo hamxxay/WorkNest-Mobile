@@ -1,15 +1,22 @@
 import { getToken, getUser } from "../utils/authStorage";
 import { ApiError, resetSessionExpiredState, setSessionRefresher } from "./apiClient";
 import {
+  cancelMyBooking,
   canCancelBooking,
   categoryCodeForMode,
+  challanStage,
   createSmartBooking,
   CustomerProfileRequiredError,
   getBookingDetails,
   getMyBookings,
   getSmartAvailability,
+  isChallanExpired,
+  isChallanToPay,
+  isUpcomingBooking,
+  isVoidBooking,
   normalizeChallan,
   normalizeMyBooking,
+  summarizeBookings,
 } from "./bookingService";
 import { getMyPayments, isPaid, normalizePayment, parseApiDate, summarizePayments } from "./paymentService";
 import { getAnnouncements, normalizeAnnouncement, notificationLink } from "./notificationService";
@@ -21,7 +28,12 @@ import {
   signedUploadError,
 } from "./agreementService";
 import { buildTourMessage, submitContactMessage, submitTourRequest } from "./tourService";
-import { canRespondToQuotation, normalizeQuotationApiId } from "./customerQuotationService";
+import {
+  canRespondToQuotation,
+  getMyQuotations,
+  normalizeQuotation,
+  normalizeQuotationApiId,
+} from "./customerQuotationService";
 
 jest.mock("react-native-share", () => ({ __esModule: true, default: { open: jest.fn() } }));
 jest.mock("@react-native-async-storage/async-storage", () => ({
@@ -93,11 +105,108 @@ describe("bookings (website My Bookings rules)", () => {
     expect(normalizeMyBooking({ BookingId: 7 }).totalAmount).toBeNull();
   });
 
-  it("allows cancel only for Pending bookings", () => {
+  it("keeps the challan's totalPayable apart from the booking's totalAmount (never used as the payable)", () => {
+    const withPayable = normalizeMyBooking({ bookingId: 557, totalAmount: 283500, totalPayable: 470480, totalPaidAmount: 459630 });
+    expect(withPayable).toMatchObject({ totalAmount: 283500, totalPayable: 470480, totalPaidAmount: 459630 });
+    // Older API without totalPayable: the screens show "See challan", not 283,500.
+    const without = normalizeMyBooking({ bookingId: 551, totalAmount: 630000 });
+    expect(without.totalPayable).toBeNull();
+    expect(without.totalAmount).toBe(630000);
+    expect(normalizeMyBooking({ bookingId: 3, paidAmount: 1000 }).totalPaidAmount).toBe(1000);
+  });
+
+  it("allows cancel only for Pending bookings with no payment", () => {
     expect(canCancelBooking({ id: 1, status: "Pending", statusCode: null })).toBe(true);
+    expect(canCancelBooking({ id: 1, status: "Pending", statusCode: "Pending", totalPaidAmount: 0 })).toBe(true);
+    expect(canCancelBooking({ id: 1, status: "Pending", statusCode: "Pending", totalPaidAmount: 1001566.45 })).toBe(false);
     expect(canCancelBooking({ id: 1, status: "Confirmed", statusCode: "confirmed" })).toBe(false);
     expect(canCancelBooking({ id: 1, status: "Cancelled", statusCode: null })).toBe(false);
+    expect(canCancelBooking({ id: 1, status: "Rejected", statusCode: "Rejected" })).toBe(false);
     expect(canCancelBooking({ id: 0, status: "Pending", statusCode: null })).toBe(false);
+  });
+
+  it("refuses to send a cancel for a paid booking, and shows the API's message when it refuses", async () => {
+    await expect(
+      cancelMyBooking({ id: 9, status: "Pending", statusCode: "Pending", totalPaidAmount: 500 }),
+    ).rejects.toBeInstanceOf(ApiError);
+
+    installFetch(
+      jsonResponse(400, { isSuccessful: false, message: "This booking has a payment and can't be cancelled.", data: null }),
+    );
+    await expect(cancelMyBooking({ id: 9, status: "Pending", statusCode: "Pending" })).rejects.toThrow(
+      "This booking has a payment and can't be cancelled.",
+    );
+  });
+
+  it("lists rejected, no-show, cancelled, completed and ended bookings under History", () => {
+    const now = new Date(2026, 9, 13, 12, 0, 0).getTime();
+    const future = "2027-11-05T00:00:00.000";
+    const upcoming = (status: string, statusCode: string | null = null, endOn: string | null = future) =>
+      isUpcomingBooking({ status, statusCode, endOn }, now);
+    expect(upcoming("Pending", "Pending")).toBe(true);
+    expect(upcoming("Confirmed", "Confirmed")).toBe(true);
+    expect(upcoming("Pending", "Pending", null)).toBe(true);
+    expect(upcoming("Rejected", "Rejected")).toBe(false);
+    expect(upcoming("No Show", "NoShow")).toBe(false);
+    expect(upcoming("Cancelled", "Cancelled")).toBe(false);
+    expect(upcoming("Completed")).toBe(false);
+    expect(upcoming("Confirmed", "Confirmed", "2026-10-01T00:00:00")).toBe(false);
+
+    expect(isVoidBooking({ status: "No Show", statusCode: "NoShow" })).toBe(true);
+    expect(isVoidBooking({ status: "Pending", statusCode: "Pending" })).toBe(false);
+
+    expect(
+      summarizeBookings(
+        [
+          { status: "Pending", statusCode: "Pending", endOn: future },
+          { status: "Rejected", statusCode: "Rejected", endOn: future },
+          { status: "No Show", statusCode: "NoShow", endOn: future },
+          { status: "Confirmed", statusCode: "Confirmed", endOn: "2026-01-01" },
+        ],
+        now,
+      ),
+    ).toEqual({ upcoming: 1, completed: 1, cancelled: 2 });
+  });
+
+  it("treats a challan as expired after its last day (date only) or its time", () => {
+    const now = new Date(2026, 9, 13, 12, 0, 0);
+    expect(isChallanExpired("2026-09-14T00:00:00.000", now)).toBe(true);
+    expect(isChallanExpired("2026-10-13T00:00:00.000", now)).toBe(false); // valid all of today
+    expect(isChallanExpired("2026-10-13", now)).toBe(false);
+    expect(isChallanExpired("2026-10-13T09:30:00", now)).toBe(true);
+    expect(isChallanExpired("2026-10-18T03:56:13.000", now)).toBe(false);
+    expect(isChallanExpired(null, now)).toBe(false);
+    expect(isChallanExpired("not a date", now)).toBe(false);
+  });
+
+  it("only asks to pay a Pending, unexpired challan that has not been paid", () => {
+    const now = new Date(2026, 9, 13, 12, 0, 0);
+    const base = { status: "Pending", statusCode: "Pending", challanValidUntil: "2026-10-18T03:56:13.000" };
+    expect(isChallanToPay(base, now)).toBe(true);
+    expect(isChallanToPay({ ...base, challanValidUntil: "2026-09-14T00:00:00.000" }, now)).toBe(false);
+    expect(isChallanToPay({ ...base, status: "Rejected", statusCode: "Rejected" }, now)).toBe(false);
+    expect(isChallanToPay({ ...base, status: "No Show", statusCode: "NoShow" }, now)).toBe(false);
+    expect(isChallanToPay({ ...base, totalPaidAmount: 999760, totalPayable: 999760 }, now)).toBe(false);
+    expect(isChallanToPay({ ...base, totalPaidAmount: 100, totalPayable: 999760 }, now)).toBe(true);
+    expect(isChallanToPay({ ...base, totalPaidAmount: 100 }, now)).toBe(false);
+  });
+
+  it("tells where a challan stands (to pay, expired, void, settled)", () => {
+    const now = new Date(2026, 9, 13, 12, 0, 0);
+    const expiredDate = "2026-09-14T00:00:00.000";
+    // User 48, booking 370: Pending, valid until 14 Sep 2026, nothing paid.
+    expect(challanStage({ status: "Pending", statusCode: "Pending", challanValidUntil: expiredDate, totalPaidAmount: 0 }, now)).toBe(
+      "expired",
+    );
+    expect(
+      challanStage({ status: "Pending", challanValidUntil: expiredDate, totalPaidAmount: 100, totalPayable: 376100 }, now),
+    ).toBe("expired");
+    expect(
+      challanStage({ status: "Pending", challanValidUntil: expiredDate, totalPaidAmount: 376100, totalPayable: 376100 }, now),
+    ).toBe("settled");
+    expect(challanStage({ status: "No Show", statusCode: "NoShow", totalPaidAmount: 459630 }, now)).toBe("void");
+    expect(challanStage({ status: "Confirmed", statusCode: "Confirmed" }, now)).toBe("settled");
+    expect(challanStage({ status: "Pending", challanValidUntil: "2026-10-18T03:56:13.000" }, now)).toBe("toPay");
   });
 
   it("reports a failed /booking/my as an error instead of an empty list", async () => {
@@ -119,6 +228,23 @@ describe("bookings (website My Bookings rules)", () => {
     );
     expect(c).toMatchObject({ bookingId: 41, challanNumber: "1001234567", totalPayable: 201840, balanceLeft: 300000 });
     expect(c.lines).toEqual([expect.objectContaining({ label: "Advance rent", lineTotal: 151840 })]);
+    expect(c.fields).toEqual([]);
+  });
+
+  it("reads the challan's fields breakdown (what the screen shows)", () => {
+    const c = normalizeChallan({
+      bookingId: 557,
+      totalPayable: 470480,
+      totalPaidAmount: 459630,
+      fields: [
+        { label: "Space No.", value: "309", key: "spaceNo", isHeader: true },
+        { label: "Advance Rent (3 Months)", value: "PKR 297,500", key: "advanceRent", isHeader: false },
+        { label: "TOTAL INITIAL AMOUNT PAYABLE", value: "PKR 470,480", key: "totalAmount", isHeader: false },
+      ],
+    });
+    expect(c.fields).toHaveLength(3);
+    expect(c.fields[1]).toEqual({ key: "advanceRent", label: "Advance Rent (3 Months)", value: "PKR 297,500", isHeader: false });
+    expect(c.totalPaidAmount).toBe(459630);
   });
 
   it("maps the booking mode to the API category code", () => {
@@ -342,10 +468,61 @@ describe("contact us", () => {
 });
 
 describe("quotations (customer actions)", () => {
-  it("normalizes ids and only lets open quotations be answered", () => {
+  it("normalizes ids and, without canRespond from the API, only lets a Sent quotation be answered", () => {
     expect(normalizeQuotationApiId("QUO-0012")).toBe("12");
     expect(canRespondToQuotation({ status: "sent", isActive: true })).toBe(true);
+    expect(canRespondToQuotation({ status: "sent", isActive: false })).toBe(false);
     expect(canRespondToQuotation({ status: "accepted", isActive: true })).toBe(false);
-    expect(canRespondToQuotation({ status: "active", isActive: false })).toBe(false);
+    expect(canRespondToQuotation({ status: "active", isActive: true })).toBe(false);
+    expect(canRespondToQuotation({ status: "pending", isActive: true })).toBe(false);
+    expect(canRespondToQuotation({ status: "draft", isActive: true })).toBe(false);
+  });
+
+  it("follows the API's canRespond when it is sent", () => {
+    const active = normalizeQuotation({ id: 238, status: "Active", isActive: true, canRespond: false });
+    expect(active.canRespond).toBe(false);
+    expect(canRespondToQuotation(active)).toBe(false);
+    const sent = normalizeQuotation({ id: 240, status: "Sent", isActive: true, canRespond: true });
+    expect(canRespondToQuotation(sent)).toBe(true);
+    expect(normalizeQuotation({ id: 1, status: "Sent" }).canRespond).toBeUndefined();
+  });
+
+  it("reads the quotation's fields breakdown and its total payable", () => {
+    const q = normalizeQuotation({
+      id: 238,
+      status: "Active",
+      subtotalAmount: 2100000,
+      totalAmount: 879800,
+      totalPayable: 879800,
+      details: [{ feeType: "RoomRent", description: "Private Office facility", quantity: 12, unitPrice: 175000, amount: 2100000 }],
+      fields: [{ label: "Advance Rent (3 Months)", value: "PKR 525,000", key: "advanceRent", isHeader: false }],
+    });
+    expect(q.total).toBe(879800);
+    expect(q.subtotal).toBe(2100000);
+    expect(q.fields).toEqual([{ key: "advanceRent", label: "Advance Rent (3 Months)", value: "PKR 525,000", isHeader: false }]);
+  });
+
+  it("never lists draft quotations", async () => {
+    installFetch(
+      jsonResponse(200, {
+        isSuccessful: true,
+        data: [
+          { id: 59, status: "Draft" },
+          { id: 218, status: "Signed" },
+        ],
+      }),
+    );
+    const list = await getMyQuotations();
+    expect(list.map((q) => q.id)).toEqual(["218"]);
+  });
+});
+
+describe("request headers", () => {
+  it("identifies the customer by the JWT only (no email header)", async () => {
+    const fetchMock = installFetch(jsonResponse(200, { isSuccessful: true, data: [] }));
+    await getMyBookings();
+    const headers = fetchMock.mock.calls[0][1].headers as Record<string, string>;
+    expect(headers.Authorization).toBe("Bearer api-jwt");
+    expect(Object.keys(headers).map((k) => k.toLowerCase())).not.toContain("x-user-email");
   });
 });

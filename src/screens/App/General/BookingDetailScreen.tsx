@@ -25,13 +25,21 @@ import {
   canCancelBooking,
   cancelMyBooking,
   getBookingDetails,
+  hasPayment,
+  isPendingBooking,
+  isUpcomingBooking,
+  isVoidBooking,
   type BookingChallan,
 } from "../../../services/bookingService";
+import { monthsLabel } from "../../../services/amountBreakdown";
 import type { AppStackParamList } from "../../../navigation/types";
 
 type Nav = NativeStackNavigationProp<AppStackParamList>;
 
-/** One booking (GET /booking/{id}): space, period, billing and the challan; Cancel while it is still Pending. */
+/**
+ * One booking (GET /booking/{id}): space, period, billing and the challan; Cancel while it is still Pending and
+ * nothing has been paid on it.
+ */
 export default function BookingDetailScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<RouteProp<AppStackParamList, "BookingDetail">>();
@@ -68,10 +76,28 @@ export default function BookingDetailScreen() {
   }, [load]);
 
   const status = booking?.bookingStatus ?? "Pending";
-  const cancellable = !!booking && canCancelBooking({ id: booking.bookingId, status, statusCode: booking.bookingStatusCode });
+  const statusFields = { status, statusCode: booking?.bookingStatusCode ?? null };
+  const cancelTarget = booking
+    ? { id: booking.bookingId, ...statusFields, totalPaidAmount: booking.totalPaidAmount }
+    : null;
+  const cancellable = !!cancelTarget && canCancelBooking(cancelTarget);
+  const isVoid = isVoidBooking(statusFields);
+  const pending = isPendingBooking(statusFields);
+  // GET /booking/{id} may not carry the challan number: a Pending booking always has a challan (fetched by id).
+  const showChallan = !!booking && (!!booking.challanNumber || (pending && !isVoid));
+  // Why Cancel is missing on a booking that is still going ahead.
+  const cancelNote =
+    !booking || cancellable || isVoid
+      ? null
+      : pending && hasPayment(booking)
+        ? "A payment has been received for this booking, so it can't be cancelled in the app. Contact us for changes."
+        : !pending && isUpcomingBooking({ ...statusFields, endOn: booking.endOn })
+          ? "Confirmed bookings can't be cancelled in the app. Contact us for changes."
+          : null;
+  const billingPeriod = monthsLabel(booking?.billingPeriodMonths) ?? booking?.billingPeriodLabel ?? null;
 
   const cancel = async () => {
-    if (!booking) return;
+    if (!cancelTarget) return;
     try {
       const ok = await confirm({
         title: "Cancel this booking?",
@@ -80,13 +106,15 @@ export default function BookingDetailScreen() {
         cancelLabel: "Keep booking",
         destructive: true,
         icon: "close-circle-outline",
-        onConfirm: () => cancelMyBooking({ id: booking.bookingId, status, statusCode: booking.bookingStatusCode }),
+        onConfirm: () => cancelMyBooking(cancelTarget),
       });
       if (!ok) return;
       toast.success("Booking cancelled.");
       load(true);
     } catch (err) {
+      // The API's own reason when it refuses; reload so the screen shows the booking as it is now.
       toast.error(errorMessage(err, "The booking could not be cancelled. Please try again."));
+      load(true);
     }
   };
 
@@ -132,7 +160,7 @@ export default function BookingDetailScreen() {
 
           <SectionHeader title="Billing" />
           <Card>
-            {booking.billingPeriodLabel ? <InfoRow label="Billing period" value={booking.billingPeriodLabel} /> : null}
+            {billingPeriod ? <InfoRow label="Billing period" value={billingPeriod} /> : null}
             {booking.monthlyRent ? <InfoRow label="Monthly rent" value={formatMoney(booking.monthlyRent)} /> : null}
             {booking.currentCycleAmount ? <InfoRow label="Current cycle" value={formatMoney(booking.currentCycleAmount)} /> : null}
             {booking.securityDeposit ? (
@@ -142,30 +170,43 @@ export default function BookingDetailScreen() {
             {booking.totalPaidAmount !== null ? <InfoRow label="Paid so far" value={formatMoney(booking.totalPaidAmount)} /> : null}
             {booking.balanceLeft !== null ? <InfoRow label="Balance left" value={formatMoney(booking.balanceLeft)} /> : null}
             <Divider spacing={8} />
-            <InfoRow label="Total payable" value={formatMoney(booking.totalPayable)} emphasize />
+            <InfoRow label={isVoid ? "Challan total" : "Total payable"} value={formatMoney(booking.totalPayable)} emphasize />
           </Card>
 
-          <View style={styles.actions}>
-            {booking.challanNumber ? (
-              <Button
-                title="View challan"
-                leftIcon="document-text-outline"
-                fullWidth
-                onPress={() =>
-                  navigation.navigate("Challan", {
-                    bookingId: booking.bookingId,
-                    challanNumber: booking.challanNumber ?? undefined,
-                  })
-                }
-              />
-            ) : null}
-            {cancellable ? (
-              <Button title="Cancel booking" variant="danger" leftIcon="close-outline" fullWidth onPress={cancel} />
-            ) : null}
-          </View>
-          {!cancellable && status.toLowerCase() !== "cancelled" ? (
+          {showChallan ? (
+            <>
+              <SectionHeader title="Challan" />
+              <Card>
+                {booking.challanNumber ? (
+                  <InfoRow label="Challan no." value={booking.challanNumber} icon="document-text-outline" />
+                ) : (
+                  <AppText variant="bodySmall" color="textSecondary">
+                    The bank challan of this booking, with the amount payable.
+                  </AppText>
+                )}
+                <Button
+                  title="View challan"
+                  leftIcon="document-text-outline"
+                  variant="secondary"
+                  fullWidth
+                  style={styles.top}
+                  onPress={() =>
+                    navigation.navigate("Challan", {
+                      bookingId: booking.bookingId,
+                      challanNumber: booking.challanNumber ?? undefined,
+                    })
+                  }
+                />
+              </Card>
+            </>
+          ) : null}
+
+          {cancellable ? (
+            <Button title="Cancel booking" variant="danger" leftIcon="close-outline" fullWidth onPress={cancel} />
+          ) : null}
+          {cancelNote ? (
             <AppText variant="caption" color="textMuted" align="center">
-              Paid bookings can't be cancelled in the app. Contact us for changes.
+              {cancelNote}
             </AppText>
           ) : null}
         </ScrollView>
@@ -179,5 +220,5 @@ const createStyles = (_c: AppColors, t: Theme) =>
     content: { padding: t.spacing.screen, gap: t.spacing.lg, paddingBottom: t.spacing.xxl },
     titleRow: { flexDirection: "row", alignItems: "center", gap: t.spacing.sm, marginBottom: t.spacing.xs },
     flex: { flex: 1 },
-    actions: { gap: t.spacing.md },
+    top: { marginTop: t.spacing.sm },
   });

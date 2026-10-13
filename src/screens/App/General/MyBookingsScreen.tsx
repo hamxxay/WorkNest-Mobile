@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
@@ -21,25 +21,36 @@ import { formatDate, formatDateRange, formatMoney } from "../../../utils/format"
 import { useAuth } from "../../../context/AuthContext";
 import { useNotificationsAction } from "../../../hooks/useHeaderActions";
 import { errorMessage } from "../../../services/apiClient";
-import { canCancelBooking, cancelMyBooking, getMyBookings, type MyBooking } from "../../../services/bookingService";
+import {
+  canCancelBooking,
+  cancelMyBooking,
+  challanStage,
+  getMyBookings,
+  isPendingBooking,
+  isUpcomingBooking,
+  isVoidBooking,
+  type MyBooking,
+} from "../../../services/bookingService";
 import { GuestState } from "./shared/GuestState";
 import type { AppStackParamList, MainTabParamList } from "../../../navigation/types";
 
 type Nav = NativeStackNavigationProp<AppStackParamList>;
 type TabKey = "upcoming" | "history";
 
-/** Still running or not started (or no end date yet, e.g. pending): listed under Upcoming. */
-function isUpcoming(b: MyBooking): boolean {
-  const status = b.status.toLowerCase();
-  if (status.includes("cancel") || status.includes("complet")) return false;
-  if (!b.endOn) return true;
-  const end = new Date(b.endOn);
-  return isNaN(end.getTime()) || end.getTime() > Date.now();
+/** The challan row: number, and the last day to pay only while it can still be paid. */
+function challanText(b: MyBooking): string {
+  const number = b.challanNumber ?? "";
+  if (!b.challanValidUntil) return number;
+  const stage = challanStage(b);
+  if (stage === "toPay") return `${number}, pay by ${formatDate(b.challanValidUntil)}`;
+  if (stage === "expired") return `${number}, expired ${formatDate(b.challanValidUntil)}`;
+  return number;
 }
 
 /**
  * My Bookings (tab), like the website: GET /booking/my, the challan of each booking, and Cancel only while a
- * booking is still Pending (not paid).
+ * booking is still Pending and unpaid. Upcoming = not cancelled / rejected / no show / completed and not ended;
+ * everything else is History (bookingService.isUpcomingBooking).
  */
 export default function MyBookingsScreen() {
   const navigation = useNavigation<Nav>();
@@ -55,6 +66,13 @@ export default function MyBookingsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [tab, setTab] = useState<TabKey>(route.params?.tab ?? "upcoming");
+
+  // The tab stays mounted: a later navigate("Bookings", { tab }) (Profile counts, a notification) switches the
+  // segment too, not only the first one.
+  const requestedTab = route.params?.tab;
+  useEffect(() => {
+    if (requestedTab) setTab(requestedTab);
+  }, [requestedTab, route.params]);
 
   const load = useCallback(
     async (isRefresh = false) => {
@@ -84,8 +102,8 @@ export default function MyBookingsScreen() {
     }, [load]),
   );
 
-  const upcoming = useMemo(() => bookings.filter(isUpcoming), [bookings]);
-  const history = useMemo(() => bookings.filter((b) => !isUpcoming(b)), [bookings]);
+  const upcoming = useMemo(() => bookings.filter((b) => isUpcomingBooking(b)), [bookings]);
+  const history = useMemo(() => bookings.filter((b) => !isUpcomingBooking(b)), [bookings]);
   const shown = tab === "upcoming" ? upcoming : history;
 
   const cancel = async (booking: MyBooking) => {
@@ -103,7 +121,10 @@ export default function MyBookingsScreen() {
       toast.success("Booking cancelled.");
       load(true);
     } catch (err) {
+      // The API's own reason when it refuses (e.g. a payment was received meanwhile); the list is refreshed so
+      // the booking shows its current state.
       toast.error(errorMessage(err, "The booking could not be cancelled. Please try again."));
+      load(true);
     }
   };
 
@@ -155,56 +176,66 @@ export default function MyBookingsScreen() {
                 actionLabel: "Book a space",
                 onAction: () => navigation.navigate("Spaces"),
               }
-            : { illustration: "calendar", title: "No past bookings", message: "Finished and cancelled bookings appear here." }
+            : {
+                illustration: "calendar",
+                title: "No past bookings",
+                message: "Finished, cancelled and rejected bookings appear here.",
+              }
         }
-        renderItem={({ item }) => (
-          <Card onPress={() => navigation.navigate("BookingDetail", { bookingId: item.id || item.publicId || "" })}
-            accessibilityLabel={`${item.spaceName}, ${item.status}`}>
-            <View style={styles.titleRow}>
-              <AppText variant="subheading" numberOfLines={1} style={styles.flex}>
-                {item.spaceName}
+        renderItem={({ item }) => {
+          const isVoid = isVoidBooking(item);
+          const cancellable = canCancelBooking(item);
+          // A challan can be opened for any booking that has one, and for a Pending booking even when the list
+          // did not send its number (the challan is fetched by booking id).
+          const hasChallan = !!item.challanNumber || (!isVoid && isPendingBooking(item));
+          return (
+            <Card
+              onPress={() => navigation.navigate("BookingDetail", { bookingId: item.id || item.publicId || "" })}
+              accessibilityLabel={`${item.spaceName}, ${item.status}`}
+            >
+              <View style={styles.titleRow}>
+                <AppText variant="subheading" numberOfLines={1} style={styles.flex}>
+                  {item.spaceName}
+                </AppText>
+                <StatusPill status={item.status} />
+              </View>
+              <AppText variant="caption" color="textMuted">
+                Booking #{item.id}
+                {item.locationName ? `  ·  ${item.locationName}` : ""}
               </AppText>
-              <StatusPill status={item.status} />
-            </View>
-            <AppText variant="caption" color="textMuted">
-              Booking #{item.id}
-              {item.locationName ? `  ·  ${item.locationName}` : ""}
-            </AppText>
-            <View style={styles.rows}>
-              <InfoRow label="Dates" value={formatDateRange(item.startOn, item.endOn)} icon="calendar-outline" />
-              <InfoRow
-                label="Amount"
-                value={item.totalAmount !== null ? formatMoney(item.totalAmount) : "On the challan"}
-                icon="pricetag-outline"
-              />
-              {item.challanNumber ? (
-                <InfoRow
-                  label="Challan"
-                  value={`${item.challanNumber}${item.challanValidUntil ? `, pay by ${formatDate(item.challanValidUntil)}` : ""}`}
-                  icon="document-text-outline"
-                />
-              ) : null}
-            </View>
-            {item.challanNumber || canCancelBooking(item) ? (
-              <View style={styles.actions}>
-                {item.challanNumber ? (
-                  <Button
-                    title="View challan"
-                    size="sm"
-                    variant="secondary"
-                    leftIcon="document-text-outline"
-                    onPress={() =>
-                      navigation.navigate("Challan", { bookingId: item.id, challanNumber: item.challanNumber ?? undefined })
-                    }
-                  />
+              <View style={styles.rows}>
+                <InfoRow label="Dates" value={formatDateRange(item.startOn, item.endOn)} icon="calendar-outline" />
+                {/* The challan's total payable; never the booking's totalAmount, which is not what is owed. */}
+                {item.totalPayable !== null ? (
+                  <InfoRow label="Amount" value={formatMoney(item.totalPayable)} icon="pricetag-outline" />
+                ) : !isVoid ? (
+                  <InfoRow label="Amount" value="See challan" icon="pricetag-outline" />
                 ) : null}
-                {canCancelBooking(item) ? (
-                  <Button title="Cancel" size="sm" variant="ghost" leftIcon="close-outline" onPress={() => cancel(item)} />
+                {item.challanNumber ? (
+                  <InfoRow label="Challan" value={challanText(item)} icon="document-text-outline" />
                 ) : null}
               </View>
-            ) : null}
-          </Card>
-        )}
+              {hasChallan || cancellable ? (
+                <View style={styles.actions}>
+                  {hasChallan ? (
+                    <Button
+                      title="View challan"
+                      size="sm"
+                      variant="secondary"
+                      leftIcon="document-text-outline"
+                      onPress={() =>
+                        navigation.navigate("Challan", { bookingId: item.id, challanNumber: item.challanNumber ?? undefined })
+                      }
+                    />
+                  ) : null}
+                  {cancellable ? (
+                    <Button title="Cancel" size="sm" variant="ghost" leftIcon="close-outline" onPress={() => cancel(item)} />
+                  ) : null}
+                </View>
+              ) : null}
+            </Card>
+          );
+        }}
       />
     </Screen>
   );

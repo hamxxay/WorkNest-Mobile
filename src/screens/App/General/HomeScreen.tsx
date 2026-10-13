@@ -29,7 +29,7 @@ import { useUnlockRoomDoor } from "../../../hooks/useUnlockRoomDoor";
 import { useNotificationsAction } from "../../../hooks/useHeaderActions";
 import { errorMessage } from "../../../services/apiClient";
 import { getWorkspaces, type Workspace } from "../../../services/workspaceService";
-import { getMyBookings, isPendingBooking, type MyBooking } from "../../../services/bookingService";
+import { getMyBookings, isChallanToPay, type MyBooking } from "../../../services/bookingService";
 import { WorkspaceCard } from "../../Home/WorkspaceCard";
 import type { AppStackParamList } from "../../../navigation/types";
 import { useTabBarSpace } from "../../../components/ui/TabBar";
@@ -72,7 +72,8 @@ export default function HomeScreen() {
     }
   }, []);
 
-  // The newest booking that still has an unpaid challan (signed-in customers only).
+  // The newest Pending booking whose challan can still be paid: never a cancelled, rejected or no-show booking,
+  // an expired challan or one the API reports as paid (signed-in customers only).
   const loadPendingChallan = useCallback(async () => {
     if (!user) {
       setPendingChallan(null);
@@ -80,7 +81,7 @@ export default function HomeScreen() {
     }
     try {
       const bookings = await getMyBookings();
-      setPendingChallan(bookings.find((b) => isPendingBooking(b) && !!b.challanNumber) ?? null);
+      setPendingChallan(bookings.find((b) => !!b.challanNumber && isChallanToPay(b)) ?? null);
     } catch {
       // Home stays usable; My Bookings shows the error with a retry.
     }
@@ -102,7 +103,9 @@ export default function HomeScreen() {
     setRefreshing(false);
   };
 
-  const requireSignIn = (go: () => void) => () => (user ? go() : navigation.navigate("Login"));
+  // Guests sign in first and then land on the screen they asked for.
+  const requireSignIn = (screen: "AccessRequest" | "QuotationList") => () =>
+    user ? navigation.navigate(screen) : navigation.navigate("Login", { redirectAfterLogin: { screen } });
 
   const quickActions: QuickAction[] = [
     { key: "book", label: "Book a space", icon: "calendar-outline", onPress: () => navigation.navigate("Spaces") },
@@ -113,13 +116,13 @@ export default function HomeScreen() {
           key: "access",
           label: "Access request",
           icon: "key-outline",
-          onPress: requireSignIn(() => navigation.navigate("AccessRequest")),
+          onPress: requireSignIn("AccessRequest"),
         },
     {
       key: "quotes",
       label: "Quotations",
       icon: "document-text-outline",
-      onPress: requireSignIn(() => navigation.navigate("QuotationList")),
+      onPress: requireSignIn("QuotationList"),
     },
   ];
 
@@ -168,9 +171,12 @@ export default function HomeScreen() {
             {pendingChallan.challanValidUntil ? (
               <InfoRow label="Pay before" value={formatDate(pendingChallan.challanValidUntil)} />
             ) : null}
-            {pendingChallan.totalAmount !== null ? (
-              <InfoRow label="Amount" value={formatMoney(pendingChallan.totalAmount)} emphasize />
-            ) : null}
+            {/* The challan's total payable; when the API did not send it, the challan screen shows it. */}
+            <InfoRow
+              label="Amount"
+              value={pendingChallan.totalPayable !== null ? formatMoney(pendingChallan.totalPayable) : "See challan"}
+              emphasize
+            />
             <Button
               title="View challan"
               leftIcon="document-text-outline"
