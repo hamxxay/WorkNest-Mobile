@@ -3,8 +3,6 @@ apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 apply plugin: "com.google.gms.google-services"
 
-import com.android.build.OutputFile
-
 def keystorePropertiesFile = rootProject.file("keystore.properties")
 def keystoreProperties = new Properties()
 if (keystorePropertiesFile.exists()) {
@@ -14,23 +12,23 @@ if (keystorePropertiesFile.exists()) {
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
 // ------------------- React Native Config -------------------
-project.ext.react = [
-    entryFile: "index.js", // Use = not :
-    bundleAssetName: "index.android.bundle",
-    bundleCommand: "bundle",
-    assetsDir: file("$buildDir/generated/res/react/release"),
-    jsBundleDir: file("$buildDir/generated/assets/react/release"),
-    // hermesCommand: file("$rootDir/../node_modules/react-native/sdks/hermesc/win64-bin/hermesc.exe").absolutePath
-    enableHermes: true
-
-]
-
+// Hermes is switched on by hermesEnabled=true in gradle.properties.
 react {
-    hermesCommand = "node scripts/hermesc-shim.js"
+    // No hermesCommand: the plugin picks node_modules/hermes-compiler/hermesc/<os>-bin/hermesc for the
+    // machine building (macOS, Linux or Windows), so release bundles are compiled to Hermes bytecode.
     hermesFlags = ["-O"]
     // This ensures autolinking works
     autolinkLibrariesWithApp()
 }
+
+// ------------------- Icon fonts -------------------
+// The app only uses react-native-vector-icons/Ionicons, so only Ionicons.ttf is copied from node_modules
+// into the APK (the other 18 icon fonts are about 5 MB). Add a file here before using another icon set.
+// The Inter text fonts live in src/main/assets/fonts.
+project.ext.vectoricons = [
+    iconFontNames: ["Ionicons.ttf"]
+]
+apply from: file("../../node_modules/react-native-vector-icons/fonts.gradle")
 
 // ------------------- Android Build Config -------------------
 android {
@@ -79,7 +77,11 @@ android {
         }
         release {
             signingConfig signingConfigs.release
-            minifyEnabled false // set to true if using Proguard
+            // R8 shrinks and obfuscates the Java/Kotlin code; keep rules are in proguard-rules.pro.
+            minifyEnabled true
+            // Drops unused Android resources. Images bundled from JS are looked up by name at run time, so
+            // src/main/res/raw/keep.xml keeps them.
+            shrinkResources true
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
     }
