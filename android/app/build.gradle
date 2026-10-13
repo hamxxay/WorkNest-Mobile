@@ -34,6 +34,15 @@ react {
     autolinkLibrariesWithApp()
 }
 
+// ------------------- Icon fonts -------------------
+// The app only uses react-native-vector-icons/Ionicons, so only Ionicons.ttf is copied from node_modules
+// into the APK (the other 18 icon fonts are about 5 MB). Add a file here before using another icon set.
+// The Inter text fonts live in src/main/assets/fonts.
+project.ext.vectoricons = [
+    iconFontNames: ["Ionicons.ttf"]
+]
+apply from: file("../../node_modules/react-native-vector-icons/fonts.gradle")
+
 // ------------------- Android Build Config -------------------
 android {
     compileSdk rootProject.ext.compileSdkVersion
