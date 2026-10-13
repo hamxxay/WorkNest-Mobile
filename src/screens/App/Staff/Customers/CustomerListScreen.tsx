@@ -56,7 +56,7 @@ export default function CustomerListScreen() {
           actionLabel: search ? undefined : "New customer",
           onAction: search ? undefined : () => navigation.navigate("CustomerForm"),
         }}
-        renderItem={({ item }) => <CustomerRow customer={item} onPress={() => navigation.navigate("CustomerDetail", { customerId: item.id })} />}
+        renderItem={({ item }) => <CustomerRow customer={item} onPress={() => navigation.navigate("CustomerDetail", { customerId: item.id, customer: item })} />}
       />
     </StaffScreen>
   );

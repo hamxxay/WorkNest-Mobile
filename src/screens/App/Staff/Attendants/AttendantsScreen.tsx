@@ -64,19 +64,22 @@ export default function AttendantsScreen() {
     load("initial");
   }, [load]);
 
-  const rows = useMemo(() => (show === "current" ? spaces.filter((s) => isCurrentBookedSpace(s)) : spaces), [spaces, show]);
+  const current = useMemo(() => spaces.filter((s) => isCurrentBookedSpace(s)), [spaces]);
+  // The API now lists current rooms only: the Current / All choice shows only when it would change the list.
+  const hasPast = current.length < spaces.length;
+  const rows = show === "current" || !hasPast ? current : spaces;
 
   return (
     <StaffScreen>
       <AppHeader title="Attendants & access" subtitle={customer?.fullName} />
       <View style={styles.top}>
         <CustomerPickerField required value={customer} onChange={setCustomer} />
-        {customer ? (
+        {customer && hasPast ? (
           <FilterChips
             value={show}
             onChange={setShow}
             options={[
-              { label: "Current", value: "current", count: spaces.filter((s) => isCurrentBookedSpace(s)).length },
+              { label: "Current", value: "current", count: current.length },
               { label: "All bookings", value: "all", count: spaces.length },
             ]}
             accessibilityLabel="Booked spaces to show"
@@ -94,7 +97,7 @@ export default function AttendantsScreen() {
           onRefresh={() => load("refresh")}
           error={error}
           gap={8}
-          empty={{ illustration: "building", title: show === "current" ? "No current bookings" : "No bookings", message: "This customer has no booked space to give access to." }}
+          empty={{ illustration: "building", title: show === "current" || !hasPast ? "No current bookings" : "No bookings", message: "This customer has no booked space to give access to." }}
           renderItem={({ item }) => {
             const full = item.activeAttendantsCount >= item.capacity;
             return (

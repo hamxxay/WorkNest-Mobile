@@ -1,5 +1,5 @@
 import type { NavigatorScreenParams } from "@react-navigation/native";
-import type { StaffAgreement, StaffInvoice } from "../services/staff";
+import type { StaffAgreement, StaffCustomer, StaffInvoice } from "../services/staff";
 
 // Route types for the staff apps (sales executive, admin, super admin). The customer app's routes live in
 // ./types.ts. Each staff role gets its own navigator (see ./staff/StaffNavigator.tsx), built from one shared
@@ -43,10 +43,16 @@ export type StaffStackParamList = {
    */
   QuotationForm: { editFromId?: number; customerId?: number; fromInquiry?: InquiryPrefill } | undefined;
 
-  /** Customer by int id or GUID. */
-  CustomerDetail: { customerId: number | string };
-  /** Create (no id) or edit. `returnTo`: after creating, go back to that form with the new customer picked. */
-  CustomerForm: { customerId?: number | string; returnTo?: "QuotationForm" | "BookingForm" } | undefined;
+  /**
+   * Customer by int id or GUID. `customer`: the list row it was opened from (it carries the NTN / SECP number,
+   * which GET customer/{id} may not).
+   */
+  CustomerDetail: { customerId: number | string; customer?: StaffCustomer };
+  /**
+   * Create (no id) or edit (`customer`: the customer as last shown, for its NTN / SECP number). `returnTo`: after
+   * creating, go back to that form with the new customer picked.
+   */
+  CustomerForm: { customerId?: number | string; customer?: StaffCustomer; returnTo?: "QuotationForm" | "BookingForm" } | undefined;
 
   KycList: undefined;
   KycCustomer: { customerId: number | string; customerName?: string };

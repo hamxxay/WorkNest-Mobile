@@ -53,13 +53,14 @@ import {
   type IdType,
   type RoomAttendant,
 } from "../../../../services/staff";
-import { spacing, useThemeColors } from "../../../../theme";
+import { spacing } from "../../../../theme";
 import { formatDate, formatMoney, formatRelative } from "../../../../utils/format";
 import { formatCnicInput } from "../../../../utils/cnic";
 import { formatPhoneInput } from "../../../../utils/phone";
 import { StaffScreen } from "../shared/StaffScreen";
 import { isAdminRole, useStaffSession } from "../shared/StaffSession";
 import { useAsyncData } from "../shared/hooks";
+import { useRefreshColors } from "../shared/refresh";
 
 type Route = RouteProp<StaffStackParamList, "RoomAccess">;
 
@@ -73,7 +74,7 @@ type Route = RouteProp<StaffStackParamList, "RoomAccess">;
 export default function RoomAccessScreen() {
   const { params } = useRoute<Route>();
   const toast = useToast();
-  const colors = useThemeColors();
+  const refreshColors = useRefreshColors();
   const { role, refreshBadges } = useStaffSession();
   const { user } = useAuth();
   const isAdmin = isAdminRole(role);
@@ -184,7 +185,7 @@ export default function RoomAccessScreen() {
       ) : data ? (
         <ScrollView
           contentContainerStyle={styles.content}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} colors={[colors.primary]} tintColor={colors.primary} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} {...refreshColors} />}
         >
           {data.suspensionError ? <ErrorState compact message={data.suspensionError} onRetry={refresh} /> : null}
           {data.suspension ? (

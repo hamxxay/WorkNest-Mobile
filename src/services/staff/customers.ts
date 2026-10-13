@@ -98,10 +98,64 @@ export async function searchCustomers(q: string): Promise<StaffCustomer[]> {
   return toList(raw, normalizeCustomer);
 }
 
-/** GET customer/{id} (int id or GUID). */
-export async function getCustomer(id: number | string): Promise<StaffCustomer> {
-  const raw = await staffGet(STAFF_ENDPOINTS.customers.byId(id));
-  return normalizeCustomer(unwrapEnvelope(raw));
+/** True when a customer payload carries the tax ids at all (the list does; older GET customer/{id} does not). */
+function hasTaxIdFields(raw: unknown): boolean {
+  if (!raw || typeof raw !== "object") return false;
+  return ["ntn", "NTN", "Ntn", "secpRegistrationNo", "SecpRegistrationNo"].some((key) => key in (raw as object));
+}
+
+/** `customer` with NTN / SECP number taken from `row` (a list row of the same customer) where it has none. */
+export function withTaxIds(customer: StaffCustomer, row: Pick<StaffCustomer, "id" | "ntn" | "secpRegistrationNo"> | null | undefined): StaffCustomer {
+  if (!row || (customer.id > 0 && row.id !== customer.id)) return customer;
+  return {
+    ...customer,
+    ntn: customer.ntn ?? row.ntn,
+    secpRegistrationNo: customer.secpRegistrationNo ?? row.secpRegistrationNo,
+  };
+}
+
+/** The customer's list row (GET customer?search=), which carries the NTN / SECP number; null when not found. */
+async function findCustomerRow(customer: StaffCustomer): Promise<StaffCustomer | null> {
+  const search = customer.email || customer.code;
+  if (!search) return null;
+  const page = await listCustomers({ page: 1, limit: 20, search });
+  return page.items.find((c) => c.id === customer.id) ?? null;
+}
+
+/**
+ * GET customer/{id} (int id or GUID). When the detail has no ntn / secpRegistrationNo fields (older API), they
+ * come from `listRow` (the row the screen came from) or, with `taxIds` (screens that show or send them) for a
+ * company / AOP customer, from its row in the customer list: editing never shows an existing NTN as empty.
+ */
+export async function getCustomer(
+  id: number | string,
+  options: { listRow?: StaffCustomer | null; taxIds?: boolean } = {},
+): Promise<StaffCustomer> {
+  const { listRow, taxIds = false } = options;
+  const raw = unwrapEnvelope(await staffGet(STAFF_ENDPOINTS.customers.byId(id)));
+  const customer = normalizeCustomer(raw);
+  if (hasTaxIdFields(raw)) return customer;
+  // The row the screen came from is the list's (or an already completed) view of the customer: enough.
+  if (listRow && listRow.id === customer.id) return withTaxIds(customer, listRow);
+  if (!taxIds || customer.customerType === "Individual") return customer;
+  try {
+    return withTaxIds(customer, await findCustomerRow(customer));
+  } catch {
+    return customer;
+  }
+}
+
+/**
+ * The form values to send when editing: a blank NTN / SECP number keeps the customer's existing one (the API
+ * can't clear them, and a blank NTN must never replace a real one).
+ */
+export function keepExistingTaxIds(input: CustomerInput, existing: Pick<StaffCustomer, "ntn" | "secpRegistrationNo"> | null | undefined): CustomerInput {
+  if (!existing) return input;
+  return {
+    ...input,
+    ntn: input.ntn?.trim() ? input.ntn : existing.ntn ?? input.ntn,
+    secpRegistrationNo: input.secpRegistrationNo?.trim() ? input.secpRegistrationNo : existing.secpRegistrationNo ?? input.secpRegistrationNo,
+  };
 }
 
 // ─── Create / update ──────────────────────────────────────────────────────────────────────────────────────

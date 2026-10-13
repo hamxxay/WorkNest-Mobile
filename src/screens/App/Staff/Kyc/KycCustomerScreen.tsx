@@ -46,6 +46,7 @@ import { isAdminRole, useStaffSession } from "../shared/StaffSession";
 import { useAsyncData } from "../shared/hooks";
 import { CAMERA_SETTINGS_CONFIRM, chooseDocumentPhoto, openAppSettings, takeDocumentPhoto } from "../shared/photoPicker";
 import { useOpenFile } from "../shared/useOpenFile";
+import { useRefreshColors } from "../shared/refresh";
 
 type Route = RouteProp<StaffStackParamList, "KycCustomer">;
 type KycData = CustomerKyc & { canVerifyAndReject?: boolean };
@@ -66,6 +67,7 @@ export default function KycCustomerScreen() {
   const { params } = useRoute<Route>();
   const toast = useToast();
   const { colors } = useTheme();
+  const refreshColors = useRefreshColors();
   const { role } = useStaffSession();
   const { opening, open } = useOpenFile();
 
@@ -127,7 +129,7 @@ export default function KycCustomerScreen() {
       ) : data ? (
         <ScrollView
           contentContainerStyle={styles.content}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} colors={[colors.primary]} tintColor={colors.primary} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} {...refreshColors} />}
         >
           <Card>
             <View style={styles.row}>

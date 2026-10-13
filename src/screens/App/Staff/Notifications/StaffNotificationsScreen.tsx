@@ -6,9 +6,10 @@ import { AppHeader, Badge, Button, Card, Divider, EmptyState, ListRow, useToast 
 import { NAV_BADGE_ROUTES, STAFF_MENU_ITEMS } from "../../../../navigation/staff/access";
 import type { StaffRouteName, StaffStackParamList } from "../../../../navigation/staffTypes";
 import { errorMessage } from "../../../../services/apiClient";
-import { spacing, useThemeColors } from "../../../../theme";
+import { spacing } from "../../../../theme";
 import { StaffScreen } from "../shared/StaffScreen";
 import { useStaffSession } from "../shared/StaffSession";
+import { useRefreshColors } from "../shared/refresh";
 
 type Nav = NativeStackNavigationProp<StaffStackParamList>;
 
@@ -33,7 +34,7 @@ const MEANING: Partial<Record<StaffRouteName, string>> = {
 export default function StaffNotificationsScreen() {
   const navigation = useNavigation<Nav>();
   const toast = useToast();
-  const colors = useThemeColors();
+  const refreshColors = useRefreshColors();
   const { role, badges, navBadges, pendingApprovals, refreshBadges, markBadgesRead } = useStaffSession();
   const [refreshing, setRefreshing] = useState(false);
   const [marking, setMarking] = useState(false);
@@ -68,7 +69,7 @@ export default function StaffNotificationsScreen() {
       <AppHeader title="Notifications" subtitle="Waiting on you" />
       <ScrollView
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} colors={[colors.primary]} tintColor={colors.primary} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} {...refreshColors} />}
       >
         {rows.length === 0 && approvals === 0 ? (
           <EmptyState illustration="bell" title="You're all caught up" message="New inquiries, bookings to confirm and other items show up here." />

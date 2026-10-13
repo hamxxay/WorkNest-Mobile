@@ -407,6 +407,16 @@ export function normalizeDashboardForecast(raw: any): DashboardForecast {
 }
 
 /**
+ * The forecast rows for the chosen location chip (0 = all): that location's months, or the totals when the
+ * choice is 0 or no longer in the forecast (the dashboard's location changed under it). `locationId` is the
+ * choice actually shown.
+ */
+export function forecastRowsFor(forecast: DashboardForecast, locationId: number): { locationId: number; rows: ForecastMonth[] } {
+  const location = locationId ? forecast.locations.find((l) => l.locationId === locationId) : undefined;
+  return location ? { locationId, rows: location.months } : { locationId: 0, rows: forecast.totals };
+}
+
+/**
  * GET dashboard/forecast?months=&locationIds= — revenue & occupancy forecast for the next N months (default 3,
  * at most 12) from current leases. Roles: sales executive, admin, super admin.
  */

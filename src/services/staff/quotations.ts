@@ -93,6 +93,8 @@ export type StaffQuotation = {
   remarks: string | null;
   /** True while the customer can accept / decline (status Sent). */
   canRespond: boolean;
+  /** The API's isAccepted flag when it sends one (the CMS treats it like an accepted status). */
+  isAccepted: boolean;
   customerNote: string | null;
   responseDate: string | null;
   activities: QuotationActivity[];
@@ -158,6 +160,7 @@ export function normalizeQuotation(raw: any): StaffQuotation {
     totalContractAmount: num(raw, "totalContractAmount"),
     remarks: optStr(raw, "remarks"),
     canRespond: bool(raw, "canRespond"),
+    isAccepted: bool(raw, "isAccepted"),
     customerNote: optStr(raw, "customerNote"),
     responseDate: optStr(raw, "responseDate"),
     activities: Array.isArray(pick(raw, "activities")) ? pick(raw, "activities").map(toActivity) : [],
@@ -195,9 +198,59 @@ export async function listQuotations(
   return toPage(raw, normalizeQuotation, { page, limit });
 }
 
-/** GET quotation/by-customer/{customerId} — every quotation row of the customer. */
-export async function listCustomerQuotations(customerId: number): Promise<StaffQuotation[]> {
-  return toList(await staffGet(STAFF_ENDPOINTS.quotations.byCustomer(customerId)), normalizeQuotation);
+/**
+ * GET quotation/by-customer/{customerId}?page=&limit= — the customer's quotation rows, newest first, with
+ * totalCount. An API without paging answers with every row: the asked-for page is cut out here.
+ */
+export async function listCustomerQuotations(
+  customerId: number,
+  query: { page?: number; limit?: number } = {},
+): Promise<Page<StaffQuotation>> {
+  const page = query.page ?? 1;
+  const limit = query.limit ?? 10;
+  const raw = await staffGet(withQuery(STAFF_ENDPOINTS.quotations.byCustomer(customerId), { page, limit }));
+  const result = toPage(raw, normalizeQuotation, { page, limit });
+  if (result.items.length <= limit) return result;
+  const all = result.items;
+  return {
+    items: all.slice((page - 1) * limit, page * limit),
+    total: all.length,
+    page,
+    limit,
+    hasMore: page * limit < all.length,
+  };
+}
+
+// ─── Status rules (CMS manage.ts / manage.html) ───────────────────────────────────────────────────────────
+
+const statusKey = (status: string | null | undefined) => (status ?? "").trim().toLowerCase().replace(/[\s_-]+/g, "");
+
+/**
+ * Agreement stage or later, or superseded: the quotation is closed. A new version or an "edit" (= a new
+ * quotation that supersedes the customer's active one for the space) is not offered for these.
+ */
+const CLOSED_STATUSES = new Set(["signed", "agreementsigned", "agreementsent", "converted", "inactive"]);
+
+/** CMS isQuotationAccepted: the statuses the CMS offers "Send Agreement" (and "Convert to Booking") for. */
+const AGREEMENT_STATUSES = new Set(["accepted", "signed", "agreementsigned", "active", "sent", "agreementsent"]);
+
+export type QuotationActions = {
+  /** "Send to customer": Draft only (CMS: status === 'draft'; a missing status counts as Draft). */
+  canSend: boolean;
+  /** "Send agreement" (CMS isQuotationAccepted). */
+  canSendAgreement: boolean;
+  /** "New version" / "Edit as new": not for closed quotations. */
+  canRevise: boolean;
+};
+
+/** Which actions a quotation offers, by its status (same rules as the CMS quotation list and preview). */
+export function quotationActions(status: string | null | undefined, isAccepted = false): QuotationActions {
+  const key = statusKey(status) || "draft";
+  return {
+    canSend: key === "draft",
+    canSendAgreement: isAccepted || AGREEMENT_STATUSES.has(key),
+    canRevise: !CLOSED_STATUSES.has(key),
+  };
 }
 
 /** GET quotation/{id} */

@@ -25,6 +25,7 @@ import { formatPhoneInput, phoneError } from "../../../../utils/phone";
 import { spacing } from "../../../../theme";
 import { StaffScreen } from "../shared/StaffScreen";
 import { useStaffSession } from "../shared/StaffSession";
+import { useSingleFlight } from "../shared/hooks";
 
 /**
  * Staff profile: name and phone (PUT auth/me, as the CMS profile page), role and assigned locations, appearance
@@ -59,7 +60,9 @@ export default function StaffProfileScreen() {
     return names.join(", ");
   }, [profile, locations, role]);
 
-  const save = async () => {
+  // Reachable from the button and the phone field's "done" key: one save at a time, and only with changes.
+  const save = useSingleFlight(async () => {
+    if (!dirty) return;
     const next: { name?: string; phone?: string } = {};
     if (!name.trim()) next.name = "Name is required.";
     const pErr = phone.trim() ? phoneError(phone) : null;
@@ -77,7 +80,7 @@ export default function StaffProfileScreen() {
     } finally {
       setSaving(false);
     }
-  };
+  });
 
   const signOut = async () => {
     setSigningOut(true);
