@@ -36,7 +36,8 @@ import { phoneError, formatPhoneInput } from "../../../../utils/phone";
 import { SearchField } from "../shared/SearchField";
 import { StaffScreen, useInTabs } from "../shared/StaffScreen";
 import { useStaffSession } from "../shared/StaffSession";
-import { useDebounced, usePagedList } from "../shared/hooks";
+import { useDebounced, usePagedList, useSingleFlight } from "../shared/hooks";
+import { rowKey, uniqueBy } from "../shared/guards";
 
 type Nav = NativeStackNavigationProp<StaffStackParamList>;
 type Route = RouteProp<StaffStackParamList, "TourInquiries">;
@@ -68,13 +69,15 @@ export default function InquiryListScreen() {
   );
   const list = usePagedList(fetchPage);
 
-  const due = useMemo(() => list.items.filter((i) => i.followUpDue), [list.items]);
-  const fresh = useMemo(() => list.items.filter(isNewInquiry), [list.items]);
+  // Pages can overlap when inquiries arrive between loads: each inquiry once (and unique list keys).
+  const items = useMemo(() => uniqueBy(list.items, rowKey), [list.items]);
+  const due = useMemo(() => items.filter((i) => i.followUpDue), [items]);
+  const fresh = useMemo(() => items.filter(isNewInquiry), [items]);
   const rows = useMemo(() => {
     if (filter === "due") return due;
     if (filter === "new") return fresh;
-    return [...list.items].sort((a, b) => Number(b.followUpDue) - Number(a.followUpDue));
-  }, [filter, list.items, due, fresh]);
+    return [...items].sort((a, b) => Number(b.followUpDue) - Number(a.followUpDue));
+  }, [filter, items, due, fresh]);
 
   // The filters work on the loaded pages (as in the CMS). While one is on, keep loading pages until enough
   // rows match or everything is loaded, so "No follow-ups due" never hides rows on later pages.
@@ -117,7 +120,7 @@ export default function InquiryListScreen() {
       />
       <AsyncList
         data={rows}
-        keyExtractor={(i) => String(i.id ?? i.publicId)}
+        keyExtractor={(i, index) => rowKey(i, index)}
         loading={list.loading}
         refreshing={list.refreshing}
         onRefresh={list.refresh}
@@ -237,7 +240,8 @@ function FeedbackSheet({
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const save = async () => {
+  // Saving feedback and the status chips share one guard: a second tap while a request runs is ignored.
+  const save = useSingleFlight(async () => {
     if (outcome === "not_interested" && !reason.trim()) return setError("Enter the reason the customer is not interested.");
     if (outcome === "future_prospect" && !followUp) return setError("Choose the follow-up date.");
     setSaving(true);
@@ -254,10 +258,10 @@ function FeedbackSheet({
     } finally {
       setSaving(false);
     }
-  };
+  });
 
-  const setStatus = async (statusId: number) => {
-    if (!item.id) return;
+  const setStatus = useSingleFlight(async (statusId: number) => {
+    if (!item.id || saving) return;
     setSaving(true);
     setError(null);
     try {
@@ -267,7 +271,7 @@ function FeedbackSheet({
     } finally {
       setSaving(false);
     }
-  };
+  });
 
   return (
     <BottomSheet

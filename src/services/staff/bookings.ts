@@ -22,7 +22,11 @@ import { num, optNum, optStr, pick, str, toList, toPage, unwrapEnvelope, withQue
 //   - Staff change status with PATCH booking/{id}/status { statusId }; any status can go to any other.
 //     Staff cancel = status 86. PATCH booking/{id}/cancel is the customer's own cancel (the API checks the
 //     caller's email against the booking owner), so staff never call it.
-//   - There is no booking/{id}/details route: details = GET booking/{id}.
+//   - There is no booking/{id}/details route: details = GET booking/{id}. It lacks fields the list row has
+//     (customerCompany, spaceTypeId, and on older APIs challanNumber / challanValidUntil): getBooking fills them
+//     from GET booking/{id}/row.
+//   - companyName is the vendor company (WorkNest's own branch company), never the customer's: the customer's
+//     company is customerCompany.
 
 /** Booking status ids the CMS status menu sends (manage.ts bookings config). */
 export const BOOKING_STATUS = {
@@ -73,9 +77,13 @@ export type StaffBooking = {
   customerEmail: string | null;
   userName: string | null;
   userEmail: string | null;
+  /** The customer's company (customerCompany; the row's companyName is WorkNest's own). */
   companyName: string | null;
+  spaceId: number | null;
   spaceName: string;
   spaceCode: string | null;
+  /** Space type id (list row and booking/{id}/row); space codes are not unique across types. */
+  spaceTypeId: number | null;
   spaceTypeName: string | null;
   spaceCapacity: number | null;
   locationId: number | null;
@@ -110,9 +118,11 @@ export function normalizeBooking(raw: any): StaffBooking {
     customerEmail: optStr(raw, "customerEmail", "userEmail"),
     userName: optStr(raw, "userName"),
     userEmail: optStr(raw, "userEmail"),
-    companyName: optStr(raw, "companyName"),
+    companyName: optStr(raw, "customerCompany"),
+    spaceId: optNum(raw, "spaceId"),
     spaceName: str(raw, "spaceName"),
     spaceCode: optStr(raw, "spaceCode"),
+    spaceTypeId: optNum(raw, "spaceTypeId"),
     spaceTypeName: optStr(raw, "spaceTypeName"),
     spaceCapacity: optNum(raw, "spaceCapacity"),
     locationId: optNum(raw, "locationId"),
@@ -174,9 +184,27 @@ export type StaffBookingDetail = StaffBooking & {
   details: BookingDetailLine[];
 };
 
-/** GET booking/{id} — booking details (ApiResponse). */
+/** `detail` with the fields it lacks (null / missing) taken from `row`; the detail's own values win. */
+export function mergeBookingRow(detail: Record<string, any> | null | undefined, row: Record<string, any> | null | undefined): Record<string, any> {
+  const d = detail ?? {};
+  if (!row) return d;
+  const merged: Record<string, any> = { ...row };
+  for (const [key, value] of Object.entries(d)) {
+    if (value != null && value !== "") merged[key] = value;
+  }
+  return merged;
+}
+
+/**
+ * GET booking/{id} — booking details (ApiResponse), completed with GET booking/{id}/row (customer company, space
+ * type id, challan number and validity) when that answers; the row is optional.
+ */
 export async function getBooking(id: number | string): Promise<StaffBookingDetail> {
-  const d = unwrapEnvelope<any>(await staffGet(STAFF_ENDPOINTS.bookings.byId(id)));
+  const [detail, row] = await Promise.all([
+    staffGet(STAFF_ENDPOINTS.bookings.byId(id)),
+    staffGet(STAFF_ENDPOINTS.bookings.row(id)).catch(() => null),
+  ]);
+  const d = mergeBookingRow(unwrapEnvelope<any>(detail), row ? unwrapEnvelope<any>(row) : null);
   return {
     ...normalizeBooking(d),
     customerAddress: optStr(d, "customerAddress"),
@@ -267,6 +295,26 @@ export async function getReassignmentSpaces(query: {
     seatPrice: num(s, "seatPrice"),
     roomPrice: num(s, "roomPrice"),
   }));
+}
+
+/**
+ * The space type to reassign a booking within: the booking's own spaceTypeId; without it, the type of its
+ * space in `spaces` (by space id, else by code at the same location — codes repeat across space types).
+ */
+export function bookingSpaceTypeId(
+  booking: Pick<StaffBooking, "spaceTypeId" | "spaceId" | "spaceCode" | "spaceName" | "locationId" | "locationName">,
+  spaces: { id: number; code: string | null; name: string; spaceTypeId: number | null; locationId: number | null; locationName: string | null }[] = [],
+): number | null {
+  if (booking.spaceTypeId && booking.spaceTypeId > 0) return booking.spaceTypeId;
+  const sameLocation = (s: (typeof spaces)[number]) =>
+    booking.locationId != null && s.locationId != null
+      ? s.locationId === booking.locationId
+      : !!booking.locationName && s.locationName === booking.locationName;
+  const match =
+    (booking.spaceId ? spaces.find((s) => s.id === booking.spaceId) : undefined) ??
+    spaces.find((s) => sameLocation(s) && !!booking.spaceCode && s.code === booking.spaceCode && s.name === booking.spaceName) ??
+    spaces.find((s) => sameLocation(s) && s.name === booking.spaceName);
+  return match?.spaceTypeId && match.spaceTypeId > 0 ? match.spaceTypeId : null;
 }
 
 /** PATCH booking/{id}/reassign { newSpaceId } (the server picks the pricing). */

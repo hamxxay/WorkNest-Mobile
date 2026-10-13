@@ -23,6 +23,7 @@ import { errorMessage } from "../../../../services/apiClient";
 import {
   BOOKING_STATUS,
   BOOKING_STATUS_OPTIONS,
+  bookingSpaceTypeId,
   cancelBooking,
   downloadBookingChallanPdf,
   emailBookingChallan,
@@ -41,6 +42,7 @@ import { formatDate, formatDateRange, formatMoney, parseDate } from "../../../..
 import { StaffScreen } from "../shared/StaffScreen";
 import { useAsyncData } from "../shared/hooks";
 import { useOpenFile } from "../shared/useOpenFile";
+import { useRefreshColors } from "../shared/refresh";
 
 type Route = RouteProp<StaffStackParamList, "BookingDetail">;
 
@@ -52,8 +54,8 @@ type Route = RouteProp<StaffStackParamList, "BookingDetail">;
 export default function BookingDetailScreen() {
   const { params } = useRoute<Route>();
   const toast = useToast();
-  const { colors } = useTheme();
   const { opening, open } = useOpenFile();
+  const refreshColors = useRefreshColors();
   const fetcher = useCallback(() => getBooking(params.bookingId), [params.bookingId]);
   const { data: b, loading, refreshing, error, reload, refresh } = useAsyncData<StaffBookingDetail>(fetcher);
 
@@ -121,7 +123,7 @@ export default function BookingDetailScreen() {
       ) : b ? (
         <ScrollView
           contentContainerStyle={styles.content}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} colors={[colors.primary]} tintColor={colors.primary} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} {...refreshColors} />}
         >
           <Card>
             <View style={styles.row}>
@@ -307,19 +309,15 @@ function ReassignSheet({ booking, onClose, onDone }: { booking: StaffBookingDeta
     setSpaces(null);
     setLoadError(null);
     (async () => {
-      // The booking row has no space type id: find it from the space list (same code / name and location).
-      const all = await getAllSpaces();
-      const current = all.find(
-        (s) =>
-          (booking.spaceCode && s.code === booking.spaceCode) ||
-          (s.name === booking.spaceName && (!booking.locationName || s.locationName === booking.locationName)),
-      );
-      if (!current?.spaceTypeId) throw new Error("The space type of this booking could not be found. Reassign it from the web portal.");
+      // The booking's own space type (from its row). Only an API without it falls back to the space list, matched
+      // by space id (space codes repeat across types: "1" is both a meeting room and a shared space).
+      const spaceTypeId = bookingSpaceTypeId(booking) ?? bookingSpaceTypeId(booking, await getAllSpaces());
+      if (!spaceTypeId) throw new Error("The space type of this booking could not be found. Reassign it from the web portal.");
       const start = parseDate(booking.contractStartDate || booking.startOn);
       const end = parseDate(booking.contractEndDate || booking.endOn);
       if (!start || !end) throw new Error("This booking has no dates to check availability for.");
       return getReassignmentSpaces({
-        spaceTypeId: current.spaceTypeId,
+        spaceTypeId,
         startOn: toApiDate(start),
         endOn: toApiDate(end),
         excludeBookingId: booking.bookingId,

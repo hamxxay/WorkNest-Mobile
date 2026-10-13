@@ -28,31 +28,32 @@ import {
   emailQuotation,
   getQuotation,
   getQuotationVersions,
+  quotationActions,
   sendQuotation,
   type StaffQuotation,
 } from "../../../../services/staff";
-import { normalizeStatus, spacing, useThemeColors } from "../../../../theme";
+import { spacing } from "../../../../theme";
 import { formatDate, formatDateRange, formatDateTime, formatMoney } from "../../../../utils/format";
 import { StaffScreen } from "../shared/StaffScreen";
-import { useAsyncData } from "../shared/hooks";
+import { useAsyncData, useSingleFlight } from "../shared/hooks";
 import { useOpenFile } from "../shared/useOpenFile";
+import { useRefreshColors } from "../shared/refresh";
 
 type Nav = NativeStackNavigationProp<StaffStackParamList>;
 type Route = RouteProp<StaffStackParamList, "QuotationDetail">;
 
-/** Statuses after which a quotation can no longer be sent again (agreement stage or later). */
-const CLOSED = new Set(["signed", "converted", "inactive", "agreementsent"]);
-
 /**
  * One quotation version (GET quotation/{id}) with its versions (GET quotation/{id}/versions): send it to the
- * customer, email the PDF, open the PDF, make a new version, "edit" (= new prefilled quotation) and, once
- * accepted, send the lease agreement.
+ * customer, email the PDF, open the PDF, make a new version, "edit" (= new prefilled quotation) and send the
+ * lease agreement. Which actions show follows the CMS (quotationActions): send only a Draft, the agreement for
+ * the CMS "accepted" statuses (Active, Sent, Accepted, AgreementSent, Signed), no new version / edit once the
+ * quotation is closed (agreement stage, converted or superseded).
  */
 export default function QuotationDetailScreen() {
   const navigation = useNavigation<Nav>();
   const { params } = useRoute<Route>();
   const toast = useToast();
-  const colors = useThemeColors();
+  const refreshColors = useRefreshColors();
   const { opening, open } = useOpenFile();
 
   const fetcher = useCallback(async () => {
@@ -77,9 +78,9 @@ export default function QuotationDetailScreen() {
   const [sent, setSent] = useState<{ title: string; message: string } | null>(null);
 
   const q = data?.quotation;
-  const status = normalizeStatus(q?.status);
+  const actions = quotationActions(q?.status, q?.isAccepted);
 
-  const send = async () => {
+  const send = useSingleFlight(async () => {
     if (!q) return;
     setBusy("send");
     setDialogError(null);
@@ -93,9 +94,9 @@ export default function QuotationDetailScreen() {
     } finally {
       setBusy(null);
     }
-  };
+  });
 
-  const newVersion = async () => {
+  const newVersion = useSingleFlight(async () => {
     if (!q) return;
     setBusy("version");
     setDialogError(null);
@@ -110,7 +111,7 @@ export default function QuotationDetailScreen() {
     } finally {
       setBusy(null);
     }
-  };
+  });
 
   return (
     <StaffScreen>
@@ -138,7 +139,7 @@ export default function QuotationDetailScreen() {
       ) : q && data ? (
         <ScrollView
           contentContainerStyle={styles.content}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} colors={[colors.primary]} tintColor={colors.primary} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} {...refreshColors} />}
         >
           <Card>
             <View style={styles.row}>
@@ -208,7 +209,7 @@ export default function QuotationDetailScreen() {
           ) : null}
 
           <View style={styles.actions}>
-            {status === "accepted" ? (
+            {actions.canSendAgreement ? (
               <Button
                 title="Send agreement"
                 leftIcon="document-attach-outline"
@@ -216,7 +217,7 @@ export default function QuotationDetailScreen() {
                 fullWidth
               />
             ) : null}
-            {!CLOSED.has(status) && status !== "accepted" ? (
+            {actions.canSend ? (
               <Button title="Send to customer" leftIcon="paper-plane-outline" onPress={() => setConfirmSend(true)} fullWidth haptic />
             ) : null}
             <View style={styles.row}>
@@ -232,16 +233,18 @@ export default function QuotationDetailScreen() {
                 style={styles.flex}
               />
             </View>
-            <View style={styles.row}>
-              <Button title="New version" variant="secondary" leftIcon="copy-outline" onPress={() => setConfirmVersion(true)} style={styles.flex} />
-              <Button
-                title="Edit as new"
-                variant="secondary"
-                leftIcon="create-outline"
-                onPress={() => navigation.navigate("QuotationForm", { editFromId: q.id })}
-                style={styles.flex}
-              />
-            </View>
+            {actions.canRevise ? (
+              <View style={styles.row}>
+                <Button title="New version" variant="secondary" leftIcon="copy-outline" onPress={() => setConfirmVersion(true)} style={styles.flex} />
+                <Button
+                  title="Edit as new"
+                  variant="secondary"
+                  leftIcon="create-outline"
+                  onPress={() => navigation.navigate("QuotationForm", { editFromId: q.id })}
+                  style={styles.flex}
+                />
+              </View>
+            ) : null}
           </View>
 
           {data.versions.length > 1 ? (
@@ -332,7 +335,8 @@ function EmailSheet({ quotation, onClose, onSent }: { quotation: StaffQuotation;
   const [email, setEmail] = useState(quotation.customerEmail ?? "");
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
-  const submit = async () => {
+  // The button and the keyboard's "send" key both submit: one email at a time.
+  const submit = useSingleFlight(async () => {
     const value = email.trim();
     if (value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return setError("Enter a valid email address.");
     setSending(true);
@@ -344,7 +348,7 @@ function EmailSheet({ quotation, onClose, onSent }: { quotation: StaffQuotation;
     } finally {
       setSending(false);
     }
-  };
+  });
   return (
     <BottomSheet
       visible

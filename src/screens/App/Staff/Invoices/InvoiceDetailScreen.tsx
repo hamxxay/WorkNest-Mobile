@@ -18,11 +18,12 @@ import {
 import type { StaffStackParamList } from "../../../../navigation/staffTypes";
 import { errorMessage } from "../../../../services/apiClient";
 import { downloadInvoicePdf, emailInvoice, getInvoice } from "../../../../services/staff";
-import { spacing, useThemeColors } from "../../../../theme";
+import { spacing } from "../../../../theme";
 import { formatDate, formatDateRange, formatMoney, formatNumber } from "../../../../utils/format";
 import { StaffScreen } from "../shared/StaffScreen";
 import { useAsyncData } from "../shared/hooks";
 import { useOpenFile } from "../shared/useOpenFile";
+import { useRefreshColors } from "../shared/refresh";
 
 type Nav = NativeStackNavigationProp<StaffStackParamList>;
 type Route = RouteProp<StaffStackParamList, "InvoiceDetail">;
@@ -32,7 +33,7 @@ export default function InvoiceDetailScreen() {
   const navigation = useNavigation<Nav>();
   const { params } = useRoute<Route>();
   const toast = useToast();
-  const colors = useThemeColors();
+  const refreshColors = useRefreshColors();
   const { opening, open } = useOpenFile();
   const [emailing, setEmailing] = useState(false);
   const fetcher = useCallback(() => getInvoice(params.invoiceId, params.invoice), [params.invoiceId, params.invoice]);
@@ -60,7 +61,7 @@ export default function InvoiceDetailScreen() {
       ) : inv ? (
         <ScrollView
           contentContainerStyle={styles.content}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} colors={[colors.primary]} tintColor={colors.primary} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} {...refreshColors} />}
         >
           <Card>
             <View style={styles.row}>

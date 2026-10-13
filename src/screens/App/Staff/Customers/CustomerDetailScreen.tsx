@@ -25,10 +25,11 @@ import {
   type StaffInvoice,
   type StaffQuotation,
 } from "../../../../services/staff";
-import { spacing, useThemeColors } from "../../../../theme";
+import { spacing } from "../../../../theme";
 import { formatDate, formatMoney } from "../../../../utils/format";
 import { StaffScreen } from "../shared/StaffScreen";
 import { useAsyncData } from "../shared/hooks";
+import { useRefreshColors } from "../shared/refresh";
 
 type Nav = NativeStackNavigationProp<StaffStackParamList>;
 type Route = RouteProp<StaffStackParamList, "CustomerDetail">;
@@ -41,33 +42,51 @@ type CustomerBundle = {
   invoicesError: string | null;
 };
 
+/** Rows shown per list; coming back to the screen reloads only data older than STALE_MS (or after an edit). */
+const LIST_SIZE = 10;
+const STALE_MS = 30_000;
+
 /**
  * One customer (GET customer/{id}) with shortcuts (KYC, quotation, booking, attendants), their latest quotations
- * (GET quotation/by-customer/{id}) and invoices (GET customer/{id}/invoices).
+ * (GET quotation/by-customer/{id}?page=1&limit=10) and invoices (GET customer/{id}/invoices).
  */
 export default function CustomerDetailScreen() {
   const navigation = useNavigation<Nav>();
   const { params } = useRoute<Route>();
-  const colors = useThemeColors();
+  const refreshColors = useRefreshColors();
+  const listRow = params.customer;
 
   const fetcher = useCallback(async (): Promise<CustomerBundle> => {
-    const customer = await getCustomer(params.customerId);
-    const [quotations, invoices] = await Promise.allSettled([
-      listCustomerQuotations(customer.id),
-      listCustomerInvoices(customer.id, { page: 1, limit: 10 }),
-    ]);
+    // The id is known up front for int ids: load the customer and both lists together.
+    const knownId = typeof params.customerId === "number" ? params.customerId : null;
+    const lists = (id: number) =>
+      Promise.allSettled([
+        listCustomerQuotations(id, { page: 1, limit: LIST_SIZE }),
+        listCustomerInvoices(id, { page: 1, limit: LIST_SIZE }),
+      ]);
+    const early = knownId ? lists(knownId) : null;
+    const customer = await getCustomer(params.customerId, { listRow, taxIds: true });
+    const [quotations, invoices] = await (early ?? lists(customer.id));
     const reason = (r: PromiseSettledResult<unknown>) =>
       r.status === "rejected" ? errorMessage(r.reason, "Could not load this list.") : null;
     return {
       customer,
-      quotations: quotations.status === "fulfilled" ? quotations.value.slice(0, 10) : null,
+      quotations: quotations.status === "fulfilled" ? quotations.value.items.slice(0, LIST_SIZE) : null,
       invoices: invoices.status === "fulfilled" ? invoices.value.items : null,
       quotationsError: reason(quotations),
       invoicesError: reason(invoices),
     };
-  }, [params.customerId]);
-  const { data, loading, refreshing, error, reload, refresh } = useAsyncData(fetcher, { reloadOnFocus: true });
+  }, [params.customerId, listRow]);
+  const { data, loading, refreshing, error, reload, refresh, markStale } = useAsyncData(fetcher, {
+    reloadOnFocus: true,
+    staleAfterMs: STALE_MS,
+  });
   const c = data?.customer;
+  /** Opens a screen that can change this customer's data: reload when coming back, however recent. */
+  const openForChange = (go: () => void) => {
+    markStale();
+    go();
+  };
 
   return (
     <StaffScreen>
@@ -76,7 +95,7 @@ export default function CustomerDetailScreen() {
         subtitle={c?.code || undefined}
         actions={
           c
-            ? [{ icon: "create-outline", accessibilityLabel: "Edit customer", onPress: () => navigation.navigate("CustomerForm", { customerId: c.id }) }]
+            ? [{ icon: "create-outline", accessibilityLabel: "Edit customer", onPress: () => openForChange(() => navigation.navigate("CustomerForm", { customerId: c.id, customer: c })) }]
             : undefined
         }
       />
@@ -87,7 +106,7 @@ export default function CustomerDetailScreen() {
       ) : c && data ? (
         <ScrollView
           contentContainerStyle={styles.content}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} colors={[colors.primary]} tintColor={colors.primary} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} {...refreshColors} />}
         >
           <Card>
             <View style={styles.titleRow}>
@@ -112,9 +131,9 @@ export default function CustomerDetailScreen() {
           <Card padding={0}>
             <ListRow leftIcon="id-card-outline" title="KYC documents" onPress={() => navigation.navigate("KycCustomer", { customerId: c.id, customerName: c.fullName })} />
             <Divider inset={68} />
-            <ListRow leftIcon="document-text-outline" title="New quotation" onPress={() => navigation.navigate("QuotationForm", { customerId: c.id })} />
+            <ListRow leftIcon="document-text-outline" title="New quotation" onPress={() => openForChange(() => navigation.navigate("QuotationForm", { customerId: c.id }))} />
             <Divider inset={68} />
-            <ListRow leftIcon="calendar-outline" title="New booking" onPress={() => navigation.navigate("BookingForm", { customerId: c.id })} />
+            <ListRow leftIcon="calendar-outline" title="New booking" onPress={() => openForChange(() => navigation.navigate("BookingForm", { customerId: c.id }))} />
             <Divider inset={68} />
             <ListRow leftIcon="people-circle-outline" title="Attendants & access" onPress={() => navigation.navigate("Attendants", { customerId: c.id })} />
           </Card>
@@ -133,7 +152,7 @@ export default function CustomerDetailScreen() {
                     title={`${q.quotationNumber} · v${q.version}`}
                     subtitle={[q.spaceName, formatMoney(q.totalAmount)].filter(Boolean).join(" · ")}
                     right={<StatusPill status={q.status} />}
-                    onPress={() => navigation.navigate("QuotationDetail", { quotationId: q.id })}
+                    onPress={() => openForChange(() => navigation.navigate("QuotationDetail", { quotationId: q.id }))}
                   />
                 </Fragment>
               ))}
@@ -154,7 +173,7 @@ export default function CustomerDetailScreen() {
                     title={inv.invoiceNumber}
                     subtitle={`${formatMoney(inv.grandTotal)} · due ${formatDate(inv.dueOn)}`}
                     right={<StatusPill status={inv.status} />}
-                    onPress={() => navigation.navigate("InvoiceDetail", { invoiceId: inv.id })}
+                    onPress={() => navigation.navigate("InvoiceDetail", { invoiceId: inv.id, invoice: inv })}
                   />
                 </Fragment>
               ))}

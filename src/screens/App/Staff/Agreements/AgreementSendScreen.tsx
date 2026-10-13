@@ -67,6 +67,9 @@ export default function AgreementSendScreen() {
   const [companyName, setCompanyName] = useState("");
   const [ntn, setNtn] = useState("");
   const [secp, setSecp] = useState("");
+  // The customer's saved NTN / SECP number: the API copies the agreement's values onto the customer, so blank
+  // fields send these instead of clearing them.
+  const [savedTaxIds, setSavedTaxIds] = useState<{ ntn: string | null; secpRegistrationNo: string | null } | null>(null);
   const [start, setStart] = useState<Date | null>(null);
   const [end, setEnd] = useState<Date | null>(null);
   const [billingMonths, setBillingMonths] = useState(1);
@@ -103,7 +106,9 @@ export default function AgreementSendScreen() {
         setCompanyName(q.customerCompany);
       }
       try {
-        const c = await getCustomer(q.customerId);
+        // getCustomer also finds the NTN / SECP number when GET customer/{id} doesn't carry them.
+        const c = await getCustomer(q.customerId, { taxIds: true });
+        setSavedTaxIds({ ntn: c.ntn, secpRegistrationNo: c.secpRegistrationNo });
         setFullName((prev) => prev || c.fullName);
         setCnic(c.cnicOrPassport ? formatCnicInput(c.cnicOrPassport) : "");
         setPhone(c.phoneNumber ?? "");
@@ -154,8 +159,8 @@ export default function AgreementSendScreen() {
       phoneNumber: phone,
       address,
       companyName: entity === "Individual" ? undefined : companyName,
-      ntn: entity === "Individual" ? undefined : ntn,
-      secpRegistrationNo: entity === "Individual" ? undefined : secp,
+      ntn: entity === "Individual" ? undefined : ntn.trim() || savedTaxIds?.ntn || undefined,
+      secpRegistrationNo: entity === "Individual" ? undefined : secp.trim() || savedTaxIds?.secpRegistrationNo || undefined,
       refundDays: Number(refundDays) || 30,
       feeAmount: fee.trim() ? feeValue : undefined,
       securityDeposit: deposit.trim() ? Number(deposit) || 0 : undefined,

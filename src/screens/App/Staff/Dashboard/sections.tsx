@@ -5,7 +5,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { BarChart, Donut, HBarList, percentOf, type HBarItem } from "../../../../components/charts";
 import { AppText, Card, Divider, FilterChips, InfoRow, ListRow, SegmentedControl, StatusPill } from "../../../../components/ui";
 import type { StaffStackParamList } from "../../../../navigation/staffTypes";
-import { dashboardTrend } from "../../../../services/staff";
+import { dashboardTrend, forecastRowsFor } from "../../../../services/staff";
 import type {
   DashboardForecast,
   DashboardOverview,
@@ -354,8 +354,8 @@ export function TeamSection({ team }: { team: TeamDashboard }) {
       {t.offlineMachines.length ? (
         <Card>
           <AppText variant="subheading">Offline machines</AppText>
-          {t.offlineMachines.map((m) => (
-            <InfoRow key={m.name} label={m.name} value={m.lastSeen ? `seen ${formatRelative(m.lastSeen)}` : "never seen"} icon="hardware-chip-outline" />
+          {t.offlineMachines.map((m, i) => (
+            <InfoRow key={`${m.name}-${i}`} label={m.name} value={m.lastSeen ? `seen ${formatRelative(m.lastSeen)}` : "never seen"} icon="hardware-chip-outline" />
           ))}
         </Card>
       ) : null}
@@ -366,17 +366,15 @@ export function TeamSection({ team }: { team: TeamDashboard }) {
 // ─── Forecast ─────────────────────────────────────────────────────────────────────────────────────────────
 
 export function ForecastSection({ forecast }: { forecast: DashboardForecast }) {
-  const [locationId, setLocationId] = useState(0);
-  const rows = useMemo(
-    () => (locationId ? forecast.locations.find((l) => l.locationId === locationId)?.months ?? [] : forecast.totals),
-    [forecast, locationId],
-  );
+  const [chosen, setChosen] = useState(0);
+  // A chip whose location left the forecast (the dashboard location changed) falls back to the totals.
+  const { locationId, rows } = useMemo(() => forecastRowsFor(forecast, chosen), [forecast, chosen]);
   return (
     <Card>
       {forecast.locations.length > 1 ? (
         <FilterChips
           value={locationId}
-          onChange={setLocationId}
+          onChange={setChosen}
           options={[{ label: "All", value: 0 }, ...forecast.locations.map((l) => ({ label: l.name, value: l.locationId }))]}
           accessibilityLabel="Forecast location"
           style={styles.chipBar}
@@ -398,13 +396,13 @@ export function ForecastSection({ forecast }: { forecast: DashboardForecast }) {
             selectable={false}
           />
           <View style={styles.bars}>
-            {rows.map((r) => {
+            {rows.map((r, i) => {
               const caption = `${pct(r.occupancyPct)} occupied · ${r.leasesEnding} ending · ${r.leasesStarting} starting${
                 r.pendingStarting ? ` (${r.pendingStarting} waiting)` : ""
               }`;
               const title = r.label || monthLabel(r.month);
               return (
-                <View key={r.month} style={styles.monthBlock} accessible accessibilityLabel={`${title}: expected rent ${money(r.expectedRent)}. ${caption}`}>
+                <View key={`${r.month || r.label}-${i}`} style={styles.monthBlock} accessible accessibilityLabel={`${title}: expected rent ${money(r.expectedRent)}. ${caption}`}>
                   <View style={styles.rowBetween}>
                     <AppText variant="bodySmall" color="textSecondary" style={styles.flex}>
                       {title}
@@ -454,7 +452,7 @@ export function DoorAccessSection({ overview }: { overview: Record<string, any> 
       {items.length ? (
         <Card padding={0}>
           {items.slice(0, 5).map((it, i) => (
-            <Fragment key={`${it.suspensionId ?? i}`}>
+            <Fragment key={`${it.suspensionId ?? "row"}-${i}`}>
               {i > 0 ? <Divider inset={16} /> : null}
               <ListRow
                 leftIcon={it.extended ? "key-outline" : "lock-closed-outline"}
@@ -570,7 +568,7 @@ export function StaffSection({ staff }: { staff: StaffOverview }) {
       {staff.people.length ? (
         <Card padding={0}>
           {staff.people.map((p, i) => (
-            <Fragment key={p.userId || i}>
+            <Fragment key={`${p.userId || "user"}-${i}`}>
               {i > 0 ? <Divider inset={68} /> : null}
               <ListRow
                 avatar={{ name: p.name }}

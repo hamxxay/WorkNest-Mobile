@@ -20,17 +20,20 @@ import {
   customerToInput,
   getCities,
   getCustomer,
+  keepExistingTaxIds,
   updateCustomer,
   validateCustomerInput,
   type City,
   type CustomerField,
   type CustomerInput,
   type CustomerType,
+  type StaffCustomer,
 } from "../../../../services/staff";
 import { formatCnicInput } from "../../../../utils/cnic";
 import { formatPhoneInput } from "../../../../utils/phone";
 import { spacing } from "../../../../theme";
 import { StaffScreen } from "../shared/StaffScreen";
+import { useSingleFlight } from "../shared/hooks";
 
 type Nav = NativeStackNavigationProp<StaffStackParamList>;
 type Route = RouteProp<StaffStackParamList, "CustomerForm">;
@@ -67,8 +70,11 @@ export default function CustomerFormScreen() {
   const { params } = useRoute<Route>();
   const toast = useToast();
   const editingId = params?.customerId;
+  const shownCustomer = params?.customer;
 
   const [form, setForm] = useState<CustomerInput>(EMPTY);
+  // The customer as loaded: its NTN / SECP number are kept when the form leaves them blank.
+  const [original, setOriginal] = useState<StaffCustomer | null>(null);
   const [errors, setErrors] = useState<Partial<Record<CustomerField, string>>>({});
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(!!editingId);
@@ -93,14 +99,15 @@ export default function CustomerFormScreen() {
     setLoading(true);
     setLoadError(null);
     try {
-      const c = await getCustomer(editingId);
+      const c = await getCustomer(editingId, { listRow: shownCustomer, taxIds: true });
+      setOriginal(c);
       setForm(customerToInput(c));
     } catch (err) {
       setLoadError(errorMessage(err));
     } finally {
       setLoading(false);
     }
-  }, [editingId]);
+  }, [editingId, shownCustomer]);
 
   useEffect(() => {
     loadCustomer();
@@ -120,8 +127,9 @@ export default function CustomerFormScreen() {
 
   const cityOptions = useMemo(() => cities.map((c) => ({ label: c.name, value: c.id })), [cities]);
 
-  const save = async () => {
-    const found = validateCustomerInput(form);
+  const save = useSingleFlight(async () => {
+    const input = editingId ? keepExistingTaxIds(form, original) : form;
+    const found = validateCustomerInput(input);
     setErrors(found);
     if (Object.keys(found).length) {
       toast.error("Please fix the highlighted fields.");
@@ -130,7 +138,7 @@ export default function CustomerFormScreen() {
     setSaving(true);
     try {
       if (editingId) {
-        const result = await updateCustomer(editingId, form);
+        const result = await updateCustomer(editingId, input);
         toast.success(result.message);
         navigation.goBack();
       } else {
@@ -150,7 +158,7 @@ export default function CustomerFormScreen() {
     } finally {
       setSaving(false);
     }
-  };
+  });
 
   return (
     <StaffScreen>

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useFocusEffect } from "@react-navigation/native";
 import { errorMessage } from "../../../../services/apiClient";
 import type { Page } from "../../../../services/staff";
+import { shouldReloadOnFocus, singleFlight } from "./guards";
 
 // Data hooks for the staff screens. Errors are kept as readable text (errorMessage) and shown with
 // ErrorState / AsyncList: a failed load never turns into an empty list.
@@ -157,16 +158,26 @@ export type AsyncData<T> = {
   reload: () => void;
   refresh: () => void;
   setData: (update: T | null | ((prev: T | null) => T | null)) => void;
+  /** Make the next return to the screen reload, however fresh the data (e.g. before opening an edit form). */
+  markStale: () => void;
 };
 
-/** One object (detail screens, dashboards). `fetcher` must be stable (useCallback). */
-export function useAsyncData<T>(fetcher: () => Promise<T>, options: { reloadOnFocus?: boolean } = {}): AsyncData<T> {
+/**
+ * One object (detail screens, dashboards). `fetcher` must be stable (useCallback). `reloadOnFocus` reloads
+ * quietly when the screen comes back into view; with `staleAfterMs` only when the data is at least that old or
+ * `markStale()` was called.
+ */
+export function useAsyncData<T>(
+  fetcher: () => Promise<T>,
+  options: { reloadOnFocus?: boolean; staleAfterMs?: number } = {},
+): AsyncData<T> {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const generation = useRef(0);
-  const loadedOnce = useRef(false);
+  const loadedAt = useRef<number | null>(null);
+  const stale = useRef(false);
 
   const load = useCallback(
     async (mode: "initial" | "refresh" | "quiet") => {
@@ -178,7 +189,8 @@ export function useAsyncData<T>(fetcher: () => Promise<T>, options: { reloadOnFo
         const result = await fetcher();
         if (gen !== generation.current) return;
         setData(result);
-        loadedOnce.current = true;
+        loadedAt.current = Date.now();
+        stale.current = false;
       } catch (err) {
         if (gen === generation.current) setError(errorMessage(err));
       } finally {
@@ -198,6 +210,7 @@ export function useAsyncData<T>(fetcher: () => Promise<T>, options: { reloadOnFo
   const loadRef = useRef(load);
   loadRef.current = load;
   const reloadOnFocus = options.reloadOnFocus ?? false;
+  const staleAfterMs = options.staleAfterMs ?? 0;
   const firstFocus = useRef(true);
   useFocusEffect(
     useCallback(() => {
@@ -205,8 +218,15 @@ export function useAsyncData<T>(fetcher: () => Promise<T>, options: { reloadOnFo
         firstFocus.current = false;
         return;
       }
-      if (reloadOnFocus && loadedOnce.current) loadRef.current("quiet");
-    }, [reloadOnFocus]),
+      const reload = shouldReloadOnFocus({
+        reloadOnFocus,
+        loadedAt: loadedAt.current,
+        stale: stale.current,
+        staleAfterMs,
+        now: Date.now(),
+      });
+      if (reload) loadRef.current("quiet");
+    }, [reloadOnFocus, staleAfterMs]),
   );
 
   return {
@@ -217,6 +237,9 @@ export function useAsyncData<T>(fetcher: () => Promise<T>, options: { reloadOnFo
     reload: useCallback(() => load("initial"), [load]),
     refresh: useCallback(() => load("refresh"), [load]),
     setData,
+    markStale: useCallback(() => {
+      stale.current = true;
+    }, []),
   };
 }
 
@@ -242,4 +265,16 @@ export function useAction() {
     [],
   );
   return { busy, run };
+}
+
+/**
+ * `action`, ignoring calls made while an earlier call still runs: for submits reachable from both a button and
+ * the keyboard's submit key (or quick double taps). Always calls the latest `action`; the returned function is
+ * stable.
+ */
+export function useSingleFlight<A extends unknown[], R>(action: (...args: A) => Promise<R>): (...args: A) => Promise<R | undefined> {
+  const actionRef = useRef(action);
+  actionRef.current = action;
+  const [guarded] = useState(() => singleFlight((...args: A) => actionRef.current(...args)));
+  return guarded;
 }

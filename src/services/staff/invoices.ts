@@ -11,8 +11,8 @@ import { num, optNum, optStr, pick, str, toApiDate, toPage, unwrapEnvelope, with
 //   - List / customer invoices are { isSuccessful, data, totalCount, page, limit }; no status filter on the list.
 //   - Rely on statusLabel (Unpaid | Paid | Partial | Overdue | Cancelled), not statusId. The CMS shows Unpaid /
 //     Partial invoices past their due date as Overdue.
-//   - balanceDue in the list already subtracts WHT; the detail has neither balanceDue nor statusLabel (the CMS
-//     merges the list row into the detail).
+//   - balanceDue in the list already subtracts WHT; the detail may lack statusLabel (the CMS merges the list row
+//     into the detail; without a row the label is derived from the legacy status id or the amounts).
 //   - send-email can answer HTTP 200 with isSuccessful: false (apiClient turns it into an error).
 //   - Payments are recorded with fee receipts (api/fee-receipts), not invoice/{id}/record-payment (no such route).
 
@@ -35,6 +35,27 @@ export function effectiveInvoiceStatus(statusLabel: string | null | undefined, d
     return "Overdue";
   }
   return label;
+}
+
+/** Legacy invoice status ids (WN_Invoices.StatusId 1-5, read first by the API's StatusLabel). */
+const LEGACY_INVOICE_STATUS: Record<number, string> = { 1: "Unpaid", 2: "Paid", 3: "Partial", 4: "Overdue", 5: "Cancelled" };
+
+/**
+ * The status label when the API sent none (GET invoice/{id} has no statusLabel): the legacy status ids like the
+ * API, otherwise from the amounts (nothing left to pay = Paid, something paid = Partial, else Unpaid). Newer
+ * status ids come from dbo.OrderStatus, which the app can't look up, so they are not mapped here.
+ */
+export function deriveInvoiceStatusLabel(row: {
+  statusId?: number | null;
+  grandTotal: number;
+  paidTotal: number;
+  balanceDue: number;
+}): string {
+  const legacy = row.statusId != null ? LEGACY_INVOICE_STATUS[row.statusId] : undefined;
+  if (legacy) return legacy;
+  if ((row.paidTotal > 0 || row.grandTotal > 0) && row.balanceDue <= 0.009) return "Paid";
+  if (row.paidTotal > 0) return "Partial";
+  return "Unpaid";
 }
 
 export type StaffInvoice = {
@@ -77,8 +98,10 @@ export function normalizeInvoice(raw: any): StaffInvoice {
   const grandTotal = num(raw, "grandTotal");
   const paidTotal = num(raw, "paidTotal");
   const whtAmount = num(raw, "whtAmount");
-  const balance = optNum(raw, "balanceDue");
-  const statusLabel = str(raw, "statusLabel") || "Unpaid";
+  const balanceDue = optNum(raw, "balanceDue") ?? Math.max(0, grandTotal - whtAmount - paidTotal);
+  const statusId = optNum(raw, "statusId");
+  const statusLabel =
+    optStr(raw, "statusLabel") ?? deriveInvoiceStatusLabel({ statusId, grandTotal, paidTotal, balanceDue });
   const dueOn = optStr(raw, "dueOn");
   const typeId = optNum(raw, "invoiceTypeId");
   const company = optStr(raw, "companyName");
@@ -99,9 +122,9 @@ export function normalizeInvoice(raw: any): StaffInvoice {
     grandTotal,
     paidTotal,
     whtAmount,
-    balanceDue: balance ?? Math.max(0, grandTotal - whtAmount - paidTotal),
+    balanceDue,
     currencyCode: str(raw, "currencyCode") || "PKR",
-    statusId: optNum(raw, "statusId"),
+    statusId,
     statusLabel,
     status: effectiveInvoiceStatus(statusLabel, dueOn),
     customerName: str(raw, "customerName", "companyName"),
