@@ -3,10 +3,13 @@ import { API_BASE } from "@env";
 
 const ENV_API_BASE_URL = (API_BASE ?? "").trim();
 
+/** The production API. Used when .env sets no API_BASE, and by release builds whose API_BASE is not safe. */
+export const PRODUCTION_API_BASE_URL = "https://aeo.eaccounting360.com.pk/WorkNest/api";
+
 export function normalizeApiBaseUrl(baseUrl: string): string {
   const trimmed = baseUrl.trim();
   if (!trimmed) {
-    return "https://aeo.eaccounting360.com.pk/WorkNest/api";
+    return PRODUCTION_API_BASE_URL;
   }
 
   const hasApiSuffix = /\/api(?:\/)?$/i.test(trimmed);
@@ -15,20 +18,65 @@ export function normalizeApiBaseUrl(baseUrl: string): string {
   return hasApiSuffix ? normalized : `${normalized}/api`;
 }
 
-function resolveApiBaseUrl(): string {
-  const base = ENV_API_BASE_URL || "https://aeo.eaccounting360.com.pk/WorkNest/api";
-  const normalized = normalizeApiBaseUrl(base);
+/** Host part of an absolute URL (lower case, no port, IPv6 brackets removed), or null when it isn't one. */
+function hostOf(url: string): string | null {
+  const match = /^[a-z][a-z0-9+.-]*:\/\/(?:[^@/?#]*@)?(\[[^\]]*\]|[^:/?#]*)/i.exec(url.trim());
+  if (!match || !match[1]) return null;
+  return match[1].replace(/^\[|\]$/g, "").toLowerCase();
+}
 
-  // Only remap localhost/127.0.0.1 for local development when the app is truly targeting a local API.
+/** Loopback, private-network and link-local hosts: a development machine, never the real API. */
+export function isLocalNetworkHost(host: string): boolean {
+  const h = host.trim().toLowerCase().replace(/\.$/, "");
+  if (h === "localhost" || h.endsWith(".localhost") || h.endsWith(".local")) return true;
+  if (h === "::1" || h === "::" || h.startsWith("fe80:") || /^f[cd][0-9a-f]{2}:/.test(h)) return true;
+  const ipv4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(h);
+  if (!ipv4) return false;
+  const [a, b] = [Number(ipv4[1]), Number(ipv4[2])];
+  return (
+    a === 127 || // loopback (adb reverse)
+    a === 10 || // private, incl. 10.0.2.2 (emulator host)
+    a === 0 ||
+    (a === 192 && b === 168) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 169 && b === 254) // link-local
+  );
+}
+
+/** A base URL a release build may talk to: https, on a public host. */
+export function isReleaseSafeApiUrl(url: string): boolean {
+  if (!/^https:\/\//i.test(url.trim())) return false;
+  const host = hostOf(url);
+  return !!host && !isLocalNetworkHost(host);
+}
+
+/**
+ * The API base URL the app uses (pure, unit-tested).
+ * - Development builds use API_BASE from .env as is (http://127.0.0.1:5200 through adb reverse, an ngrok
+ *   tunnel...); on Android "localhost" is remapped to 10.0.2.2 so the emulator reaches the Mac.
+ * - Release builds never call an http or local API: if API_BASE is not https on a public host (a .env left
+ *   pointing at the local API when the release was bundled), the production API is used instead.
+ */
+export function selectApiBaseUrl(
+  configured: string | null | undefined,
+  options: { isDev: boolean; platformOS: string },
+): string {
+  const normalized = normalizeApiBaseUrl(configured ?? "");
+
+  if (!options.isDev) {
+    return isReleaseSafeApiUrl(normalized) ? normalized : PRODUCTION_API_BASE_URL;
+  }
+
+  // Only remap localhost for local development when the app is truly targeting a local API.
   // 127.0.0.1 is left untouched so a real device can reach the Mac via `adb reverse`.
-  if (Platform.OS === "android" && /localhost/.test(normalized)) {
+  if (options.platformOS === "android" && /localhost/.test(normalized)) {
     return normalized.replace("localhost", "10.0.2.2");
   }
 
   return normalized;
 }
 
-export const API_BASE_URL = resolveApiBaseUrl();
+export const API_BASE_URL = selectApiBaseUrl(ENV_API_BASE_URL, { isDev: __DEV__, platformOS: Platform.OS });
 if (__DEV__) console.log("[API CONFIG] Resolved API_BASE_URL:", API_BASE_URL);
 
 export function buildApiPath(path: string): string {
