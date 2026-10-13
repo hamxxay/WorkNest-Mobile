@@ -144,6 +144,10 @@ Release signing reads `android/keystore.properties` (keys listed in `android/key
 
 The JS bundle is compiled to Hermes bytecode by the `hermesc` binary from the `hermes-compiler` package (no `hermesCommand` is set in `android/app/build.gradle`).
 
+Release builds are shrunk with R8 (`minifyEnabled` and `shrinkResources`). Keep rules are in `android/app/proguard-rules.pro`; a new native library that ships no consumer rules of its own may need a `-keep` line there. Images bundled from JS are kept by `android/app/src/main/res/raw/keep.xml`. Crash stack traces from a release build are deobfuscated with `android/app/build/outputs/mapping/release/mapping.txt` from the same build.
+
+Only the Ionicons icon font is packaged (`project.ext.vectoricons` in `android/app/build.gradle`); add the font file there before importing another `react-native-vector-icons` set.
+
 ## Project structure
 
 ```

@@ -77,7 +77,11 @@ android {
         }
         release {
             signingConfig signingConfigs.release
-            minifyEnabled false // set to true if using Proguard
+            // R8 shrinks and obfuscates the Java/Kotlin code; keep rules are in proguard-rules.pro.
+            minifyEnabled true
+            // Drops unused Android resources. Images bundled from JS are looked up by name at run time, so
+            // src/main/res/raw/keep.xml keeps them.
+            shrinkResources true
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
     }
