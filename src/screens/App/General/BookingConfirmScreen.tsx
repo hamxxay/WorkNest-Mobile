@@ -101,7 +101,7 @@ export default function BookingConfirmScreen() {
         <SectionHeader title="Booking summary" />
         <Card>
           <InfoRow label="Space" value={workspace.name} icon="business-outline" />
-          <InfoRow label="Type" value={workspace.type} />
+          {workspace.type !== workspace.name ? <InfoRow label="Type" value={workspace.type} /> : null}
           {workspace.location ? <InfoRow label="Location" value={workspace.location} icon="location-outline" /> : null}
           <InfoRow label="When" value={booking.periodLabel} icon="calendar-outline" layout="stacked" />
           {booking.capacity ? <InfoRow label="People" value={String(booking.capacity)} /> : null}

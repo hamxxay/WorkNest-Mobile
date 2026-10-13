@@ -17,12 +17,17 @@ import {
 } from "../../../components/ui";
 import { useThemedStyles, type AppColors, type Theme } from "../../../theme";
 import { useAuth } from "../../../context/AuthContext";
-import { availabilityOf, listedRate } from "../../Home/WorkspaceCard";
+import { availabilityOf } from "../../Home/WorkspaceCard";
+import { capacityLabel, listedRate } from "../../../services/workspaceService";
 import type { AppStackParamList } from "../../../navigation/types";
 
 type Nav = NativeStackNavigationProp<AppStackParamList>;
 
-/** One space type at one location, as GET /space/available lists it; "Book this space" starts the booking. */
+/**
+ * One space category (type) at one location, summarising its spaces from GET /space/available: seats from the
+ * smallest to the largest space and the lowest listed rate. "Book this space" starts the booking; WorkNest then
+ * assigns a space of this type.
+ */
 export default function SpaceDetailScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<RouteProp<AppStackParamList, "SpaceDetail">>();
@@ -31,6 +36,7 @@ export default function SpaceDetailScreen() {
   const { user } = useAuth();
   const availability = availabilityOf(workspace);
   const bookable = workspace.available && workspace.availableCount > 0;
+  const seats = capacityLabel(workspace);
 
   const book = () => {
     if (!user) {
@@ -53,11 +59,11 @@ export default function SpaceDetailScreen() {
             </AppText>
             <StatusPill tone={availability.tone} label={availability.label} size="md" />
           </View>
-          <InfoRow label="Type" value={workspace.type} icon="business-outline" />
-          {workspace.location ? <InfoRow label="Location" value={workspace.location} icon="location-outline" /> : null}
-          {workspace.capacity ? (
-            <InfoRow label="Capacity" value={`${workspace.capacity} people`} icon="people-outline" />
+          {workspace.type !== workspace.name ? (
+            <InfoRow label="Type" value={workspace.type} icon="business-outline" />
           ) : null}
+          {workspace.location ? <InfoRow label="Location" value={workspace.location} icon="location-outline" /> : null}
+          {seats ? <InfoRow label="Capacity" value={seats} icon="people-outline" /> : null}
           <InfoRow label="Listed rate" value={listedRate(workspace)} icon="pricetag-outline" emphasize />
         </Card>
 

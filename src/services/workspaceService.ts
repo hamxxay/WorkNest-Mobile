@@ -1,6 +1,7 @@
 import { API_ENDPOINTS } from "../config/api";
 import { apiRequest } from "./apiClient";
 import { resolveMediaUrl } from "../utils/mediaUrl";
+import { formatMoney } from "../utils/format";
 
 export type ApiLocation = {
   id: number;
@@ -11,28 +12,40 @@ export type ApiLocation = {
   status?: number;
 };
 
+/**
+ * One card on Home / Spaces: a space category (type) at one location, summarising every space of that type there
+ * (GET /space/available lists the individual spaces; booking picks one of them).
+ */
 export type Workspace = {
+  /** Id of one space of the category (stable list key; booking does not use it). */
   id: number;
+  /** The category's name, e.g. "Private Office" (not one space's name: the API assigns the space). */
   name: string;
   type: "Private Office" | "Co-Working Space" | "Meeting Room" | "Event Space";
   location: string;
   availableCount: number;
   totalCount: number;
-  /** Listed seat price from the API (per billing period, see priceUnit); 0 when the API has no active price. */
+  /**
+   * Lowest listed price among the category's available spaces (per billing period, see priceUnit): what one space
+   * costs (the room price, or the seat price when the API has no room price). 0 when the API has no active price.
+   */
   price: number;
   /** Billing period of `price` from the API (e.g. Monthly, Hourly). */
   priceUnit?: string;
   /** API category code (SharedSpace / PrivateOffice / MeetingRoom ...), used for smart booking. */
   categoryCode?: string;
-  /** Seats in the space, as text (the screens display it). */
+  /** Seats per space across the category: "5" or "1-9" (see capacityLabel). */
   capacity?: string;
+  minCapacity?: number;
+  maxCapacity?: number;
   securityDeposit?: number;
+  /** Amenities offered by the category's spaces (no duplicates). */
   amenities: string[];
   image: string;
   available: boolean;
 };
 
-type ApiWorkspace = {
+export type ApiWorkspace = {
   id?: number | string;
   numericId?: number;
   idGuid?: string;
@@ -65,28 +78,73 @@ function numberOrUndefined(value: unknown): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
-function mapWorkspace(item: ApiWorkspace, availableCount: number, totalCount: number): Workspace {
-  const resolvedImageUrl = resolveMediaUrl(item.imageUrl ?? undefined);
+function amenitiesOf(item: ApiWorkspace): string[] {
+  return item.amenities ? item.amenities.split(",").map((part) => part.trim()).filter(Boolean) : [];
+}
+
+/** What one space costs per billing period: its room price, else its seat price (older servers: pricePerDay). */
+function spacePrice(item: ApiWorkspace): number {
+  const room = numberOrUndefined(item.roomPrice);
+  if (room && room > 0) return room;
+  const seat = numberOrUndefined(item.seatPrice ?? item.pricePerDay);
+  return seat && seat > 0 ? seat : 0;
+}
+
+/** One card for all the spaces of a category at a location (`spaces` is never empty). */
+function mapCategory(spaces: ApiWorkspace[]): Workspace {
+  const available = spaces.filter(isAvailable);
+  // Prices and seats describe what can still be booked; a fully booked category still shows its listing.
+  const pool = available.length ? available : spaces;
+  const first = pool[0];
+  const type = normalizeSpaceType(first.spaceTypeName ?? first.categoryLabel ?? first.categoryCode ?? undefined);
+
+  const priced = pool.filter((item) => spacePrice(item) > 0);
+  const cheapest = priced.reduce<ApiWorkspace | null>(
+    (best, item) => (!best || spacePrice(item) < spacePrice(best) ? item : best),
+    null,
+  );
+  const seats = pool.map((item) => numberOrUndefined(item.capacity)).filter((n): n is number => !!n && n > 0);
+  const minCapacity = seats.length ? Math.min(...seats) : undefined;
+  const maxCapacity = seats.length ? Math.max(...seats) : undefined;
+  const deposits = pool
+    .map((item) => numberOrUndefined(item.securityDeposit))
+    .filter((n): n is number => n !== undefined && n > 0);
+  const withImage = pool.find((item) => resolveMediaUrl(item.imageUrl ?? undefined));
+
   return {
-    id: Number(item.numericId ?? item.id ?? 0),
-    name: item.name ?? "Workspace",
-    type: normalizeSpaceType(item.spaceTypeName ?? item.categoryLabel ?? item.categoryCode ?? undefined),
-    location: item.locationName ?? "",
-    availableCount,
-    totalCount,
-    // GET /space/available sends seatPrice (per billing period); pricePerDay is kept for older servers.
-    price: Number(item.seatPrice ?? item.pricePerDay ?? 0) || 0,
-    priceUnit: item.billingPeriodCode ?? undefined,
-    categoryCode: item.categoryCode ?? undefined,
-    capacity: numberOrUndefined(item.capacity)?.toString(),
-    securityDeposit: numberOrUndefined(item.securityDeposit),
-    amenities: item.amenities
-      ? item.amenities.split(",").map((part) => part.trim()).filter(Boolean)
-      : [],
-    // No stock photo when the space has none: the image component shows a neutral placeholder.
-    image: resolvedImageUrl || "",
-    available: isAvailable(item),
+    id: Number(first.numericId ?? first.id ?? 0),
+    name: type,
+    type,
+    location: first.locationName ?? "",
+    availableCount: available.length,
+    totalCount: spaces.length,
+    price: cheapest ? spacePrice(cheapest) : 0,
+    priceUnit: (cheapest ?? first).billingPeriodCode ?? undefined,
+    categoryCode: first.categoryCode ?? undefined,
+    capacity:
+      minCapacity === undefined || maxCapacity === undefined
+        ? undefined
+        : minCapacity === maxCapacity
+          ? String(minCapacity)
+          : `${minCapacity}-${maxCapacity}`,
+    minCapacity,
+    maxCapacity,
+    securityDeposit: deposits.length ? Math.min(...deposits) : undefined,
+    amenities: Array.from(new Set(pool.flatMap(amenitiesOf))),
+    // No stock photo when no space has one: the image component shows a neutral placeholder.
+    image: withImage ? resolveMediaUrl(withImage.imageUrl ?? undefined) || "" : "",
+    available: available.length > 0,
   };
+}
+
+/** "1-9 seats", "5 seats", "1 seat" (empty when the API sent no capacity). */
+export function capacityLabel(workspace: Pick<Workspace, "minCapacity" | "maxCapacity" | "capacity">): string {
+  const { minCapacity: min, maxCapacity: max } = workspace;
+  if (min !== undefined && max !== undefined) {
+    if (min === max) return `${min} ${min === 1 ? "seat" : "seats"}`;
+    return `${min}-${max} seats`;
+  }
+  return workspace.capacity ? `${workspace.capacity} seats` : "";
 }
 
 function normalizeSpaceType(type?: string): Workspace["type"] {
@@ -107,6 +165,19 @@ export function priceUnitLabel(workspace: Pick<Workspace, "priceUnit">): string 
   return unit;
 }
 
+/**
+ * "From PKR 30,000 / month": the lowest listed price of the category ("From" when it has several spaces, since the
+ * space assigned may cost more), or "Price on request" when the API has none. The challan has the exact amount.
+ */
+export function listedRate(
+  workspace: Pick<Workspace, "price" | "priceUnit"> & Partial<Pick<Workspace, "availableCount" | "totalCount">>,
+): string {
+  if (!(workspace.price > 0)) return "Price on request";
+  const unit = priceUnitLabel(workspace);
+  const several = (workspace.availableCount ?? 0) > 1 || (workspace.totalCount ?? 0) > 1;
+  return `${several ? "From " : ""}${formatMoney(workspace.price)}${unit ? ` / ${unit}` : ""}`;
+}
+
 function extractSpaces(payload: unknown): ApiWorkspace[] {
   if (!payload) return [];
   if (Array.isArray(payload)) return payload as ApiWorkspace[];
@@ -114,27 +185,16 @@ function extractSpaces(payload: unknown): ApiWorkspace[] {
   return p.data ?? p.items ?? p.workspaces ?? [];
 }
 
-/** Build the deduped, counted Workspace[] from a raw list. */
-function buildWorkspaceList(items: ApiWorkspace[]): Workspace[] {
-  const counts = new Map<string, { avail: number; total: number }>();
+/** One Workspace card per location + space type, in the API's order, summarising all of its spaces. */
+export function buildWorkspaceList(items: ApiWorkspace[]): Workspace[] {
+  const groups = new Map<string, ApiWorkspace[]>();
   for (const item of items) {
-    const key = `${item.locationName ?? ""}||${normalizeSpaceType(item.spaceTypeName)}`;
-    const entry = counts.get(key) ?? { avail: 0, total: 0 };
-    entry.total += 1;
-    if (isAvailable(item)) entry.avail += 1;
-    counts.set(key, entry);
+    const key = `${item.locationName ?? ""}||${normalizeSpaceType(item.spaceTypeName ?? item.categoryLabel ?? item.categoryCode ?? undefined)}`;
+    const group = groups.get(key);
+    if (group) group.push(item);
+    else groups.set(key, [item]);
   }
-
-  const seen = new Set<string>();
-  const result: Workspace[] = [];
-  for (const item of items) {
-    const key = `${item.locationName ?? ""}||${normalizeSpaceType(item.spaceTypeName)}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    const { avail, total } = counts.get(key)!;
-    result.push(mapWorkspace(item, avail, total));
-  }
-  return result;
+  return Array.from(groups.values()).map(mapCategory);
 }
 
 /**
