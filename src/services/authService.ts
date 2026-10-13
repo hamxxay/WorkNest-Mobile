@@ -22,7 +22,15 @@ import {
   saveUser,
 } from "../utils/authStorage";
 import type { StoredUser } from "../utils/authStorage";
-import { ApiError, apiRequest, onSessionExpired, setSessionRefresher } from "./apiClient";
+import {
+  ApiError,
+  apiRequest,
+  notifySessionExpired,
+  onSessionExpired,
+  revokeApiToken,
+  setSessionRefresher,
+} from "./apiClient";
+import { clearAllDoorAccess } from "./doorAccessService";
 import {
   sanitizeEmailInput,
   sanitizeOptionalNameInput,
@@ -324,6 +332,45 @@ function exchangeOnce(user: FirebaseAuthTypes.User, displayNameOverride?: string
 
 class ExchangeTimeout extends Error {}
 
+/** Sign-ins started from the Login / Sign-up screens that are still running (strict persistFirebaseSession). */
+let interactiveSignIns = 0;
+
+async function interactiveSignIn<T>(run: () => Promise<T>): Promise<T> {
+  interactiveSignIns += 1;
+  try {
+    return await run();
+  } finally {
+    interactiveSignIns -= 1;
+  }
+}
+
+/**
+ * The API refused the sign-in itself (401 / 403 from auth/google-login: account turned off, sign-in not
+ * verified): a verdict on the session, unlike being offline (0), rate limited (429) or a server error (5xx).
+ */
+function isSignInRefused(error: unknown): boolean {
+  return error instanceof ApiError && (error.status === 401 || error.status === 403);
+}
+
+/**
+ * Ends a session the API refused, the same way as a 401 that can't be renewed (notifySessionExpired: sign out of
+ * Firebase / Google, clear the stored session, the navigators open Login). Only while that account is still the
+ * one signed in to Firebase.
+ */
+function endRefusedSession(uid: string): void {
+  // A sign-in on the Login / Sign-up screen handles its own refusal (signs out, shows the API's message).
+  if (interactiveSignIns > 0) return;
+  let current: FirebaseAuthTypes.User | null = null;
+  try {
+    current = getFirebaseAuth().currentUser;
+  } catch {
+    return;
+  }
+  if (!current || current.uid !== uid) return;
+  debugAuth("jwt exchange refused, ending the session");
+  notifySessionExpired();
+}
+
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => reject(new ExchangeTimeout("timeout")), ms);
@@ -393,16 +440,25 @@ async function persistFirebaseSession(
       ]);
       throw err;
     }
+    if (isSignInRefused(err)) {
+      // The API refused this account (turned off, sign-in not verified): never keep the cached session.
+      endRefusedSession(user.uid);
+      throw err;
+    }
     if (err instanceof ExchangeTimeout) {
-      // Slow or offline start: open with the cached session; store the new token once the exchange answers.
+      // Slow or offline start: open with the cached session; store the new token once the exchange answers,
+      // or end the session if the API refuses it.
       debugAuth("jwt exchange still running, using cached session");
       exchange
         .then(result => applyApiSession(user.uid, result))
         .then(updated => {
           if (updated) notifyAuthListeners(updated);
         })
-        .catch(() => undefined);
+        .catch(error => {
+          if (isSignInRefused(error)) endRefusedSession(user.uid);
+        });
     }
+    // Otherwise (offline, rate limited, server error): keep the API token from the last successful sign-in.
   }
 
   // Only the API's own JWT is ever stored as the API token; without one the cached token (if any) stays.
@@ -424,9 +480,17 @@ async function persistFirebaseSession(
   return { user: mergedUser, apiToken: session?.token ?? (await getToken()) };
 }
 
+/** Everything this device keeps about the signed-in user: API token, profile, saved door Access Request. */
+async function clearLocalSession(): Promise<void> {
+  await Promise.allSettled([clearAuthStorage(), clearAllDoorAccess()]);
+}
+
 export async function logoutUser(): Promise<void> {
   debugAuth("logout start");
-  const tasks: Promise<unknown>[] = [];
+  // The API revokes the token it is sent (POST /auth/logout), so read it before anything is cleared.
+  // Best effort, at most ~1.5 s, alongside the Google / Firebase sign-out.
+  const apiToken = await getToken();
+  const tasks: Promise<unknown>[] = [revokeApiToken(apiToken)];
 
   tasks.push(
     GoogleSignin.revokeAccess().catch((error) => {
@@ -446,7 +510,7 @@ export async function logoutUser(): Promise<void> {
   }
 
   await Promise.allSettled(tasks);
-  await clearAuthStorage();
+  await clearLocalSession();
   debugAuth("logout complete");
 }
 
@@ -464,7 +528,7 @@ export async function endExpiredSession(): Promise<void> {
     // Firebase not available: the stored session is still cleared below.
   }
   await Promise.allSettled(tasks);
-  await clearAuthStorage();
+  await clearLocalSession();
   notifyAuthListeners(null);
 }
 
@@ -531,6 +595,8 @@ export async function hydrateSessionUser(): Promise<StoredUser | null> {
       timeoutMs: STARTUP_EXCHANGE_TIMEOUT_MS,
     });
   } catch (error) {
+    // Refused by the API: the session is being ended (endRefusedSession), so open signed out.
+    if (isSignInRefused(error)) return null;
     warnDev("[Auth] hydrate failed, using the cached session", error);
     return getUser();
   }
@@ -555,6 +621,7 @@ export function subscribeToAuthChanges(
         debugAuth("auth state changed", { signedIn: false });
         await removeToken();
         await removeUser();
+        await clearAllDoorAccess();
         notifyAuthListeners(null);
         return;
       }
@@ -592,7 +659,11 @@ function errorCode(error: unknown): string {
     : "unknown";
 }
 
-export async function loginUser(payload: LoginRequest): Promise<AuthResponse> {
+export function loginUser(payload: LoginRequest): Promise<AuthResponse> {
+  return interactiveSignIn(() => loginWithPassword(payload));
+}
+
+async function loginWithPassword(payload: LoginRequest): Promise<AuthResponse> {
   try {
     const email = sanitizeEmailInput(payload.email);
     const password = sanitizePasswordInput(payload.password);
@@ -615,7 +686,11 @@ export async function loginUser(payload: LoginRequest): Promise<AuthResponse> {
   }
 }
 
-export async function registerUser(payload: RegisterRequest): Promise<AuthResponse> {
+export function registerUser(payload: RegisterRequest): Promise<AuthResponse> {
+  return interactiveSignIn(() => registerWithPassword(payload));
+}
+
+async function registerWithPassword(payload: RegisterRequest): Promise<AuthResponse> {
   try {
     const email = sanitizeEmailInput(payload.email);
     const password = sanitizePasswordInput(payload.password);
@@ -712,7 +787,11 @@ export async function beginGoogleAuth(): Promise<PendingGoogleAuth> {
   }
 }
 
-async function completeGoogleAuth(idToken: string): Promise<GoogleAuthResult> {
+function completeGoogleAuth(idToken: string): Promise<GoogleAuthResult> {
+  return interactiveSignIn(() => signInWithGoogleCredential(idToken));
+}
+
+async function signInWithGoogleCredential(idToken: string): Promise<GoogleAuthResult> {
   const googleCredential = GoogleAuthProvider.credential(idToken);
   const credentialResult = await getFirebaseAuth().signInWithCredential(googleCredential);
   debugAuth("google sign-in success", {

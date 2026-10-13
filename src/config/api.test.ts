@@ -1,4 +1,10 @@
-import { normalizeApiBaseUrl } from "./api";
+import {
+  isLocalNetworkHost,
+  isReleaseSafeApiUrl,
+  normalizeApiBaseUrl,
+  PRODUCTION_API_BASE_URL,
+  selectApiBaseUrl,
+} from "./api";
 import { normalizeQuotation } from "../services/customerQuotationService";
 import {
   ApiError,
@@ -38,6 +44,77 @@ describe("normalizeApiBaseUrl", () => {
     expect(normalizeApiBaseUrl("https://aeo.eaccounting360.com.pk/WorkNest/api")).toBe(
       "https://aeo.eaccounting360.com.pk/WorkNest/api"
     );
+  });
+});
+
+describe("selectApiBaseUrl", () => {
+  const release = { isDev: false, platformOS: "android" };
+  const dev = { isDev: true, platformOS: "android" };
+
+  it("uses the production API when nothing is configured", () => {
+    expect(PRODUCTION_API_BASE_URL).toBe("https://aeo.eaccounting360.com.pk/WorkNest/api");
+    expect(selectApiBaseUrl("", release)).toBe(PRODUCTION_API_BASE_URL);
+    expect(selectApiBaseUrl(undefined, dev)).toBe(PRODUCTION_API_BASE_URL);
+  });
+
+  it("release: keeps a configured https API on a public host", () => {
+    expect(selectApiBaseUrl("https://api.worknestpk.com/WorkNest", release)).toBe("https://api.worknestpk.com/WorkNest/api");
+    expect(selectApiBaseUrl("https://aeo.eaccounting360.com.pk/WorkNest/", release)).toBe(PRODUCTION_API_BASE_URL);
+  });
+
+  it("release: never uses an http API", () => {
+    expect(selectApiBaseUrl("http://aeo.eaccounting360.com.pk/WorkNest", release)).toBe(PRODUCTION_API_BASE_URL);
+    expect(selectApiBaseUrl("HTTP://api.example.com", release)).toBe(PRODUCTION_API_BASE_URL);
+  });
+
+  it("release: never uses a local or private-network API, even over https", () => {
+    for (const base of [
+      "http://127.0.0.1:5200",
+      "https://127.0.0.1:5200",
+      "https://localhost:5001",
+      "https://10.0.2.2:5001",
+      "https://10.1.2.3",
+      "https://192.168.1.20:5200/WorkNest",
+      "https://172.20.0.5",
+      "https://[::1]:5001",
+      "https://dev-mac.local",
+      "https://user@127.0.0.1/",
+    ]) {
+      expect(selectApiBaseUrl(base, release)).toBe(PRODUCTION_API_BASE_URL);
+    }
+  });
+
+  it("release: a value that is not a URL falls back to production", () => {
+    expect(selectApiBaseUrl("aeo.eaccounting360.com.pk/WorkNest", release)).toBe(PRODUCTION_API_BASE_URL);
+    expect(selectApiBaseUrl("https://", release)).toBe(PRODUCTION_API_BASE_URL);
+  });
+
+  it("development: uses the configured local API (adb reverse) as is", () => {
+    expect(selectApiBaseUrl("http://127.0.0.1:5200", dev)).toBe("http://127.0.0.1:5200/api");
+    expect(selectApiBaseUrl("http://192.168.1.20:5200/api", dev)).toBe("http://192.168.1.20:5200/api");
+  });
+
+  it("development: remaps localhost to the emulator host on Android only", () => {
+    expect(selectApiBaseUrl("http://localhost:5200", dev)).toBe("http://10.0.2.2:5200/api");
+    expect(selectApiBaseUrl("http://localhost:5200", { isDev: true, platformOS: "ios" })).toBe("http://localhost:5200/api");
+  });
+});
+
+describe("isReleaseSafeApiUrl / isLocalNetworkHost", () => {
+  it("accepts https on public hosts only", () => {
+    expect(isReleaseSafeApiUrl("https://aeo.eaccounting360.com.pk/WorkNest/api")).toBe(true);
+    expect(isReleaseSafeApiUrl("https://172.32.0.1/api")).toBe(true);
+    expect(isReleaseSafeApiUrl("http://aeo.eaccounting360.com.pk/WorkNest/api")).toBe(false);
+    expect(isReleaseSafeApiUrl("ftp://aeo.eaccounting360.com.pk")).toBe(false);
+  });
+
+  it("recognises loopback, private and link-local hosts", () => {
+    for (const host of ["localhost", "LOCALHOST", "127.0.0.1", "127.1.2.3", "10.0.2.2", "192.168.0.10", "172.16.0.1", "172.31.255.255", "169.254.1.1", "0.0.0.0", "::1", "fd00::1", "fe80::1", "box.local"]) {
+      expect(isLocalNetworkHost(host)).toBe(true);
+    }
+    for (const host of ["aeo.eaccounting360.com.pk", "8.8.8.8", "172.15.0.1", "172.32.0.1", "192.169.0.1", "localhost.example.com"]) {
+      expect(isLocalNetworkHost(host)).toBe(false);
+    }
   });
 });
 

@@ -1,6 +1,7 @@
 import { STAFF_ENDPOINTS } from "./endpoints";
 import { downloadStaffFile, staffGet, staffPost, type DownloadedFile } from "./http";
 import { num, optStr, str, toList, toPage, withQuery, type Page } from "./normalize";
+import { safeFileName } from "../../utils/fileName";
 
 // KYC portal (CMS kyc.service.ts; API KycController, policy KycAccessPolicy: super admin, admin, sales
 // executive; verify / reject: admin and super admin only, the customer page says so in canVerifyAndReject).
@@ -120,10 +121,14 @@ export async function getKycDocumentHistory(customerId: number, documentTypeId: 
   }));
 }
 
-/** GET kyc/document/{id}/download — the document file (PDF / JPG / PNG), downloaded with the login token. */
+/**
+ * GET kyc/document/{id}/download — the document file (PDF / JPG / PNG), downloaded with the login token.
+ * `fileName` is the uploader's originalFileName from the server: cleaned (no folders, odd characters) before
+ * it becomes a file name on the device.
+ */
 export function downloadKycDocument(documentId: number, fileName?: string | null): Promise<DownloadedFile> {
   return downloadStaffFile(STAFF_ENDPOINTS.kyc.document(documentId), {
-    fileName: fileName?.trim() || `KYC-Document-${documentId}`,
+    fileName: safeFileName(fileName, `KYC-Document-${documentId}`),
     mimeType: "application/octet-stream",
   });
 }

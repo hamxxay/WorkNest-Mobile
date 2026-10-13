@@ -1,5 +1,6 @@
 import RNShare from "react-native-share";
 import { ApiError, apiDownload, type DownloadedFile } from "./apiClient";
+import { safeFileBaseName } from "../utils/fileName";
 
 /**
  * Authenticated PDFs (challans, agreements, invoices, quotations): downloaded WITH the sign-in token and
@@ -9,12 +10,14 @@ import { ApiError, apiDownload, type DownloadedFile } from "./apiClient";
 
 /** File name without folders, unsafe characters or the .pdf extension (the share sheet adds it). */
 export function pdfBaseName(name: string | null | undefined, fallback: string): string {
-  const raw = (name ?? "").split(/[\\/]/).pop() ?? "";
-  const cleaned = raw.replace(/\.pdf$/i, "").replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "");
-  return cleaned || fallback;
+  return safeFileBaseName(name, fallback, /\.pdf$/i);
 }
 
-/** Opens an already downloaded PDF in the share / viewer sheet. Resolves when the sheet closes. */
+/**
+ * Opens an already downloaded PDF in the share / viewer sheet. Resolves when the sheet closes.
+ * Android: the file is written to the app's private cache (useInternalStorage), not to the shared external
+ * cache other apps and USB can read; the share sheet gets it through react-native-share's FileProvider.
+ */
 export async function sharePdf(file: DownloadedFile, fallbackName: string, title: string): Promise<void> {
   try {
     await RNShare.open({
@@ -24,6 +27,7 @@ export async function sharePdf(file: DownloadedFile, fallbackName: string, title
       filename: pdfBaseName(file.fileName, fallbackName),
       title,
       failOnCancel: false,
+      useInternalStorage: true,
     });
   } catch (error) {
     if (__DEV__) console.warn("[pdf] share sheet failed", error);
