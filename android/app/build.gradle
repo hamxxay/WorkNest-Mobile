@@ -26,7 +26,9 @@ project.ext.react = [
 ]
 
 react {
-    hermesCommand = "node scripts/hermesc-shim.js"
+    // No hermesCommand: the plugin picks node_modules/hermes-compiler/hermesc/<os>-bin/hermesc for the
+    // machine building (macOS, Linux or Windows). "node scripts/hermesc-shim.js" cannot be started by
+    // Gradle (it is run as one program name), which broke every release build.
     hermesFlags = ["-O"]
     // This ensures autolinking works
     autolinkLibrariesWithApp()
