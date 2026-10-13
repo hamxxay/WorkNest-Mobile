@@ -1,5 +1,5 @@
 import { ActivityIndicator, StyleSheet, View } from "react-native";
-import { BrandLogo } from "../components/ui";
+import { BrandLogo, FocusAwareStatusBar, barStyleFor } from "../components/ui";
 import { useAuth } from "../context/AuthContext";
 import { usePushNotifications } from "../hooks/usePushNotifications";
 import { useThemeColors } from "../theme";
@@ -38,6 +38,8 @@ export default function RootNavigator() {
   if (isLoadingUser) {
     return (
       <View style={[styles.center, { backgroundColor: colors.headerBg }]}>
+        {/* Navy in both themes: light status-bar icons (no Screen / AppHeader here to set them). */}
+        <FocusAwareStatusBar barStyle={barStyleFor(colors.headerBg)} />
         <BrandLogo size={108} />
         <ActivityIndicator style={styles.spinner} size="small" color={colors.onHeaderMuted} />
       </View>

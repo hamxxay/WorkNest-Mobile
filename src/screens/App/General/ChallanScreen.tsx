@@ -6,6 +6,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import {
   AppHeader,
   AppText,
+  Banner,
   Button,
   Card,
   Divider,
@@ -16,21 +17,52 @@ import {
   SectionHeader,
   StatusPill,
   SuccessCheck,
+  statusLabel,
   useToast,
 } from "../../../components/ui";
 import { useTheme, useThemedStyles, type AppColors, type Theme } from "../../../theme";
 import { formatDate, formatDateRange, formatMoney } from "../../../utils/format";
 import { errorMessage } from "../../../services/apiClient";
-import { getBookingChallan, openBookingChallanPdf, type BookingChallan } from "../../../services/bookingService";
+import {
+  challanStage,
+  getBookingChallan,
+  isPendingBooking,
+  openBookingChallanPdf,
+  type BookingChallan,
+} from "../../../services/bookingService";
+import { breakdownValue, monthsLabel } from "../../../services/amountBreakdown";
+import { AmountBreakdown } from "./shared/AmountBreakdown";
 import { ChallanPayHelp } from "./shared/ChallanPayHelp";
 import type { AppStackParamList } from "../../../navigation/types";
 
 type Nav = NativeStackNavigationProp<AppStackParamList>;
 
+/** What the customer can do with this challan (bookingService.challanStage). */
+function challanState(challan: BookingChallan) {
+  const status = { status: challan.bookingStatus ?? "Pending", statusCode: challan.bookingStatusCode };
+  const stage = challanStage({
+    ...status,
+    challanValidUntil: challan.validUntil,
+    totalPaidAmount: challan.totalPaidAmount,
+    totalPayable: challan.totalPayable,
+  });
+  return {
+    payable: stage === "toPay",
+    expired: stage === "expired",
+    isVoid: stage === "void",
+    // Still Pending, but the API reports the challan as paid: the team confirms the booking next.
+    paidAwaitingConfirmation: stage === "settled" && isPendingBooking(status),
+  };
+}
+
 /**
  * Bank challan of one booking, exactly as the API issued it (GET /booking/{id}/challan). Customers pay it at
  * HBL / 1Bill like on worknestpk.com; the status shown is the API's, never set by the app. The PDF is the
  * server's own (GET /booking/{id}/challan-pdf), fetched with the sign-in token.
+ *
+ * The breakdown is the API's `fields` (adds up to the total payable). Payment instructions only appear while the
+ * challan can be paid: an expired challan asks the customer to contact WorkNest for a new one, and a cancelled,
+ * rejected or no-show booking says the challan can no longer be paid.
  */
 export default function ChallanScreen() {
   const navigation = useNavigation<Nav>();
@@ -81,6 +113,13 @@ export default function ChallanScreen() {
   };
 
   const number = challan?.challanNumber ?? route.params?.challanNumber;
+  const state = challan ? challanState(challan) : null;
+  // No PDF to print and pay for an expired challan or a booking that will not go ahead.
+  const pdfAvailable = !!state && !state.expired && !state.isVoid;
+  const advancePeriod = challan
+    ? breakdownValue(challan.fields, "advanceRentPeriod") ?? monthsLabel(challan.billingPeriodMonths)
+    : null;
+  const totalLabel = state?.payable ? "Total payable" : "Challan total";
 
   return (
     <Screen>
@@ -88,14 +127,14 @@ export default function ChallanScreen() {
         title="Bank challan"
         subtitle={number ? `No. ${number}` : undefined}
         actions={
-          challan
+          pdfAvailable
             ? [{ icon: "download-outline", accessibilityLabel: "Download challan PDF", onPress: openPdf, disabled: pdfBusy }]
             : []
         }
       />
       {loading ? (
         <LoadingState message="Loading challan" />
-      ) : error || !challan ? (
+      ) : error || !challan || !state ? (
         <ErrorState
           illustration={error ? "cloud-off" : "receipt"}
           title={justBooked ? "Booking created, challan not loaded" : undefined}
@@ -116,7 +155,7 @@ export default function ChallanScreen() {
             />
           }
         >
-          {justBooked ? (
+          {justBooked && state.payable ? (
             <Card variant="outlined" style={styles.booked}>
               <SuccessCheck size={48} haptic accessibilityLabel={null} />
               <View style={styles.flex} accessible accessibilityLiveRegion="polite">
@@ -127,46 +166,77 @@ export default function ChallanScreen() {
               </View>
             </Card>
           ) : null}
+          {state.expired ? (
+            <Banner
+              tone="warning"
+              title="Challan expired"
+              message={`This challan expired on ${formatDate(challan.validUntil)} and can no longer be paid. Please contact WorkNest for a new challan.`}
+              actionLabel="Contact us"
+              onAction={() => navigation.navigate("ContactUs")}
+            />
+          ) : state.isVoid ? (
+            <Banner
+              tone="info"
+              title={statusLabel(challan.bookingStatus)}
+              message="This booking will not go ahead, so this challan can no longer be paid. Contact WorkNest if you have any questions."
+            />
+          ) : state.paidAwaitingConfirmation ? (
+            <Banner
+              tone="success"
+              title="Payment received"
+              message="We have received your payment for this challan. Your booking is confirmed once our team has checked it."
+            />
+          ) : null}
           <Card>
             <View style={styles.rowBetween}>
               <AppText variant="overline" color="textMuted">
                 Challan / consumer no.
               </AppText>
-              <StatusPill status={challan.bookingStatus ?? "Pending"} size="md" />
+              <StatusPill status={state.expired ? "Expired" : challan.bookingStatus ?? "Pending"} size="md" />
             </View>
             <AppText variant="display" selectable style={styles.number}>
               {challan.challanNumber ?? "Not issued yet"}
             </AppText>
-            <InfoRow label="Pay before" value={formatDate(challan.validUntil)} icon="time-outline" emphasize />
+            {state.payable ? (
+              <InfoRow label="Pay before" value={formatDate(challan.validUntil)} icon="time-outline" emphasize />
+            ) : state.expired ? (
+              <InfoRow label="Expired on" value={formatDate(challan.validUntil)} icon="time-outline" />
+            ) : challan.issuedOn ? (
+              <InfoRow label="Issued" value={formatDate(challan.issuedOn)} icon="calendar-outline" />
+            ) : null}
             <Divider spacing={8} />
-            <InfoRow label="Total payable" value={formatMoney(challan.totalPayable)} emphasize />
+            <InfoRow label={totalLabel} value={formatMoney(challan.totalPayable)} emphasize />
           </Card>
 
-          <SectionHeader title="Amount breakdown" />
-          <Card>
-            {challan.lines.length > 0 ? (
-              challan.lines.map((line, i) => (
-                <InfoRow
-                  key={line.lineId ?? i}
-                  label={line.label}
-                  value={formatMoney(line.lineTotal)}
-                />
-              ))
-            ) : (
-              <>
+          {challan.fields.length > 0 ? (
+            <AmountBreakdown
+              fields={challan.fields}
+              totalLabel={totalLabel}
+              totalValue={challan.totalPayable !== null ? formatMoney(challan.totalPayable) : undefined}
+            />
+          ) : (
+            <>
+              {/* Older API without `fields`: the challan's own amounts, which add up to the total payable. */}
+              <SectionHeader title="Amount breakdown" />
+              <Card>
                 {challan.currentCycleAmount !== null ? (
-                  <InfoRow label="Rent" value={formatMoney(challan.currentCycleAmount)} />
+                  <InfoRow
+                    label={advancePeriod ? `Advance rent (${advancePeriod})` : "Advance rent"}
+                    value={formatMoney(challan.currentCycleAmount)}
+                  />
                 ) : null}
                 {challan.securityDeposit ? (
                   <InfoRow label="Security deposit (refundable)" value={formatMoney(challan.securityDeposit)} />
                 ) : null}
                 {challan.taxAmount ? <InfoRow label="Tax" value={formatMoney(challan.taxAmount)} /> : null}
-              </>
-            )}
-            {challan.discountAmount ? <InfoRow label="Discount" value={`- ${formatMoney(challan.discountAmount)}`} /> : null}
-            <Divider spacing={8} />
-            <InfoRow label="Total payable" value={formatMoney(challan.totalPayable)} emphasize />
-          </Card>
+                {challan.discountAmount ? (
+                  <InfoRow label="Discount" value={`- ${formatMoney(challan.discountAmount)}`} />
+                ) : null}
+                <Divider spacing={8} />
+                <InfoRow label={totalLabel} value={formatMoney(challan.totalPayable)} emphasize />
+              </Card>
+            </>
+          )}
 
           <SectionHeader title="Booking" />
           <Card>
@@ -179,15 +249,20 @@ export default function ChallanScreen() {
               <InfoRow label="Location" value={challan.branchName ?? challan.locationName ?? ""} icon="location-outline" />
             ) : null}
             <InfoRow label="Period" value={formatDateRange(challan.startOn, challan.endOn)} icon="calendar-outline" />
-            {challan.billingPeriodLabel ? <InfoRow label="Advance period" value={challan.billingPeriodLabel} /> : null}
+            {/* The advance covers the billing period in months (the breakdown above already shows it when sent). */}
+            {advancePeriod && !breakdownValue(challan.fields, "advanceRentPeriod") ? (
+              <InfoRow label="Advance period" value={advancePeriod} />
+            ) : null}
             <InfoRow label="Booking ref" value={`#${challan.bookingId}`} />
             {challan.customerName ? <InfoRow label="Customer" value={challan.customerName} icon="person-outline" /> : null}
           </Card>
 
-          <ChallanPayHelp />
+          {state.payable ? <ChallanPayHelp /> : null}
 
           <View style={styles.actions}>
-            <Button title="Download / share PDF" leftIcon="download-outline" fullWidth loading={pdfBusy} onPress={openPdf} />
+            {pdfAvailable ? (
+              <Button title="Download / share PDF" leftIcon="download-outline" fullWidth loading={pdfBusy} onPress={openPdf} />
+            ) : null}
             <Button
               title="View booking"
               variant="outline"

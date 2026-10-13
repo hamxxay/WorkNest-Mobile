@@ -1,9 +1,9 @@
 import { API_BASE_URL } from "../../config/api";
 import { ApiError, apiRequest, friendlyApiMessage, sendWithSessionRefresh, serverMessage } from "../apiClient";
-import { getToken, getUser } from "../../utils/authStorage";
+import { getToken } from "../../utils/authStorage";
 import { isEnvelope } from "./normalize";
 
-// Transport for the staff services. Every call is authenticated (Bearer JWT + X-User-Email, via apiClient)
+// Transport for the staff services. Every call is authenticated (Bearer JWT, via apiClient)
 // and keeps the raw payload (unwrapData: false) so paged responses keep their `total`; the services normalise
 // with ./normalize. Failures throw ApiError with a message that is safe to show (apiClient.friendlyApiMessage):
 // screens show errorMessage(err) and never fall back to an empty list on error.
@@ -46,10 +46,8 @@ export async function staffUpload<T = unknown>(
   timeoutMs = 120000,
 ): Promise<T> {
   const token = await getToken();
-  const user = await getUser();
   const headers: Record<string, string> = { Accept: "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
-  if (user?.email) headers["X-User-Email"] = user.email;
   // No Content-Type: fetch sets multipart/form-data with the boundary itself.
 
   const form = new FormData();
@@ -124,10 +122,8 @@ export async function downloadStaffFile(
   options: { fileName: string; mimeType?: string },
 ): Promise<DownloadedFile> {
   const token = await getToken();
-  const user = await getUser();
   const headers: Record<string, string> = { Accept: "application/pdf, image/*, application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
-  if (user?.email) headers["X-User-Email"] = user.email;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), DOWNLOAD_TIMEOUT_MS);

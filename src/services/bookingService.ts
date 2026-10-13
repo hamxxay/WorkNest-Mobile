@@ -4,6 +4,8 @@ import { openApiPdf } from "./pdfService";
 import { sanitizeNotesInput, sanitizeEmailInput, sanitizeNameInput, sanitizePhoneInput, sanitizeTextForState } from "../utils/inputSanitizer";
 import { isValidCnic, CNIC_ERROR } from "../utils/cnic";
 import { isValidPhone, PHONE_ERROR } from "../utils/phone";
+import { parseDate } from "../utils/format";
+import { normalizeBreakdownFields, type BreakdownField } from "./amountBreakdown";
 
 // ─── Staff (admin / sales executive) ──────────────────────────────────────────
 
@@ -181,11 +183,20 @@ export type MyBooking = {
   endOn: string | null;
   bookedOn: string | null;
   billingPeriodLabel: string | null;
-  /** Amounts exactly as the API sent them (null when it sent none). */
+  // Amounts exactly as the API sent them (null when it sent none).
+  /**
+   * What the challan asks the customer to pay (`totalPayable`, the challan's TOTAL INITIAL AMOUNT PAYABLE).
+   * Null when the API did not send it: show "See challan" then, never `totalAmount` (that is the booking's
+   * rent value, not what is payable).
+   */
+  totalPayable: number | null;
+  /** The booking's own amount (`totalAmount`). Not the amount payable: see totalPayable. */
   totalAmount: number | null;
   subtotalAmount: number | null;
   discountAmount: number | null;
   securityDeposit: number | null;
+  /** Paid so far, when the API sends it (a booking with a payment can't be cancelled in the app). */
+  totalPaidAmount: number | null;
   challanNumber: string | null;
   challanValidUntil: string | null;
 };
@@ -206,10 +217,12 @@ export function normalizeMyBooking(input: unknown): MyBooking {
     endOn: textOrNull(pick(raw, "endOn", "EndOn", "endDateTime", "endDate")),
     bookedOn: textOrNull(pick(raw, "bookedOn", "BookedOn", "createdAt", "createdOn")),
     billingPeriodLabel: textOrNull(pick(raw, "billingPeriodLabel", "BillingPeriodLabel")),
-    totalAmount: amountOrNull(pick(raw, "totalPayable", "TotalPayable", "totalAmount", "TotalAmount")),
+    totalPayable: amountOrNull(pick(raw, "totalPayable", "TotalPayable")),
+    totalAmount: amountOrNull(pick(raw, "totalAmount", "TotalAmount")),
     subtotalAmount: amountOrNull(pick(raw, "subtotalAmount", "SubtotalAmount")),
     discountAmount: amountOrNull(pick(raw, "discountAmount", "DiscountAmount")),
     securityDeposit: amountOrNull(pick(raw, "securityDeposit", "SecurityDeposit")),
+    totalPaidAmount: paidAmountOf(raw),
     challanNumber: textOrNull(pick(raw, "challanNumber", "ChallanNumber")),
     challanValidUntil: textOrNull(pick(raw, "challanValidUntil", "ChallanValidUntil")),
   };
@@ -223,26 +236,148 @@ export async function getMyBookings(): Promise<MyBooking[]> {
     .sort((a, b) => b.id - a.id);
 }
 
-/** True for a booking still waiting for payment (status Pending). */
-export function isPendingBooking(booking: Pick<MyBooking, "status" | "statusCode">): boolean {
-  return [booking.status, booking.statusCode].some(v => text(v).toLowerCase() === "pending");
+/** Paid so far, from whichever paid-amount field the API sent (null when none). */
+function paidAmountOf(raw: Record<string, unknown>): number | null {
+  return amountOrNull(
+    pick(raw, "totalPaidAmount", "TotalPaidAmount", "paidAmount", "PaidAmount", "amountPaid", "AmountPaid"),
+  );
 }
 
-/** Customers may cancel a booking only while it is Pending (website rule); paid bookings go through the team. */
-export function canCancelBooking(booking: Pick<MyBooking, "id" | "status" | "statusCode">): boolean {
-  return booking.id > 0 && isPendingBooking(booking);
+type StatusFields = { status?: string | null; statusCode?: string | null };
+
+/** "No Show" / "no_show" / "NoShow" -> "noshow" (status labels and codes compared the same way). */
+export function bookingStatusKey(value: unknown): string {
+  return text(value).toLowerCase().replace(/[\s_-]+/g, "");
+}
+
+function statusKeys(booking: StatusFields): string[] {
+  return [booking.status, booking.statusCode].map(bookingStatusKey).filter(Boolean);
+}
+
+/** True for a booking still waiting for payment (status Pending). */
+export function isPendingBooking(booking: StatusFields): boolean {
+  return statusKeys(booking).includes("pending");
+}
+
+/** Cancelled, rejected, no-show or expired: the booking will not go ahead (nothing to pay on it any more). */
+export function isVoidBooking(booking: StatusFields): boolean {
+  return statusKeys(booking).some(
+    (k) =>
+      k.includes("cancel") ||
+      k.includes("reject") ||
+      k.includes("noshow") ||
+      k.includes("declin") ||
+      k.includes("expire") ||
+      k.includes("void"),
+  );
+}
+
+/** Completed / ended by status (a booking whose end date has passed is also history, see isUpcomingBooking). */
+export function isCompletedBooking(booking: StatusFields): boolean {
+  return statusKeys(booking).some(
+    (k) => k.includes("complet") || k.includes("terminat") || k === "ended" || k === "closed" || k === "checkedout",
+  );
+}
+
+/**
+ * My Bookings "Upcoming": not void (cancelled, rejected, no show), not completed, and not ended yet (a booking
+ * without an end date, e.g. pending, counts as upcoming). Everything else is History.
+ */
+export function isUpcomingBooking(
+  booking: StatusFields & { endOn?: string | null },
+  now: number = Date.now(),
+): boolean {
+  if (isVoidBooking(booking) || isCompletedBooking(booking)) return false;
+  const end = parseDate(booking.endOn ?? null);
+  return !end || end.getTime() > now;
+}
+
+export type BookingSummary = { upcoming: number; completed: number; cancelled: number };
+
+/** Profile counts, with the same rules as the My Bookings tabs (cancelled = cancelled, rejected or no show). */
+export function summarizeBookings(
+  bookings: Array<StatusFields & { endOn?: string | null }>,
+  now: number = Date.now(),
+): BookingSummary {
+  return bookings.reduce<BookingSummary>(
+    (acc, b) => {
+      if (isUpcomingBooking(b, now)) acc.upcoming += 1;
+      else if (isVoidBooking(b)) acc.cancelled += 1;
+      else acc.completed += 1;
+      return acc;
+    },
+    { upcoming: 0, completed: 0, cancelled: 0 },
+  );
+}
+
+/** True when the API reports a payment on the booking (any paid amount above zero). */
+export function hasPayment(booking: { totalPaidAmount?: number | null }): boolean {
+  return (booking.totalPaidAmount ?? 0) > 0;
+}
+
+/**
+ * A challan's last day to pay has passed. A date without a time ("2026-09-14" or "2026-09-14T00:00:00") is valid
+ * until the end of that day; a date with a time until that moment. Unknown dates never count as expired.
+ */
+export function isChallanExpired(validUntil: string | null | undefined, now: Date = new Date()): boolean {
+  const d = parseDate(validUntil ?? null);
+  if (!d) return false;
+  const midnight = d.getHours() === 0 && d.getMinutes() === 0 && d.getSeconds() === 0 && d.getMilliseconds() === 0;
+  const expiresAt = midnight ? new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime() : d.getTime();
+  return now.getTime() >= expiresAt;
+}
+
+type ChallanFacts = StatusFields & {
+  challanValidUntil?: string | null;
+  totalPaidAmount?: number | null;
+  totalPayable?: number | null;
+};
+
+/**
+ * Where a booking's challan stands, from the API's booking status, its last day to pay and the payments it reports:
+ *   "toPay"    Pending, not paid and still valid: show the last day to pay and how to pay
+ *   "expired"  Pending and not paid, but the last day has passed: ask for a new challan, no payment instructions
+ *   "void"     cancelled, rejected or no show: nothing to pay any more
+ *   "settled"  paid (the API reports a payment covering it) or the booking is past Pending (confirmed...)
+ */
+export type ChallanStage = "toPay" | "expired" | "void" | "settled";
+
+export function challanStage(booking: ChallanFacts, now: Date = new Date()): ChallanStage {
+  if (isVoidBooking(booking)) return "void";
+  if (!isPendingBooking(booking)) return "settled";
+  if (hasPayment(booking)) {
+    const payable = booking.totalPayable ?? null;
+    if (payable === null || (booking.totalPaidAmount ?? 0) >= payable) return "settled";
+  }
+  return isChallanExpired(booking.challanValidUntil, now) ? "expired" : "toPay";
+}
+
+/** The customer still has this challan to pay (see challanStage). */
+export function isChallanToPay(booking: ChallanFacts, now: Date = new Date()): boolean {
+  return challanStage(booking, now) === "toPay";
+}
+
+/**
+ * Customers may cancel a booking only while it is Pending and nothing has been paid on it (website rule); paid
+ * bookings go through the team. The API enforces the same rule and its refusal message is shown as is.
+ */
+export function canCancelBooking(
+  booking: Pick<MyBooking, "id" | "status" | "statusCode"> & { totalPaidAmount?: number | null },
+): boolean {
+  return booking.id > 0 && isPendingBooking(booking) && !hasPayment(booking);
 }
 
 /**
  * PATCH /booking/{id}/cancel — cancels the customer's own Pending booking (its open challan is voided by the API).
- * Resolves with the API's message.
+ * Resolves with the API's message. A refusal (e.g. a payment was received meanwhile) throws an ApiError carrying
+ * the API's own message.
  */
 export async function cancelMyBooking(
-  booking: Pick<MyBooking, "id" | "status" | "statusCode">,
+  booking: Pick<MyBooking, "id" | "status" | "statusCode"> & { totalPaidAmount?: number | null },
   reason?: string,
 ): Promise<string> {
   if (!canCancelBooking(booking)) {
-    throw new ApiError("Only bookings that are still pending payment can be cancelled. Please contact us for help.", 400);
+    throw new ApiError("Only unpaid bookings that are still pending can be cancelled. Please contact us for help.", 400);
   }
   const payload = await apiRequest<{ message?: string }>(API_ENDPOINTS.workspaces.cancelBooking(booking.id), {
     method: "PATCH",
@@ -303,6 +438,12 @@ export type BookingChallan = {
   totalPaidAmount: number | null;
   balanceLeft: number | null;
   nextBillDueDate: string | null;
+  /**
+   * The API's amount breakdown (same as the challan PDF): its amount rows add up to totalPayable. Empty when the
+   * API sent none (GET /booking/{id} has no breakdown).
+   */
+  fields: BreakdownField[];
+  /** Ledger lines (accounting entries). They do not add up to the total payable: show `fields` instead. */
   lines: ChallanLine[];
 };
 
@@ -344,12 +485,13 @@ export function normalizeChallan(input: unknown, bookingIdFallback?: number): Bo
     subtotalAmount: amountOrNull(pick(raw, "subtotalAmount", "SubtotalAmount")),
     taxAmount: amountOrNull(pick(raw, "taxAmount", "TaxAmount") ?? pick(contract, "taxAmount", "TaxAmount")),
     totalPayable: amountOrNull(pick(raw, "totalPayable", "TotalPayable")),
-    totalPaidAmount: amountOrNull(pick(raw, "totalPaidAmount", "TotalPaidAmount")),
+    totalPaidAmount: paidAmountOf(raw),
     balanceLeft: amountOrNull(pick(raw, "balanceLeft", "BalanceLeft") ?? pick(contract, "balanceLeft", "BalanceLeft")),
     nextBillDueDate: textOrNull(
       pick(raw, "nextBillDueDate", "NextBillDueDate", "nextBillingDate", "NextBillingDate") ??
         pick(contract, "nextBillDueDate", "NextBillDueDate", "nextBillingDate", "NextBillingDate"),
     ),
+    fields: normalizeBreakdownFields(raw),
     lines: rawLines.map((line: any) => {
       const l = (line ?? {}) as Record<string, unknown>;
       return {

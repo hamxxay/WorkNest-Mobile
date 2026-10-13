@@ -18,7 +18,7 @@ import {
   type DashboardPeriod,
   type RoleDashboard,
 } from "../../../../services/staff";
-import { spacing, useThemeColors } from "../../../../theme";
+import { spacing } from "../../../../theme";
 import { StaffScreen } from "../shared/StaffScreen";
 import { isAdminRole, useStaffSession } from "../shared/StaffSession";
 import { Section } from "./parts";
@@ -32,6 +32,7 @@ import {
   SystemSection,
   TeamSection,
 } from "./sections";
+import { useRefreshColors } from "../shared/refresh";
 
 type Nav = NativeStackNavigationProp<StaffStackParamList>;
 
@@ -55,7 +56,7 @@ const PERIODS: { label: string; value: DashboardPeriod }[] = [
  */
 export default function StaffDashboardScreen() {
   const navigation = useNavigation<Nav>();
-  const colors = useThemeColors();
+  const refreshColors = useRefreshColors();
   const tabBarSpace = useTabBarSpace();
   const { user } = useAuth();
   const { role, profile, locations, locationsLoading, badgeTotal, refreshBadges } = useStaffSession();
@@ -135,7 +136,7 @@ export default function StaffDashboardScreen() {
       />
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: styles.content.paddingBottom + tabBarSpace }]}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} colors={[colors.primary]} tintColor={colors.primary} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} {...refreshColors} />}
       >
         <View style={styles.controls}>
           <SegmentedControl accessibilityLabel="Period" options={PERIODS} value={period} onChange={setPeriod} />

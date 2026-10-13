@@ -17,9 +17,14 @@ export function useDoorAccess(): DoorAccess | null {
         setAccess(null);
         return;
       }
-      getDoorAccess(email).then(result => {
-        if (active) setAccess(result);
-      });
+      getDoorAccess(email)
+        .then(result => {
+          if (active) setAccess(result);
+        })
+        .catch(() => {
+          // Storage could not be read / cleared: show no door access rather than an unhandled rejection.
+          if (active) setAccess(null);
+        });
       return () => {
         active = false;
       };
@@ -30,7 +35,9 @@ export function useDoorAccess(): DoorAccess | null {
   useEffect(() => {
     if (!email) return;
     const sub = DeviceEventEmitter.addListener(DOOR_ACCESS_CHANGED, () => {
-      getDoorAccess(email, true).then(setAccess);
+      getDoorAccess(email, true)
+        .then(setAccess)
+        .catch(() => setAccess(null));
     });
     return () => sub.remove();
   }, [email]);

@@ -1,1 +1,9 @@
-<resources xmlns:tools="http://schemas.android.com/tools" tools:keep="@drawable/node_modules_reactnavigation_elements_lib_module_assets_searchicon,@drawable/node_modules_reactnavigation_elements_lib_module_assets_backicon,@drawable/node_modules_reactnavigation_elements_lib_module_assets_backiconmask,@drawable/node_modules_reactnavigation_elements_lib_module_assets_clearicon,@drawable/node_modules_reactnavigation_elements_lib_module_assets_closeicon" />
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Images and files bundled from JS (require("../public/...png") and assets inside node_modules) become
+  resources named after their path, for example drawable/public_logo or drawable/src_assets_brand_worknestw.
+  React Native looks them up by name at run time, which the resource shrinker (shrinkResources) cannot see,
+  so they are kept here.
+-->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/public_*,@drawable/src_*,@drawable/node_modules_*,@raw/public_*,@raw/src_*,@raw/node_modules_*" />

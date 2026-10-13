@@ -127,7 +127,7 @@ export function normalizeAgreement(raw: any): AgreementRecord {
 
 /**
  * GET /api/Agreement/my
- * Fetch the logged-in customer's agreements (uses x-user-email header).
+ * Fetch the logged-in customer's agreements (the API identifies the customer from the sign-in token).
  */
 export async function getMyAgreements(): Promise<AgreementRecord[]> {
   const raw = await apiRequest<any>(API_ENDPOINTS.agreement.my, {

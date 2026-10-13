@@ -22,6 +22,7 @@ import {
 } from "../../utils/inputSanitizer";
 import { isValidEmail } from "../../utils/validation";
 import { AuthLayout, OrDivider } from "./components/AuthLayout";
+import { signedInState } from "../../navigation/redirect";
 
 type FieldErrors = { email?: string; password?: string };
 
@@ -44,34 +45,14 @@ export default function LoginScreen() {
     navigation.getParent<NativeStackNavigationProp<RootStackParamList>>();
   const busy = loading || googleLoading;
 
+  // Signed in: the tabs, plus the screen the customer was opening (a quotation link, Book this space...) on top,
+  // so they land where they were going and Back returns to the tabs.
   const routeToApp = () => {
-    if (redirectAfterLogin) {
-      // Came from inside the app stack (guest guard) — clear auth history and return to the home tab
-      if (rootNavigation) {
-        rootNavigation.reset({
-          index: 0,
-          routes: [{ name: "AppStack", params: { screen: "MainTabs" } }],
-        });
-      } else {
-        navigation.reset({
-          index: 0,
-          routes: [{ name: "MainTabs" }],
-        });
-      }
-      return;
-    }
-
-    // Came from AuthStack (standalone login) — replace the root and clear all prior auth screens
+    const state = signedInState(redirectAfterLogin);
     if (rootNavigation) {
-      rootNavigation.reset({
-        index: 0,
-        routes: [{ name: "AppStack", params: { screen: "MainTabs" } }],
-      });
+      rootNavigation.reset(state);
     } else {
-      navigation.reset({
-        index: 0,
-        routes: [{ name: "MainTabs" }],
-      });
+      navigation.reset(state.routes[0].state);
     }
   };
 
@@ -190,7 +171,7 @@ export default function LoginScreen() {
             title="Create account"
             variant="ghost"
             size="sm"
-            onPress={() => navigation.navigate("Signup")}
+            onPress={() => navigation.navigate("Signup", redirectAfterLogin ? { redirectAfterLogin } : undefined)}
             disabled={busy}
           />
         </View>

@@ -6,11 +6,13 @@ import {
   AppText,
   AsyncList,
   FilterChips,
+  FocusAwareStatusBar,
   IconButton,
   Screen,
   SmartImage,
+  barStyleFor,
 } from "../../../components/ui";
-import { useThemedStyles, type AppColors, type Theme } from "../../../theme";
+import { useThemeColors, useThemedStyles, type AppColors, type Theme } from "../../../theme";
 import { errorMessage } from "../../../services/apiClient";
 import { getGalleryImages, type GalleryImage } from "../../../services/galleryService";
 
@@ -19,6 +21,7 @@ const ALL = "All";
 /** Photos of WorkNest spaces (GET /gallery/all), filterable by category, with a full-screen viewer. */
 export default function GalleryScreen() {
   const styles = useThemedStyles(createStyles);
+  const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
 
@@ -95,6 +98,9 @@ export default function GalleryScreen() {
 
       <Modal visible={!!current} transparent animationType="fade" onRequestClose={() => setViewer(null)} statusBarTranslucent>
         <View style={[styles.viewer, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 16 }]}>
+          {/* The lightbox is navy in both themes: light status-bar icons while it is open (RN applies the style to
+              the modal's window too); closing it restores the screen's own style. */}
+          {current ? <FocusAwareStatusBar barStyle={barStyleFor(colors.headerBg)} /> : null}
           <View style={styles.viewerBar}>
             <AppText variant="subheading" color="onHeader" numberOfLines={1} style={styles.flex}>
               {current?.title}

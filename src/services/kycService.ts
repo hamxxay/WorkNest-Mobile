@@ -1,6 +1,6 @@
 import { API_BASE_URL, API_ENDPOINTS, buildApiPath } from "../config/api";
 import { ApiError, apiRequest, friendlyApiMessage, serverMessage } from "./apiClient";
-import { getToken, getUser } from "../utils/authStorage";
+import { getToken } from "../utils/authStorage";
 
 // Same shapes the website's KYC page uses (WorkNest_FE src/app/services/kyc.service.ts).
 
@@ -155,7 +155,6 @@ export async function uploadKycDocument(
   onProgress?: (fraction: number) => void,
 ): Promise<string> {
   const token = await getToken();
-  const user = await getUser();
 
   const form = new FormData();
   form.append("CustomerId", String(input.customerId));
@@ -172,7 +171,6 @@ export async function uploadKycDocument(
     xhr.open("POST", url);
     xhr.setRequestHeader("Accept", "application/json");
     if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
-    if (user?.email) xhr.setRequestHeader("X-User-Email", user.email);
     // No Content-Type: React Native sets multipart/form-data with the boundary itself.
 
     if (onProgress && xhr.upload) {

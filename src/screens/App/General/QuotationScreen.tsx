@@ -38,6 +38,8 @@ import {
 import { errorMessage } from "../../../services/apiClient";
 import type { AppStackParamList } from "../../../navigation/types";
 import { useAuth } from "../../../context/AuthContext";
+import { splitBreakdown } from "../../../services/amountBreakdown";
+import { AmountBreakdown } from "./shared/AmountBreakdown";
 
 /**
  * One quotation. Shared with the sales stack: customers (role general) can accept or decline (a reason is
@@ -153,7 +155,10 @@ export default function QuotationScreen() {
   };
 
   const status = (quotation?.status ?? "").toLowerCase();
+  // The API decides (canRespond: only while the quotation is Sent); see canRespondToQuotation.
   const actionable = !!quotation && isCustomer && canRespondToQuotation(quotation);
+  // The API's breakdown (advance rent, deposit, tax...) adds up to the total; the contract items do not.
+  const hasBreakdown = !!quotation && splitBreakdown(quotation.fields).amounts.length > 0;
   const accepted = status === "accepted" || status === "approved";
   const declined = status === "declined" || status === "rejected";
 
@@ -202,28 +207,39 @@ export default function QuotationScreen() {
             ) : null}
           </Card>
 
-          <SectionHeader title="Items" />
-          <Card>
-            {quotation.items.length === 0 ? (
-              <AppText variant="bodySmall" color="textMuted">
-                No item breakdown on this quotation.
-              </AppText>
-            ) : (
-              quotation.items.map((item) => (
-                <InfoRow
-                  key={item.id}
-                  label={`${item.name}${item.quantity > 1 ? ` x ${item.quantity}` : ""}`}
-                  value={formatMoney(item.total)}
-                />
-              ))
-            )}
-            <Divider spacing={8} />
-            {quotation.tax > 0 ? <InfoRow label="Subtotal" value={formatMoney(quotation.subtotal)} /> : null}
-            {quotation.discountAmount ? <InfoRow label="Discount" value={`- ${formatMoney(quotation.discountAmount)}`} /> : null}
-            {quotation.tax > 0 ? <InfoRow label="Tax" value={formatMoney(quotation.tax)} /> : null}
-            {quotation.securityDeposit ? <InfoRow label="Security deposit" value={formatMoney(quotation.securityDeposit)} /> : null}
-            <InfoRow label="Total" value={formatMoney(quotation.total)} emphasize />
-          </Card>
+          {hasBreakdown ? (
+            <AmountBreakdown fields={quotation.fields} totalValue={formatMoney(quotation.total)} />
+          ) : (
+            <>
+              {/* Older API without `fields`: the quotation's items and totals as sent. */}
+              <SectionHeader title="Items" />
+              <Card>
+                {quotation.items.length === 0 ? (
+                  <AppText variant="bodySmall" color="textMuted">
+                    No item breakdown on this quotation.
+                  </AppText>
+                ) : (
+                  quotation.items.map((item, i) => (
+                    <InfoRow
+                      key={`${item.id}-${i}`}
+                      label={`${item.name}${item.quantity > 1 ? ` x ${item.quantity}` : ""}`}
+                      value={formatMoney(item.total)}
+                    />
+                  ))
+                )}
+                <Divider spacing={8} />
+                {quotation.tax > 0 ? <InfoRow label="Subtotal" value={formatMoney(quotation.subtotal)} /> : null}
+                {quotation.discountAmount ? (
+                  <InfoRow label="Discount" value={`- ${formatMoney(quotation.discountAmount)}`} />
+                ) : null}
+                {quotation.tax > 0 ? <InfoRow label="Tax" value={formatMoney(quotation.tax)} /> : null}
+                {quotation.securityDeposit ? (
+                  <InfoRow label="Security deposit" value={formatMoney(quotation.securityDeposit)} />
+                ) : null}
+                <InfoRow label="Total" value={formatMoney(quotation.total)} emphasize />
+              </Card>
+            </>
+          )}
 
           {quotation.notes ? <Banner tone="info" title="Notes" message={quotation.notes} /> : null}
 
@@ -249,7 +265,7 @@ export default function QuotationScreen() {
               <SectionHeader title="Versions" />
               <Card padding={0}>
                 {versions.map((v, i) => (
-                  <View key={`${v.id}-${v.version}`}>
+                  <View key={`${v.id}-${v.version}-${i}`}>
                     {i > 0 ? <Divider inset={16} /> : null}
                     <ListRow title={`Version ${v.version ?? 1}`} subtitle={formatMoney(v.total)} right={<StatusPill status={v.status} />} />
                   </View>

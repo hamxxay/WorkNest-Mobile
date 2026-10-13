@@ -122,8 +122,11 @@ export default function BookingInfoScreen() {
   // Availability for the chosen period (debounced; the last answer wins).
   useEffect(() => {
     if (!period || meetingInPast) {
+      // Also ends a check that was still running for the previous choice (its answer is ignored), so
+      // "Review booking" is never left disabled with nothing to explain why.
       setAvailability(null);
       setAvailabilityError("");
+      setChecking(false);
       return;
     }
     let active = true;
@@ -260,7 +263,13 @@ export default function BookingInfoScreen() {
               <AppText variant="bodySmall" color="textSecondary">
                 {period.label}
               </AppText>
-              {meetingInPast ? null : checking ? (
+              {meetingInPast ? (
+                <Banner
+                  tone="warning"
+                  title="This time has passed"
+                  message="Choose a later start time or another date."
+                />
+              ) : checking ? (
                 <Banner tone="info" message="Checking availability..." />
               ) : availabilityError ? (
                 <Banner tone="warning" message={availabilityError} />

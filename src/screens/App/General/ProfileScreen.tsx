@@ -27,28 +27,13 @@ import { useNotificationsAction } from "../../../hooks/useHeaderActions";
 import { useDoorAccess } from "../../../hooks/useDoorAccess";
 import { logoutUser, updateUserProfile } from "../../../services/authService";
 import { errorMessage } from "../../../services/apiClient";
-import { getMyBookings, type MyBooking } from "../../../services/bookingService";
+import { getMyBookings, summarizeBookings, type BookingSummary } from "../../../services/bookingService";
 import { formatPhoneInput, phoneError, PHONE_MAX_LENGTH } from "../../../utils/phone";
 import { rootNavRef } from "../../../navigation/AppNavigator";
 import type { AppStackParamList } from "../../../navigation/types";
 import { version as appVersion } from "../../../../package.json";
 
 type Nav = NativeStackNavigationProp<AppStackParamList>;
-type Summary = { upcoming: number; completed: number; cancelled: number };
-
-function summarize(bookings: MyBooking[]): Summary {
-  const now = Date.now();
-  return bookings.reduce<Summary>(
-    (acc, b) => {
-      const status = b.status.toLowerCase();
-      if (status.includes("cancel")) acc.cancelled += 1;
-      else if (status.includes("complet") || (b.endOn && new Date(b.endOn).getTime() < now)) acc.completed += 1;
-      else acc.upcoming += 1;
-      return acc;
-    },
-    { upcoming: 0, completed: 0, cancelled: 0 },
-  );
-}
 
 /**
  * Profile (tab): account details (edit name and phone via PUT /auth/me), booking counts, appearance
@@ -64,12 +49,15 @@ export default function ProfileScreen() {
   const toast = useToast();
   const confirm = useConfirm();
 
-  const [summary, setSummary] = useState<Summary | null>(null);
+  // Same rules as the My Bookings tabs: rejected, no-show and cancelled bookings are never "Upcoming".
+  const [summary, setSummary] = useState<BookingSummary | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [errors, setErrors] = useState<{ name?: string; phone?: string; form?: string }>({});
   const [saving, setSaving] = useState(false);
+  // Set synchronously: the keyboard's Done key and the Save button can both fire before `saving` re-renders.
+  const savingRef = useRef(false);
   const phoneRef = useRef<TextInput>(null);
 
   const displayName = typeof user?.name === "string" && user.name.trim() ? user.name.trim() : "WorkNest member";
@@ -81,7 +69,7 @@ export default function ProfileScreen() {
       if (!user) return;
       let active = true;
       getMyBookings()
-        .then((items) => active && setSummary(summarize(items)))
+        .then((items) => active && setSummary(summarizeBookings(items)))
         .catch(() => {
           // Counts stay hidden; Bookings shows the error with a retry.
         });
@@ -99,12 +87,14 @@ export default function ProfileScreen() {
   };
 
   const saveProfile = async () => {
+    if (savingRef.current) return;
     const next: typeof errors = {};
     if (name.trim().length < 2) next.name = "Enter your full name.";
     const p = phone.trim() ? phoneError(phone) : null;
     if (p) next.phone = p;
     setErrors(next);
     if (Object.keys(next).length) return;
+    savingRef.current = true;
     setSaving(true);
     try {
       const updated = await updateUserProfile(name.trim(), phone.trim());
@@ -114,6 +104,7 @@ export default function ProfileScreen() {
     } catch (err) {
       setErrors({ form: errorMessage(err, "Your profile could not be saved. Please try again.") });
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };

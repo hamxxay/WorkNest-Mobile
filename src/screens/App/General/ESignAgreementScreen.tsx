@@ -213,25 +213,28 @@ export default function ESignAgreementScreen({ navigation, route }: Props) {
             />
             {mode === "draw" ? (
               <>
-                <GestureDetector gesture={pan}>
-                  <View
-                    ref={padRef}
-                    collapsable={false}
-                    onLayout={onPadLayout}
-                    style={styles.pad}
-                    accessible
-                    accessibilityLabel="Signature pad. Draw your signature with your finger."
-                  >
-                    <Svg width="100%" height="100%">
-                      {strokes.map((d, i) => (
-                        <Path key={i} d={d} stroke={SIGNATURE_INK} strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" fill="none" />
-                      ))}
-                      {currentStroke ? (
-                        <Path d={currentStroke} stroke={SIGNATURE_INK} strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" fill="none" />
-                      ) : null}
-                    </Svg>
-                  </View>
-                </GestureDetector>
+                {/* The touch area and the drawing surface are the same unpadded box filling the pad, so the ink
+                    lands exactly under the finger and reaches every edge. */}
+                <View
+                  ref={padRef}
+                  collapsable={false}
+                  style={[styles.pad, styles.drawPad]}
+                  accessible
+                  accessibilityLabel="Signature pad. Draw your signature with your finger."
+                >
+                  <GestureDetector gesture={pan}>
+                    <View collapsable={false} style={StyleSheet.absoluteFill} onLayout={onPadLayout}>
+                      <Svg style={StyleSheet.absoluteFill} width="100%" height="100%">
+                        {strokes.map((d, i) => (
+                          <Path key={`stroke-${i}`} d={d} stroke={SIGNATURE_INK} strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                        ))}
+                        {currentStroke ? (
+                          <Path d={currentStroke} stroke={SIGNATURE_INK} strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                        ) : null}
+                      </Svg>
+                    </View>
+                  </GestureDetector>
+                </View>
                 <View style={styles.padFooter}>
                   <AppText variant="caption" color="textMuted" style={styles.flex}>
                     Sign inside the white box with your finger.
@@ -286,6 +289,7 @@ const createStyles = (c: AppColors, t: Theme) =>
     top: { marginTop: t.spacing.md },
     flex: { flex: 1 },
     // The signature is part of the signed PDF: paper (always white) with dark ink in light and dark mode.
+    // The padding is for the typed signature only (see drawPad).
     pad: {
       height: PAD_HEIGHT,
       borderRadius: t.radii.control,
@@ -296,6 +300,8 @@ const createStyles = (c: AppColors, t: Theme) =>
       justifyContent: "center",
       paddingHorizontal: t.spacing.lg,
     },
+    // Drawing: no padding, so touch coordinates (relative to the pad's inner box) and the Svg share one origin.
+    drawPad: { paddingHorizontal: 0 },
     typedText: { width: "100%" },
     padFooter: { flexDirection: "row", alignItems: "center", gap: t.spacing.sm },
   });
