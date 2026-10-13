@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { StyleSheet, Text, View, type TextInput } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { AuthStackParamList, RootStackParamList } from "../../navigation/types";
 import { Banner, Button, ConfirmDialog, GoogleSignInButton, TextField } from "../../components/ui";
@@ -20,6 +21,7 @@ import {
 } from "../../utils/inputSanitizer";
 import { isValidEmail, isValidPassword } from "../../utils/validation";
 import { AuthLayout, OrDivider } from "./components/AuthLayout";
+import { signedInState } from "../../navigation/redirect";
 
 type FieldErrors = { email?: string; password?: string; confirmPassword?: string };
 
@@ -29,6 +31,9 @@ export default function SignupScreen() {
   const { colors, typography } = useTheme();
   const navigation =
     useNavigation<NativeStackNavigationProp<AuthStackParamList>>();
+  const route = useRoute<RouteProp<AuthStackParamList, "Signup">>();
+  // Carried over from Login: where the customer was going before they had to sign in.
+  const redirectAfterLogin = route.params?.redirectAfterLogin;
   const emailRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
   const confirmRef = useRef<TextInput>(null);
@@ -42,6 +47,14 @@ export default function SignupScreen() {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [pendingGoogleAuth, setPendingGoogleAuth] = useState<PendingGoogleAuth | null>(null);
   const busy = loading || googleLoading;
+
+  /** Signed up: the tabs, plus the screen the customer was opening (if any) on top. */
+  const routeToApp = () => {
+    const state = signedInState(redirectAfterLogin);
+    const rootNavigation = navigation.getParent<NativeStackNavigationProp<RootStackParamList>>();
+    if (rootNavigation) rootNavigation.reset(state);
+    else navigation.reset(state.routes[0].state as never);
+  };
 
   const parseName = (fullName: string): { firstName?: string; lastName?: string } => {
     const normalized = fullName.trim().replace(/\s+/g, " ");
@@ -88,9 +101,7 @@ export default function SignupScreen() {
         lastName,
       });
 
-      navigation
-        .getParent<NativeStackNavigationProp<RootStackParamList>>()
-        ?.replace("AppStack", { screen: "MainTabs" });
+      routeToApp();
     } catch (err) {
       const message =
         err instanceof ApiError
@@ -129,9 +140,7 @@ export default function SignupScreen() {
       setError(null);
       await confirmGoogleSignup(pendingGoogleAuth.idToken);
       setPendingGoogleAuth(null);
-      navigation
-        .getParent<NativeStackNavigationProp<RootStackParamList>>()
-        ?.replace("AppStack", { screen: "MainTabs" });
+      routeToApp();
     } catch (err) {
       const message =
         err instanceof ApiError || err instanceof Error
@@ -157,7 +166,7 @@ export default function SignupScreen() {
         <View style={styles.footer}>
           <View style={styles.footerRow}>
             <Text style={[typography.bodySmall, { color: colors.textMuted }]}>Already have an account?</Text>
-            <Button title="Sign in" variant="ghost" size="sm" onPress={() => navigation.replace("Login")} disabled={busy} />
+            <Button title="Sign in" variant="ghost" size="sm" onPress={() => navigation.replace("Login", redirectAfterLogin ? { redirectAfterLogin } : undefined)} disabled={busy} />
           </View>
           <Text style={[typography.caption, styles.terms, { color: colors.textMuted }]}>
             By signing up, you agree to our Terms and Privacy Policy.

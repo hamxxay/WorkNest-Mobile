@@ -64,14 +64,20 @@ export const linking: LinkingOptions<RootStackParamList> = {
       // Root-level screens
       Splash: "splash",
       Onboarding: "onboarding",
+      // initialRouteName: a link that opens a screen inside a navigator puts that navigator's first screen under
+      // it, so Back from a deep link or a tapped notification (also from a cold start) returns to the tabs (or to
+      // Login from Signup) instead of leaving the user on a lone screen with no way back.
       AuthStack: {
+        initialRouteName: "Login",
         screens: {
           Login: "login",
           Signup: "signup",
         },
       },
       AppStack: {
+        initialRouteName: "MainTabs",
         screens: {
+          // The tabs need no initialRouteName: the tab navigator always holds every tab and Back goes to Home.
           MainTabs: {
             screens: {
               Home: "home",
