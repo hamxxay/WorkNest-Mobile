@@ -164,7 +164,7 @@ export const API_ENDPOINTS = {
     adminCreate: "/booking/create-admin",
   },
   quotation: {
-    // General user — fetches MY quotations using x-user-email header
+    // General user — their own quotations (the API identifies them from the sign-in token)
     my: "/quotation/my",
     // Admin / Sales Executive — paginated, searchable list
     list: "/quotation",

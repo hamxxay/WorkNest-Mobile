@@ -1,5 +1,5 @@
 import { API_BASE_URL, API_ENDPOINTS } from "../config/api";
-import { getToken, getUser } from "../utils/authStorage";
+import { getToken } from "../utils/authStorage";
 
 type RequestOptions = {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -155,14 +155,11 @@ async function buildHeaders(
     "Content-Type": "application/json",
     ...(options.headers ?? {}),
   };
+  // The API identifies the user from the JWT only: no other identity header is sent (it would only expose the
+  // email address to proxies and logs).
   if (options.requiresAuth) {
     const token = await getToken();
     if (token) headers.Authorization = `Bearer ${token}`;
-    const user = await getUser();
-    if (user?.email) {
-      headers["X-User-Email"] = user.email;
-      headers["x-user-email"] = user.email;
-    }
   }
   return headers;
 }
