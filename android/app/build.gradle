@@ -3,8 +3,6 @@ apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 apply plugin: "com.google.gms.google-services"
 
-import com.android.build.OutputFile
-
 def keystorePropertiesFile = rootProject.file("keystore.properties")
 def keystoreProperties = new Properties()
 if (keystorePropertiesFile.exists()) {
@@ -14,21 +12,10 @@ if (keystorePropertiesFile.exists()) {
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
 // ------------------- React Native Config -------------------
-project.ext.react = [
-    entryFile: "index.js", // Use = not :
-    bundleAssetName: "index.android.bundle",
-    bundleCommand: "bundle",
-    assetsDir: file("$buildDir/generated/res/react/release"),
-    jsBundleDir: file("$buildDir/generated/assets/react/release"),
-    // hermesCommand: file("$rootDir/../node_modules/react-native/sdks/hermesc/win64-bin/hermesc.exe").absolutePath
-    enableHermes: true
-
-]
-
+// Hermes is switched on by hermesEnabled=true in gradle.properties.
 react {
     // No hermesCommand: the plugin picks node_modules/hermes-compiler/hermesc/<os>-bin/hermesc for the
-    // machine building (macOS, Linux or Windows). "node scripts/hermesc-shim.js" cannot be started by
-    // Gradle (it is run as one program name), which broke every release build.
+    // machine building (macOS, Linux or Windows), so release bundles are compiled to Hermes bytecode.
     hermesFlags = ["-O"]
     // This ensures autolinking works
     autolinkLibrariesWithApp()
