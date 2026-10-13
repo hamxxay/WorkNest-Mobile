@@ -68,7 +68,9 @@ const RECHECK_MS = 10 * 60 * 1000;
 export const VERIFY_VALID_DAYS = 30;
 const VERIFY_VALID_MS = VERIFY_VALID_DAYS * 24 * 60 * 60 * 1000;
 
-const storageKey = (accountEmail: string) => `door_access:${accountEmail.trim().toLowerCase()}`;
+// The verified Access Request (name, email, phone, CNIC) is kept per account under this prefix.
+const STORAGE_PREFIX = "door_access:";
+const storageKey = (accountEmail: string) => `${STORAGE_PREFIX}${accountEmail.trim().toLowerCase()}`;
 
 /** Matches the entered details against the access users added to bookings in Sales. */
 export function verifyDoorAccess(details: DoorAccessDetails): Promise<DoorAccessResult> {
@@ -96,6 +98,15 @@ export async function saveDoorAccess(
 export async function clearDoorAccess(accountEmail: string) {
   try {
     await AsyncStorage.removeItem(storageKey(accountEmail));
+  } catch {}
+}
+
+/** Sign-out: removes every saved Access Request on this device (personal data: name, phone, CNIC). Never throws. */
+export async function clearAllDoorAccess(): Promise<void> {
+  try {
+    const keys = await AsyncStorage.getAllKeys();
+    const doorKeys = keys.filter(key => key.startsWith(STORAGE_PREFIX));
+    if (doorKeys.length > 0) await AsyncStorage.multiRemove(doorKeys);
   } catch {}
 }
 

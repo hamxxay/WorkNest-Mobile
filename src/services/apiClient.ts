@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "../config/api";
+import { API_BASE_URL, API_ENDPOINTS } from "../config/api";
 import { getToken, getUser } from "../utils/authStorage";
 
 type RequestOptions = {
@@ -120,8 +120,10 @@ function refreshSessionOnce(): Promise<string | null> {
  * Sends a request; on a 401 for a token we sent (outside the sign-in endpoints) renews the session once and
  * re-sends with the new token. A 401 that remains ends the session for the whole app.
  * (Re-sending is safe: the API refuses an unauthenticated request before doing any work.)
+ * Exported for the transports that build their own fetch (staff file downloads / uploads), so a revoked token
+ * or a changed role is handled the same way everywhere.
  */
-async function sendWithSessionRefresh(
+export async function sendWithSessionRefresh(
   path: string,
   headers: Record<string, string>,
   send: (headers: Record<string, string>) => Promise<Response>,
@@ -247,6 +249,27 @@ async function fetchWithTimeout(
     );
   } finally {
     clearTimeout(timer);
+  }
+}
+
+/** How long sign-out waits for POST /auth/logout before it goes on without it. */
+const LOGOUT_TIMEOUT_MS = 1500;
+
+/**
+ * POST /auth/logout with this token, so the API refuses it from now on (the session ends on the server too).
+ * Best effort: never throws and gives up after LOGOUT_TIMEOUT_MS (offline, the token simply expires later).
+ * No session refresh or session-expired handling: the token is being thrown away anyway.
+ */
+export async function revokeApiToken(token: string | null | undefined): Promise<void> {
+  if (!token) return;
+  try {
+    await fetchWithTimeout(
+      `${API_BASE_URL}${API_ENDPOINTS.auth.logout}`,
+      { method: "POST", headers: { Accept: "application/json", Authorization: `Bearer ${token}` } },
+      LOGOUT_TIMEOUT_MS,
+    );
+  } catch {
+    // Ignored: signing out on this device never depends on the server.
   }
 }
 

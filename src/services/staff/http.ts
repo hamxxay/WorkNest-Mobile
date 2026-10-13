@@ -1,5 +1,5 @@
 import { API_BASE_URL } from "../../config/api";
-import { ApiError, apiRequest, friendlyApiMessage, serverMessage } from "../apiClient";
+import { ApiError, apiRequest, friendlyApiMessage, sendWithSessionRefresh, serverMessage } from "../apiClient";
 import { getToken, getUser } from "../../utils/authStorage";
 import { isEnvelope } from "./normalize";
 
@@ -63,7 +63,10 @@ export async function staffUpload<T = unknown>(
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   let res: Response;
   try {
-    res = await fetch(`${API_BASE_URL}${path}`, { method: "POST", headers, body: form, credentials: "omit", signal: controller.signal });
+    // Same 401 handling as every other call: one silent token renewal, then the session ends.
+    res = await sendWithSessionRefresh(path, headers, sendHeaders =>
+      fetch(`${API_BASE_URL}${path}`, { method: "POST", headers: sendHeaders, body: form, credentials: "omit", signal: controller.signal }),
+    );
   } catch (error) {
     throw new ApiError(
       controller.signal.aborted
@@ -130,7 +133,10 @@ export async function downloadStaffFile(
   const timer = setTimeout(() => controller.abort(), DOWNLOAD_TIMEOUT_MS);
   let res: Response;
   try {
-    res = await fetch(`${API_BASE_URL}${path}`, { method: "GET", headers, credentials: "omit", signal: controller.signal });
+    // Same 401 handling as every other call: one silent token renewal, then the session ends.
+    res = await sendWithSessionRefresh(path, headers, sendHeaders =>
+      fetch(`${API_BASE_URL}${path}`, { method: "GET", headers: sendHeaders, credentials: "omit", signal: controller.signal }),
+    );
   } catch (error) {
     throw new ApiError(
       controller.signal.aborted
