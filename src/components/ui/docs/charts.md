@@ -109,7 +109,8 @@ listed next to the chart.
 | Prop | Default | |
 | --- | --- | --- |
 | `data` | | `{ label, title?, values }[]`: `label` under the column ("Oct"), `title` for the readout and screen readers ("Oct 2026"), one value per series |
-| `series` | | `{ label, tone?, color? }[]`, 1 to 3 |
+| `series` | | `{ label, tone?, color? }[]`, 1 to 3 (stacked: up to 6, each with its own `color` / `tone`) |
+| `stacked` | false | one column per item with the series stacked bottom to top (parts of a whole); the axis covers the totals and the readout / column buttons start with the total |
 | `height` | 160 | plot height in dp (the label band under it is extra) |
 | `formatValue` / `formatTick` | grouped digits / compact | readout + summary / y-axis |
 | `tickCount` | 4 | about how many gridline intervals |
@@ -118,6 +119,19 @@ listed next to the chart.
 | `emptyText` | "Nothing to show for this period." | shown when every value is 0 |
 | `onPressItem` | | `(index) => void`: tap a column to open it (drill-down); each column becomes a button |
 | `itemAccessibilityHint` | "Opens the breakdown" | spoken after a column's values when `onPressItem` is set |
+
+Stacked columns (the Sales Manager's tour inquiries by Type per month) take their colours from the theme, never hex
+codes from a screen: `color: colorOf("Website")` with `useInquiryTypeColors()`. Only the top part has rounded corners;
+parts are separated by a 1 dp gap.
+
+```tsx
+<BarChart
+  stacked
+  label="Tour inquiries by type, last 12 months"
+  series={INQUIRY_TYPES.map(t => ({ label: INQUIRY_TYPE_LABELS[t], color: colorOf(t) }))}
+  data={months.map(m => ({ label: monthShort(m.month), title: monthLabel(m.month), values: INQUIRY_TYPES.map(t => m.counts[t]) }))}
+/>
+```
 
 `label` is the short axis text ("Oct"), `title` the full name ("Oct 2026"); the dashboard builds them from the API's
 `yyyy-MM` months. Category labels thin out automatically when they would collide (every 2nd, 3rd... label, always

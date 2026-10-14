@@ -10,6 +10,7 @@ import {
   niceStep,
   niceTicks,
   percentOf,
+  stackSegments,
   toFinite,
   trendDirection,
 } from "../scale";
@@ -198,5 +199,21 @@ describe("trendDirection", () => {
     expect(trendDirection([5])).toBe("flat");
     expect(trendDirection([])).toBe("flat");
     expect(trendDirection([0, 0, 0])).toBe("flat");
+  });
+});
+
+describe("stackSegments", () => {
+  it("stacks the parts bottom to top in series order, skipping zero parts", () => {
+    expect(stackSegments([8, 0, 5, 2])).toEqual([
+      { index: 0, start: 0, value: 8, top: false },
+      { index: 2, start: 8, value: 5, top: false },
+      { index: 3, start: 13, value: 2, top: true },
+    ]);
+  });
+
+  it("treats missing, negative and non-finite parts as 0", () => {
+    expect(stackSegments([null, -3, NaN, 4, undefined])).toEqual([{ index: 3, start: 0, value: 4, top: true }]);
+    expect(stackSegments([0, 0])).toEqual([]);
+    expect(stackSegments([])).toEqual([]);
   });
 });

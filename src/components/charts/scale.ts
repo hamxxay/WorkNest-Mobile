@@ -221,3 +221,30 @@ export function trendDirection(values: readonly (number | null | undefined)[], t
   if (!scale || Math.abs(last - first) <= scale * tolerance) return "flat";
   return last > first ? "up" : "down";
 }
+
+export type StackSegment = {
+  /** Index of the series. */
+  index: number;
+  /** Sum of the segments below this one. */
+  start: number;
+  value: number;
+  /** The highest non-zero segment of the column (drawn with the rounded top). */
+  top: boolean;
+};
+
+/**
+ * Stacked column parts, bottom to top in series order: missing / negative / non-finite values count as 0 and
+ * zero segments are left out. [] when the column is empty.
+ */
+export function stackSegments(values: readonly (number | null | undefined)[]): StackSegment[] {
+  const out: StackSegment[] = [];
+  let start = 0;
+  values.forEach((raw, index) => {
+    const value = Math.max(0, toFinite(raw));
+    if (value <= 0) return;
+    out.push({ index, start, value, top: false });
+    start += value;
+  });
+  if (out.length) out[out.length - 1].top = true;
+  return out;
+}
