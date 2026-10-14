@@ -1,0 +1,141 @@
+// Sales Manager service calls against a mocked transport: the right GET path and query, authenticated, answers
+// normalised, and a 503 ("needs the database update SM_01") turned into a clear message. apiClient / config /
+// authStorage are mocked so React Native is never loaded.
+
+jest.mock("../../../config/api", () => ({ API_BASE_URL: "https://api.test/api" }));
+jest.mock("../../../utils/authStorage", () => ({
+  getToken: jest.fn(async () => "token"),
+  getUser: jest.fn(async () => ({ email: "sm@worknest.test" })),
+}));
+jest.mock("../../apiClient", () => {
+  class ApiError extends Error {
+    status: number;
+    details?: unknown;
+    constructor(message: string, status: number, details?: unknown) {
+      super(message);
+      this.status = status;
+      this.details = details;
+    }
+  }
+  return {
+    ApiError,
+    apiRequest: jest.fn(),
+    errorMessage: (error: unknown, fallback = "Something went wrong. Please try again.") =>
+      error instanceof ApiError ? error.message : fallback,
+    friendlyApiMessage: (_status: number, payload: any) => payload?.message ?? "Something went wrong. Please try again.",
+    serverMessage: (payload: any) => (typeof payload?.message === "string" && payload.message ? payload.message : null),
+  };
+});
+
+import { ApiError, apiRequest } from "../../apiClient";
+import { CEO_DB_UPDATE_MESSAGE, ceoErrorView } from "../../ceo/errors";
+import { getSalesManagerBreakdown, getSalesManagerDashboard, getSalesManagerRecords } from "../api";
+import { SM_DB_UPDATE_MESSAGE, SM_FORBIDDEN_MESSAGE, salesManagerErrorView, toSalesManagerError } from "../errors";
+
+const api = apiRequest as jest.Mock;
+
+beforeEach(() => api.mockReset());
+
+const lastCall = () => {
+  const [path, options] = api.mock.calls[api.mock.calls.length - 1];
+  return { path, ...options };
+};
+
+describe("requests", () => {
+  it("GET sales-manager/dashboard with period and location, authenticated, envelope kept and unwrapped", async () => {
+    api.mockResolvedValueOnce({ isSuccessful: true, data: { period: "year", funnel: { quotedValue: 5 } } });
+    const d = await getSalesManagerDashboard({ period: "year", locationId: 3 });
+    expect(lastCall()).toMatchObject({
+      path: "/sales-manager/dashboard?period=year&locationId=3",
+      method: "GET",
+      requiresAuth: true,
+      unwrapData: false,
+    });
+    expect(d.funnel?.quotedValue).toBe(5);
+    expect(d.team).toBeNull();
+  });
+
+  it("leaves the location out for all the manager's locations", async () => {
+    api.mockResolvedValueOnce({ isSuccessful: true, data: {} });
+    await getSalesManagerDashboard({ period: "month", locationId: null });
+    expect(lastCall().path).toBe("/sales-manager/dashboard?period=month");
+    api.mockResolvedValueOnce({ isSuccessful: true, data: {} });
+    await getSalesManagerDashboard({ period: "month", locationId: 0 });
+    expect(lastCall().path).toBe("/sales-manager/dashboard?period=month");
+  });
+
+  it("GET sales-manager/breakdown with the metric's key", async () => {
+    api.mockResolvedValueOnce({ isSuccessful: true, data: { rows: [{ key: "1", label: "I-8", value: 2, value2: 90000 }] } });
+    const b = await getSalesManagerBreakdown({ metric: "renewals-month", month: "2026-11", period: "month", locationId: 1 });
+    expect(lastCall().path).toBe("/sales-manager/breakdown?metric=renewals-month&month=2026-11&period=month&locationId=1");
+    expect(b.rows).toEqual([{ key: "1", label: "I-8", value: 2, value2: 90000, count: null }]);
+    expect(b.title).toBe("Expiring leases by location");
+
+    api.mockResolvedValueOnce({ isSuccessful: true, data: {} });
+    await getSalesManagerBreakdown({ metric: "inquiries-type", type: "WalkIn", period: "quarter", locationId: 1 });
+    expect(lastCall().path).toBe("/sales-manager/breakdown?metric=inquiries-type&type=WalkIn&period=quarter");
+  });
+
+  it("GET sales-manager/records/{kind} with its filters", async () => {
+    api.mockResolvedValueOnce({ isSuccessful: true, data: { title: "Follow-ups due", total: 2, rows: [{ inquiryId: 1 }] } });
+    const r = await getSalesManagerRecords({ kind: "inquiries", params: { outcome: "followup_due" } });
+    expect(lastCall().path).toBe("/sales-manager/records/inquiries?outcome=followup_due");
+    expect(r).toMatchObject({ kind: "inquiries", title: "Follow-ups due", total: 2 });
+
+    api.mockResolvedValueOnce({ isSuccessful: true, data: { rows: [] } });
+    await getSalesManagerRecords({ kind: "leases", params: { month: "2026-11", locationId: 2 } });
+    expect(lastCall().path).toBe("/sales-manager/records/leases?month=2026-11&locationId=2");
+  });
+
+  it("refuses an unknown records list (e.g. the CEO's invoices) without calling the API", async () => {
+    await expect(getSalesManagerRecords({ kind: "invoices" as any, params: {} })).rejects.toThrow("Unknown list.");
+    expect(api).not.toHaveBeenCalled();
+  });
+});
+
+describe("503: the SM_01 database update has not been run", () => {
+  it("every Sales Manager call turns it into the clear message", async () => {
+    const calls = [
+      () => getSalesManagerDashboard({ period: "month" }),
+      () => getSalesManagerBreakdown({ metric: "staff", userId: 3, period: "month" }),
+      () => getSalesManagerRecords({ kind: "bookings", params: {} }),
+    ];
+    for (const call of calls) {
+      api.mockRejectedValueOnce(new ApiError("The service is temporarily unavailable.", 503, { message: "Run SM_01.txt" }));
+      const error = await call().catch((e) => e);
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error.status).toBe(503);
+      expect(error.message).toBe(SM_DB_UPDATE_MESSAGE);
+      expect(error.message).toMatch(/SM_01/);
+      expect(error.details).toEqual({ message: "Run SM_01.txt" });
+    }
+  });
+
+  it("other errors pass through unchanged", async () => {
+    const forbidden = new ApiError("You don't have permission to do this.", 403);
+    api.mockRejectedValueOnce(forbidden);
+    await expect(getSalesManagerDashboard({ period: "month", locationId: 99 })).rejects.toBe(forbidden);
+    expect(toSalesManagerError(forbidden)).toBe(forbidden);
+  });
+});
+
+describe("salesManagerErrorView", () => {
+  it("explains the SM_01 database update, with its own wording (not the CEO's)", () => {
+    const view = salesManagerErrorView(new ApiError("x", 503));
+    expect(view).toEqual({ title: "Database update needed", message: SM_DB_UPDATE_MESSAGE, icon: "construct-outline", databaseUpdate: true });
+    expect(view.message).not.toBe(CEO_DB_UPDATE_MESSAGE);
+    // The CEO keeps its own wording.
+    expect(ceoErrorView(new ApiError("x", 503)).message).toBe(CEO_DB_UPDATE_MESSAGE);
+  });
+
+  it("explains a refused role or location, offline, and passes readable API messages through", () => {
+    expect(salesManagerErrorView(new ApiError("Forbidden", 403))).toMatchObject({
+      title: "Not available for your account",
+      message: SM_FORBIDDEN_MESSAGE,
+      databaseUpdate: false,
+    });
+    expect(salesManagerErrorView(new ApiError("Can't reach the server.", 0))).toMatchObject({ title: "Could not reach WorkNest" });
+    expect(salesManagerErrorView(new ApiError("Something went wrong on our side.", 500)).message).toBe("Something went wrong on our side.");
+    expect(salesManagerErrorView(new TypeError("boom")).message).toBe("Could not load the figures. Please try again.");
+  });
+});
