@@ -1,5 +1,5 @@
 // Sales Manager service calls against a mocked transport: the right GET path and query, authenticated, answers
-// normalised, and a 503 ("needs the database update SM_01") turned into a clear message. apiClient / config /
+// normalised, and a 503 ("needs the database update SM_01 / SM_02") turned into a clear message. apiClient / config /
 // authStorage are mocked so React Native is never loaded.
 
 jest.mock("../../../config/api", () => ({ API_BASE_URL: "https://api.test/api" }));
@@ -30,7 +30,15 @@ jest.mock("../../apiClient", () => {
 import { ApiError, apiRequest } from "../../apiClient";
 import { CEO_DB_UPDATE_MESSAGE, ceoErrorView } from "../../ceo/errors";
 import { getSalesManagerBreakdown, getSalesManagerDashboard, getSalesManagerRecords } from "../api";
-import { SM_DB_UPDATE_MESSAGE, SM_FORBIDDEN_MESSAGE, salesManagerErrorView, toSalesManagerError } from "../errors";
+import {
+  SM_DB_UPDATE_MESSAGE,
+  SM_FORBIDDEN_MESSAGE,
+  SM_LATEST_DB_UPDATE,
+  salesManagerErrorView,
+  smDatabaseUpdateMessage,
+  smDatabaseUpdateOf,
+  toSalesManagerError,
+} from "../errors";
 
 const api = apiRequest as jest.Mock;
 
@@ -43,7 +51,7 @@ const lastCall = () => {
 
 describe("requests", () => {
   it("GET sales-manager/dashboard with period and location, authenticated, envelope kept and unwrapped", async () => {
-    api.mockResolvedValueOnce({ isSuccessful: true, data: { period: "year", funnel: { quotedValue: 5 } } });
+    api.mockResolvedValueOnce({ isSuccessful: true, data: { period: "year", funnel: { quotedDesks: 5 } } });
     const d = await getSalesManagerDashboard({ period: "year", locationId: 3 });
     expect(lastCall()).toMatchObject({
       path: "/sales-manager/dashboard?period=year&locationId=3",
@@ -51,7 +59,7 @@ describe("requests", () => {
       requiresAuth: true,
       unwrapData: false,
     });
-    expect(d.funnel?.quotedValue).toBe(5);
+    expect(d.funnel?.quotedDesks).toBe(5);
     expect(d.team).toBeNull();
   });
 
@@ -65,11 +73,16 @@ describe("requests", () => {
   });
 
   it("GET sales-manager/breakdown with the metric's key", async () => {
-    api.mockResolvedValueOnce({ isSuccessful: true, data: { rows: [{ key: "1", label: "I-8", value: 2, value2: 90000 }] } });
+    api.mockResolvedValueOnce({ isSuccessful: true, data: { rows: [{ key: "1", label: "I-8", value: 2, value2: 6 }] } });
     const b = await getSalesManagerBreakdown({ metric: "renewals-month", month: "2026-11", period: "month", locationId: 1 });
     expect(lastCall().path).toBe("/sales-manager/breakdown?metric=renewals-month&month=2026-11&period=month&locationId=1");
-    expect(b.rows).toEqual([{ key: "1", label: "I-8", value: 2, value2: 90000, count: null }]);
-    expect(b.title).toBe("Expiring leases by location");
+    expect(b.rows).toEqual([{ key: "1", label: "I-8", value: 2, value2: 6, count: null }]);
+    expect(b.title).toBe("Leases ending by location");
+
+    api.mockResolvedValueOnce({ isSuccessful: true, data: {} });
+    const desks = await getSalesManagerBreakdown({ metric: "desks-month", month: "2026-12", period: "month", locationId: null });
+    expect(lastCall().path).toBe("/sales-manager/breakdown?metric=desks-month&month=2026-12&period=month");
+    expect(desks).toMatchObject({ valueLabel: "Desks booked", value2Label: "Desks ending" });
 
     api.mockResolvedValueOnce({ isSuccessful: true, data: {} });
     await getSalesManagerBreakdown({ metric: "inquiries-type", type: "WalkIn", period: "quarter", locationId: 1 });
@@ -93,22 +106,45 @@ describe("requests", () => {
   });
 });
 
-describe("503: the SM_01 database update has not been run", () => {
-  it("every Sales Manager call turns it into the clear message", async () => {
+describe("503: a database update (SM_01 / SM_02) has not been run", () => {
+  it("every Sales Manager call turns it into the clear message, SM_02 when the server names none", async () => {
     const calls = [
       () => getSalesManagerDashboard({ period: "month" }),
       () => getSalesManagerBreakdown({ metric: "staff", userId: 3, period: "month" }),
       () => getSalesManagerRecords({ kind: "bookings", params: {} }),
     ];
     for (const call of calls) {
-      api.mockRejectedValueOnce(new ApiError("The service is temporarily unavailable.", 503, { message: "Run SM_01.txt" }));
+      api.mockRejectedValueOnce(new ApiError("The service is temporarily unavailable.", 503, { message: "Database update missing" }));
       const error = await call().catch((e) => e);
       expect(error).toBeInstanceOf(ApiError);
       expect(error.status).toBe(503);
       expect(error.message).toBe(SM_DB_UPDATE_MESSAGE);
-      expect(error.message).toMatch(/SM_01/);
-      expect(error.details).toEqual({ message: "Run SM_01.txt" });
+      expect(error.message).toMatch(/needs the database update SM_02/);
+      expect(error.details).toEqual({ message: "Database update missing" });
     }
+    expect(SM_LATEST_DB_UPDATE).toBe("SM_02");
+  });
+
+  it("names the update the server asked for (SM_02 for desks, or SM_01 when even that is missing)", async () => {
+    api.mockRejectedValueOnce(new ApiError("The Sales Manager dashboard needs the database update SM_02.", 503, { message: "The Sales Manager dashboard needs the database update SM_02." }));
+    const desks = await getSalesManagerDashboard({ period: "month" }).catch((e) => e);
+    expect(desks.message).toBe(smDatabaseUpdateMessage("SM_02"));
+
+    api.mockRejectedValueOnce(new ApiError("The service is temporarily unavailable.", 503, { message: "Run SM_01.txt" }));
+    const role = await getSalesManagerDashboard({ period: "month" }).catch((e) => e);
+    expect(role.message).toBe(smDatabaseUpdateMessage("SM_01"));
+    expect(role.message).toMatch(/needs the database update SM_01/);
+    // The rewritten error still names it (the error view reads it again).
+    expect(salesManagerErrorView(role).message).toBe(role.message);
+  });
+
+  it("smDatabaseUpdateOf reads the message, then the server's answer; SM_02 otherwise", () => {
+    expect(smDatabaseUpdateOf(new ApiError("needs sm_01 first", 503))).toBe("SM_01");
+    expect(smDatabaseUpdateOf(new ApiError("Unavailable", 503, { message: "Please run SM_02" }))).toBe("SM_02");
+    expect(smDatabaseUpdateOf(new ApiError("Unavailable", 503))).toBe("SM_02");
+    expect(smDatabaseUpdateOf({ status: 503 })).toBe("SM_02");
+    expect(smDatabaseUpdateOf(null)).toBe("SM_02");
+    expect(smDatabaseUpdateOf(new ApiError("CEO_01 SM_011", 503))).toBe("SM_02");
   });
 
   it("other errors pass through unchanged", async () => {
@@ -120,9 +156,11 @@ describe("503: the SM_01 database update has not been run", () => {
 });
 
 describe("salesManagerErrorView", () => {
-  it("explains the SM_01 database update, with its own wording (not the CEO's)", () => {
+  it("explains the database update, with its own wording (not the CEO's)", () => {
     const view = salesManagerErrorView(new ApiError("x", 503));
     expect(view).toEqual({ title: "Database update needed", message: SM_DB_UPDATE_MESSAGE, icon: "construct-outline", databaseUpdate: true });
+    expect(view.message).toMatch(/SM_02/);
+    expect(salesManagerErrorView(new ApiError("Run SM_01", 503)).message).toMatch(/SM_01/);
     expect(view.message).not.toBe(CEO_DB_UPDATE_MESSAGE);
     // The CEO keeps its own wording.
     expect(ceoErrorView(new ApiError("x", 503)).message).toBe(CEO_DB_UPDATE_MESSAGE);

@@ -15,6 +15,7 @@ import {
 } from "../ceo/normalize";
 import { byMonth, list, optId, payload, section, type Row } from "../ceo/readers";
 import type {
+  SmBookingRecord,
   SmBreakdown,
   SmBreakdownMetric,
   SmDashboard,
@@ -25,6 +26,7 @@ import type {
   SmLease,
   SmPeriod,
   SmPerson,
+  SmQuotationRecord,
   SmRecordKind,
   SmRecords,
   SmRenewals,
@@ -33,7 +35,8 @@ import type {
 
 // Normalisers for the Sales Manager API (pure, unit-tested in __tests__/normalize.test.ts). Built on the CEO
 // dashboard's readers and normalisers (same contract style). They never throw on a partial answer: unknown shapes
-// become empty sections / lists, so the screens show their empty states instead of failing.
+// become empty sections / lists and a missing desk figure is 0, so the screens show their empty states instead of
+// failing. Money fields an older API may still send (quotedValue, convertedValue, totals...) are ignored.
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -43,16 +46,16 @@ function normalizeFunnelSection(raw: Row | null): SmFunnel | null {
     stages: normalizeFunnel(pick(raw, "stages")),
     conversionRate: optNum(raw, "conversionRate"),
     conversionRatePrev: optNum(raw, "conversionRatePrev"),
-    quotedValue: num(raw, "quotedValue"),
-    bookedValue: num(raw, "bookedValue"),
-    bookedValuePrev: optNum(raw, "bookedValuePrev"),
+    quotedDesks: num(raw, "quotedDesks"),
+    bookedDesks: num(raw, "bookedDesks"),
+    bookedDesksPrev: optNum(raw, "bookedDesksPrev"),
     months: byMonth(
       list(raw, "months", (m) => ({
         month: str(m, "month"),
         quotations: num(m, "quotations"),
         accepted: num(m, "accepted"),
         bookings: num(m, "bookings"),
-        bookedValue: num(m, "bookedValue"),
+        bookedDesks: num(m, "bookedDesks"),
       })),
     ),
   };
@@ -70,17 +73,24 @@ const toPerson = (p: Row): SmPerson => {
     quotations,
     accepted: num(p, "accepted"),
     converted,
-    convertedValue: num(p, "convertedValue"),
+    desksSold: num(p, "desksSold"),
     conversionRate: optNum(p, "conversionRate") ?? (quotations > 0 ? (converted / quotations) * 100 : null),
     followUpsDue: num(p, "followUpsDue"),
   };
 };
 
-/** People ranked by converted value, highest first (ties keep the server's order). */
+/** People ranked by desks sold, then converted, then quotations (highest first), then by name (full ties keep the server's order). */
 export function rankPeople(people: SmPerson[]): SmPerson[] {
   return people
     .map((person, index) => ({ person, index }))
-    .sort((a, b) => b.person.convertedValue - a.person.convertedValue || a.index - b.index)
+    .sort(
+      (a, b) =>
+        b.person.desksSold - a.person.desksSold ||
+        b.person.converted - a.person.converted ||
+        b.person.quotations - a.person.quotations ||
+        a.person.name.localeCompare(b.person.name) ||
+        a.index - b.index,
+    )
     .map((x) => x.person);
 }
 
@@ -94,7 +104,7 @@ function normalizeTeamSection(raw: Row | null): SmTeam | null {
       salesExecutives: num(l, "salesExecutives"),
       quotations: num(l, "quotations"),
       converted: num(l, "converted"),
-      convertedValue: num(l, "convertedValue"),
+      desksSold: num(l, "desksSold"),
     })),
   };
 }
@@ -138,22 +148,44 @@ export const toLease = (b: Row): SmLease => ({
   space: optStr(b, "space", "spaceName"),
   location: optStr(b, "location", "locationName"),
   endOn: optStr(b, "endOn", "endDate"),
-  monthlyAmount: optNum(b, "monthlyAmount"),
+  desks: num(b, "desks"),
   daysLeft: optNum(b, "daysLeft"),
 });
 
-function normalizeRenewalsSection(raw: Row | null): SmRenewals | null {
+/** Leases ending within this many days count as "ending within 30 days". */
+const SOON_DAYS = 30;
+
+const sumDesks = (leases: SmLease[]) => leases.reduce((sum, l) => sum + l.desks, 0);
+
+/**
+ * The renewals section. `funnelBookedDesks` (the funnel's desks booked) fills `bookedDesks` when the section does
+ * not repeat it; net desks = desks booked - desks ended (worked out when not sent).
+ */
+function normalizeRenewalsSection(raw: Row | null, funnelBookedDesks: number | null): SmRenewals | null {
   if (!raw) return null;
   const expiring = list(raw, "expiring", toLease);
+  const soon = expiring.filter((l) => l.daysLeft != null && l.daysLeft <= SOON_DAYS);
+  const endedDesks = num(raw, "endedDesks");
+  const sentNet = optNum(raw, "netDesks");
+  const bookedDesks = optNum(raw, "bookedDesks") ?? funnelBookedDesks ?? (sentNet != null ? sentNet + endedDesks : 0);
   return {
     expiring,
-    // The full count / value when sent (the list may be cut short), else what the list holds.
+    // The full counts / desks when sent (the list may be cut short), else what the list holds.
     expiringCount: Math.max(expiring.length, num(raw, "expiringCount")),
-    expiringMonthlyValue: optNum(raw, "expiringMonthlyValue") ?? expiring.reduce((sum, l) => sum + (l.monthlyAmount ?? 0), 0),
-    newBookingRevenue: num(raw, "newBookingRevenue"),
-    newBookingRevenuePrev: optNum(raw, "newBookingRevenuePrev"),
+    expiringDesks: optNum(raw, "expiringDesks") ?? sumDesks(expiring),
+    expiring30Count: Math.max(soon.length, num(raw, "expiring30Count")),
+    expiring30Desks: optNum(raw, "expiring30Desks") ?? sumDesks(soon),
+    bookedDesks,
+    endedDesks,
+    netDesks: sentNet ?? bookedDesks - endedDesks,
+    netDesksPrev: optNum(raw, "netDesksPrev"),
     months: byMonth(
-      list(raw, "months", (m) => ({ month: str(m, "month"), newBookingRevenue: num(m, "newBookingRevenue"), expiring: num(m, "expiring") })),
+      list(raw, "months", (m) => ({
+        month: str(m, "month"),
+        bookedDesks: num(m, "bookedDesks"),
+        endingDesks: num(m, "endingDesks"),
+        expiring: num(m, "expiring"),
+      })),
     ),
   };
 }
@@ -162,15 +194,16 @@ function normalizeRenewalsSection(raw: Row | null): SmRenewals | null {
 export function normalizeSalesManagerDashboard(raw: unknown, requested: SmPeriod = "month"): SmDashboard {
   const d = payload(raw);
   const period = pick(d, "period") != null ? normalizePeriod(pick(d, "period")) : requested;
+  const funnel = normalizeFunnelSection(section(d, "funnel"));
   return {
     period,
     periodLabel: str(d, "periodLabel"),
     generatedAt: optStr(d, "generatedAt"),
     locations: normalizeLocations(pick(d, "locations")),
-    funnel: normalizeFunnelSection(section(d, "funnel")),
+    funnel,
     team: normalizeTeamSection(section(d, "team")),
     inquiries: normalizeInquiriesSection(section(d, "inquiries")),
-    renewals: normalizeRenewalsSection(section(d, "renewals")),
+    renewals: normalizeRenewalsSection(section(d, "renewals"), funnel?.bookedDesks ?? null),
   };
 }
 
@@ -178,11 +211,11 @@ export function normalizeSalesManagerDashboard(raw: unknown, requested: SmPeriod
 
 /** Title and value labels when the server sent none. */
 const BREAKDOWN_DEFAULTS: Record<SmBreakdownMetric, BreakdownDefaults> = {
-  "funnel-month": { title: "Bookings by location", valueLabel: "Bookings", value2Label: "Quotations" },
-  staff: { title: "Quotations by month", valueLabel: "Quotations", value2Label: "Converted" },
+  "funnel-month": { title: "Desks booked by location", valueLabel: "Desks booked", value2Label: "Bookings" },
+  staff: { title: "Quotations by month", valueLabel: "Quotations", value2Label: "Desks sold" },
   "inquiries-type": { title: "Inquiries by month", valueLabel: "Inquiries", value2Label: null },
-  "renewals-month": { title: "Expiring leases by location", valueLabel: "Expiring leases", value2Label: "Monthly value" },
-  "revenue-month": { title: "New-booking revenue by location", valueLabel: "New-booking revenue", value2Label: null },
+  "renewals-month": { title: "Leases ending by location", valueLabel: "Leases ending", value2Label: "Desks" },
+  "desks-month": { title: "Desks booked and ending by location", valueLabel: "Desks booked", value2Label: "Desks ending" },
 };
 
 /** Row keys of these metrics are months (labels default to "Oct 2026"); the others are location ids. */
@@ -205,13 +238,43 @@ const RECORD_TITLES: Record<SmRecordKind, string> = {
 
 const toSmInquiry = (r: Row): SmInquiryRecord => ({ ...toInquiryRecord(r), followUpOn: optStr(r, "followUpOn", "followUpDate") });
 
+/** A quotation row as the CEO's reader reads it, without the amount (an older API's `total` is dropped), plus its desks. */
+export const toSmQuotation = (r: Row): SmQuotationRecord => {
+  const q = toQuotationRecord(r);
+  return {
+    quotationId: q.quotationId,
+    quotationNumber: q.quotationNumber,
+    customer: q.customer,
+    location: q.location,
+    createdBy: q.createdBy,
+    status: q.status,
+    desks: num(r, "desks"),
+    createdOn: q.createdOn,
+  };
+};
+
+/** A booking row as the CEO's reader reads it, without the amount (an older API's `totalAmount` is dropped), plus its desks. */
+export const toSmBooking = (r: Row): SmBookingRecord => {
+  const b = toBookingRecord(r);
+  return {
+    bookingId: b.bookingId,
+    customer: b.customer,
+    space: b.space,
+    location: b.location,
+    startOn: b.startOn,
+    endOn: b.endOn,
+    status: b.status,
+    desks: num(r, "desks"),
+  };
+};
+
 /** GET api/sales-manager/records/{kind} answer. `total` is never below the number of rows. */
 export function normalizeSalesManagerRecords(kind: SmRecordKind, raw: unknown): SmRecords {
   const d = recordsPayload(raw);
   const title = optStr(d, "title") ?? RECORD_TITLES[kind] ?? "Records";
   switch (kind) {
     case "bookings": {
-      const rows = list(d, "rows", toBookingRecord);
+      const rows = list(d, "rows", toSmBooking);
       return { kind, title, total: recordsTotal(d, rows.length), rows };
     }
     case "inquiries": {
@@ -224,7 +287,7 @@ export function normalizeSalesManagerRecords(kind: SmRecordKind, raw: unknown): 
     }
     case "quotations":
     default: {
-      const rows = list(d, "rows", toQuotationRecord);
+      const rows = list(d, "rows", toSmQuotation);
       return { kind: "quotations", title, total: recordsTotal(d, rows.length), rows };
     }
   }

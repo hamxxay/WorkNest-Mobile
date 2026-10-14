@@ -1,9 +1,13 @@
 import { Fragment, useMemo, useState, type Ref } from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 import { BarChart, Donut, HBarList, type HBarItem } from "../../../components/charts";
 import { AppText, Divider, ListRow, SegmentedControl, StatusPill, type StatCardProps } from "../../../components/ui";
-import { count, monthLabel, monthShort, money, pct, periodWords, shareOf } from "../../../services/ceo";
+import { count, monthLabel, monthShort, pct, periodWords, shareOf } from "../../../services/ceo";
 import {
+  countOf,
+  deskTrend,
+  desks,
+  signedCount,
   smFollowUpsDueRecords,
   smInquiryMonthRecords,
   smInquiryOutcomeRecords,
@@ -24,15 +28,17 @@ import { formatDate } from "../../../utils/format";
 import { ChartCard, InlineEmpty } from "../Ceo/parts";
 import { KpiGrid } from "../Staff/Dashboard/parts";
 
-// The Sales Manager dashboard sections (Sales funnel, Team performance, Tour inquiries, Renewals & revenue), built
+// The Sales Manager dashboard sections (Sales funnel, Team performance, Tour inquiries, Renewals & desks), built
 // from the CEO dashboard's pieces. Read-only: every tappable element drills down (breakdown or records); nothing
 // changes data and there are no action buttons. Figures stay on screen as text next to every chart.
+//
+// No money anywhere: a sales manager sees desks ("91 desks", "1 desk"), quotations, bookings and leases.
 
 /** A breakdown request without the scope (the dashboard adds period and location). */
 export type SmBreakdownTarget = Omit<SmBreakdownQuery, "period" | "locationId">;
 
 /** Places on the dashboard a KPI card can scroll to. */
-export type SmFocusTarget = "funnelMonths" | "renewalsMonths" | "expiring";
+export type SmFocusTarget = "renewalsMonths" | "expiring";
 
 /** What the sections may do: open a drill screen or scroll to a chart. */
 export type SmDrill = {
@@ -50,7 +56,25 @@ const DONUT_SIZE = 112;
 const trend = (now: number, prev: number | null, unit: "pts" | "n" | "%", upIsGood = true) =>
   prev == null ? undefined : dashboardTrend(now, prev, unit, upIsGood);
 
-const plural = (n: number, one: string, many: string) => `${count(n)} ${n === 1 ? one : many}`;
+const plural = countOf;
+
+/** A row of small labelled figures ("QUOTATIONS 115   BOOKINGS 17   DESKS BOOKED 91"), read as one sentence. */
+function SummaryStats({ label, items, style }: { label: string; items: { label: string; value: string }[]; style?: StyleProp<ViewStyle> }) {
+  return (
+    <View style={[styles.summary, style]} accessible accessibilityLabel={`${label}: ${items.map((it) => `${it.label} ${it.value}`).join(", ")}`}>
+      {items.map((it) => (
+        <View key={it.label} style={styles.summaryItem}>
+          <AppText variant="overline" color="textMuted" numberOfLines={1}>
+            {it.label}
+          </AppText>
+          <AppText variant="bodyStrong" numberOfLines={1} style={styles.tabular}>
+            {it.value}
+          </AppText>
+        </View>
+      ))}
+    </View>
+  );
+}
 
 // ─── Sales funnel ─────────────────────────────────────────────────────────────────────────────────────────
 
@@ -63,26 +87,13 @@ export function FunnelSection({ funnel: f, drill }: { funnel: SmFunnel; drill: S
   const top = f.stages[0]?.count ?? 0;
   const recent = f.months.slice(-12);
   const openStage = (key: string, label: string) => drill.records(smRecordsForFunnelStage(key, drill.scope), ["Sales funnel", label], label);
+  const totals = recent.reduce(
+    (sum, m) => ({ quotations: sum.quotations + m.quotations, bookings: sum.bookings + m.bookings, desks: sum.desks + m.bookedDesks }),
+    { quotations: 0, bookings: 0, desks: 0 },
+  );
 
+  // Two per row: the third (desks booked, the figure that matters most) takes the whole last row.
   const tiles: StatCardProps[] = [
-    {
-      label: "Quotations",
-      value: count(quotations),
-      sub: `${money(f.quotedValue)} quoted`,
-      icon: "document-text-outline",
-      tone: "indigo",
-      trendSeries: recent.map((m) => m.quotations),
-      onPress: () => openStage("quotations", "Quotations"),
-    },
-    {
-      label: "Bookings",
-      value: count(bookings),
-      sub: `created ${words}`,
-      icon: "calendar-outline",
-      tone: "success",
-      trendSeries: recent.map((m) => m.bookings),
-      onPress: () => openStage("bookings", "Bookings"),
-    },
     {
       label: "Conversion",
       value: rate != null ? pct(rate) : "—",
@@ -92,14 +103,22 @@ export function FunnelSection({ funnel: f, drill }: { funnel: SmFunnel; drill: S
       trend: rate != null ? trend(rate, f.conversionRatePrev, "pts") : undefined,
     },
     {
-      label: "Booked value",
-      value: money(f.bookedValue),
-      sub: words,
-      icon: "cash-outline",
+      label: `Desks quoted ${words}`,
+      value: count(f.quotedDesks),
+      sub: plural(quotations, "quotation", "quotations"),
+      icon: "document-text-outline",
+      tone: "indigo",
+      onPress: () => openStage("quotations", "Quotations"),
+    },
+    {
+      label: `Desks booked ${words}`,
+      value: count(f.bookedDesks),
+      sub: plural(bookings, "booking", "bookings"),
+      icon: "calendar-outline",
       tone: "success",
-      trend: trend(f.bookedValue, f.bookedValuePrev, "%"),
-      trendSeries: recent.map((m) => m.bookedValue),
-      onPress: () => drill.focus("funnelMonths"),
+      trend: deskTrend(f.bookedDesks, f.bookedDesksPrev),
+      trendSeries: recent.map((m) => m.bookedDesks),
+      onPress: () => openStage("bookings", "Bookings"),
     },
   ];
 
@@ -127,9 +146,18 @@ export function FunnelSection({ funnel: f, drill }: { funnel: SmFunnel; drill: S
           <InlineEmpty text={`No inquiries or quotations ${words}.`} />
         )}
       </ChartCard>
-      <View ref={drill.target("funnelMonths")} collapsable={false}>
-        <ChartCard title="Last 12 months" caption="Quotations, accepted and bookings by month. Tap a month to see it by location.">
-          {recent.length ? (
+      <ChartCard title="Last 12 months" caption="Quotations, accepted and bookings by month. Tap a month for its desks booked by location.">
+        {recent.length ? (
+          <>
+            <SummaryStats
+              label="Last 12 months"
+              style={styles.gapBottom}
+              items={[
+                { label: "Quotations", value: count(totals.quotations) },
+                { label: "Bookings", value: count(totals.bookings) },
+                { label: "Desks booked", value: count(totals.desks) },
+              ]}
+            />
             <BarChart
               label="Quotations, accepted and bookings by month"
               series={[{ label: "Quotations" }, { label: "Accepted" }, { label: "Bookings" }]}
@@ -139,11 +167,11 @@ export function FunnelSection({ funnel: f, drill }: { funnel: SmFunnel; drill: S
               itemAccessibilityHint="Opens this month by location"
               onPressItem={(i) => drill.breakdown({ metric: "funnel-month", month: recent[i].month }, ["Sales funnel", monthLabel(recent[i].month)])}
             />
-          ) : (
-            <InlineEmpty text="No sales history yet." />
-          )}
-        </ChartCard>
-      </View>
+          </>
+        ) : (
+          <InlineEmpty text="No sales history yet." />
+        )}
+      </ChartCard>
     </>
   );
 }
@@ -166,7 +194,7 @@ export function TeamSection({ team: t, drill }: { team: SmTeam; drill: SmDrill }
   const words = periodWords(drill.scope.period);
   return (
     <>
-      <ChartCard title="People" caption={`Ranked by converted value ${words}. Tap a person for the last 6 months.`} padding={0}>
+      <ChartCard title="People" caption={`Ranked by desks sold ${words}. Tap a person for the last 6 months.`} padding={0}>
         {t.people.length ? (
           t.people.map((p, i) => (
             <Fragment key={`${p.userId ?? p.name}-${i}`}>
@@ -176,12 +204,12 @@ export function TeamSection({ team: t, drill }: { team: SmTeam; drill: SmDrill }
                 title={p.name}
                 subtitle={personSubtitle(p)}
                 subtitleLines={3}
-                meta={money(p.convertedValue)}
+                meta={desks(p.desksSold)}
                 right={p.followUpsDue ? <StatusPill tone="warning" icon="time-outline" label={`${count(p.followUpsDue)} due`} /> : undefined}
                 accessibilityLabel={[
                   `Rank ${i + 1}: ${p.name}`,
                   personSubtitle(p),
-                  `${money(p.convertedValue)} converted`,
+                  `${desks(p.desksSold)} sold`,
                   p.followUpsDue ? plural(p.followUpsDue, "follow-up due", "follow-ups due") : null,
                 ]
                   .filter(Boolean)
@@ -197,7 +225,7 @@ export function TeamSection({ team: t, drill }: { team: SmTeam; drill: SmDrill }
           </View>
         )}
       </ChartCard>
-      <ChartCard title="Per location" caption={`Quotations and conversions ${words}`} padding={0}>
+      <ChartCard title="Per location" caption={`Quotations, converted and desks sold ${words}`} padding={0}>
         {t.perLocation.length ? (
           t.perLocation.map((l, i) => (
             <Fragment key={`${l.locationId ?? l.name}-${i}`}>
@@ -205,8 +233,19 @@ export function TeamSection({ team: t, drill }: { team: SmTeam; drill: SmDrill }
               <ListRow
                 leftIcon="location-outline"
                 title={l.name}
-                subtitle={`${plural(l.salesExecutives, "sales executive", "sales executives")} · ${count(l.quotations)} quotes · ${count(l.converted)} won`}
-                meta={money(l.convertedValue)}
+                subtitle={[
+                  plural(l.salesExecutives, "sales executive", "sales executives"),
+                  plural(l.quotations, "quotation", "quotations"),
+                  `${count(l.converted)} converted`,
+                ].join(" · ")}
+                meta={desks(l.desksSold)}
+                accessibilityLabel={[
+                  l.name,
+                  plural(l.salesExecutives, "sales executive", "sales executives"),
+                  plural(l.quotations, "quotation", "quotations"),
+                  `${count(l.converted)} converted`,
+                  `${desks(l.desksSold)} sold`,
+                ].join(", ")}
               />
             </Fragment>
           ))
@@ -353,9 +392,9 @@ export function InquiriesSection({ inquiries: q, drill }: { inquiries: SmInquiri
   );
 }
 
-// ─── Renewals & revenue ───────────────────────────────────────────────────────────────────────────────────
+// ─── Renewals & desks ─────────────────────────────────────────────────────────────────────────────────────
 
-type RenewalsView = "revenue" | "expiring";
+type RenewalsView = "desks" | "leases";
 
 const LEASES_SHOWN = 8;
 
@@ -370,72 +409,97 @@ function daysLeftWords(days: number | null): string | null {
 
 export function RenewalsSection({ renewals: r, drill }: { renewals: SmRenewals; drill: SmDrill }) {
   const words = periodWords(drill.scope.period);
-  const [view, setView] = useState<RenewalsView>("revenue");
-  // Expiring leases may include the next 3 months; revenue only goes up to this month.
+  const [view, setView] = useState<RenewalsView>("desks");
+  // Booked desks only go up to this month; desks ending and leases ending also cover the next 3.
   const thisMonth = useMemo(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   }, []);
   const pastMonths = useMemo(() => r.months.filter((m) => !m.month || m.month <= thisMonth).slice(-12), [r.months, thisMonth]);
-  const months = view === "revenue" ? pastMonths : r.months.slice(-15);
+  const months = r.months.slice(-15);
+  const showLeases = () => drill.focus("expiring");
+
+  // Two per row: the third (net desks) takes the whole last row.
   const tiles: StatCardProps[] = [
     {
-      label: "New-booking revenue",
-      value: money(r.newBookingRevenue),
-      sub: `invoiced on bookings made ${words}`,
-      icon: "cash-outline",
-      tone: "success",
-      trend: trend(r.newBookingRevenue, r.newBookingRevenuePrev, "%"),
-      trendSeries: pastMonths.map((m) => m.newBookingRevenue),
+      label: "Desks ending in 90 days",
+      value: count(r.expiringDesks),
+      sub: plural(r.expiringCount, "lease", "leases"),
+      icon: "hourglass-outline",
+      tone: r.expiringDesks || r.expiringCount ? "warning" : "success",
+      onPress: showLeases,
+    },
+    {
+      label: "Desks ending within 30 days",
+      value: count(r.expiring30Desks),
+      sub: plural(r.expiring30Count, "lease", "leases"),
+      icon: "alarm-outline",
+      tone: r.expiring30Desks || r.expiring30Count ? "danger" : "success",
+      onPress: showLeases,
+    },
+    {
+      label: `Net desks ${words}`,
+      value: signedCount(r.netDesks),
+      sub: `${count(r.bookedDesks)} booked, ${count(r.endedDesks)} ended`,
+      icon: "swap-vertical-outline",
+      tone: r.netDesks > 0 ? "success" : r.netDesks < 0 ? "danger" : "neutral",
+      trend: deskTrend(r.netDesks, r.netDesksPrev),
+      trendSeries: pastMonths.map((m) => m.bookedDesks - m.endingDesks),
       onPress: () => {
-        setView("revenue");
+        setView("desks");
         drill.focus("renewalsMonths");
       },
     },
-    {
-      label: "Leases expiring",
-      value: count(r.expiringCount),
-      sub: `${money(r.expiringMonthlyValue)} a month, next 90 days`,
-      icon: "hourglass-outline",
-      tone: r.expiringCount ? "warning" : "success",
-      onPress: () => drill.focus("expiring"),
-    },
   ];
   const openMonth = (i: number) => {
-    const month = months[i].month;
-    if (view === "revenue") drill.breakdown({ metric: "revenue-month", month }, ["Revenue", monthLabel(month)]);
+    const month = months[i]?.month;
+    if (!month) return;
+    if (view === "desks") drill.breakdown({ metric: "desks-month", month }, ["Desks", monthLabel(month)]);
     else drill.breakdown({ metric: "renewals-month", month }, ["Renewals", monthLabel(month)]);
   };
   return (
     <>
       <KpiGrid tiles={tiles} />
       <View ref={drill.target("renewalsMonths")} collapsable={false}>
-        <ChartCard title="By month" caption="Tap a month to see it by location.">
+        <ChartCard
+          title={view === "desks" ? "Desks booked & desks ending" : "Leases ending"}
+          caption="Last 12 months and the next 3. Tap a month to see it by location."
+        >
           <SegmentedControl
             accessibilityLabel="Chart shows"
             options={[
-              { label: "New-booking revenue", value: "revenue" },
-              { label: "Leases expiring", value: "expiring" },
+              { label: "Desks", value: "desks" },
+              { label: "Leases ending", value: "leases" },
             ]}
             value={view}
             onChange={setView}
           />
           {months.length ? (
-            <BarChart
-              key={view}
-              style={styles.gapTop}
-              label={view === "revenue" ? "New-booking revenue by month" : "Leases expiring by month"}
-              series={[{ label: view === "revenue" ? "New-booking revenue" : "Leases expiring", tone: view === "revenue" ? undefined : "warning" }]}
-              data={months.map((m) => ({
-                label: monthShort(m.month),
-                title: monthLabel(m.month),
-                values: [view === "revenue" ? m.newBookingRevenue : m.expiring],
-              }))}
-              formatValue={view === "revenue" ? money : count}
-              emptyText={view === "revenue" ? "No new-booking revenue in these months." : "No leases end in these months."}
-              itemAccessibilityHint="Opens this month by location"
-              onPressItem={openMonth}
-            />
+            view === "desks" ? (
+              <BarChart
+                key="desks"
+                style={styles.gapTop}
+                label="Desks booked and desks ending by month"
+                series={[{ label: "Desks booked", tone: "success" }, { label: "Desks ending", tone: "warning" }]}
+                data={months.map((m) => ({ label: monthShort(m.month), title: monthLabel(m.month), values: [m.bookedDesks, m.endingDesks] }))}
+                formatValue={count}
+                emptyText="No desks booked or ending in these months."
+                itemAccessibilityHint="Opens this month by location"
+                onPressItem={openMonth}
+              />
+            ) : (
+              <BarChart
+                key="leases"
+                style={styles.gapTop}
+                label="Leases ending by month"
+                series={[{ label: "Leases ending", tone: "warning" }]}
+                data={months.map((m) => ({ label: monthShort(m.month), title: monthLabel(m.month), values: [m.expiring] }))}
+                formatValue={count}
+                emptyText="No leases end in these months."
+                itemAccessibilityHint="Opens this month by location"
+                onPressItem={openMonth}
+              />
+            )
           ) : (
             <InlineEmpty text="No history yet." />
           )}
@@ -445,15 +509,23 @@ export function RenewalsSection({ renewals: r, drill }: { renewals: SmRenewals; 
         <ChartCard title="Leases expiring" caption="Ending in the next 90 days, soonest first" padding={0}>
           {r.expiring.length ? (
             <>
+              <SummaryStats
+                label="Leases expiring"
+                style={styles.summaryPadded}
+                items={[
+                  { label: "Leases", value: count(r.expiringCount) },
+                  { label: "Desks", value: count(r.expiringDesks) },
+                ]}
+              />
               {r.expiring.slice(0, LEASES_SHOWN).map((l, i) => (
                 <Fragment key={`${l.bookingId ?? l.customer}-${i}`}>
-                  {i > 0 ? <Divider inset={16} /> : null}
+                  <Divider inset={16} />
                   <ListRow
                     leftIcon="hourglass-outline"
                     leftIconTone={l.daysLeft != null && l.daysLeft <= 30 ? "danger" : "warning"}
                     title={l.customer}
                     subtitle={[l.space, l.location, l.endOn ? `ends ${formatDate(l.endOn)}` : null, daysLeftWords(l.daysLeft)].filter(Boolean).join(" · ")}
-                    meta={l.monthlyAmount != null ? `${money(l.monthlyAmount)}/mo` : undefined}
+                    meta={desks(l.desks)}
                   />
                 </Fragment>
               ))}
@@ -479,5 +551,10 @@ export function RenewalsSection({ renewals: r, drill }: { renewals: SmRenewals; 
 const styles = StyleSheet.create({
   padded: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md },
   gapTop: { marginTop: spacing.md },
+  gapBottom: { marginBottom: spacing.md },
   donutCenter: { alignItems: "center" },
+  summary: { flexDirection: "row", flexWrap: "wrap", columnGap: spacing.xl, rowGap: spacing.sm },
+  summaryItem: { gap: 2 },
+  summaryPadded: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md },
+  tabular: { fontVariant: ["tabular-nums"] },
 });
