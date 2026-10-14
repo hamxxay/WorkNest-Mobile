@@ -3,6 +3,7 @@ import {
   isAdminOrAbove,
   isCeo,
   isLocationBound,
+  isSalesManager,
   isStaffRole,
   isSuperAdmin,
   normalizeRoleName,
@@ -38,6 +39,12 @@ describe("normalizeRoleName", () => {
     ["CEO", "ceo"],
     ["Chief Executive Officer", "ceo"],
     ["17", "ceo"],
+    ["sales_manager", "sales_manager"],
+    ["Sales Manager", "sales_manager"],
+    ["SalesManager", "sales_manager"],
+    ["sales-manager", "sales_manager"],
+    ["SALES_MANAGER", "sales_manager"],
+    ["18", "sales_manager"],
   ])("maps %p to %p", (input, expected) => {
     expect(normalizeRoleName(input)).toBe(expected);
   });
@@ -167,12 +174,54 @@ describe("CEO role", () => {
   });
 });
 
+describe("Sales Manager role", () => {
+  it.each([
+    [{ role: "sales_manager" }],
+    [{ role: "Sales Manager" }],
+    [{ role: "18" }],
+    [{ roles: ["sales_manager"] }],
+    [{ roles: "general, Sales Manager" }],
+    [{ role: "general", roles: ["18"] }],
+    [{ userType: "SalesManager" }],
+  ])("resolves %p to sales_manager", (user) => {
+    expect(resolveRole(user)).toBe("sales_manager");
+  });
+
+  it("outranks every staff role and the customer role, and is outranked by the CEO", () => {
+    expect(resolveRole({ roles: ["super_admin", "sales_manager"] })).toBe("sales_manager");
+    expect(resolveRole({ roles: ["admin", "sales_manager", "sales_executive"] })).toBe("sales_manager");
+    expect(resolveRole({ isAdmin: true, role: "Sales Manager" })).toBe("sales_manager");
+    expect(resolveRole({ roles: ["sales_manager", "ceo"] })).toBe("ceo");
+    expect(rolesOf({ roles: ["general", "sales_manager", "super_admin", "ceo"] })).toEqual(["ceo", "sales_manager", "super_admin", "general"]);
+  });
+
+  it("is not staff, not an admin, not the CEO; location bound like admins", () => {
+    expect(isSalesManager("sales_manager")).toBe(true);
+    expect(isSalesManager("admin")).toBe(false);
+    expect(isSalesManager("ceo")).toBe(false);
+    expect(isStaffRole("sales_manager")).toBe(false);
+    expect(isAdminOrAbove("sales_manager")).toBe(false);
+    expect(isSuperAdmin("sales_manager")).toBe(false);
+    expect(isCeo("sales_manager")).toBe(false);
+    expect(isLocationBound("sales_manager")).toBe(true);
+    expect(roleLabel("sales_manager")).toBe("Sales Manager");
+  });
+
+  it("hasRole matches it exactly", () => {
+    expect(hasRole({ role: "Sales Manager" }, "sales_manager")).toBe(true);
+    expect(hasRole({ role: "Sales Manager" }, "sales_executive")).toBe(false);
+  });
+});
+
 describe("primaryRoleName (the role stored after sign-in)", () => {
   it("keeps the highest known role, as the API spelled it", () => {
     expect(primaryRoleName(["ceo"])).toBe("ceo");
     expect(primaryRoleName(["general", "ceo"])).toBe("ceo");
     expect(primaryRoleName(["sales_executive", "Admin"])).toBe("Admin");
     expect(primaryRoleName(["super_admin"])).toBe("super_admin");
+    expect(primaryRoleName(["general", "Sales Manager"])).toBe("Sales Manager");
+    expect(primaryRoleName(["super_admin", "sales_manager"])).toBe("sales_manager");
+    expect(primaryRoleName(["sales_manager", "ceo"])).toBe("ceo");
   });
 
   it("falls back to the first non-empty name, or undefined", () => {

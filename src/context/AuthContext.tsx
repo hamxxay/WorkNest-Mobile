@@ -15,6 +15,7 @@ import {
   isAdminOrAbove,
   isCeo as isCeoRole,
   isLocationBound,
+  isSalesManager as isSalesManagerRole,
   isStaffRole,
   isSuperAdmin as isSuperAdminRole,
   resolveRole,
@@ -28,6 +29,7 @@ export {
   isAdminOrAbove,
   isCeo,
   isLocationBound,
+  isSalesManager,
   isStaffRole,
   isSuperAdmin,
   normalizeRoleName,
@@ -40,21 +42,23 @@ export type { StaffRole, UserRole } from "./roles";
 
 type AuthContextValue = {
   user: StoredUser | null;
-  /** The experience to show: general (customer app), sales_executive, admin, super_admin or ceo. */
+  /** The experience to show: general (customer app), sales_executive, admin, super_admin, sales_manager or ceo. */
   role: UserRole;
   /** The staff role, or null for customers. */
   staffRole: StaffRole | null;
-  /** Sales executive, admin or super admin (never the CEO). */
+  /** Sales executive, admin or super admin (never the CEO or the Sales Manager). */
   isStaff: boolean;
   /** The CEO: read-only, every location, only the CEO dashboard (its own navigator). */
   isCeo: boolean;
+  /** The Sales Manager: read-only, their assigned locations, only the sales dashboard (its own navigator). */
+  isSalesManager: boolean;
   /** Admin or super admin (CMS `adminOnly`, API "admin,Admin,super_admin,SuperAdmin"). */
   isAdmin: boolean;
   /** Super admin only (CMS `superAdminOnly`). */
   isSuperAdmin: boolean;
   /** Sales executive and not an admin. */
   isSalesExecutive: boolean;
-  /** Admins and sales executives only see their own location(s); super admins see all. */
+  /** Admins, sales executives and the Sales Manager only see their own location(s); super admins see all. */
   isLocationBound: boolean;
   /** True when the user carries this exact role (CMS AuthService.hasRole). */
   hasRole: (role: UserRole) => boolean;
@@ -121,6 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       staffRole: isStaffRole(role) ? role : null,
       isStaff: isStaffRole(role),
       isCeo: isCeoRole(role),
+      isSalesManager: isSalesManagerRole(role),
       isAdmin: isAdminOrAbove(role),
       isSuperAdmin: isSuperAdminRole(role),
       isSalesExecutive: role === "sales_executive",

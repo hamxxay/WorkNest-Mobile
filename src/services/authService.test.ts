@@ -262,6 +262,26 @@ describe("hydrateSessionUser (app start)", () => {
     expect(mockKeychain.get("auth_token")).toBe("ceo-jwt");
   });
 
+  it.each([
+    [{ token: "sm-jwt", roles: ["sales_manager"] }, "sales_manager"],
+    [{ token: "sm-jwt", role: "Sales Manager" }, "Sales Manager"],
+    [{ token: "sm-jwt", roles: ["general", "sales_manager"] }, "sales_manager"],
+    [{ token: "sm-jwt", roles: ["super_admin", "sales_manager"] }, "sales_manager"],
+  ])("stores the Sales Manager role from the exchange (%p), so the Sales Manager app opens", async (data, stored) => {
+    signedInWithCachedSession();
+    installFetch(async (url) =>
+      /google-login$/.test(url)
+        ? jsonResponse(200, { isSuccessful: true, data })
+        : jsonResponse(200, { isSuccessful: true, data: null }),
+    );
+
+    const user = await hydrateSessionUser();
+    await flush();
+
+    expect(user).toMatchObject({ email: "member@example.com", role: stored });
+    expect(mockKeychain.get("auth_token")).toBe("sm-jwt");
+  });
+
   it("stores the new token and role when the exchange succeeds", async () => {
     signedInWithCachedSession();
     installFetch(async (url) =>
