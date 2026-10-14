@@ -402,7 +402,8 @@ export function SalesSection({ sales: s, drill }: { sales: CeoSales; drill: Dril
                 key: f.stage,
                 label: f.label,
                 value: f.count,
-                valueLabel: top > 0 && f.stage !== s.funnel[0]?.stage ? `${count(f.count)} · ${pct(shareOf(f.count, top))}` : count(f.count),
+                // No share over 100% (most quotations don't start as tour inquiries): just the count then.
+                valueLabel: top > 0 && f.stage !== s.funnel[0]?.stage && f.count <= top ? `${count(f.count)} · ${pct(shareOf(f.count, top))}` : count(f.count),
               }))}
               itemAccessibilityHint="Opens the list"
               onPressItem={(item) => {
