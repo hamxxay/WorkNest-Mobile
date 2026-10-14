@@ -30,6 +30,16 @@ export { spacing, radii, shadows, getShadows, touchTarget, iconSizes } from "./t
 export type { ShadowScale } from "./tokens";
 export { statusTone, statusLabel, normalizeStatus } from "./status";
 export {
+  INQUIRY_TYPES,
+  INQUIRY_TYPE_LABELS,
+  darkInquiryTypeColors,
+  inquiryTypeColor,
+  lightInquiryTypeColors,
+  normalizeInquiryType,
+} from "./inquiryTypes";
+export type { InquiryType } from "./inquiryTypes";
+export { useInquiryTypeColors } from "./useInquiryTypeColors";
+export {
   ThemeProvider,
   useTheme,
   useThemeMode,
@@ -41,7 +51,7 @@ export {
   THEME_MODE_STORAGE_KEY,
 } from "./ThemeProvider";
 export type { Theme, ThemeMode, ColorScheme } from "./ThemeProvider";
-/** Raw colour ramps (teal, slate, emerald, amber, red, sky, indigo, night). Prefer semantic colours. */
+/** Raw colour ramps (teal, slate, emerald, amber, red, sky, indigo, blue, orange, violet, night). Prefer semantic colours. */
 export { palette };
 
 /** Static LIGHT palette (legacy). Does not follow dark mode — use `useThemeColors()` in components. */

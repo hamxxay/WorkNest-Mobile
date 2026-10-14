@@ -83,6 +83,25 @@ export const indigo = {
   700: "#4338ca",
 } as const;
 
+/** Blue, orange and violet: inquiry Type colours (Website, Walk-In, Reference), as the CMS uses them. */
+export const blue = {
+  300: "#93c5fd",
+  400: "#60a5fa",
+  700: "#1d4ed8",
+} as const;
+
+export const orange = {
+  300: "#fdba74",
+  400: "#fb923c",
+  700: "#c2410c",
+} as const;
+
+export const violet = {
+  300: "#c4b5fd",
+  400: "#a78bfa",
+  700: "#6d28d9",
+} as const;
+
 /** Dark-mode surfaces (navy family, a step below slate-900 so cards can sit above the page). */
 export const night = {
   background: "#0b1220",
