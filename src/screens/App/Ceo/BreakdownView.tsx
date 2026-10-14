@@ -21,6 +21,11 @@ export type BreakdownViewProps<R> = {
   load: () => Promise<CeoBreakdown>;
   /** Values as text (money or counts). */
   format: (value: number) => string;
+  /**
+   * Draw `value2` next to `value` in the chart (default true when the breakdown has a second value). False when the
+   * two are in different units (e.g. leases and their monthly PKR value): the list still shows both.
+   */
+  plotValue2?: boolean;
   /** Second line of a row, e.g. "Invoiced PKR 1.2M · Collected PKR 900K". */
   rowDetail: (breakdown: CeoBreakdown, row: CeoBreakdownRow) => string;
   /** Right-hand figure of a row (default the formatted value); undefined shows none. */
@@ -39,6 +44,7 @@ export function BreakdownView<R>({
   scopeLabel,
   load,
   format,
+  plotValue2 = true,
   rowDetail,
   rowMeta = (row) => format(row.value),
   recordsFor,
@@ -56,6 +62,7 @@ export function BreakdownView<R>({
 
   const rows = b?.rows ?? [];
   const chartRows = rows.slice(0, 12);
+  const value2Series = plotValue2 && b?.value2Label ? b.value2Label : null;
 
   return (
     <Screen>
@@ -89,11 +96,11 @@ export function BreakdownView<R>({
               <BarChart
                 height={120}
                 label={b.title}
-                series={b.value2Label ? [{ label: b.valueLabel }, { label: b.value2Label }] : [{ label: b.valueLabel }]}
+                series={value2Series ? [{ label: b.valueLabel }, { label: value2Series }] : [{ label: b.valueLabel }]}
                 data={chartRows.map((r) => ({
                   label: isMonthKey(r.key) ? monthShort(r.key) : r.label,
                   title: r.label,
-                  values: b.value2Label ? [r.value, r.value2 ?? 0] : [r.value],
+                  values: value2Series ? [r.value, r.value2 ?? 0] : [r.value],
                 }))}
                 formatValue={format}
                 emptyText="Nothing to show for this choice."

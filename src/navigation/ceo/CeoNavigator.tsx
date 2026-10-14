@@ -1,17 +1,16 @@
 import { useEffect, useMemo } from "react";
-import { Linking } from "react-native";
 import { NavigationContainer, createNavigationContainerRef, type LinkingOptions } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { useToast } from "../../components/ui";
 import { useReduceMotion } from "../../hooks/useReduceMotion";
 import { onSessionExpired } from "../../services/apiClient";
-import { getInitialNotificationLink, subscribeToNotificationOpens } from "../../services/notificationService";
 import { useNavigationTheme, useThemeColors } from "../../theme";
 import CeoDashboardScreen from "../../screens/App/Ceo/CeoDashboardScreen";
 import CeoBreakdownScreen from "../../screens/App/Ceo/CeoBreakdownScreen";
 import CeoRecordsScreen from "../../screens/App/Ceo/CeoRecordsScreen";
 import CeoProfileScreen from "../../screens/App/Ceo/CeoProfileScreen";
 import type { CeoStackParamList } from "../ceoTypes";
+import { linkAndPushSources } from "../pushLinking";
 import { stackTransition, ceoTransition } from "../transitions";
 import { CEO_LINK_PREFIXES, ceoStateFromPath } from "./links";
 
@@ -28,20 +27,8 @@ export const ceoNavRef = createNavigationContainerRef<CeoStackParamList>();
 
 const linking: LinkingOptions<CeoStackParamList> = {
   prefixes: CEO_LINK_PREFIXES,
-  async getInitialURL() {
-    const url = await Linking.getInitialURL();
-    if (url) return url;
-    // Opened by tapping a push notification while the app was not running.
-    return getInitialNotificationLink();
-  },
-  subscribe(listener) {
-    const linkSubscription = Linking.addEventListener("url", ({ url }) => listener(url));
-    const stopNotificationOpens = subscribeToNotificationOpens(listener);
-    return () => {
-      linkSubscription.remove();
-      stopNotificationOpens();
-    };
-  },
+  // The URL that opened the app (or the tapped push), then later URLs and tapped pushes.
+  ...linkAndPushSources,
   // Every link opens the dashboard (a link while a drill screen is open goes back to it).
   getStateFromPath: (path) => ceoStateFromPath(path),
   config: { initialRouteName: "CeoDashboard", screens: { CeoDashboard: "dashboard" } },

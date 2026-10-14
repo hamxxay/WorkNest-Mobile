@@ -12,6 +12,9 @@ import SuperAdminStack from "./staff/SuperAdminStack";
 // ─── CEO navigator (dashboard + drill-down + profile only) ─────────────────────
 import CeoNavigator from "./ceo/CeoNavigator";
 
+// ─── Sales Manager navigator (sales dashboard + drill-down + profile only) ─────
+import SalesManagerNavigator from "./salesManager/SalesManagerNavigator";
+
 // ─── Customer navigator ───────────────────────────────────────────────────────
 import { AppNavigator } from "./AppNavigator";
 import { navigatorForRole } from "./roleNavigator";
@@ -22,6 +25,7 @@ import { navigatorForRole } from "./roleNavigator";
 // Firebase on launch and refreshed from GET auth/me) and shows that role's navigator (./roleNavigator.ts):
 //
 //   "ceo"              → CeoNavigator (only the CEO dashboard; never a customer or staff screen)
+//   "sales_manager"    → SalesManagerNavigator (only the sales dashboard; never a customer, staff or CEO screen)
 //   "super_admin"      → SuperAdminStack
 //   "admin"            → AdminStack
 //   "sales_executive"  → SaleStack
@@ -55,6 +59,9 @@ export default function RootNavigator() {
   switch (navigatorForRole(role)) {
     case "ceo":
       return <CeoNavigator key="ceo" />;
+
+    case "sales_manager":
+      return <SalesManagerNavigator key="sales_manager" />;
 
     case "super_admin":
       return <SuperAdminStack key="super_admin" />;
