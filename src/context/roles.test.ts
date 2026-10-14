@@ -1,10 +1,12 @@
 import {
   hasRole,
   isAdminOrAbove,
+  isCeo,
   isLocationBound,
   isStaffRole,
   isSuperAdmin,
   normalizeRoleName,
+  primaryRoleName,
   resolveRole,
   roleLabel,
   rolesOf,
@@ -32,6 +34,10 @@ describe("normalizeRoleName", () => {
     ["14", "general"],
     ["Receptionist", "general"],
     ["receptionist", "general"],
+    ["ceo", "ceo"],
+    ["CEO", "ceo"],
+    ["Chief Executive Officer", "ceo"],
+    ["17", "ceo"],
   ])("maps %p to %p", (input, expected) => {
     expect(normalizeRoleName(input)).toBe(expected);
   });
@@ -138,5 +144,42 @@ describe("role predicates", () => {
     expect(roleLabel("admin")).toBe("Admin");
     expect(roleLabel("sales_executive")).toBe("Sales Executive");
     expect(roleLabel("general")).toBe("Customer");
+  });
+});
+
+describe("CEO role", () => {
+  it("resolves to ceo, above every other role", () => {
+    expect(resolveRole({ role: "ceo" })).toBe("ceo");
+    expect(resolveRole({ roles: ["general", "ceo"] })).toBe("ceo");
+    expect(resolveRole({ roles: ["super_admin", "ceo"] })).toBe("ceo");
+    expect(resolveRole({ isAdmin: true, role: "CEO" })).toBe("ceo");
+    expect(rolesOf({ roles: ["admin", "ceo", "general"] })).toEqual(["ceo", "admin", "general"]);
+  });
+
+  it("is not staff, not an admin, not location bound", () => {
+    expect(isCeo("ceo")).toBe(true);
+    expect(isCeo("super_admin")).toBe(false);
+    expect(isStaffRole("ceo")).toBe(false);
+    expect(isAdminOrAbove("ceo")).toBe(false);
+    expect(isSuperAdmin("ceo")).toBe(false);
+    expect(isLocationBound("ceo")).toBe(false);
+    expect(roleLabel("ceo")).toBe("CEO");
+  });
+});
+
+describe("primaryRoleName (the role stored after sign-in)", () => {
+  it("keeps the highest known role, as the API spelled it", () => {
+    expect(primaryRoleName(["ceo"])).toBe("ceo");
+    expect(primaryRoleName(["general", "ceo"])).toBe("ceo");
+    expect(primaryRoleName(["sales_executive", "Admin"])).toBe("Admin");
+    expect(primaryRoleName(["super_admin"])).toBe("super_admin");
+  });
+
+  it("falls back to the first non-empty name, or undefined", () => {
+    expect(primaryRoleName(["receptionist"])).toBe("receptionist");
+    expect(primaryRoleName(["", " manager ", "other"])).toBe("manager");
+    expect(primaryRoleName([null, undefined, ""])).toBeUndefined();
+    expect(primaryRoleName(null)).toBeUndefined();
+    expect(primaryRoleName(undefined)).toBeUndefined();
   });
 });
