@@ -55,6 +55,8 @@ export type AppStackParamList = {
   /** justBooked: opened right after BookingConfirm created the booking (shows the success check). */
   Challan: { bookingId: number; challanNumber?: string; justBooked?: boolean };
   BookingDetail: { bookingId: number | string };
+  /** The employees of a confirmed booking (GET/POST/DELETE /booking/my/{bookingId}/employees). */
+  Employees: { bookingId: number; spaceName?: string };
   Quotation: { quotationId: string };
   QuotationList: undefined;
   ESignAgreement: { agreementId: number | string; quotationNumber?: string; customerName?: string };
