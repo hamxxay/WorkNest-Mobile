@@ -17,6 +17,9 @@ Rules every chart follows:
 - **One accessible element per chart.** The root has `accessibilityRole="image"` and an `accessibilityLabel` that
   lists every value ("Invoiced and paid by month. Sep 2026: Invoiced PKR 1.2M, Paid PKR 900K. ..."). Pass `label`
   to name the chart (the values are appended) or `accessibilityLabel` to replace the summary.
+- **Drill-down charts are the exception.** With `onPressItem` (`BarChart`, `HBarList`) each column / row is a button
+  named by its values (plus `itemAccessibilityHint`, default "Opens the breakdown") and the chart is no longer one
+  image. The CEO dashboard uses this to open its breakdown and records screens.
 - **Theme-aware.** Colours come from the active light / dark theme (`useChartColors()`); never pass hex codes from a
   screen. Use `tone` (a `Tone` such as `"neutral"`) or leave the default series colour.
 - **Animated in on mount, once.** Columns grow, rings sweep, lines draw on (about 650 ms, ease-out). With the system
@@ -113,6 +116,8 @@ listed next to the chart.
 | `legend` | 2+ series | |
 | `selectable` | true | tap-to-read line above the plot |
 | `emptyText` | "Nothing to show for this period." | shown when every value is 0 |
+| `onPressItem` | | `(index) => void`: tap a column to open it (drill-down); each column becomes a button |
+| `itemAccessibilityHint` | "Opens the breakdown" | spoken after a column's values when `onPressItem` is set |
 
 `label` is the short axis text ("Oct"), `title` the full name ("Oct 2026"); the dashboard builds them from the API's
 `yyyy-MM` months. Category labels thin out automatically when they would collide (every 2nd, 3rd... label, always
@@ -147,6 +152,8 @@ One colour for every bar unless a bar has a reason to differ (de-emphasise with 
 | `formatValue` | grouped digits | value text when an item has no `valueLabel` |
 | `barHeight` | 8 | dp |
 | `emptyText` | "Nothing to show." | shown when there are no items |
+| `onPressItem` | | `(item, index) => void`: tap a row to open it (drill-down); rows become buttons with a chevron |
+| `itemAccessibilityHint` | "Opens the breakdown" | spoken after a row's values when `onPressItem` is set |
 
 A non-zero value is never drawn thinner than 4 dp, so it reads differently from zero.
 

@@ -243,6 +243,25 @@ describe("hydrateSessionUser (app start)", () => {
     expect(mockKeychain.get("auth_token")).toBe("old-api-jwt");
   });
 
+  it.each([
+    [{ token: "ceo-jwt", roles: ["ceo"] }],
+    [{ token: "ceo-jwt", role: "ceo" }],
+    [{ token: "ceo-jwt", roles: ["general", "ceo"] }],
+  ])("stores the CEO role from the exchange (%p), so the CEO app opens", async (data) => {
+    signedInWithCachedSession();
+    installFetch(async (url) =>
+      /google-login$/.test(url)
+        ? jsonResponse(200, { isSuccessful: true, data })
+        : jsonResponse(200, { isSuccessful: true, data: null }),
+    );
+
+    const user = await hydrateSessionUser();
+    await flush();
+
+    expect(user).toMatchObject({ email: "member@example.com", role: "ceo" });
+    expect(mockKeychain.get("auth_token")).toBe("ceo-jwt");
+  });
+
   it("stores the new token and role when the exchange succeeds", async () => {
     signedInWithCachedSession();
     installFetch(async (url) =>

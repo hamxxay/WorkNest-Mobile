@@ -6,16 +6,21 @@
 //     /auth/google-login and /auth/me all return { role, roles: [role] }, e.g. "super_admin".
 //   - [Authorize(Roles=...)] attributes also accept the Pascal-case spellings (SuperAdmin, SalesExecutive), and
 //     Roles.ReverseMap accepts "superadmin", "super admin", "administrator", "general_user", and the numeric
-//     RoleIds (1 super admin, 2 admin, 14 general, 16 sales executive). We accept all of those here.
+//     RoleIds (1 super admin, 2 admin, 14 general, 16 sales executive, 17 ceo). We accept all of those here.
 //   - The web CMS (AuthService.hasRole) compares roles lower-cased with spaces and underscores removed; the
 //     same normalisation is used below, plus dashes.
 //
 // Receptionist: the API has no receptionist RoleId (Roles.FromRow falls back to "general"), and the CMS admin
 // guard sends a receptionist to /unauthorized (it is not a CMS sidebar role). A receptionist therefore gets the
 // customer app ("general").
+//
+// CEO ("ceo", WN_Roles.Id 17): sees every location, read-only, and nothing but the CEO dashboard. It is not a
+// staff role (no staff navigator, tab or screen accepts it) and it outranks every other role, so a user who also
+// carries a customer or staff role still only ever gets the CEO app (the API gives each user one role anyway).
 
-export type UserRole = "general" | "sales_executive" | "admin" | "super_admin";
-export type StaffRole = Exclude<UserRole, "general">;
+export type UserRole = "general" | "sales_executive" | "admin" | "super_admin" | "ceo";
+/** Roles that get a staff navigator (./staff/StaffNavigator). The CEO is not one of them. */
+export type StaffRole = "sales_executive" | "admin" | "super_admin";
 
 export const STAFF_ROLES: readonly StaffRole[] = ["sales_executive", "admin", "super_admin"];
 
@@ -25,6 +30,8 @@ const ROLE_RANK: Record<UserRole, number> = {
   sales_executive: 1,
   admin: 2,
   super_admin: 3,
+  // Highest: a CEO must never be shown the customer or staff app, whatever else the account carries.
+  ceo: 4,
 };
 
 /** Keys are lower-cased with spaces, underscores and dashes removed. */
@@ -42,6 +49,10 @@ const ROLE_ALIASES: Record<string, UserRole> = {
   guest: "general",
   receptionist: "general",
   "14": "general",
+  ceo: "ceo",
+  chiefexecutive: "ceo",
+  chiefexecutiveofficer: "ceo",
+  "17": "ceo",
 };
 
 const roleKey = (value: unknown): string =>
@@ -95,6 +106,25 @@ export function resolveRole(user: RoleSource): UserRole {
   return rolesOf(user)[0] ?? "general";
 }
 
+/**
+ * The role name to store for a sign-in that answered with several roles: the highest-ranked known one, as the
+ * API spelled it (e.g. ["general", "ceo"] -> "ceo"); the first non-empty name when none is known; undefined
+ * when there is none. resolveRole() later reads the stored name.
+ */
+export function primaryRoleName(roles: readonly unknown[] | null | undefined): string | undefined {
+  let best: { name: string; rank: number } | null = null;
+  let first: string | undefined;
+  for (const candidate of roles ?? []) {
+    if (candidate == null) continue;
+    const name = String(candidate).trim();
+    if (!name) continue;
+    first ??= name;
+    const role = normalizeRoleName(name);
+    if (role && (!best || ROLE_RANK[role] > best.rank)) best = { name, rank: ROLE_RANK[role] };
+  }
+  return best?.name ?? first;
+}
+
 /** True when the user carries `role` (CMS AuthService.hasRole: an exact match, not "at least"). */
 export function hasRole(user: RoleSource, role: UserRole): boolean {
   return rolesOf(user).includes(role);
@@ -109,12 +139,20 @@ export function isAdminOrAbove(role: UserRole | null | undefined): boolean {
   return role === "admin" || role === "super_admin";
 }
 
+/** The CEO: read-only, every location, only the CEO dashboard. */
+export function isCeo(role: UserRole | null | undefined): role is "ceo" {
+  return role === "ceo";
+}
+
 /** Super admin only (CMS `superAdminOnly`: Space Config, Challan Validity, machine locations / admins). */
 export function isSuperAdmin(role: UserRole | null | undefined): boolean {
   return role === "super_admin";
 }
 
-/** Sales executives and admins only see their own location(s); super admins see every location (CMS isLocationBound). */
+/**
+ * Sales executives and admins only see their own location(s); super admins and the CEO see every location
+ * (CMS isLocationBound).
+ */
 export function isLocationBound(role: UserRole | null | undefined): boolean {
   return role === "sales_executive" || role === "admin";
 }
@@ -128,6 +166,8 @@ export function roleLabel(role: UserRole): string {
       return "Admin";
     case "sales_executive":
       return "Sales Executive";
+    case "ceo":
+      return "CEO";
     default:
       return "Customer";
   }

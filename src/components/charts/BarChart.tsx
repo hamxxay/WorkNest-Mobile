@@ -59,6 +59,13 @@ export type BarChartProps = {
   accessibilityLabel?: string;
   /** Shown instead of bars when every value is zero. Default "Nothing to show for this period." */
   emptyText?: string;
+  /**
+   * Tap a column to open it (drill-down). The column is also picked (its values show in the readout). With this
+   * set, every column is a button for screen readers, named by its values, instead of one image for the chart.
+   */
+  onPressItem?: (index: number) => void;
+  /** Spoken after a column's values when `onPressItem` is set. Default "Opens the breakdown". */
+  itemAccessibilityHint?: string;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -79,6 +86,8 @@ export function BarChart({
   label,
   accessibilityLabel,
   emptyText = "Nothing to show for this period.",
+  onPressItem,
+  itemAccessibilityHint = "Opens the breakdown",
   style,
 }: BarChartProps) {
   const theme = useTheme();
@@ -117,19 +126,28 @@ export function BarChart({
   const colors = series.map((s, i) => markColor(theme, chart, s, i));
   const progress = useMountProgress({ ready: width > 0 && !empty });
 
+  const interactive = !!onPressItem && !empty;
+  /** "Oct 2026: Invoiced PKR 1.2M · Collected PKR 900K" */
+  const columnText = (i: number, sep = " · ") =>
+    `${data[i].title || data[i].label}: ${series
+      .map((s, j) => (series.length > 1 ? `${s.label} ${formatValue(values[i][j])}` : formatValue(values[i][j])))
+      .join(sep)}`;
   const shown = selected ?? data.length - 1;
-  const readout =
-    selectable && !empty && data[shown]
-      ? `${data[shown].title || data[shown].label}: ${series
-          .map((s, j) => (series.length > 1 ? `${s.label} ${formatValue(values[shown][j])}` : formatValue(values[shown][j])))
-          .join(" · ")}`
-      : null;
+  const readout = (selectable || interactive) && !empty && data[shown] ? columnText(shown) : null;
 
   const summary = accessibilityLabel ?? summarizeBars({ label, data, series, format: formatValue, emptyText });
   const showLegend = (legend ?? series.length > 1) && !empty;
+  /** Axis text is drawn for sighted users only (the summary or the column buttons carry every value). */
+  const hiddenText = { importantForAccessibility: "no" as const, accessibilityElementsHidden: true };
 
   return (
-    <View style={[styles.root, style]} accessible accessibilityRole="image" accessibilityLabel={summary}>
+    <View
+      style={[styles.root, style]}
+      // Interactive: the columns are the accessible elements (buttons); otherwise one image with every value.
+      accessible={!interactive}
+      accessibilityRole={interactive ? undefined : "image"}
+      accessibilityLabel={interactive ? undefined : summary}
+    >
       {showLegend ? <Legend items={series.map((s, i) => ({ label: s.label, color: colors[i] }))} /> : null}
       {readout ? (
         <AppText variant="caption" color="textSecondary" numberOfLines={2} style={styles.readout}>
@@ -186,6 +204,7 @@ export function BarChart({
                 color="textMuted"
                 align="right"
                 numberOfLines={1}
+                {...hiddenText}
                 // Anchored by its right edge and sized by its text, so a long tick never truncates.
                 style={[styles.tick, { top: y(t) - lineHeight / 2, right: width - axisWidth + 6 }]}
               >
@@ -200,13 +219,31 @@ export function BarChart({
                   color={selected === i ? "text" : "textMuted"}
                   align="center"
                   numberOfLines={1}
+                  {...hiddenText}
                   style={[styles.xLabel, { top: height + 4, left: labelLeft(g.center), width: labelWidth }]}
                 >
                   {data[i].label}
                 </AppText>
               ) : null,
             )}
-            {selectable && !empty ? (
+            {interactive ? (
+              // Drill-down: each column is a button named by its values.
+              <View style={[styles.hits, { left: axisWidth }]}>
+                {data.map((d, i) => (
+                  <Pressable
+                    key={`hit-${i}`}
+                    style={styles.hit}
+                    onPress={() => {
+                      setPicked(i);
+                      onPressItem?.(i);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={columnText(i, ", ")}
+                    accessibilityHint={itemAccessibilityHint}
+                  />
+                ))}
+              </View>
+            ) : selectable && !empty ? (
               // Touch only: screen readers get every value from the chart's own label.
               <View
                 style={[styles.hits, { left: axisWidth }]}

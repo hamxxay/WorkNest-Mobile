@@ -31,6 +31,7 @@ import {
   setSessionRefresher,
 } from "./apiClient";
 import { clearAllDoorAccess } from "./doorAccessService";
+import { primaryRoleName } from "../context/roles";
 import {
   sanitizeEmailInput,
   sanitizeOptionalNameInput,
@@ -224,6 +225,7 @@ export async function triggerBackgroundSync(currentUser: StoredUser) {
       name: string;
       phone: string;
       role: string;
+      roles?: string[] | null;
       customerCode?: string | number;
       customerId?: string | number;
       CustomerCode?: string | number;
@@ -249,7 +251,8 @@ export async function triggerBackgroundSync(currentUser: StoredUser) {
           id: profile.id ?? activeUser.id,
           name: profile.name || activeUser.name,
           phoneNumber: profile.phone || activeUser.phoneNumber,
-          role: profile.role || activeUser.role || "general",
+          // e.g. "ceo": the highest role the API lists (RootNavigator shows that role's app).
+          role: primaryRoleName([...(Array.isArray(profile.roles) ? profile.roles : []), profile.role]) || activeUser.role || "general",
           customerCode: customerCode,
           customerId: customerCode,
         };
@@ -398,7 +401,7 @@ async function applyApiSession(uid: string, session: ApiSession): Promise<Stored
   if (!current || current.uid !== uid) return null;
   await saveToken(session.token);
   const stored = await getUser();
-  const role = session.roles?.[0];
+  const role = primaryRoleName(session.roles);
   if (stored && role && stored.role !== role) {
     const updated = { ...stored, role };
     await saveUser(updated);
@@ -467,7 +470,8 @@ async function persistFirebaseSession(
   const existing = await getUser();
   // A cached profile of another account must never be merged into this one.
   const previous = sameAccount(existing, firebaseUser) ? existing : null;
-  const primaryRole = session?.roles && session.roles.length > 0 ? session.roles[0] : undefined;
+  // The highest role the API listed (e.g. "ceo"), so the right navigator shows even when several are sent.
+  const primaryRole = primaryRoleName(session?.roles);
   const mergedUser: StoredUser = {
     ...(previous ?? {}),
     ...firebaseUser,

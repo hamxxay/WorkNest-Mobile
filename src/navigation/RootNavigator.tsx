@@ -9,14 +9,19 @@ import SaleStack from "./SaleStack";
 import AdminStack from "./AdminStack";
 import SuperAdminStack from "./staff/SuperAdminStack";
 
+// ─── CEO navigator (dashboard + drill-down + profile only) ─────────────────────
+import CeoNavigator from "./ceo/CeoNavigator";
+
 // ─── Customer navigator ───────────────────────────────────────────────────────
 import { AppNavigator } from "./AppNavigator";
+import { navigatorForRole } from "./roleNavigator";
 
 // ─── RootNavigator ────────────────────────────────────────────────────────────
 //
 // The single entry point rendered by App.tsx. It reads `role` from AuthContext (hydrated from storage /
-// Firebase on launch and refreshed from GET auth/me) and shows that role's navigator:
+// Firebase on launch and refreshed from GET auth/me) and shows that role's navigator (./roleNavigator.ts):
 //
+//   "ceo"              → CeoNavigator (only the CEO dashboard; never a customer or staff screen)
 //   "super_admin"      → SuperAdminStack
 //   "admin"            → AdminStack
 //   "sales_executive"  → SaleStack
@@ -47,7 +52,10 @@ export default function RootNavigator() {
   }
 
   // `key` makes a role change mount a fresh navigator (no screens or state carried across roles).
-  switch (role) {
+  switch (navigatorForRole(role)) {
+    case "ceo":
+      return <CeoNavigator key="ceo" />;
+
     case "super_admin":
       return <SuperAdminStack key="super_admin" />;
 

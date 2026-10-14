@@ -1,4 +1,5 @@
-import { StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
+import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
+import Ionicons from "react-native-vector-icons/Ionicons";
 import Animated, { useAnimatedProps, type SharedValue } from "react-native-reanimated";
 import Svg, { Path } from "react-native-svg";
 import { useTheme, type Tone } from "../../theme";
@@ -44,6 +45,13 @@ export type HBarListProps = {
   accessibilityLabel?: string;
   /** Shown when there are no items. Default "Nothing to show." */
   emptyText?: string;
+  /**
+   * Tap a row to open it (drill-down). Each row becomes a button (named by its label and value, with a chevron)
+   * instead of the list being one image for screen readers.
+   */
+  onPressItem?: (item: HBarItem, index: number) => void;
+  /** Spoken after a row's values when `onPressItem` is set. Default "Opens the breakdown". */
+  itemAccessibilityHint?: string;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -59,9 +67,12 @@ export function HBarList({
   label,
   accessibilityLabel,
   emptyText = "Nothing to show.",
+  onPressItem,
+  itemAccessibilityHint = "Opens the breakdown",
   style,
 }: HBarListProps) {
   const theme = useTheme();
+  const interactive = !!onPressItem;
   const chart = useChartColors();
   const [width, onLayout] = useLayoutWidth();
   const progress = useMountProgress({ ready: width > 0 && items.length > 0 });
@@ -89,18 +100,27 @@ export function HBarList({
   }
 
   return (
-    <View style={[styles.root, style]} accessible accessibilityRole="image" accessibilityLabel={summary} onLayout={onLayout}>
+    <View
+      style={[styles.root, style]}
+      // Interactive: the rows are the accessible elements (buttons); otherwise one image with every value.
+      accessible={!interactive}
+      accessibilityRole={interactive ? undefined : "image"}
+      accessibilityLabel={interactive ? undefined : summary}
+      onLayout={onLayout}
+    >
       {items.map((it, i) => {
         const fill = full > 0 && values[i] > 0 ? Math.max(MIN_FILL, (values[i] / full) * width) : 0;
-        return (
-          <View key={it.key ?? it.label} style={styles.row}>
+        const valueText = it.valueLabel ?? formatValue(it.value);
+        const content = (
+          <>
             <View style={styles.top}>
               <AppText variant="bodySmall" color="textSecondary" numberOfLines={1} style={styles.label}>
                 {it.label}
               </AppText>
               <AppText variant="captionStrong" numberOfLines={1} style={styles.value}>
-                {it.valueLabel ?? formatValue(it.value)}
+                {valueText}
               </AppText>
+              {interactive ? <Ionicons name="chevron-forward" size={14} color={theme.colors.textMuted} /> : null}
             </View>
             <View style={{ height: barHeight }}>
               {width > 0 ? (
@@ -124,7 +144,27 @@ export function HBarList({
                 {it.detail}
               </AppText>
             ) : null}
-          </View>
+          </>
+        );
+        if (!interactive) {
+          return (
+            <View key={it.key ?? it.label} style={styles.row}>
+              {content}
+            </View>
+          );
+        }
+        return (
+          <Pressable
+            key={it.key ?? it.label}
+            onPress={() => onPressItem?.(it, i)}
+            accessibilityRole="button"
+            accessibilityLabel={[it.label, valueText, it.detail].filter(Boolean).join(", ")}
+            accessibilityHint={itemAccessibilityHint}
+            android_ripple={{ color: theme.colors.ripple }}
+            style={({ pressed }) => [styles.row, styles.pressableRow, pressed && styles.pressed]}
+          >
+            {content}
+          </Pressable>
         );
       })}
     </View>
@@ -159,4 +199,7 @@ const styles = StyleSheet.create({
   top: { flexDirection: "row", alignItems: "center", gap: 8 },
   label: { flex: 1 },
   value: { flexShrink: 0, maxWidth: "60%" },
+  // A tappable row is at least 44 dp tall (touch target).
+  pressableRow: { minHeight: 44, justifyContent: "center", paddingVertical: 4 },
+  pressed: { opacity: 0.7 },
 });

@@ -13,6 +13,7 @@ import { hydrateSessionUser, subscribeToAuthChanges } from "../services/authServ
 import {
   hasRole as userHasRole,
   isAdminOrAbove,
+  isCeo as isCeoRole,
   isLocationBound,
   isStaffRole,
   isSuperAdmin as isSuperAdminRole,
@@ -25,6 +26,7 @@ import {
 export {
   hasRole,
   isAdminOrAbove,
+  isCeo,
   isLocationBound,
   isStaffRole,
   isSuperAdmin,
@@ -38,12 +40,14 @@ export type { StaffRole, UserRole } from "./roles";
 
 type AuthContextValue = {
   user: StoredUser | null;
-  /** The experience to show: general (customer app), sales_executive, admin or super_admin. */
+  /** The experience to show: general (customer app), sales_executive, admin, super_admin or ceo. */
   role: UserRole;
   /** The staff role, or null for customers. */
   staffRole: StaffRole | null;
-  /** Sales executive, admin or super admin. */
+  /** Sales executive, admin or super admin (never the CEO). */
   isStaff: boolean;
+  /** The CEO: read-only, every location, only the CEO dashboard (its own navigator). */
+  isCeo: boolean;
   /** Admin or super admin (CMS `adminOnly`, API "admin,Admin,super_admin,SuperAdmin"). */
   isAdmin: boolean;
   /** Super admin only (CMS `superAdminOnly`). */
@@ -116,6 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       role,
       staffRole: isStaffRole(role) ? role : null,
       isStaff: isStaffRole(role),
+      isCeo: isCeoRole(role),
       isAdmin: isAdminOrAbove(role),
       isSuperAdmin: isSuperAdminRole(role),
       isSalesExecutive: role === "sales_executive",
