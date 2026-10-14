@@ -15,6 +15,7 @@ import BookingInfoScreen from "../screens/App/General/BookingInfoScreen";
 import BookingConfirmScreen from "../screens/App/General/BookingConfirmScreen";
 import ChallanScreen from "../screens/App/General/ChallanScreen";
 import BookingDetailScreen from "../screens/App/General/BookingDetailScreen";
+import EmployeesScreen from "../screens/App/General/EmployeesScreen";
 import QuotationScreen from "../screens/App/General/QuotationScreen";
 import QuotationListScreen from "../screens/App/General/QuotationListScreen";
 import ESignAgreementScreen from "../screens/App/General/ESignAgreementScreen";
@@ -125,6 +126,7 @@ function AppStackNavigator() {
       <AppStack.Screen name="BookingConfirm" component={BookingConfirmScreen} />
       <AppStack.Screen name="Challan" component={ChallanScreen} />
       <AppStack.Screen name="BookingDetail" component={BookingDetailScreen} />
+      <AppStack.Screen name="Employees" component={EmployeesScreen} />
       <AppStack.Screen name="QuotationList" component={QuotationListScreen} />
       <AppStack.Screen name="Quotation" component={QuotationScreen} />
       <AppStack.Screen name="ESignAgreement" component={ESignAgreementScreen} />

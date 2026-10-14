@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, View } from "react-native";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import {
@@ -32,13 +32,15 @@ import {
   type BookingChallan,
 } from "../../../services/bookingService";
 import { monthsLabel } from "../../../services/amountBreakdown";
+import { employeesButtonLabel, seatsUsedLabel, showsEmployees } from "../../../services/employeeService";
+import { useEmployeeSummaries } from "./shared/useEmployeeSummaries";
 import type { AppStackParamList } from "../../../navigation/types";
 
 type Nav = NativeStackNavigationProp<AppStackParamList>;
 
 /**
  * One booking (GET /booking/{id}): space, period, billing and the challan; Cancel while it is still Pending and
- * nothing has been paid on it.
+ * nothing has been paid on it. A Confirmed booking also links to its employees ("Employees 2/4").
  */
 export default function BookingDetailScreen() {
   const navigation = useNavigation<Nav>();
@@ -95,6 +97,20 @@ export default function BookingDetailScreen() {
           ? "Confirmed bookings can't be cancelled in the app. Contact us for changes."
           : null;
   const billingPeriod = monthsLabel(booking?.billingPeriodMonths) ?? booking?.billingPeriodLabel ?? null;
+
+  // Employees: Confirmed bookings only; the entry appears once its count is known (hidden on a 404 / 503 answer).
+  const employeesBookingId = booking && booking.bookingId > 0 && showsEmployees(statusFields) ? booking.bookingId : 0;
+  const employeeIds = useMemo(() => (employeesBookingId ? [employeesBookingId] : []), [employeesBookingId]);
+  const { entries: employeeEntries, reload: reloadEmployees } = useEmployeeSummaries(employeeIds);
+  const employeeEntry = employeesBookingId ? employeeEntries[employeesBookingId] : undefined;
+  const employeeSummary = employeeEntry?.status === "ready" ? employeeEntry.summary : null;
+  const showEmployees = employeeEntry?.status === "ready" || employeeEntry?.status === "unknown";
+  // Back from the Employees screen (or the app): the count may have changed.
+  useFocusEffect(
+    useCallback(() => {
+      reloadEmployees();
+    }, [reloadEmployees]),
+  );
 
   const cancel = async () => {
     if (!cancelTarget) return;
@@ -194,6 +210,38 @@ export default function BookingDetailScreen() {
                     navigation.navigate("Challan", {
                       bookingId: booking.bookingId,
                       challanNumber: booking.challanNumber ?? undefined,
+                    })
+                  }
+                />
+              </Card>
+            </>
+          ) : null}
+
+          {showEmployees ? (
+            <>
+              <SectionHeader title="Employees" />
+              <Card>
+                <AppText variant="bodySmall" color="textSecondary">
+                  {employeeSummary
+                    ? `${seatsUsedLabel(employeeSummary)}. ${
+                        employeeSummary.canManage
+                          ? "Add the people who work in this space; WorkNest checks them at the branch."
+                          : "See who works in this space."
+                      }`
+                    : "The people who work in this space."}
+                </AppText>
+                <Button
+                  title={employeesButtonLabel(employeeSummary)}
+                  leftIcon="people-outline"
+                  rightIcon="chevron-forward"
+                  variant="secondary"
+                  fullWidth
+                  style={styles.top}
+                  accessibilityLabel={employeeSummary ? `Employees, ${seatsUsedLabel(employeeSummary)}` : "Employees"}
+                  onPress={() =>
+                    navigation.navigate("Employees", {
+                      bookingId: booking.bookingId,
+                      spaceName: booking.spaceName ?? undefined,
                     })
                   }
                 />

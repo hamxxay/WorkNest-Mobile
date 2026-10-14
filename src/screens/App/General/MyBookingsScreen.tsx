@@ -31,7 +31,9 @@ import {
   isVoidBooking,
   type MyBooking,
 } from "../../../services/bookingService";
+import { employeesButtonLabel, seatsUsedLabel, showsEmployees } from "../../../services/employeeService";
 import { GuestState } from "./shared/GuestState";
+import { useEmployeeSummaries } from "./shared/useEmployeeSummaries";
 import type { AppStackParamList, MainTabParamList } from "../../../navigation/types";
 
 type Nav = NativeStackNavigationProp<AppStackParamList>;
@@ -95,16 +97,22 @@ export default function MyBookingsScreen() {
     [user],
   );
 
-  // Reload whenever the tab comes into view (a booking may have been made or paid meanwhile).
-  useFocusEffect(
-    useCallback(() => {
-      load();
-    }, [load]),
-  );
-
   const upcoming = useMemo(() => bookings.filter((b) => isUpcomingBooking(b)), [bookings]);
   const history = useMemo(() => bookings.filter((b) => !isUpcomingBooking(b)), [bookings]);
   const shown = tab === "upcoming" ? upcoming : history;
+
+  // "Employees 2/4" on the upcoming Confirmed cards (ended ones show it on their detail screen). A card gets the
+  // button once its count is known; a 404 (not their own booking) or 503 (feature not installed yet) hides it.
+  const employeeIds = useMemo(() => upcoming.filter((b) => b.id > 0 && showsEmployees(b)).map((b) => b.id), [upcoming]);
+  const { entries: employeeEntries, reload: reloadEmployees } = useEmployeeSummaries(employeeIds);
+
+  // Reload whenever the tab comes into view (a booking may have been made or paid, or its employees changed, meanwhile).
+  useFocusEffect(
+    useCallback(() => {
+      load();
+      reloadEmployees();
+    }, [load, reloadEmployees]),
+  );
 
   const cancel = async (booking: MyBooking) => {
     try {
@@ -188,6 +196,10 @@ export default function MyBookingsScreen() {
           // A challan can be opened for any booking that has one, and for a Pending booking even when the list
           // did not send its number (the challan is fetched by booking id).
           const hasChallan = !!item.challanNumber || (!isVoid && isPendingBooking(item));
+          const employeeEntry = employeeEntries[item.id];
+          const employeeSummary = employeeEntry?.status === "ready" ? employeeEntry.summary : null;
+          const hasEmployees =
+            employeeIds.includes(item.id) && (employeeEntry?.status === "ready" || employeeEntry?.status === "unknown");
           return (
             <Card
               onPress={() => navigation.navigate("BookingDetail", { bookingId: item.id || item.publicId || "" })}
@@ -215,7 +227,7 @@ export default function MyBookingsScreen() {
                   <InfoRow label="Challan" value={challanText(item)} icon="document-text-outline" />
                 ) : null}
               </View>
-              {hasChallan || cancellable ? (
+              {hasChallan || cancellable || hasEmployees ? (
                 <View style={styles.actions}>
                   {hasChallan ? (
                     <Button
@@ -226,6 +238,16 @@ export default function MyBookingsScreen() {
                       onPress={() =>
                         navigation.navigate("Challan", { bookingId: item.id, challanNumber: item.challanNumber ?? undefined })
                       }
+                    />
+                  ) : null}
+                  {hasEmployees ? (
+                    <Button
+                      title={employeesButtonLabel(employeeSummary)}
+                      size="sm"
+                      variant="secondary"
+                      leftIcon="people-outline"
+                      accessibilityLabel={employeeSummary ? `Employees, ${seatsUsedLabel(employeeSummary)}` : "Employees"}
+                      onPress={() => navigation.navigate("Employees", { bookingId: item.id, spaceName: item.spaceName })}
                     />
                   ) : null}
                   {cancellable ? (
