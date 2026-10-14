@@ -262,6 +262,26 @@ describe("hydrateSessionUser (app start)", () => {
     expect(mockKeychain.get("auth_token")).toBe("ceo-jwt");
   });
 
+  it.each([
+    [{ token: "sm-jwt", roles: ["sales_manager"] }, "sales_manager"],
+    [{ token: "sm-jwt", role: "Sales Manager" }, "Sales Manager"],
+    [{ token: "sm-jwt", roles: ["general", "sales_manager"] }, "sales_manager"],
+    [{ token: "sm-jwt", roles: ["super_admin", "sales_manager"] }, "sales_manager"],
+  ])("stores the Sales Manager role from the exchange (%p), so the Sales Manager app opens", async (data, stored) => {
+    signedInWithCachedSession();
+    installFetch(async (url) =>
+      /google-login$/.test(url)
+        ? jsonResponse(200, { isSuccessful: true, data })
+        : jsonResponse(200, { isSuccessful: true, data: null }),
+    );
+
+    const user = await hydrateSessionUser();
+    await flush();
+
+    expect(user).toMatchObject({ email: "member@example.com", role: stored });
+    expect(mockKeychain.get("auth_token")).toBe("sm-jwt");
+  });
+
   it("stores the new token and role when the exchange succeeds", async () => {
     signedInWithCachedSession();
     installFetch(async (url) =>
@@ -276,6 +296,71 @@ describe("hydrateSessionUser (app start)", () => {
     expect(user).toMatchObject({ email: "member@example.com", role: "admin" });
     expect(mockKeychain.get("auth_token")).toBe("new-api-jwt");
     expect(expired).not.toHaveBeenCalled();
+  });
+});
+
+describe("names and role labels come from auth/me (the database)", () => {
+  const storedUser = () => JSON.parse(mockStorage.get("auth_user") ?? "null");
+
+  function apiAnswers(me: unknown) {
+    return installFetch(async (url) =>
+      /google-login$/.test(url)
+        ? jsonResponse(200, { isSuccessful: true, data: { token: "ceo-jwt", roles: ["ceo"] } })
+        : /auth\/me$/.test(url)
+          ? jsonResponse(200, { isSuccessful: true, data: me })
+          : jsonResponse(200, { isSuccessful: true, data: null }),
+    );
+  }
+
+  it("stores WN_Users.Name as it is and WN_Roles.DisplayName after the app starts", async () => {
+    signedInWithCachedSession();
+    const fetchMock = apiAnswers({ id: 7, email: "member@example.com", name: "CEO1", role: "ceo", roleDisplayName: "CEO" });
+
+    await hydrateSessionUser();
+    await flush();
+
+    expect(fetchMock.mock.calls.some(([url, init]) => /auth\/me$/.test(url) && (init.method ?? "GET") === "GET")).toBe(true);
+    expect(storedUser()).toMatchObject({ name: "CEO1", role: "ceo", roleDisplayName: "CEO" });
+  });
+
+  it("keeps the database name over the Firebase display name on the next start (auth/me unreachable)", async () => {
+    signedInWithCachedSession();
+    mockStorage.set("auth_user", JSON.stringify({ id: "uid-1", email: "member@example.com", role: "ceo", name: "CEO1", roleDisplayName: "CEO" }));
+    installFetch(async () => {
+      throw new TypeError("Network request failed");
+    });
+
+    const user = await hydrateSessionUser();
+    await flush();
+
+    // USER.displayName in Firebase is "Member".
+    expect(user).toMatchObject({ name: "CEO1", roleDisplayName: "CEO" });
+    expect(storedUser()).toMatchObject({ name: "CEO1", roleDisplayName: "CEO" });
+  });
+
+  it("drops the role display name when auth/me no longer sends it (the app's label is shown)", async () => {
+    signedInWithCachedSession();
+    mockStorage.set("auth_user", JSON.stringify({ id: "uid-1", email: "member@example.com", role: "ceo", name: "CEO1", roleDisplayName: "Old" }));
+    apiAnswers({ email: "member@example.com", name: "CEO1", role: "ceo" });
+
+    await hydrateSessionUser();
+    await flush();
+
+    expect(storedUser().roleDisplayName).toBeUndefined();
+    expect(storedUser().name).toBe("CEO1");
+  });
+
+  it("refreshes the profile from auth/me right after signing in on the Login screen", async () => {
+    mockFirebase.signInWithEmailAndPassword.mockImplementation(async () => {
+      mockFirebase.currentUser = USER;
+      return { user: USER };
+    });
+    apiAnswers({ email: "member@example.com", name: "Sales Manager 1", role: "sales_manager", roleDisplayName: "Sales Manager" });
+
+    await loginUser({ email: "member@example.com", password: "secret123" });
+    await flush();
+
+    expect(storedUser()).toMatchObject({ name: "Sales Manager 1", role: "sales_manager", roleDisplayName: "Sales Manager" });
   });
 });
 

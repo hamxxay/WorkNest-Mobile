@@ -5,7 +5,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { AppHeader, SegmentedControl, SelectField, greeting } from "../../../../components/ui";
 import { useTabBarSpace } from "../../../../components/ui/TabBar";
 import { useAuth } from "../../../../context/AuthContext";
-import { roleLabel } from "../../../../context/roles";
+import { userRoleLabel } from "../../../../context/userDisplay";
 import type { StaffStackParamList } from "../../../../navigation/staffTypes";
 import { errorMessage } from "../../../../services/apiClient";
 import {
@@ -122,7 +122,7 @@ export default function StaffDashboardScreen() {
     <StaffScreen>
       <AppHeader
         variant="dashboard"
-        overline={roleLabel(role)}
+        overline={userRoleLabel(user, role)}
         title={firstName ? `${greeting()}, ${firstName}` : "Dashboard"}
         actions={[
           {

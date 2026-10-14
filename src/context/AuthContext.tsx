@@ -15,12 +15,14 @@ import {
   isAdminOrAbove,
   isCeo as isCeoRole,
   isLocationBound,
+  isSalesManager as isSalesManagerRole,
   isStaffRole,
   isSuperAdmin as isSuperAdminRole,
   resolveRole,
   type StaffRole,
   type UserRole,
 } from "./roles";
+import { greetingName, userDisplayName, userRoleLabel } from "./userDisplay";
 
 // The role model lives in ./roles (pure, unit-tested); re-exported here for existing imports.
 export {
@@ -28,6 +30,7 @@ export {
   isAdminOrAbove,
   isCeo,
   isLocationBound,
+  isSalesManager,
   isStaffRole,
   isSuperAdmin,
   normalizeRoleName,
@@ -37,25 +40,34 @@ export {
   STAFF_ROLES,
 } from "./roles";
 export type { StaffRole, UserRole } from "./roles";
+export { emailPrefixName, greetingName, realName, userDisplayName, userRoleLabel } from "./userDisplay";
 
 type AuthContextValue = {
   user: StoredUser | null;
-  /** The experience to show: general (customer app), sales_executive, admin, super_admin or ceo. */
+  /** The experience to show: general (customer app), sales_executive, admin, super_admin, sales_manager or ceo. */
   role: UserRole;
   /** The staff role, or null for customers. */
   staffRole: StaffRole | null;
-  /** Sales executive, admin or super admin (never the CEO). */
+  /** Sales executive, admin or super admin (never the CEO or the Sales Manager). */
   isStaff: boolean;
   /** The CEO: read-only, every location, only the CEO dashboard (its own navigator). */
   isCeo: boolean;
+  /** The Sales Manager: read-only, their assigned locations, only the sales dashboard (its own navigator). */
+  isSalesManager: boolean;
   /** Admin or super admin (CMS `adminOnly`, API "admin,Admin,super_admin,SuperAdmin"). */
   isAdmin: boolean;
   /** Super admin only (CMS `superAdminOnly`). */
   isSuperAdmin: boolean;
   /** Sales executive and not an admin. */
   isSalesExecutive: boolean;
-  /** Admins and sales executives only see their own location(s); super admins see all. */
+  /** Admins, sales executives and the Sales Manager only see their own location(s); super admins see all. */
   isLocationBound: boolean;
+  /** The user's name from auth/me (WN_Users.Name) as it is; the email prefix only when there is none. */
+  displayName: string;
+  /** The first word of the real name, for greetings ("CEO1", "Sara"); "" when there is no name or email. */
+  greetingName: string;
+  /** The role as shown: WN_Roles.DisplayName from auth/me ("Sales Manager"), else the app's label. */
+  roleDisplayLabel: string;
   /** True when the user carries this exact role (CMS AuthService.hasRole). */
   hasRole: (role: UserRole) => boolean;
   isLoadingUser: boolean;
@@ -121,10 +133,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       staffRole: isStaffRole(role) ? role : null,
       isStaff: isStaffRole(role),
       isCeo: isCeoRole(role),
+      isSalesManager: isSalesManagerRole(role),
       isAdmin: isAdminOrAbove(role),
       isSuperAdmin: isSuperAdminRole(role),
       isSalesExecutive: role === "sales_executive",
       isLocationBound: isLocationBound(role),
+      displayName: userDisplayName(user),
+      greetingName: greetingName(user),
+      roleDisplayLabel: userRoleLabel(user, role),
       hasRole: (target: UserRole) => userHasRole(user, target),
       isLoadingUser,
       refreshUser,

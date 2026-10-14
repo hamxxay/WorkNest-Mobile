@@ -1,4 +1,5 @@
-// Screen transitions shared by the customer (AppNavigator), staff (StaffNavigator) and CEO (CeoNavigator) navigators.
+// Screen transitions shared by the customer (AppNavigator), staff (StaffNavigator), CEO (CeoNavigator) and Sales
+// Manager (SalesManagerNavigator) navigators.
 // Pure data + helpers (no React), unit-tested in transitions.test.ts. Guide: src/components/ui/docs/tab-bar.md
 //
 //   push   pushed detail / list screens                      slide_from_right, swipe back
@@ -11,6 +12,7 @@
 import type { BottomTabNavigationOptions } from "@react-navigation/bottom-tabs";
 import type { NativeStackNavigationOptions } from "@react-navigation/native-stack";
 import type { CeoRouteName } from "./ceoTypes";
+import type { SalesManagerRouteName } from "./salesManagerTypes";
 import type { StaffRouteName } from "./staffTypes";
 import type { AppStackParamList } from "./types";
 
@@ -72,4 +74,9 @@ export function staffTransition(route: StaffRouteName | "StaffTabs"): StackTrans
 /** CEO stack: the dashboard fades in (it replaces whatever was shown before sign-in); drill screens push. */
 export function ceoTransition(route: CeoRouteName): StackTransition {
   return route === "CeoDashboard" ? "fade" : "push";
+}
+
+/** Sales Manager stack, like the CEO's: the dashboard fades in; drill screens and the profile push. */
+export function salesManagerTransition(route: SalesManagerRouteName): StackTransition {
+  return route === "SalesManagerDashboard" ? "fade" : "push";
 }

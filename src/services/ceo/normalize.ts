@@ -1,5 +1,6 @@
 import { INQUIRY_TYPE_LABELS, normalizeInquiryType } from "../../theme/inquiryTypes";
 import { bool, num, optNum, optStr, pick, str, unwrapEnvelope } from "../staff/normalize";
+import { byMonth, isObject, list, optId, payload, section, type Row } from "./readers";
 import { AGING_LABELS, AGING_ORDER, FUNNEL_LABELS, FUNNEL_ORDER, isMonthKey, monthLabel } from "./format";
 import type {
   CeoAgingBucket,
@@ -28,45 +29,10 @@ import type {
 
 // Normalisers for the CEO API (pure, unit-tested in __tests__/normalize.test.ts). They never throw on a partial
 // answer: unknown shapes become empty sections / lists, so the screens show their empty states instead of failing.
-
-type Row = Record<string, any>;
-
-const isObject = (value: unknown): value is Row => !!value && typeof value === "object" && !Array.isArray(value);
-
-/** The payload inside the envelope as an object ({} for anything else). */
-function payload(raw: unknown): Row {
-  const inner = unwrapEnvelope<unknown>(raw);
-  return isObject(inner) ? inner : {};
-}
-
-/** The object at `key`, or null when missing / not an object. */
-function section(raw: Row, key: string): Row | null {
-  const value = pick(raw, key);
-  return isObject(value) ? value : null;
-}
-
-/** Rows of the list at `key` (objects only), mapped; [] when missing. */
-function list<T>(raw: Row | null, key: string, map: (row: Row) => T): T[] {
-  const value = raw ? pick(raw, key) : undefined;
-  return Array.isArray(value) ? value.filter(isObject).map(map) : [];
-}
-
-/** A positive int id, or null. */
-function optId(row: Row, ...keys: string[]): number | null {
-  const n = optNum(row, ...keys);
-  return n != null && Number.isInteger(n) && n > 0 ? n : null;
-}
-
-/** Sorted by the yyyy-MM `month` key, oldest first (rows without a month keep their place at the end). */
-function byMonth<T extends { month: string }>(rows: T[]): T[] {
-  return rows
-    .map((row, index) => ({ row, index }))
-    .sort((a, b) => {
-      if (!a.row.month || !b.row.month) return a.row.month ? -1 : b.row.month ? 1 : a.index - b.index;
-      return a.row.month < b.row.month ? -1 : a.row.month > b.row.month ? 1 : a.index - b.index;
-    })
-    .map((x) => x.row);
-}
+//
+// The generic pieces (the JSON readers in ./readers.ts, the funnel / inquiry-type / location / breakdown normalisers
+// and the record row readers) are shared with the Sales Manager dashboard (services/salesManager), which follows
+// the same contract style.
 
 export function normalizePeriod(value: unknown): CeoPeriod {
   return value === "quarter" || value === "year" ? value : "month";
@@ -297,8 +263,11 @@ export function normalizeCeoDashboard(raw: unknown, requested: CeoPeriod = "mont
 
 // ─── Breakdown ────────────────────────────────────────────────────────────────────────────────────────────
 
+/** Title and value labels of a breakdown, used when the server sent none. */
+export type BreakdownDefaults = { title: string; valueLabel: string; value2Label: string | null };
+
 /** Title and value labels when the server sent none. */
-const BREAKDOWN_DEFAULTS: Record<CeoBreakdownMetric, { title: string; valueLabel: string; value2Label: string | null }> = {
+const BREAKDOWN_DEFAULTS: Record<CeoBreakdownMetric, BreakdownDefaults> = {
   revenue: { title: "Revenue by location", valueLabel: "Invoiced", value2Label: "Collected" },
   aging: { title: "Receivables by location", valueLabel: "Amount", value2Label: null },
   "occupancy-type": { title: "Occupancy by location", valueLabel: "Occupied", value2Label: "Total" },
@@ -311,10 +280,12 @@ const BREAKDOWN_DEFAULTS: Record<CeoBreakdownMetric, { title: string; valueLabel
 /** Row keys of these metrics are months (labels default to "Oct 2026"). */
 const MONTH_ROWS: ReadonlySet<CeoBreakdownMetric> = new Set<CeoBreakdownMetric>(["inquiries-type", "staff"]);
 
-/** GET api/ceo/breakdown answer. */
-export function normalizeCeoBreakdown(raw: unknown, metric: CeoBreakdownMetric): CeoBreakdown {
+/**
+ * A breakdown answer ({ title, subtitle, valueLabel, value2Label, rows }) with these defaults. With `monthRows`
+ * the row keys are yyyy-MM months: labels default to "Oct 2026" and rows are sorted oldest first.
+ */
+export function normalizeBreakdownWith(raw: unknown, defaults: BreakdownDefaults, monthRows: boolean): CeoBreakdown {
   const d = payload(raw);
-  const defaults = BREAKDOWN_DEFAULTS[metric] ?? { title: "Breakdown", valueLabel: "Value", value2Label: null };
   // An explicit null means "no second value"; only a missing field falls back to the metric's default.
   const sentValue2Label = Object.prototype.hasOwnProperty.call(d, "value2Label") || Object.prototype.hasOwnProperty.call(d, "Value2Label");
   const value2Label = sentValue2Label ? optStr(d, "value2Label") : defaults.value2Label;
@@ -322,7 +293,7 @@ export function normalizeCeoBreakdown(raw: unknown, metric: CeoBreakdownMetric):
     const key = str(r, "key").trim();
     return {
       key,
-      label: optStr(r, "label") ?? (MONTH_ROWS.has(metric) ? monthLabel(key) : key || "Other"),
+      label: optStr(r, "label") ?? (monthRows ? monthLabel(key) : key || "Other"),
       value: num(r, "value"),
       value2: optNum(r, "value2"),
       count: optNum(r, "count"),
@@ -334,8 +305,14 @@ export function normalizeCeoBreakdown(raw: unknown, metric: CeoBreakdownMetric):
     valueLabel: optStr(d, "valueLabel") ?? defaults.valueLabel,
     value2Label,
     // Month rows oldest first (as the chart reads them); other rows keep the server's order.
-    rows: MONTH_ROWS.has(metric) && rows.every((r) => isMonthKey(r.key)) ? [...rows].sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0)) : rows,
+    rows: monthRows && rows.every((r) => isMonthKey(r.key)) ? [...rows].sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0)) : rows,
   };
+}
+
+/** GET api/ceo/breakdown answer. */
+export function normalizeCeoBreakdown(raw: unknown, metric: CeoBreakdownMetric): CeoBreakdown {
+  const defaults = BREAKDOWN_DEFAULTS[metric] ?? { title: "Breakdown", valueLabel: "Value", value2Label: null };
+  return normalizeBreakdownWith(raw, defaults, MONTH_ROWS.has(metric));
 }
 
 // ─── Records ──────────────────────────────────────────────────────────────────────────────────────────────
@@ -372,7 +349,7 @@ const toSpace = (r: Row): CeoSpaceRecord => ({
   bookingEndOn: optStr(r, "bookingEndOn"),
 });
 
-const toBooking = (r: Row): CeoBookingRecord => ({
+export const toBookingRecord = (r: Row): CeoBookingRecord => ({
   bookingId: optId(r, "bookingId", "id"),
   customer: optStr(r, "customer", "customerName"),
   space: optStr(r, "space", "spaceName"),
@@ -383,7 +360,7 @@ const toBooking = (r: Row): CeoBookingRecord => ({
   totalAmount: optNum(r, "totalAmount", "total"),
 });
 
-const toInquiry = (r: Row): CeoInquiryRecord => {
+export const toInquiryRecord = (r: Row): CeoInquiryRecord => {
   const typeText = optStr(r, "type");
   return {
     inquiryId: optId(r, "inquiryId", "id"),
@@ -398,7 +375,7 @@ const toInquiry = (r: Row): CeoInquiryRecord => {
   };
 };
 
-const toQuotation = (r: Row): CeoQuotationRecord => ({
+export const toQuotationRecord = (r: Row): CeoQuotationRecord => ({
   quotationId: optId(r, "quotationId", "id"),
   quotationNumber: optStr(r, "quotationNumber", "quotationNo"),
   customer: optStr(r, "customer", "customerName"),
@@ -409,13 +386,22 @@ const toQuotation = (r: Row): CeoQuotationRecord => ({
   createdOn: optStr(r, "createdOn", "createdAt"),
 });
 
+/** A records answer ({ title, total, rows }) as an object; a bare array is accepted too (rows only). */
+export function recordsPayload(raw: unknown): Row {
+  const inner = unwrapEnvelope<unknown>(raw);
+  return Array.isArray(inner) ? { rows: inner } : isObject(inner) ? inner : {};
+}
+
+/** The full count of a records answer, never below the number of rows it carries. */
+export function recordsTotal(d: Row, rows: number): number {
+  return Math.max(rows, Math.floor(num(d, "total")));
+}
+
 /** GET api/ceo/records/{kind} answer. `total` is never below the number of rows. */
 export function normalizeCeoRecords(kind: CeoRecordKind, raw: unknown): CeoRecords {
-  const inner = unwrapEnvelope<unknown>(raw);
-  // A bare array is accepted too (rows only).
-  const d: Row = Array.isArray(inner) ? { rows: inner } : isObject(inner) ? inner : {};
+  const d = recordsPayload(raw);
   const title = optStr(d, "title") ?? RECORD_TITLES[kind] ?? "Records";
-  const totalOf = (n: number) => Math.max(n, Math.floor(num(d, "total")));
+  const totalOf = (n: number) => recordsTotal(d, n);
   switch (kind) {
     case "invoices": {
       const rows = list(d, "rows", toInvoice);
@@ -426,16 +412,16 @@ export function normalizeCeoRecords(kind: CeoRecordKind, raw: unknown): CeoRecor
       return { kind, title, total: totalOf(rows.length), rows };
     }
     case "bookings": {
-      const rows = list(d, "rows", toBooking);
+      const rows = list(d, "rows", toBookingRecord);
       return { kind, title, total: totalOf(rows.length), rows };
     }
     case "inquiries": {
-      const rows = list(d, "rows", toInquiry);
+      const rows = list(d, "rows", toInquiryRecord);
       return { kind, title, total: totalOf(rows.length), rows };
     }
     case "quotations":
     default: {
-      const rows = list(d, "rows", toQuotation);
+      const rows = list(d, "rows", toQuotationRecord);
       return { kind: "quotations", title, total: totalOf(rows.length), rows };
     }
   }

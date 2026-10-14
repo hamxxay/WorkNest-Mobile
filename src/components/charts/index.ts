@@ -20,9 +20,11 @@ export {
   niceStep,
   niceTicks,
   percentOf,
+  stackSegments,
   trendDirection,
   type BandLayout,
   type NiceDomain,
+  type StackSegment,
   type TrendDirection,
 } from "./scale";
 export { describeTrend, type ValueFormatter } from "./summary";

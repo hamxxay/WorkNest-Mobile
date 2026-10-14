@@ -8,7 +8,7 @@ import { columnPath } from "./geometry";
 import { Legend } from "./Legend";
 import { useLayoutWidth, useMountProgress } from "./motion";
 import { markColor, useChartColors } from "./palette";
-import { bandLayout, compactLabel, isAllZero, labelStep, linearScale, niceDomain, toFinite } from "./scale";
+import { bandLayout, compactLabel, isAllZero, labelStep, linearScale, niceDomain, stackSegments, toFinite } from "./scale";
 import { defaultFormat, summarizeBars, type ValueFormatter } from "./summary";
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
@@ -39,8 +39,14 @@ export type BarDatum = {
 
 export type BarChartProps = {
   data: readonly BarDatum[];
-  /** One entry per bar in a group (1 to 3). */
+  /** One entry per bar in a group (1 to 3); with `stacked`, one per part of the column (up to 6, each with a colour). */
   series: readonly BarSeries[];
+  /**
+   * One column per item with the series stacked in it, bottom to top in series order (parts of a whole, e.g.
+   * inquiries by Type per month). The axis covers the totals; the readout and screen readers add the total.
+   * Default false (grouped bars).
+   */
+  stacked?: boolean;
   /** Height of the plot in dp, without the label band. Default 160. */
   height?: number;
   /** Values in the readout and the screen-reader summary. Default grouped digits. */
@@ -77,6 +83,7 @@ export type BarChartProps = {
 export function BarChart({
   data,
   series,
+  stacked = false,
   height = 160,
   formatValue = defaultFormat,
   formatTick = compactLabel,
@@ -99,8 +106,13 @@ export function BarChart({
 
   const values = useMemo(() => data.map(d => series.map((_, j) => Math.max(0, toFinite(d.values[j])))), [data, series]);
   const flat = useMemo(() => values.flat(), [values]);
+  /** Column totals (stacked): what the axis has to reach. */
+  const totals = useMemo(() => values.map(v => v.reduce((sum, x) => sum + x, 0)), [values]);
   const empty = !data.length || !series.length || isAllZero(flat);
-  const domain = useMemo(() => niceDomain(0, Math.max(0, ...flat), { count: tickCount }), [flat, tickCount]);
+  const domain = useMemo(
+    () => niceDomain(0, Math.max(0, ...(stacked ? totals : flat)), { count: tickCount }),
+    [stacked, totals, flat, tickCount],
+  );
   // Nothing to show: keep only the baseline (a "1" tick on an empty money axis would mean nothing).
   const ticks = empty ? [0] : domain.ticks;
   const tickLabels = ticks.map(t => formatTick(t));
@@ -115,8 +127,8 @@ export function BarChart({
   const baseY = height - 1;
   const y = linearScale([domain.min, domain.max], [baseY, plotTop]);
   const layout = useMemo(
-    () => bandLayout({ count: data.length, groupSize: series.length, width: plotWidth }),
-    [data.length, series.length, plotWidth],
+    () => bandLayout({ count: data.length, groupSize: stacked ? 1 : series.length, width: plotWidth }),
+    [data.length, series.length, stacked, plotWidth],
   );
   const maxLabel = Math.max(...data.map(d => d.label.length), 1);
   const labelWidth = Math.max(layout.slot, maxLabel * charWidth + 8);
@@ -127,11 +139,18 @@ export function BarChart({
   const progress = useMountProgress({ ready: width > 0 && !empty });
 
   const interactive = !!onPressItem && !empty;
-  /** "Oct 2026: Invoiced PKR 1.2M · Collected PKR 900K" */
+  /** "Oct 2026: Invoiced PKR 1.2M · Collected PKR 900K" (stacked: "Oct 2026: 20 in total · Website 8 · ..."). */
   const columnText = (i: number, sep = " · ") =>
-    `${data[i].title || data[i].label}: ${series
-      .map((s, j) => (series.length > 1 ? `${s.label} ${formatValue(values[i][j])}` : formatValue(values[i][j])))
-      .join(sep)}`;
+    stacked
+      ? `${data[i].title || data[i].label}: ${[
+          `${formatValue(totals[i])} in total`,
+          ...series.map((s, j) => (values[i][j] > 0 ? `${s.label} ${formatValue(values[i][j])}` : null)),
+        ]
+          .filter(Boolean)
+          .join(sep)}`
+      : `${data[i].title || data[i].label}: ${series
+          .map((s, j) => (series.length > 1 ? `${s.label} ${formatValue(values[i][j])}` : formatValue(values[i][j])))
+          .join(sep)}`;
   const shown = selected ?? data.length - 1;
   const readout = (selectable || interactive) && !empty && data[shown] ? columnText(shown) : null;
 
@@ -179,7 +198,31 @@ export function BarChart({
                   strokeWidth={1}
                 />
               ))}
-              {!empty
+              {!empty && stacked
+                ? layout.groups.map((g, i) =>
+                    stackSegments(values[i]).map(seg => {
+                      const bottom = baseY - y(seg.start);
+                      const full = baseY - y(seg.start + seg.value);
+                      return (
+                        <Column
+                          key={`${i}-${seg.index}`}
+                          x={axisWidth + g.bars[0]}
+                          baseY={baseY}
+                          offset={bottom}
+                          width={layout.barWidth}
+                          // A 1 dp surface gap between parts; only the top part has rounded corners.
+                          height={seg.top ? full - bottom : Math.max(0, full - bottom - 1)}
+                          radius={seg.top ? 4 : 0}
+                          color={colors[seg.index]}
+                          delay={i * STAGGER}
+                          stretch={1 + STAGGER * Math.max(0, data.length - 1)}
+                          progress={progress}
+                        />
+                      );
+                    }),
+                  )
+                : null}
+              {!empty && !stacked
                 ? layout.groups.map((g, i) =>
                     g.bars.map((x, j) => (
                       <Column
@@ -277,8 +320,10 @@ export function BarChart({
 function Column({
   x,
   baseY,
+  offset = 0,
   width,
   height,
+  radius = 4,
   color,
   delay,
   stretch,
@@ -286,8 +331,12 @@ function Column({
 }: {
   x: number;
   baseY: number;
+  /** Stacked parts: how far above the baseline this part starts (grows with the column). */
+  offset?: number;
   width: number;
   height: number;
+  /** Top corner radius (0 for a stacked part under another). */
+  radius?: number;
   color: string;
   /** Start of this column's part of the progress (0..1 of the first column's run). */
   delay: number;
@@ -297,9 +346,9 @@ function Column({
 }) {
   const animatedProps = useAnimatedProps(() => {
     const t = Math.max(0, Math.min(1, progress.value * stretch - delay));
-    return { d: columnPath(x, baseY, width, height * t, 4) };
+    return { d: columnPath(x, baseY - offset * t, width, height * t, radius) };
   });
-  return <AnimatedPath d={columnPath(x, baseY, width, height, 4)} fill={color} animatedProps={animatedProps} />;
+  return <AnimatedPath d={columnPath(x, baseY - offset, width, height, radius)} fill={color} animatedProps={animatedProps} />;
 }
 
 const styles = StyleSheet.create({

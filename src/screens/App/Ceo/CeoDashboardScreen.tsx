@@ -59,7 +59,7 @@ export default function CeoDashboardScreen() {
   const navigation = useNavigation<Nav>();
   const refreshColors = useRefreshColors();
   const reduceMotion = useReduceMotion();
-  const { user } = useAuth();
+  const { greetingName: firstName, roleDisplayLabel } = useAuth();
   const [period, setPeriod] = useState<CeoPeriod>("month");
   const [locationId, setLocationId] = useState(0);
   /** The last location list the server sent (kept while a new answer loads). */
@@ -140,7 +140,6 @@ export default function CeoDashboardScreen() {
     forecast.refresh();
   };
 
-  const firstName = (typeof user?.name === "string" ? user.name : "").trim().split(" ")[0];
   const words = periodWords(period);
   const loading = dashboard.loading;
   const failedWithoutData = !loading && !d && !!dashboard.error;
@@ -150,7 +149,7 @@ export default function CeoDashboardScreen() {
     <Screen>
       <AppHeader
         variant="dashboard"
-        overline="CEO"
+        overline={roleDisplayLabel}
         title={firstName ? `${greeting()}, ${firstName}` : "CEO dashboard"}
         actions={[{ icon: "person-circle-outline", accessibilityLabel: "Profile", onPress: () => navigation.navigate("CeoProfile") }]}
       />

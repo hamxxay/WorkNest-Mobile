@@ -6,7 +6,8 @@
 //     /auth/google-login and /auth/me all return { role, roles: [role] }, e.g. "super_admin".
 //   - [Authorize(Roles=...)] attributes also accept the Pascal-case spellings (SuperAdmin, SalesExecutive), and
 //     Roles.ReverseMap accepts "superadmin", "super admin", "administrator", "general_user", and the numeric
-//     RoleIds (1 super admin, 2 admin, 14 general, 16 sales executive, 17 ceo). We accept all of those here.
+//     RoleIds (1 super admin, 2 admin, 14 general, 16 sales executive, 17 ceo, 18 sales manager). We accept all of
+//     those here.
 //   - The web CMS (AuthService.hasRole) compares roles lower-cased with spaces and underscores removed; the
 //     same normalisation is used below, plus dashes.
 //
@@ -17,9 +18,13 @@
 // CEO ("ceo", WN_Roles.Id 17): sees every location, read-only, and nothing but the CEO dashboard. It is not a
 // staff role (no staff navigator, tab or screen accepts it) and it outranks every other role, so a user who also
 // carries a customer or staff role still only ever gets the CEO app (the API gives each user one role anyway).
+//
+// Sales Manager ("sales_manager", WN_Roles.Id 18): view only, bound to the locations a super admin assigns (like
+// admins), and nothing but the sales dashboard. It is not a staff role either; it ranks above every staff role
+// (an account that carries it gets the Sales Manager app) and below the CEO.
 
-export type UserRole = "general" | "sales_executive" | "admin" | "super_admin" | "ceo";
-/** Roles that get a staff navigator (./staff/StaffNavigator). The CEO is not one of them. */
+export type UserRole = "general" | "sales_executive" | "admin" | "super_admin" | "sales_manager" | "ceo";
+/** Roles that get a staff navigator (./staff/StaffNavigator). The CEO and the Sales Manager are not among them. */
 export type StaffRole = "sales_executive" | "admin" | "super_admin";
 
 export const STAFF_ROLES: readonly StaffRole[] = ["sales_executive", "admin", "super_admin"];
@@ -30,8 +35,10 @@ const ROLE_RANK: Record<UserRole, number> = {
   sales_executive: 1,
   admin: 2,
   super_admin: 3,
-  // Highest: a CEO must never be shown the customer or staff app, whatever else the account carries.
-  ceo: 4,
+  // Above every staff role: a Sales Manager is never shown the customer or staff app.
+  sales_manager: 4,
+  // Highest: a CEO must never be shown the customer, staff or Sales Manager app, whatever else the account carries.
+  ceo: 5,
 };
 
 /** Keys are lower-cased with spaces, underscores and dashes removed. */
@@ -53,6 +60,8 @@ const ROLE_ALIASES: Record<string, UserRole> = {
   chiefexecutive: "ceo",
   chiefexecutiveofficer: "ceo",
   "17": "ceo",
+  salesmanager: "sales_manager",
+  "18": "sales_manager",
 };
 
 const roleKey = (value: unknown): string =>
@@ -144,17 +153,22 @@ export function isCeo(role: UserRole | null | undefined): role is "ceo" {
   return role === "ceo";
 }
 
+/** The Sales Manager: read-only, their assigned locations, only the sales dashboard. */
+export function isSalesManager(role: UserRole | null | undefined): role is "sales_manager" {
+  return role === "sales_manager";
+}
+
 /** Super admin only (CMS `superAdminOnly`: Space Config, Challan Validity, machine locations / admins). */
 export function isSuperAdmin(role: UserRole | null | undefined): boolean {
   return role === "super_admin";
 }
 
 /**
- * Sales executives and admins only see their own location(s); super admins and the CEO see every location
- * (CMS isLocationBound).
+ * Sales executives, admins and the Sales Manager only see their own location(s); super admins and the CEO see
+ * every location (CMS isLocationBound).
  */
 export function isLocationBound(role: UserRole | null | undefined): boolean {
-  return role === "sales_executive" || role === "admin";
+  return role === "sales_executive" || role === "admin" || role === "sales_manager";
 }
 
 /** Label shown in the UI, e.g. "Super Admin". */
@@ -168,6 +182,8 @@ export function roleLabel(role: UserRole): string {
       return "Sales Executive";
     case "ceo":
       return "CEO";
+    case "sales_manager":
+      return "Sales Manager";
     default:
       return "Customer";
   }

@@ -1,0 +1,483 @@
+import { Fragment, useMemo, useState, type Ref } from "react";
+import { StyleSheet, View } from "react-native";
+import { BarChart, Donut, HBarList, type HBarItem } from "../../../components/charts";
+import { AppText, Divider, ListRow, SegmentedControl, StatusPill, type StatCardProps } from "../../../components/ui";
+import { count, monthLabel, monthShort, money, pct, periodWords, shareOf } from "../../../services/ceo";
+import {
+  smFollowUpsDueRecords,
+  smInquiryMonthRecords,
+  smInquiryOutcomeRecords,
+  smNotInterestedRecords,
+  smRecordsForFunnelStage,
+  type SmBreakdownQuery,
+  type SmFunnel,
+  type SmInquiries,
+  type SmPerson,
+  type SmRecordsQuery,
+  type SmRenewals,
+  type SmScope,
+  type SmTeam,
+} from "../../../services/salesManager";
+import { dashboardTrend } from "../../../services/staff/dashboard";
+import { INQUIRY_TYPE_LABELS, INQUIRY_TYPES, spacing, useInquiryTypeColors } from "../../../theme";
+import { formatDate } from "../../../utils/format";
+import { ChartCard, InlineEmpty } from "../Ceo/parts";
+import { KpiGrid } from "../Staff/Dashboard/parts";
+
+// The Sales Manager dashboard sections (Sales funnel, Team performance, Tour inquiries, Renewals & revenue), built
+// from the CEO dashboard's pieces. Read-only: every tappable element drills down (breakdown or records); nothing
+// changes data and there are no action buttons. Figures stay on screen as text next to every chart.
+
+/** A breakdown request without the scope (the dashboard adds period and location). */
+export type SmBreakdownTarget = Omit<SmBreakdownQuery, "period" | "locationId">;
+
+/** Places on the dashboard a KPI card can scroll to. */
+export type SmFocusTarget = "funnelMonths" | "renewalsMonths" | "expiring";
+
+/** What the sections may do: open a drill screen or scroll to a chart. */
+export type SmDrill = {
+  scope: SmScope;
+  breakdown: (target: SmBreakdownTarget, trail: string[]) => void;
+  records: (query: SmRecordsQuery | null, trail: string[], title?: string) => void;
+  focus: (target: SmFocusTarget) => void;
+  /** Ref callback that registers a scroll target. */
+  target: (name: SmFocusTarget) => Ref<View>;
+};
+
+const DONUT_SIZE = 112;
+
+/** "vs last period" change, or undefined when the previous figure was not sent. */
+const trend = (now: number, prev: number | null, unit: "pts" | "n" | "%", upIsGood = true) =>
+  prev == null ? undefined : dashboardTrend(now, prev, unit, upIsGood);
+
+const plural = (n: number, one: string, many: string) => `${count(n)} ${n === 1 ? one : many}`;
+
+// ─── Sales funnel ─────────────────────────────────────────────────────────────────────────────────────────
+
+export function FunnelSection({ funnel: f, drill }: { funnel: SmFunnel; drill: SmDrill }) {
+  const words = periodWords(drill.scope.period);
+  const stage = (key: string) => f.stages.find((s) => s.stage === key)?.count ?? 0;
+  const quotations = stage("quotations");
+  const bookings = stage("bookings");
+  const rate = f.conversionRate ?? (quotations > 0 ? (bookings / quotations) * 100 : null);
+  const top = f.stages[0]?.count ?? 0;
+  const recent = f.months.slice(-12);
+  const openStage = (key: string, label: string) => drill.records(smRecordsForFunnelStage(key, drill.scope), ["Sales funnel", label], label);
+
+  const tiles: StatCardProps[] = [
+    {
+      label: "Quotations",
+      value: count(quotations),
+      sub: `${money(f.quotedValue)} quoted`,
+      icon: "document-text-outline",
+      tone: "indigo",
+      trendSeries: recent.map((m) => m.quotations),
+      onPress: () => openStage("quotations", "Quotations"),
+    },
+    {
+      label: "Bookings",
+      value: count(bookings),
+      sub: `created ${words}`,
+      icon: "calendar-outline",
+      tone: "success",
+      trendSeries: recent.map((m) => m.bookings),
+      onPress: () => openStage("bookings", "Bookings"),
+    },
+    {
+      label: "Conversion",
+      value: rate != null ? pct(rate) : "—",
+      sub: "bookings per quotation",
+      icon: "trending-up-outline",
+      tone: rate != null && rate >= 30 ? "success" : quotations ? "warning" : "neutral",
+      trend: rate != null ? trend(rate, f.conversionRatePrev, "pts") : undefined,
+    },
+    {
+      label: "Booked value",
+      value: money(f.bookedValue),
+      sub: words,
+      icon: "cash-outline",
+      tone: "success",
+      trend: trend(f.bookedValue, f.bookedValuePrev, "%"),
+      trendSeries: recent.map((m) => m.bookedValue),
+      onPress: () => drill.focus("funnelMonths"),
+    },
+  ];
+
+  return (
+    <>
+      <KpiGrid tiles={tiles} />
+      <ChartCard title="Funnel" caption={`Created ${words}. Tap a stage for the list.`}>
+        {f.stages.length ? (
+          <HBarList
+            label={`Sales funnel ${words}`}
+            items={f.stages.map((s) => ({
+              key: s.stage,
+              label: s.label,
+              value: s.count,
+              // No share over 100% (most quotations don't start as tour inquiries): just the count then.
+              valueLabel: top > 0 && s.stage !== f.stages[0]?.stage && s.count <= top ? `${count(s.count)} · ${pct(shareOf(s.count, top))}` : count(s.count),
+            }))}
+            itemAccessibilityHint="Opens the list"
+            onPressItem={(item) => {
+              const s = f.stages.find((x) => x.stage === item.key);
+              if (s) openStage(s.stage, s.label);
+            }}
+          />
+        ) : (
+          <InlineEmpty text={`No inquiries or quotations ${words}.`} />
+        )}
+      </ChartCard>
+      <View ref={drill.target("funnelMonths")} collapsable={false}>
+        <ChartCard title="Last 12 months" caption="Quotations, accepted and bookings by month. Tap a month to see it by location.">
+          {recent.length ? (
+            <BarChart
+              label="Quotations, accepted and bookings by month"
+              series={[{ label: "Quotations" }, { label: "Accepted" }, { label: "Bookings" }]}
+              data={recent.map((m) => ({ label: monthShort(m.month), title: monthLabel(m.month), values: [m.quotations, m.accepted, m.bookings] }))}
+              formatValue={count}
+              emptyText="No quotations in these months."
+              itemAccessibilityHint="Opens this month by location"
+              onPressItem={(i) => drill.breakdown({ metric: "funnel-month", month: recent[i].month }, ["Sales funnel", monthLabel(recent[i].month)])}
+            />
+          ) : (
+            <InlineEmpty text="No sales history yet." />
+          )}
+        </ChartCard>
+      </View>
+    </>
+  );
+}
+
+// ─── Team performance ─────────────────────────────────────────────────────────────────────────────────────
+
+/** "Sales Executive · I-8 · 6 quotes · 2 won (33%) · 2 follow-ups due" */
+function personSubtitle(p: SmPerson): string {
+  return [
+    p.role || null,
+    p.locations,
+    `${count(p.quotations)} quotes · ${count(p.converted)} won${p.conversionRate != null ? ` (${pct(p.conversionRate)})` : ""}`,
+    p.inquiriesHandled ? plural(p.inquiriesHandled, "inquiry", "inquiries") : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+export function TeamSection({ team: t, drill }: { team: SmTeam; drill: SmDrill }) {
+  const words = periodWords(drill.scope.period);
+  return (
+    <>
+      <ChartCard title="People" caption={`Ranked by converted value ${words}. Tap a person for the last 6 months.`} padding={0}>
+        {t.people.length ? (
+          t.people.map((p, i) => (
+            <Fragment key={`${p.userId ?? p.name}-${i}`}>
+              {i > 0 ? <Divider inset={68} /> : null}
+              <ListRow
+                avatar={{ name: p.name }}
+                title={p.name}
+                subtitle={personSubtitle(p)}
+                subtitleLines={3}
+                meta={money(p.convertedValue)}
+                right={p.followUpsDue ? <StatusPill tone="warning" icon="time-outline" label={`${count(p.followUpsDue)} due`} /> : undefined}
+                accessibilityLabel={[
+                  `Rank ${i + 1}: ${p.name}`,
+                  personSubtitle(p),
+                  `${money(p.convertedValue)} converted`,
+                  p.followUpsDue ? plural(p.followUpsDue, "follow-up due", "follow-ups due") : null,
+                ]
+                  .filter(Boolean)
+                  .join(". ")}
+                accessibilityHint={p.userId ? "Opens this person's last 6 months" : undefined}
+                onPress={p.userId ? () => drill.breakdown({ metric: "staff", userId: p.userId as number }, ["Team", p.name]) : undefined}
+              />
+            </Fragment>
+          ))
+        ) : (
+          <View style={styles.padded}>
+            <InlineEmpty text="No sales executives or admins at your locations yet." />
+          </View>
+        )}
+      </ChartCard>
+      <ChartCard title="Per location" caption={`Quotations and conversions ${words}`} padding={0}>
+        {t.perLocation.length ? (
+          t.perLocation.map((l, i) => (
+            <Fragment key={`${l.locationId ?? l.name}-${i}`}>
+              {i > 0 ? <Divider inset={16} /> : null}
+              <ListRow
+                leftIcon="location-outline"
+                title={l.name}
+                subtitle={`${plural(l.salesExecutives, "sales executive", "sales executives")} · ${count(l.quotations)} quotes · ${count(l.converted)} won`}
+                meta={money(l.convertedValue)}
+              />
+            </Fragment>
+          ))
+        ) : (
+          <View style={styles.padded}>
+            <InlineEmpty text="No locations with sales figures." />
+          </View>
+        )}
+      </ChartCard>
+    </>
+  );
+}
+
+// ─── Tour inquiries ───────────────────────────────────────────────────────────────────────────────────────
+
+export function InquiriesSection({ inquiries: q, drill }: { inquiries: SmInquiries; drill: SmDrill }) {
+  const words = periodWords(drill.scope.period);
+  const colorOf = useInquiryTypeColors();
+  const typeTotal = q.byType.reduce((sum, t) => sum + t.count, 0);
+  const recent = q.months.slice(-12);
+
+  const tiles: StatCardProps[] = [
+    {
+      label: "Tour inquiries",
+      value: count(q.total),
+      sub: `${count(q.followedUp)} followed up`,
+      icon: "walk-outline",
+      trend: trend(q.total, q.totalPrev, "%"),
+      trendSeries: recent.map((m) => INQUIRY_TYPES.reduce((sum, t) => sum + m.counts[t], 0)),
+      onPress: () => drill.records(smRecordsForFunnelStage("inquiries", drill.scope), ["Tour inquiries", "All inquiries"], "Tour inquiries"),
+    },
+    {
+      label: "Follow-ups due",
+      value: count(q.followUpsDue),
+      sub: "due today or earlier",
+      icon: "time-outline",
+      tone: q.followUpsDue ? "warning" : "success",
+      onPress: () => drill.records(smFollowUpsDueRecords(), ["Tour inquiries", "Follow-ups due"], "Follow-ups due"),
+    },
+    {
+      label: "Converted",
+      value: count(q.converted),
+      sub: words,
+      icon: "checkmark-circle-outline",
+      tone: "success",
+      onPress: () => drill.records(smInquiryOutcomeRecords("converted", drill.scope), ["Tour inquiries", "Converted"], "Converted inquiries"),
+    },
+    {
+      label: "Not interested",
+      value: count(q.notInterested),
+      sub: words,
+      icon: "close-circle-outline",
+      tone: "neutral",
+      onPress: () => drill.records(smInquiryOutcomeRecords("not_interested", drill.scope), ["Tour inquiries", "Not interested"], "Not interested"),
+    },
+  ];
+
+  const typeItems = useMemo(
+    () =>
+      q.byType.map(
+        (t): HBarItem => ({
+          key: t.key,
+          label: t.label,
+          value: t.count,
+          valueLabel: `${count(t.count)} · ${pct(shareOf(t.count, typeTotal))}`,
+          color: colorOf(t.type),
+        }),
+      ),
+    [q.byType, typeTotal, colorOf],
+  );
+
+  const monthSeries = useMemo(() => INQUIRY_TYPES.map((t) => ({ label: INQUIRY_TYPE_LABELS[t], color: colorOf(t) })), [colorOf]);
+
+  return (
+    <>
+      <KpiGrid tiles={tiles} />
+      <ChartCard title="By type" caption={`How visitors found WorkNest, ${words}. Tap a type for the last 6 months.`}>
+        {typeItems.length && typeTotal > 0 ? (
+          <>
+            <View style={styles.donutCenter}>
+              <Donut
+                size={DONUT_SIZE}
+                segments={q.byType.map((t) => ({ label: t.label, value: t.count, color: colorOf(t.type) }))}
+                legend={false}
+                centerLabel={count(typeTotal)}
+                centerCaption="inquiries"
+                label={`Tour inquiries by type ${words}`}
+              />
+            </View>
+            <HBarList
+              style={styles.gapTop}
+              label="Tour inquiries by type"
+              items={typeItems}
+              itemAccessibilityHint="Opens this type by month"
+              onPressItem={(item) => {
+                const t = q.byType.find((x) => x.key === item.key);
+                if (t) drill.breakdown({ metric: "inquiries-type", type: t.key }, ["Tour inquiries", t.label]);
+              }}
+            />
+          </>
+        ) : (
+          <InlineEmpty text={`No tour inquiries ${words}.`} />
+        )}
+      </ChartCard>
+      <ChartCard title="Why not interested" caption={`Top reasons ${words}. Tap a reason for those inquiries.`}>
+        {q.notInterestedReasons.length ? (
+          <HBarList
+            label="Not interested reasons"
+            items={q.notInterestedReasons.map((r, i) => ({ key: `${r.reason}-${i}`, label: r.reason, value: r.count, tone: "neutral" }))}
+            formatValue={count}
+            itemAccessibilityHint="Opens these inquiries"
+            onPressItem={(_item, i) => {
+              const r = q.notInterestedReasons[i];
+              if (r) drill.records(smNotInterestedRecords(r.reason, drill.scope), ["Tour inquiries", "Not interested", r.reason], "Not interested");
+            }}
+          />
+        ) : (
+          <InlineEmpty text={`No inquiries marked not interested ${words}.`} />
+        )}
+      </ChartCard>
+      <ChartCard title="Last 12 months" caption="Tour inquiries by type each month. Tap a month for its inquiries.">
+        {recent.length ? (
+          <BarChart
+            stacked
+            label="Tour inquiries by type and month"
+            series={monthSeries}
+            data={recent.map((m) => ({
+              label: monthShort(m.month),
+              title: monthLabel(m.month),
+              values: INQUIRY_TYPES.map((t) => m.counts[t]),
+            }))}
+            formatValue={count}
+            emptyText="No tour inquiries in these months."
+            itemAccessibilityHint="Opens this month's inquiries"
+            onPressItem={(i) =>
+              drill.records(smInquiryMonthRecords(recent[i].month), ["Tour inquiries", monthLabel(recent[i].month)], `Tour inquiries, ${monthLabel(recent[i].month)}`)
+            }
+          />
+        ) : (
+          <InlineEmpty text="No inquiry history yet." />
+        )}
+      </ChartCard>
+    </>
+  );
+}
+
+// ─── Renewals & revenue ───────────────────────────────────────────────────────────────────────────────────
+
+type RenewalsView = "revenue" | "expiring";
+
+const LEASES_SHOWN = 8;
+
+/** "in 12 days" / "today" / "ended 3 days ago"; null when not sent. */
+function daysLeftWords(days: number | null): string | null {
+  if (days == null) return null;
+  const n = Math.round(days);
+  if (n === 0) return "ends today";
+  if (n < 0) return `ended ${plural(-n, "day", "days")} ago`;
+  return `in ${plural(n, "day", "days")}`;
+}
+
+export function RenewalsSection({ renewals: r, drill }: { renewals: SmRenewals; drill: SmDrill }) {
+  const words = periodWords(drill.scope.period);
+  const [view, setView] = useState<RenewalsView>("revenue");
+  // Expiring leases may include the next 3 months; revenue only goes up to this month.
+  const thisMonth = useMemo(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  }, []);
+  const pastMonths = useMemo(() => r.months.filter((m) => !m.month || m.month <= thisMonth).slice(-12), [r.months, thisMonth]);
+  const months = view === "revenue" ? pastMonths : r.months.slice(-15);
+  const tiles: StatCardProps[] = [
+    {
+      label: "New-booking revenue",
+      value: money(r.newBookingRevenue),
+      sub: `invoiced on bookings made ${words}`,
+      icon: "cash-outline",
+      tone: "success",
+      trend: trend(r.newBookingRevenue, r.newBookingRevenuePrev, "%"),
+      trendSeries: pastMonths.map((m) => m.newBookingRevenue),
+      onPress: () => {
+        setView("revenue");
+        drill.focus("renewalsMonths");
+      },
+    },
+    {
+      label: "Leases expiring",
+      value: count(r.expiringCount),
+      sub: `${money(r.expiringMonthlyValue)} a month, next 90 days`,
+      icon: "hourglass-outline",
+      tone: r.expiringCount ? "warning" : "success",
+      onPress: () => drill.focus("expiring"),
+    },
+  ];
+  const openMonth = (i: number) => {
+    const month = months[i].month;
+    if (view === "revenue") drill.breakdown({ metric: "revenue-month", month }, ["Revenue", monthLabel(month)]);
+    else drill.breakdown({ metric: "renewals-month", month }, ["Renewals", monthLabel(month)]);
+  };
+  return (
+    <>
+      <KpiGrid tiles={tiles} />
+      <View ref={drill.target("renewalsMonths")} collapsable={false}>
+        <ChartCard title="By month" caption="Tap a month to see it by location.">
+          <SegmentedControl
+            accessibilityLabel="Chart shows"
+            options={[
+              { label: "New-booking revenue", value: "revenue" },
+              { label: "Leases expiring", value: "expiring" },
+            ]}
+            value={view}
+            onChange={setView}
+          />
+          {months.length ? (
+            <BarChart
+              key={view}
+              style={styles.gapTop}
+              label={view === "revenue" ? "New-booking revenue by month" : "Leases expiring by month"}
+              series={[{ label: view === "revenue" ? "New-booking revenue" : "Leases expiring", tone: view === "revenue" ? undefined : "warning" }]}
+              data={months.map((m) => ({
+                label: monthShort(m.month),
+                title: monthLabel(m.month),
+                values: [view === "revenue" ? m.newBookingRevenue : m.expiring],
+              }))}
+              formatValue={view === "revenue" ? money : count}
+              emptyText={view === "revenue" ? "No new-booking revenue in these months." : "No leases end in these months."}
+              itemAccessibilityHint="Opens this month by location"
+              onPressItem={openMonth}
+            />
+          ) : (
+            <InlineEmpty text="No history yet." />
+          )}
+        </ChartCard>
+      </View>
+      <View ref={drill.target("expiring")} collapsable={false}>
+        <ChartCard title="Leases expiring" caption="Ending in the next 90 days, soonest first" padding={0}>
+          {r.expiring.length ? (
+            <>
+              {r.expiring.slice(0, LEASES_SHOWN).map((l, i) => (
+                <Fragment key={`${l.bookingId ?? l.customer}-${i}`}>
+                  {i > 0 ? <Divider inset={16} /> : null}
+                  <ListRow
+                    leftIcon="hourglass-outline"
+                    leftIconTone={l.daysLeft != null && l.daysLeft <= 30 ? "danger" : "warning"}
+                    title={l.customer}
+                    subtitle={[l.space, l.location, l.endOn ? `ends ${formatDate(l.endOn)}` : null, daysLeftWords(l.daysLeft)].filter(Boolean).join(" · ")}
+                    meta={l.monthlyAmount != null ? `${money(l.monthlyAmount)}/mo` : undefined}
+                  />
+                </Fragment>
+              ))}
+              {r.expiringCount > LEASES_SHOWN ? (
+                <View style={styles.padded}>
+                  <AppText variant="caption" color="textMuted">
+                    and {count(r.expiringCount - Math.min(LEASES_SHOWN, r.expiring.length))} more
+                  </AppText>
+                </View>
+              ) : null}
+            </>
+          ) : (
+            <View style={styles.padded}>
+              <InlineEmpty text="No leases end in the next 90 days." />
+            </View>
+          )}
+        </ChartCard>
+      </View>
+    </>
+  );
+}
+
+const styles = StyleSheet.create({
+  padded: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md },
+  gapTop: { marginTop: spacing.md },
+  donutCenter: { alignItems: "center" },
+});
