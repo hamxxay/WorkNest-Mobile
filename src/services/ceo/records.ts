@@ -1,10 +1,10 @@
 import { INQUIRY_TYPE_LABELS } from "../../theme/inquiryTypes";
 import { formatDate, formatDateTime, formatNumber } from "../../utils/format";
 import { moneyFull } from "./format";
-import type { CeoRecords } from "./types";
+import type { CeoBookingRecord, CeoInquiryRecord, CeoQuotationRecord, CeoRecords } from "./types";
 
 // Records (drill level 3) as read-only cards: one shape for every list, so the Records screen renders them the
-// same way. Pure, unit-tested.
+// same way. Pure, unit-tested. The card builders are shared with the Sales Manager records lists.
 
 export type CeoRecordField = { label: string; value: string };
 
@@ -21,7 +21,8 @@ export type CeoRecordCard = {
   accessibilityLabel: string;
 };
 
-const join = (...parts: (string | null | undefined)[]): string | null => {
+/** "a · b · c" from the non-empty parts, or null. */
+export const joinParts = (...parts: (string | null | undefined)[]): string | null => {
   const text = parts.filter((p) => p && p.trim()).join(" · ");
   return text || null;
 };
@@ -29,13 +30,60 @@ const join = (...parts: (string | null | undefined)[]): string | null => {
 const date = (value: string | null) => (value ? formatDate(value) : null);
 
 /** Fields without a value are left out. */
-function fields(...items: [string, string | null | undefined][]): CeoRecordField[] {
+export function recordFields(...items: [string, string | null | undefined][]): CeoRecordField[] {
   return items.filter((it): it is [string, string] => !!it[1] && it[1].trim().length > 0).map(([label, value]) => ({ label, value }));
 }
 
-function card(key: string, title: string, subtitle: string | null, status: string | null, amount: string | null, list: CeoRecordField[]): CeoRecordCard {
+/** A record card; its accessibility label reads every part in order. */
+export function recordCard(
+  key: string,
+  title: string,
+  subtitle: string | null,
+  status: string | null,
+  amount: string | null,
+  list: CeoRecordField[],
+): CeoRecordCard {
   const accessibilityLabel = [title, subtitle, status, amount, ...list.map((f) => `${f.label} ${f.value}`)].filter(Boolean).join(", ");
   return { key, title, subtitle, status, amount, fields: list, accessibilityLabel };
+}
+
+/** A booking as a card (CEO and Sales Manager bookings lists). */
+export function bookingCard(r: CeoBookingRecord, i: number): CeoRecordCard {
+  return recordCard(
+    `booking-${r.bookingId ?? i}-${i}`,
+    r.customer ?? "Customer",
+    joinParts(r.space, r.location),
+    r.status,
+    r.totalAmount != null ? moneyFull(r.totalAmount) : null,
+    recordFields(["Starts", date(r.startOn)], ["Ends", date(r.endOn)], ["Booking", r.bookingId ? `#${r.bookingId}` : null]),
+  );
+}
+
+/**
+ * A tour inquiry as a card. `extra` fields (e.g. the Sales Manager's follow-up date) are listed after "Received".
+ */
+export function inquiryCard(r: CeoInquiryRecord, i: number, extra: [string, string | null | undefined][] = []): CeoRecordCard {
+  const type = r.type ? INQUIRY_TYPE_LABELS[r.type] : r.typeText;
+  return recordCard(
+    `inquiry-${r.inquiryId ?? i}-${i}`,
+    r.name ?? "Visitor",
+    joinParts(r.phone, type),
+    r.status,
+    null,
+    recordFields(["Received", r.createdOn ? formatDateTime(r.createdOn) : null], ...extra, ["Reference", r.referenceName], ["Feedback", r.feedback]),
+  );
+}
+
+/** A quotation as a card (CEO and Sales Manager quotations lists). */
+export function quotationCard(r: CeoQuotationRecord, i: number): CeoRecordCard {
+  return recordCard(
+    `quotation-${r.quotationId ?? i}-${i}`,
+    r.quotationNumber ?? (r.quotationId ? `Quotation ${r.quotationId}` : "Quotation"),
+    joinParts(r.customer, r.location),
+    r.status,
+    r.total != null ? moneyFull(r.total) : null,
+    recordFields(["Created", date(r.createdOn)], ["Created by", r.createdBy]),
+  );
 }
 
 /** One card per row, in the server's order (newest first). */
@@ -43,24 +91,24 @@ export function recordCards(records: CeoRecords): CeoRecordCard[] {
   switch (records.kind) {
     case "invoices":
       return records.rows.map((r, i) =>
-        card(
+        recordCard(
           `invoice-${r.invoiceId ?? i}-${i}`,
           r.invoiceNumber ?? (r.invoiceId ? `Invoice ${r.invoiceId}` : "Invoice"),
-          join(r.customer, r.location),
+          joinParts(r.customer, r.location),
           r.status,
           moneyFull(r.total),
-          fields(["Issued", date(r.issuedOn)], ["Due", date(r.dueOn)], ["Paid", moneyFull(r.paid)], ["Balance", moneyFull(r.balance)]),
+          recordFields(["Issued", date(r.issuedOn)], ["Due", date(r.dueOn)], ["Paid", moneyFull(r.paid)], ["Balance", moneyFull(r.balance)]),
         ),
       );
     case "spaces":
       return records.rows.map((r, i) =>
-        card(
+        recordCard(
           `space-${r.spaceId ?? i}-${i}`,
           r.name ?? (r.spaceId ? `Space ${r.spaceId}` : "Space"),
-          join(r.spaceType, r.location),
+          joinParts(r.spaceType, r.location),
           r.occupied ? "Occupied" : "Available",
           null,
-          fields(
+          recordFields(
             ["Capacity", r.capacity != null ? `${formatNumber(r.capacity, 0)} ${r.capacity === 1 ? "person" : "people"}` : null],
             ["Customer", r.occupied ? r.customer : null],
             ["Booked until", r.occupied ? date(r.bookingEndOn) : null],
@@ -68,44 +116,12 @@ export function recordCards(records: CeoRecords): CeoRecordCard[] {
         ),
       );
     case "bookings":
-      return records.rows.map((r, i) =>
-        card(
-          `booking-${r.bookingId ?? i}-${i}`,
-          r.customer ?? "Customer",
-          join(r.space, r.location),
-          r.status,
-          r.totalAmount != null ? moneyFull(r.totalAmount) : null,
-          fields(["Starts", date(r.startOn)], ["Ends", date(r.endOn)], ["Booking", r.bookingId ? `#${r.bookingId}` : null]),
-        ),
-      );
+      return records.rows.map((r, i) => bookingCard(r, i));
     case "inquiries":
-      return records.rows.map((r, i) => {
-        const type = r.type ? INQUIRY_TYPE_LABELS[r.type] : r.typeText;
-        return card(
-          `inquiry-${r.inquiryId ?? i}-${i}`,
-          r.name ?? "Visitor",
-          join(r.phone, type),
-          r.status,
-          null,
-          fields(
-            ["Received", r.createdOn ? formatDateTime(r.createdOn) : null],
-            ["Reference", r.referenceName],
-            ["Feedback", r.feedback],
-          ),
-        );
-      });
+      return records.rows.map((r, i) => inquiryCard(r, i));
     case "quotations":
     default:
-      return records.rows.map((r, i) =>
-        card(
-          `quotation-${r.quotationId ?? i}-${i}`,
-          r.quotationNumber ?? (r.quotationId ? `Quotation ${r.quotationId}` : "Quotation"),
-          join(r.customer, r.location),
-          r.status,
-          r.total != null ? moneyFull(r.total) : null,
-          fields(["Created", date(r.createdOn)], ["Created by", r.createdBy]),
-        ),
-      );
+      return records.rows.map((r, i) => quotationCard(r, i));
   }
 }
 

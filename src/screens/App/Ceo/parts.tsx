@@ -3,6 +3,7 @@ import { StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import {
   AppText,
+  Banner,
   Card,
   EmptyState,
   ErrorState,
@@ -11,11 +12,12 @@ import {
   SkeletonBlock,
   SkeletonGroup,
 } from "../../../components/ui";
-import { ceoErrorView, trailForSpeech } from "../../../services/ceo";
+import { ceoErrorView, trailForSpeech, type CeoErrorView } from "../../../services/ceo";
 import { spacing, useThemeColors } from "../../../theme";
 
-// Building blocks shared by the CEO screens: data loading with stale-answer protection, error / empty / loading
-// states and the drill-down breadcrumb. Read-only: nothing here offers an action other than "Try again".
+// Building blocks shared by the CEO and Sales Manager screens: data loading with stale-answer protection, error /
+// empty / loading states and the drill-down breadcrumb. Read-only: nothing here offers an action other than
+// "Try again".
 
 // ─── Loading ──────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -85,9 +87,25 @@ export function useCeoQuery<T>(load: () => Promise<T>): CeoQuery<T> {
 
 // ─── States ───────────────────────────────────────────────────────────────────────────────────────────────
 
-/** Error state for a CEO screen or section: the 503 "database update" case, no access, offline, or the API's message. */
-export function CeoErrorState({ error, onRetry, compact = false }: { error: unknown; onRetry?: () => void; compact?: boolean }) {
-  const view = ceoErrorView(error);
+/** Turns an error into its title / message / icon (ceoErrorView for the CEO; the Sales Manager has its own). */
+export type DescribeError = (error: unknown) => CeoErrorView;
+
+/**
+ * Error state for a dashboard screen or section: the 503 "database update" case, no access, offline, or the API's
+ * message. `describe` picks the wording (default: the CEO's).
+ */
+export function CeoErrorState({
+  error,
+  onRetry,
+  compact = false,
+  describe = ceoErrorView,
+}: {
+  error: unknown;
+  onRetry?: () => void;
+  compact?: boolean;
+  describe?: DescribeError;
+}) {
+  const view = describe(error);
   return (
     <ErrorState
       compact={compact}
@@ -119,6 +137,12 @@ export function ChartSkeleton({ height = 160 }: { height?: number }) {
       </SkeletonGroup>
     </Card>
   );
+}
+
+/** "The figures below are from the last update." warning over figures kept after a failed refresh. */
+export function StaleBanner({ error, describe = ceoErrorView, what = "The figures below are" }: { error: unknown; describe?: DescribeError; what?: string }) {
+  const view = describe(error);
+  return <Banner tone="warning" title={view.title} message={`${view.message} ${what} from the last update.`} />;
 }
 
 /** A dashboard section: heading, then skeletons while loading, the content, or the empty state. */

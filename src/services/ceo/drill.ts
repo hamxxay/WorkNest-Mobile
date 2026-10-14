@@ -99,7 +99,7 @@ export function isCompleteBreakdown(query: CeoBreakdownQuery): boolean {
 }
 
 /** Removes empty values (null / undefined / ""), so records requests only carry the filters that are set. */
-function clean(params: CeoRecordParams): CeoRecordParams {
+export function cleanParams(params: CeoRecordParams): CeoRecordParams {
   const out: CeoRecordParams = {};
   for (const [key, value] of Object.entries(params)) {
     if (value == null || value === "") continue;
@@ -117,25 +117,25 @@ export function recordsForBreakdownRow(query: CeoBreakdownQuery, row: CeoBreakdo
   const rowMonth = isMonthKey(row.key) ? row.key : null;
   switch (query.metric) {
     case "revenue":
-      return rowId && isMonthKey(query.month) ? { kind: "invoices", params: clean({ month: query.month, locationId: rowId }) } : null;
+      return rowId && isMonthKey(query.month) ? { kind: "invoices", params: cleanParams({ month: query.month, locationId: rowId }) } : null;
     case "aging":
-      return rowId && query.bucket ? { kind: "invoices", params: clean({ bucket: query.bucket, locationId: rowId }) } : null;
+      return rowId && query.bucket ? { kind: "invoices", params: cleanParams({ bucket: query.bucket, locationId: rowId }) } : null;
     case "occupancy-type": {
       const typeId = positiveId(query.spaceTypeId);
-      return rowId && typeId ? { kind: "spaces", params: clean({ spaceTypeId: typeId, locationId: rowId }) } : null;
+      return rowId && typeId ? { kind: "spaces", params: cleanParams({ spaceTypeId: typeId, locationId: rowId }) } : null;
     }
     case "occupancy-location": {
       const locationId = positiveId(query.locationId);
-      return rowId && locationId ? { kind: "spaces", params: clean({ locationId, spaceTypeId: rowId }) } : null;
+      return rowId && locationId ? { kind: "spaces", params: cleanParams({ locationId, spaceTypeId: rowId }) } : null;
     }
     case "bookings-month":
-      return rowId && isMonthKey(query.month) ? { kind: "bookings", params: clean({ month: query.month, locationId: rowId }) } : null;
+      return rowId && isMonthKey(query.month) ? { kind: "bookings", params: cleanParams({ month: query.month, locationId: rowId }) } : null;
     case "inquiries-type":
-      return rowMonth && query.type ? { kind: "inquiries", params: clean({ type: query.type, month: rowMonth }) } : null;
+      return rowMonth && query.type ? { kind: "inquiries", params: cleanParams({ type: query.type, month: rowMonth }) } : null;
     case "staff": {
       const userId = positiveId(query.userId);
       return rowMonth && userId
-        ? { kind: "quotations", params: clean({ userId, month: rowMonth, locationId: scopeLocation(query) }) }
+        ? { kind: "quotations", params: cleanParams({ userId, month: rowMonth, locationId: scopeLocation(query) }) }
         : null;
     }
     default:
@@ -166,12 +166,12 @@ export function recordsForFunnelStage(stage: string, scope: CeoScope, today: Dat
   const locationId = scopeLocation(scope);
   switch (stage) {
     case "inquiries":
-      return { kind: "inquiries", params: clean({ period: scope.period, from, to }) };
+      return { kind: "inquiries", params: cleanParams({ period: scope.period, from, to }) };
     case "quotations":
     case "accepted":
-      return { kind: "quotations", params: clean({ stage, period: scope.period, from, to, locationId }) };
+      return { kind: "quotations", params: cleanParams({ stage, period: scope.period, from, to, locationId }) };
     case "bookings":
-      return { kind: "bookings", params: clean({ period: scope.period, locationId }) };
+      return { kind: "bookings", params: cleanParams({ period: scope.period, locationId }) };
     default:
       return null;
   }
@@ -180,17 +180,17 @@ export function recordsForFunnelStage(stage: string, scope: CeoScope, today: Dat
 /** A top customer -> that customer's invoices (null without a customer id). */
 export function recordsForCustomer(customerId: number | null | undefined, scope: CeoScope): CeoRecordsQuery | null {
   const id = positiveId(customerId);
-  return id ? { kind: "invoices", params: clean({ customerId: id, locationId: scopeLocation(scope) }) } : null;
+  return id ? { kind: "invoices", params: cleanParams({ customerId: id, locationId: scopeLocation(scope) }) } : null;
 }
 
 /** The Overdue card -> overdue invoices. */
 export function overdueInvoicesRecords(scope: CeoScope): CeoRecordsQuery {
-  return { kind: "invoices", params: clean({ status: "overdue", locationId: scopeLocation(scope) }) };
+  return { kind: "invoices", params: cleanParams({ status: "overdue", locationId: scopeLocation(scope) }) };
 }
 
 /** The New bookings card -> bookings created in the period. */
 export function newBookingsRecords(scope: CeoScope): CeoRecordsQuery {
-  return { kind: "bookings", params: clean({ period: scope.period, locationId: scopeLocation(scope) }) };
+  return { kind: "bookings", params: cleanParams({ period: scope.period, locationId: scopeLocation(scope) }) };
 }
 
 /** "Revenue > Oct 2026 > I-8" as pieces; empty pieces dropped. */
