@@ -212,9 +212,16 @@ function notifyAuthListeners(user: StoredUser | null) {
   }
 }
 
+/** WN_Roles.DisplayName from GET auth/me ("CEO", "Sales Manager"), or undefined when it was not sent. */
+function roleDisplayNameOf(profile: { roleDisplayName?: unknown; RoleDisplayName?: unknown }): string | undefined {
+  const value = profile.roleDisplayName ?? profile.RoleDisplayName;
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
 /**
- * Refreshes the stored profile from GET /auth/me (name, role, customer id). Never throws: the app keeps the
- * cached profile when the API can't be reached.
+ * Refreshes the stored profile from GET /auth/me: name (WN_Users.Name, shown as it is), role, role display name
+ * (WN_Roles.DisplayName) and customer id. Never throws: the app keeps the cached profile when the API can't be
+ * reached.
  */
 export async function triggerBackgroundSync(currentUser: StoredUser) {
   if (!currentUser.email) return;
@@ -226,6 +233,8 @@ export async function triggerBackgroundSync(currentUser: StoredUser) {
       phone: string;
       role: string;
       roles?: string[] | null;
+      roleDisplayName?: string | null;
+      RoleDisplayName?: string | null;
       customerCode?: string | number;
       customerId?: string | number;
       CustomerCode?: string | number;
@@ -253,6 +262,8 @@ export async function triggerBackgroundSync(currentUser: StoredUser) {
           phoneNumber: profile.phone || activeUser.phoneNumber,
           // e.g. "ceo": the highest role the API lists (RootNavigator shows that role's app).
           role: primaryRoleName([...(Array.isArray(profile.roles) ? profile.roles : []), profile.role]) || activeUser.role || "general",
+          // The role's name in the database; missing = the app's own label (context/userDisplay.ts).
+          roleDisplayName: roleDisplayNameOf(profile),
           customerCode: customerCode,
           customerId: customerCode,
         };
@@ -263,6 +274,13 @@ export async function triggerBackgroundSync(currentUser: StoredUser) {
   } catch (err) {
     warnDev("[Background Sync] Failed", err);
   }
+}
+
+/** Starts the auth/me refresh without waiting for it (name and role display name from the database). */
+function refreshProfileInBackground(user: StoredUser): void {
+  triggerBackgroundSync(user).catch((err) => {
+    warnDev("[Auth] background sync failed", err);
+  });
 }
 
 /**
@@ -475,7 +493,9 @@ async function persistFirebaseSession(
   const mergedUser: StoredUser = {
     ...(previous ?? {}),
     ...firebaseUser,
-    name: firebaseUser.name ?? previous?.name,
+    // The name auth/me stored (WN_Users.Name) wins over the Firebase display name, which can differ; a new name
+    // typed at sign-up wins over both. auth/me refreshes it right after (triggerBackgroundSync).
+    name: displayNameOverride || previous?.name || firebaseUser.name,
     phoneNumber: firebaseUser.phoneNumber ?? previous?.phoneNumber,
     role: primaryRole ?? previous?.role ?? firebaseUser.role,
   };
@@ -677,6 +697,7 @@ async function loginWithPassword(payload: LoginRequest): Promise<AuthResponse> {
       password
     );
     const session = await persistFirebaseSession(credential.user, undefined, { strict: true });
+    refreshProfileInBackground(session.user);
     debugAuth("login success");
     return {
       token: session.apiToken,
@@ -717,6 +738,7 @@ async function registerWithPassword(payload: RegisterRequest): Promise<AuthRespo
     }
 
     const session = await persistFirebaseSession(credential.user, displayName, { strict: true });
+    refreshProfileInBackground(session.user);
     debugAuth("register success");
     return {
       token: session.apiToken,
@@ -802,6 +824,7 @@ async function signInWithGoogleCredential(idToken: string): Promise<GoogleAuthRe
     isNewUser: credentialResult.additionalUserInfo?.isNewUser ?? false,
   });
   const session = await persistFirebaseSession(credentialResult.user, undefined, { strict: true });
+  refreshProfileInBackground(session.user);
   return {
     user: session.user,
     isNewUser: credentialResult.additionalUserInfo?.isNewUser ?? false,

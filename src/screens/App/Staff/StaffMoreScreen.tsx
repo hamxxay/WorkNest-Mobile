@@ -5,7 +5,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { AppHeader, Badge, Card, Divider, ListRow, SectionHeader } from "../../../components/ui";
 import { useTabBarSpace } from "../../../components/ui/TabBar";
 import { useAuth } from "../../../context/AuthContext";
-import { roleLabel } from "../../../context/roles";
+import { userRoleLabel } from "../../../context/userDisplay";
 import { moreMenuFor } from "../../../navigation/staff/access";
 import type { StaffStackParamList } from "../../../navigation/staffTypes";
 import { spacing } from "../../../theme";
@@ -43,9 +43,9 @@ export default function StaffMoreScreen() {
           <ListRow
             avatar={{ name }}
             title={name}
-            subtitle={`${roleLabel(role)}${profile?.email ? ` · ${profile.email}` : ""}`}
+            subtitle={`${userRoleLabel(user, role)}${profile?.email ? ` · ${profile.email}` : ""}`}
             onPress={() => navigation.navigate("StaffProfile")}
-            accessibilityLabel={`${name}, ${roleLabel(role)}. Open profile`}
+            accessibilityLabel={`${name}, ${userRoleLabel(user, role)}. Open profile`}
           />
         </Card>
         {sections

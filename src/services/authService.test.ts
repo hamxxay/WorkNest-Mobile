@@ -299,6 +299,71 @@ describe("hydrateSessionUser (app start)", () => {
   });
 });
 
+describe("names and role labels come from auth/me (the database)", () => {
+  const storedUser = () => JSON.parse(mockStorage.get("auth_user") ?? "null");
+
+  function apiAnswers(me: unknown) {
+    return installFetch(async (url) =>
+      /google-login$/.test(url)
+        ? jsonResponse(200, { isSuccessful: true, data: { token: "ceo-jwt", roles: ["ceo"] } })
+        : /auth\/me$/.test(url)
+          ? jsonResponse(200, { isSuccessful: true, data: me })
+          : jsonResponse(200, { isSuccessful: true, data: null }),
+    );
+  }
+
+  it("stores WN_Users.Name as it is and WN_Roles.DisplayName after the app starts", async () => {
+    signedInWithCachedSession();
+    const fetchMock = apiAnswers({ id: 7, email: "member@example.com", name: "CEO1", role: "ceo", roleDisplayName: "CEO" });
+
+    await hydrateSessionUser();
+    await flush();
+
+    expect(fetchMock.mock.calls.some(([url, init]) => /auth\/me$/.test(url) && (init.method ?? "GET") === "GET")).toBe(true);
+    expect(storedUser()).toMatchObject({ name: "CEO1", role: "ceo", roleDisplayName: "CEO" });
+  });
+
+  it("keeps the database name over the Firebase display name on the next start (auth/me unreachable)", async () => {
+    signedInWithCachedSession();
+    mockStorage.set("auth_user", JSON.stringify({ id: "uid-1", email: "member@example.com", role: "ceo", name: "CEO1", roleDisplayName: "CEO" }));
+    installFetch(async () => {
+      throw new TypeError("Network request failed");
+    });
+
+    const user = await hydrateSessionUser();
+    await flush();
+
+    // USER.displayName in Firebase is "Member".
+    expect(user).toMatchObject({ name: "CEO1", roleDisplayName: "CEO" });
+    expect(storedUser()).toMatchObject({ name: "CEO1", roleDisplayName: "CEO" });
+  });
+
+  it("drops the role display name when auth/me no longer sends it (the app's label is shown)", async () => {
+    signedInWithCachedSession();
+    mockStorage.set("auth_user", JSON.stringify({ id: "uid-1", email: "member@example.com", role: "ceo", name: "CEO1", roleDisplayName: "Old" }));
+    apiAnswers({ email: "member@example.com", name: "CEO1", role: "ceo" });
+
+    await hydrateSessionUser();
+    await flush();
+
+    expect(storedUser().roleDisplayName).toBeUndefined();
+    expect(storedUser().name).toBe("CEO1");
+  });
+
+  it("refreshes the profile from auth/me right after signing in on the Login screen", async () => {
+    mockFirebase.signInWithEmailAndPassword.mockImplementation(async () => {
+      mockFirebase.currentUser = USER;
+      return { user: USER };
+    });
+    apiAnswers({ email: "member@example.com", name: "Sales Manager 1", role: "sales_manager", roleDisplayName: "Sales Manager" });
+
+    await loginUser({ email: "member@example.com", password: "secret123" });
+    await flush();
+
+    expect(storedUser()).toMatchObject({ name: "Sales Manager 1", role: "sales_manager", roleDisplayName: "Sales Manager" });
+  });
+});
+
 describe("a refused sign-in on the Login screen", () => {
   it("is handled by the login itself (its message), not reported as an expired session", async () => {
     const unsubscribe = subscribeToAuthChanges(() => undefined);

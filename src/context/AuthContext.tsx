@@ -22,6 +22,7 @@ import {
   type StaffRole,
   type UserRole,
 } from "./roles";
+import { greetingName, userDisplayName, userRoleLabel } from "./userDisplay";
 
 // The role model lives in ./roles (pure, unit-tested); re-exported here for existing imports.
 export {
@@ -39,6 +40,7 @@ export {
   STAFF_ROLES,
 } from "./roles";
 export type { StaffRole, UserRole } from "./roles";
+export { emailPrefixName, greetingName, realName, userDisplayName, userRoleLabel } from "./userDisplay";
 
 type AuthContextValue = {
   user: StoredUser | null;
@@ -60,6 +62,12 @@ type AuthContextValue = {
   isSalesExecutive: boolean;
   /** Admins, sales executives and the Sales Manager only see their own location(s); super admins see all. */
   isLocationBound: boolean;
+  /** The user's name from auth/me (WN_Users.Name) as it is; the email prefix only when there is none. */
+  displayName: string;
+  /** The first word of the real name, for greetings ("CEO1", "Sara"); "" when there is no name or email. */
+  greetingName: string;
+  /** The role as shown: WN_Roles.DisplayName from auth/me ("Sales Manager"), else the app's label. */
+  roleDisplayLabel: string;
   /** True when the user carries this exact role (CMS AuthService.hasRole). */
   hasRole: (role: UserRole) => boolean;
   isLoadingUser: boolean;
@@ -130,6 +138,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isSuperAdmin: isSuperAdminRole(role),
       isSalesExecutive: role === "sales_executive",
       isLocationBound: isLocationBound(role),
+      displayName: userDisplayName(user),
+      greetingName: greetingName(user),
+      roleDisplayLabel: userRoleLabel(user, role),
       hasRole: (target: UserRole) => userHasRole(user, target),
       isLoadingUser,
       refreshUser,

@@ -17,7 +17,7 @@ import {
   useToast,
 } from "../../../../components/ui";
 import { useAuth } from "../../../../context/AuthContext";
-import { roleLabel } from "../../../../context/roles";
+import { userRoleLabel } from "../../../../context/userDisplay";
 import { errorMessage } from "../../../../services/apiClient";
 import { logoutUser } from "../../../../services/authService";
 import { updateStaffProfile } from "../../../../services/staff";
@@ -113,7 +113,7 @@ export default function StaffProfileScreen() {
               </View>
             </View>
             <Divider spacing={12} />
-            <InfoRow label="Role" value={roleLabel(role)} icon="shield-checkmark-outline" />
+            <InfoRow label="Role" value={userRoleLabel(user, role)} icon="shield-checkmark-outline" />
             <InfoRow label="Locations" value={assigned} icon="location-outline" layout="stacked" />
           </Card>
 
