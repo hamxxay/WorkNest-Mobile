@@ -5,6 +5,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import {
   AppHeader,
   AppText,
+  BottomSheet,
   Button,
   Card,
   Divider,
@@ -12,12 +13,23 @@ import {
   InfoRow,
   ListSkeleton,
   SectionHeader,
+  SelectField,
   StatusPill,
+  TextField,
   useToast,
 } from "../../../../components/ui";
 import type { StaffStackParamList } from "../../../../navigation/staffTypes";
 import { errorMessage } from "../../../../services/apiClient";
-import { downloadInvoicePdf, emailInvoice, getInvoice } from "../../../../services/staff";
+import {
+  PAYMENT_METHODS,
+  downloadInvoicePdf,
+  emailInvoice,
+  getInvoice,
+  recordInvoicePayment,
+  validateRecordPayment,
+  type PaymentMethod,
+  type StaffInvoiceDetail,
+} from "../../../../services/staff";
 import { spacing } from "../../../../theme";
 import { formatDate, formatDateRange, formatMoney, formatNumber } from "../../../../utils/format";
 import { StaffScreen } from "../shared/StaffScreen";
@@ -28,7 +40,10 @@ import { useRefreshColors } from "../shared/refresh";
 type Nav = NativeStackNavigationProp<StaffStackParamList>;
 type Route = RouteProp<StaffStackParamList, "InvoiceDetail">;
 
-/** One invoice (GET invoice/{id}) with its lines: statement PDF (login token) and email to the customer. */
+/**
+ * One invoice (GET invoice/{id}) with its lines: statement PDF (login token), email to the customer, and Record
+ * payment (cash, cheque, bank transfer...; part or full, as the CMS "Record Payment").
+ */
 export default function InvoiceDetailScreen() {
   const navigation = useNavigation<Nav>();
   const { params } = useRoute<Route>();
@@ -36,6 +51,7 @@ export default function InvoiceDetailScreen() {
   const refreshColors = useRefreshColors();
   const { opening, open } = useOpenFile();
   const [emailing, setEmailing] = useState(false);
+  const [paying, setPaying] = useState(false);
   const fetcher = useCallback(() => getInvoice(params.invoiceId, params.invoice), [params.invoiceId, params.invoice]);
   const { data: inv, loading, refreshing, error, reload, refresh } = useAsyncData(fetcher);
 
@@ -149,12 +165,110 @@ export default function InvoiceDetailScreen() {
             />
             <Button title="Email customer" leftIcon="mail-outline" loading={emailing} onPress={sendEmail} style={styles.flex} />
           </View>
-          <AppText variant="caption" color="textMuted" align="center">
-            Payments are recorded as fee receipts in the web portal.
-          </AppText>
+          {canRecordPayment(inv) ? (
+            <Button title="Record payment" leftIcon="cash-outline" onPress={() => setPaying(true)} fullWidth haptic />
+          ) : null}
         </ScrollView>
       ) : null}
+      {inv && paying ? (
+        <RecordPaymentSheet
+          invoice={inv}
+          onClose={() => setPaying(false)}
+          onDone={(message) => {
+            setPaying(false);
+            toast.success(message);
+            // Detail now; the invoice list reloads by itself when the screen is shown again.
+            refresh();
+          }}
+        />
+      ) : null}
     </StaffScreen>
+  );
+}
+
+/** Left on the invoice including the WHT part (the most that can be recorded). */
+const leftToPay = (inv: StaffInvoiceDetail) => Math.max(0, Math.round((inv.grandTotal - inv.paidTotal) * 100) / 100);
+
+/** Not paid in full and not cancelled. */
+function canRecordPayment(inv: StaffInvoiceDetail): boolean {
+  const label = inv.statusLabel.trim().toLowerCase();
+  return label !== "paid" && label !== "cancelled" && leftToPay(inv) > 0;
+}
+
+const METHOD_OPTIONS = PAYMENT_METHODS.map((m) => ({ label: m === "Online" ? "Online / portal" : m, value: m }));
+
+function RecordPaymentSheet({ invoice, onClose, onDone }: { invoice: StaffInvoiceDetail; onClose: () => void; onDone: (message: string) => void }) {
+  // Default: what is still to be paid in cash / bank, without the WHT the customer withholds for the tax office.
+  const [amount, setAmount] = useState(invoice.balanceDue > 0 ? String(invoice.balanceDue) : "");
+  const [method, setMethod] = useState<PaymentMethod>("Bank Transfer");
+  const [reference, setReference] = useState("");
+  const [notes, setNotes] = useState("");
+  const [amountError, setAmountError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const max = leftToPay(invoice);
+
+  const submit = async () => {
+    setError(null);
+    const input = { paidAmount: Number(amount.replace(/,/g, "")), paymentMethod: method, transactionRef: reference, notes };
+    const invalid = validateRecordPayment(input, max);
+    if (invalid) {
+      setAmountError(invalid);
+      return;
+    }
+    setAmountError(null);
+    setSaving(true);
+    try {
+      onDone((await recordInvoicePayment(invoice.id, input, max)).message);
+    } catch (err) {
+      setError(errorMessage(err, "Could not record the payment."));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <BottomSheet
+      error={error}
+      visible
+      onClose={onClose}
+      dismissible={!saving}
+      title="Record payment"
+      subtitle={`${invoice.invoiceNumber} · ${formatMoney(invoice.balanceDue)} due`}
+      footer={
+        <>
+          <Button title="Cancel" variant="outline" onPress={onClose} disabled={saving} style={styles.flex} />
+          <Button title="Record payment" onPress={submit} loading={saving} style={styles.flex} haptic />
+        </>
+      }
+    >
+      <TextField
+        label="Amount received (PKR)"
+        required
+        value={amount}
+        onChangeText={(t) => {
+          setAmount(t.replace(/[^\d.]/g, ""));
+          setAmountError(null);
+        }}
+        error={amountError ?? undefined}
+        keyboardType="numeric"
+        helperText={
+          invoice.whtAmount > 0
+            ? `Balance after the withholding tax (${formatMoney(invoice.whtAmount)} is withheld by the customer).`
+            : "Part payments are fine."
+        }
+      />
+      <SelectField label="Paid by" required value={method} options={METHOD_OPTIONS} onChange={setMethod} />
+      <TextField
+        label="Reference / cheque number"
+        value={reference}
+        onChangeText={setReference}
+        maxLength={100}
+        autoCapitalize="characters"
+        placeholder="e.g. TR-123456"
+      />
+      <TextField label="Notes" value={notes} onChangeText={setNotes} multiline rows={2} maxLength={1000} />
+    </BottomSheet>
   );
 }
 

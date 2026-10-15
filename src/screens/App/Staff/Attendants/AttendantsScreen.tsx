@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
-import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
+import { useFocusEffect, useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { AppHeader, AppText, AsyncList, Card, EmptyState, FilterChips, StatusPill } from "../../../../components/ui";
 import type { StaffStackParamList } from "../../../../navigation/staffTypes";
@@ -16,7 +16,7 @@ type Route = RouteProp<StaffStackParamList, "Attendants">;
 
 /**
  * Attendants & Access: pick a customer, then one of their booked spaces (GET customers/{id}/active-spaces) to
- * manage the people with door access in it.
+ * manage the people with door access in it. Coming back from a room reloads quietly, so the seat counts are current.
  */
 export default function AttendantsScreen() {
   const navigation = useNavigation<Nav>();
@@ -37,18 +37,22 @@ export default function AttendantsScreen() {
 
   const generation = useRef(0);
   const load = useCallback(
-    async (mode: "initial" | "refresh") => {
+    async (mode: "initial" | "refresh" | "quiet") => {
       if (!customer) return;
       // A quick switch to another customer must not show the previous customer's rooms.
       const gen = ++generation.current;
       if (mode === "initial") setLoading(true);
-      else setRefreshing(true);
-      setError(null);
+      else if (mode === "refresh") setRefreshing(true);
+      if (mode !== "quiet") setError(null);
       try {
         const rows = await getCustomerBookedSpaces(customer.id);
-        if (gen === generation.current) setSpaces(rows);
+        if (gen === generation.current) {
+          setSpaces(rows);
+          setError(null);
+        }
       } catch (err) {
-        if (gen === generation.current) setError(errorMessage(err, "Could not load the booked spaces."));
+        // A quiet reload (back from a room) keeps the rows already shown when it fails.
+        if (gen === generation.current && mode !== "quiet") setError(errorMessage(err, "Could not load the booked spaces."));
       } finally {
         if (gen === generation.current) {
           setLoading(false);
@@ -63,6 +67,21 @@ export default function AttendantsScreen() {
     setSpaces([]);
     load("initial");
   }, [load]);
+
+  // Back from a room (people added / removed): reload quietly so "x / y seats" is current. Skips the first focus
+  // (the effect above loads then); the latest load is read from a ref so a customer change doesn't fire twice.
+  const loadRef = useRef(load);
+  loadRef.current = load;
+  const firstFocus = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      if (firstFocus.current) {
+        firstFocus.current = false;
+        return;
+      }
+      loadRef.current("quiet");
+    }, []),
+  );
 
   const current = useMemo(() => spaces.filter((s) => isCurrentBookedSpace(s)), [spaces]);
   // The API now lists current rooms only: the Current / All choice shows only when it would change the list.

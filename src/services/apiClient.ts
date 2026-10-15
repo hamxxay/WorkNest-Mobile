@@ -195,11 +195,50 @@ const TECHNICAL_TEXT = /http failure|exception|stack ?trace|\bat [A-Z][\w.]+\(|\
 const isShowable = (text: unknown): text is string =>
   typeof text === "string" && text.trim().length > 0 && text.length <= 300 && !TECHNICAL_TEXT.test(text);
 
+/** ASP.NET's title for a refused request body: it says nothing about what to fix. */
+const GENERIC_VALIDATION_TITLE = /^one or more validation errors occurred\.?$/i;
+/** Model-binding wording ("The JSON value could not be converted to System.Decimal. Path: $.securityDeposit ..."). */
+const BINDING_TEXT = /json|could not be converted|path:|\$\./i;
+
+/** "$.securityDeposit" / "SecurityDeposit" / "request.feeAmount" -> "security deposit". */
+function fieldWords(key: string): string {
+  const last = key.replace(/^\$\.?/, "").split(".").pop() ?? "";
+  return last
+    .replace(/\[\d+\]/g, "")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+/**
+ * A readable line for ASP.NET validation errors ({ title: "One or more validation errors occurred.", errors }):
+ * the first field's own message when it is plain, else "Check the <field>." (e.g. a blank amount sent as null).
+ * Null when nothing useful can be said (the caller then uses the status message).
+ */
+export function validationErrorsMessage(errors: unknown): string | null {
+  if (!errors || typeof errors !== "object") return null;
+  for (const [key, value] of Object.entries(errors as Record<string, unknown>)) {
+    const first = Array.isArray(value) ? value[0] : value;
+    const field = fieldWords(key);
+    // "request" / "$": the whole body was unreadable, which names no field.
+    if (!field || field === "request" || field === "body" || field === "dto") continue;
+    if (isShowable(first) && !BINDING_TEXT.test(first)) return first.trim();
+    return `Check the ${field}.`;
+  }
+  return null;
+}
+
 /** The API's own message, if it sent a readable one ({ message }, ProblemDetails, validation errors, plain text). */
 export function serverMessage(payload: unknown): string | null {
   if (isShowable(payload)) return payload.trim();
   if (!payload || typeof payload !== "object") return null;
   const p = payload as Record<string, any>;
+  if (p.errors && typeof p.errors === "object" && !isShowable(p.message) && (!isShowable(p.title) || GENERIC_VALIDATION_TITLE.test(p.title.trim()))) {
+    // ProblemDetails of a refused body: name the field instead of "One or more validation errors occurred.".
+    const specific = validationErrorsMessage(p.errors);
+    if (specific) return specific;
+  }
   for (const key of ["message", "Message", "errorMessage", "ErrorMessage", "error", "detail", "title"]) {
     if (isShowable(p[key])) return p[key].trim();
   }

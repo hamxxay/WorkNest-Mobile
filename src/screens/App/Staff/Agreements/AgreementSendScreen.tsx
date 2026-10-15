@@ -5,6 +5,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import {
   AppHeader,
   AppText,
+  Banner,
   Button,
   Card,
   DateField,
@@ -19,7 +20,9 @@ import {
 import type { StaffStackParamList } from "../../../../navigation/staffTypes";
 import { errorMessage } from "../../../../services/apiClient";
 import {
+  agreementAmount,
   agreementFeePerCycle,
+  agreementFormProblems,
   getCustomer,
   getQuotation,
   sendAgreement,
@@ -37,7 +40,7 @@ import { StaffScreen } from "../shared/StaffScreen";
 type Nav = NativeStackNavigationProp<StaffStackParamList>;
 type Route = RouteProp<StaffStackParamList, "AgreementSend">;
 type Entity = SendAgreementInput["entityType"];
-type Errors = Partial<Record<"fullName" | "cnic" | "phone" | "companyName" | "start" | "end" | "fee" | "email", string>>;
+type Errors = Partial<Record<"fullName" | "cnic" | "phone" | "address" | "companyName" | "start" | "end" | "fee" | "deposit" | "email", string>>;
 
 const BILLING = [
   { label: "Monthly", value: 1 },
@@ -80,6 +83,8 @@ export default function AgreementSendScreen() {
   const [email, setEmail] = useState("");
   const [errors, setErrors] = useState<Errors>({});
   const [sending, setSending] = useState(false);
+  // The API's own reason when it refuses the agreement (kept on screen; a toast is easy to miss).
+  const [sendError, setSendError] = useState<string | null>(null);
 
   const cnicRef = useRef<TextInput>(null);
   const phoneRef = useRef<TextInput>(null);
@@ -94,7 +99,8 @@ export default function AgreementSendScreen() {
       const bpm = [1, 2, 3, 6, 12].includes(q.billingPeriodMonths) ? q.billingPeriodMonths : 1;
       setBillingMonths(bpm);
       setFee(String(agreementFeePerCycle(q, bpm) || ""));
-      setDeposit(q.securityDeposit ? String(q.securityDeposit) : "");
+      // 0 is a valid deposit (the API needs a number; blank used to send null and fail).
+      setDeposit(String(q.securityDeposit || 0));
       setHours(q.offeringType || "24/7");
       setStart(parseDate(q.startDateTime));
       setEnd(parseDate(q.endDateTime));
@@ -135,16 +141,28 @@ export default function AgreementSendScreen() {
   }, [load]);
 
   const submit = async () => {
-    const next: Errors = {};
-    if (!fullName.trim()) next.fullName = "Enter the customer's full name.";
+    setSendError(null);
+    const company = entity !== "Individual";
+    const ntnValue = company ? ntn.trim() || savedTaxIds?.ntn || "" : "";
+    const secpValue = company ? secp.trim() || savedTaxIds?.secpRegistrationNo || "" : "";
+    // What the API needs (name, ID, address, dates, fee above 0, deposit 0 or more), then the format rules.
+    const next: Errors = agreementFormProblems({
+      entityType: entity,
+      fullName,
+      cnic,
+      ntn: ntnValue,
+      secpRegistrationNo: secpValue,
+      address,
+      companyName,
+      contractStartDate: start ? toApiDate(start) : null,
+      contractEndDate: end ? toApiDate(end) : null,
+      fee,
+      deposit,
+    });
     const cErr = cnicError(cnic);
     if (cErr) next.cnic = cErr;
     const pErr = phoneError(phone);
     if (pErr) next.phone = pErr;
-    if (entity !== "Individual" && !companyName.trim()) next.companyName = "Enter the company name.";
-    if (start && end && end <= start) next.end = "The end date must be after the start date.";
-    const feeValue = Number(fee);
-    if (fee.trim() && (!Number.isFinite(feeValue) || feeValue < 0)) next.fee = "Enter a valid amount.";
     if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) next.email = "Enter a valid email address.";
     setErrors(next);
     if (Object.values(next).some(Boolean)) {
@@ -158,12 +176,12 @@ export default function AgreementSendScreen() {
       cnic,
       phoneNumber: phone,
       address,
-      companyName: entity === "Individual" ? undefined : companyName,
-      ntn: entity === "Individual" ? undefined : ntn.trim() || savedTaxIds?.ntn || undefined,
-      secpRegistrationNo: entity === "Individual" ? undefined : secp.trim() || savedTaxIds?.secpRegistrationNo || undefined,
+      companyName: company ? companyName : undefined,
+      ntn: ntnValue || undefined,
+      secpRegistrationNo: secpValue || undefined,
       refundDays: Number(refundDays) || 30,
-      feeAmount: fee.trim() ? feeValue : undefined,
-      securityDeposit: deposit.trim() ? Number(deposit) || 0 : undefined,
+      feeAmount: agreementAmount(fee),
+      securityDeposit: agreementAmount(deposit),
       contractStartDate: start ? toApiDate(start) : null,
       contractEndDate: end ? toApiDate(end) : null,
       operatingHours: hours.trim() || "24/7",
@@ -181,7 +199,9 @@ export default function AgreementSendScreen() {
       toast.success(result.message);
       navigation.goBack();
     } catch (err) {
-      toast.error(errorMessage(err, "Could not send the agreement."));
+      const message = errorMessage(err, "Could not send the agreement.");
+      setSendError(message);
+      toast.error(message);
     } finally {
       setSending(false);
     }
@@ -223,6 +243,7 @@ export default function AgreementSendScreen() {
                 <TextField
                   ref={cnicRef}
                   label="CNIC"
+                  required={entity === "Individual"}
                   value={cnic}
                   onChangeText={(t) => setCnic(formatCnicInput(t))}
                   error={errors.cnic}
@@ -241,7 +262,7 @@ export default function AgreementSendScreen() {
                   returnKeyType="next"
                   onSubmitEditing={() => addressRef.current?.focus()}
                 />
-                <TextField ref={addressRef} label="Address" value={address} onChangeText={setAddress} multiline rows={2} maxLength={200} />
+                <TextField ref={addressRef} label="Address" required value={address} onChangeText={setAddress} error={errors.address} multiline rows={2} maxLength={200} />
                 {entity !== "Individual" ? (
                   <>
                     <TextField label="Company name" required value={companyName} onChangeText={setCompanyName} error={errors.companyName} />
@@ -256,8 +277,8 @@ export default function AgreementSendScreen() {
             <Card>
               <View style={styles.form}>
                 <View style={styles.row}>
-                  <DateField label="Contract start" value={start} onChange={setStart} containerStyle={styles.flex} error={errors.start} />
-                  <DateField label="Contract end" value={end} onChange={setEnd} containerStyle={styles.flex} error={errors.end} minimumDate={start ?? undefined} />
+                  <DateField label="Contract start" required value={start} onChange={setStart} containerStyle={styles.flex} error={errors.start} />
+                  <DateField label="Contract end" required value={end} onChange={setEnd} containerStyle={styles.flex} error={errors.end} minimumDate={start ?? undefined} />
                 </View>
                 <SelectField label="Billing" value={billingMonths} options={BILLING} onChange={(v) => {
                   setBillingMonths(v);
@@ -265,13 +286,22 @@ export default function AgreementSendScreen() {
                 }} />
                 <TextField
                   label="Fee per billing cycle (PKR)"
+                  required
                   value={fee}
                   onChangeText={(t) => setFee(t.replace(/[^\d.]/g, ""))}
                   error={errors.fee}
                   keyboardType="numeric"
                   helperText={quotation ? `From the quotation's monthly rent ${formatMoney(quotation.monthlyRent || quotation.monthlyBasePrice)}` : undefined}
                 />
-                <TextField label="Security deposit (PKR)" value={deposit} onChangeText={(t) => setDeposit(t.replace(/[^\d.]/g, ""))} keyboardType="numeric" />
+                <TextField
+                  label="Security deposit (PKR)"
+                  required
+                  value={deposit}
+                  onChangeText={(t) => setDeposit(t.replace(/[^\d.]/g, ""))}
+                  error={errors.deposit}
+                  keyboardType="numeric"
+                  helperText="0 if there is no deposit."
+                />
                 <TextField label="Refund within (days)" value={refundDays} onChangeText={(t) => setRefundDays(t.replace(/\D/g, "").slice(0, 3))} keyboardType="number-pad" />
                 <TextField label="Operating hours" value={hours} onChangeText={setHours} maxLength={40} />
               </View>
@@ -294,6 +324,7 @@ export default function AgreementSendScreen() {
             <AppText variant="caption" color="textMuted" align="center">
               WorkNest builds the lease PDF from these details and emails it with a link to sign.
             </AppText>
+            {sendError ? <Banner tone="danger" title="The agreement was not sent" message={sendError} onDismiss={() => setSendError(null)} /> : null}
             <Button title="Send agreement" leftIcon="paper-plane-outline" onPress={submit} loading={sending} disabled={sending} fullWidth haptic />
           </ScrollView>
         </KeyboardAvoidingView>

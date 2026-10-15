@@ -14,7 +14,10 @@ import { num, optNum, optStr, pick, str, toApiDate, toPage, unwrapEnvelope, with
 //   - balanceDue in the list already subtracts WHT; the detail may lack statusLabel (the CMS merges the list row
 //     into the detail; without a row the label is derived from the legacy status id or the amounts).
 //   - send-email can answer HTTP 200 with isSuccessful: false (apiClient turns it into an error).
-//   - Payments are recorded with fee receipts (api/fee-receipts), not invoice/{id}/record-payment (no such route).
+//   - GET invoice/{id} sends balanceDue = grandTotal - paidTotal (WHT included) and the old WN_Users name; the detail
+//     keeps the list row's customer name and works the balance out without the WHT (invoiceCashBalance).
+//   - Record payment: POST invoice/{id}/record-payment { paidAmount, paymentMethod, transactionRef?, notes? }
+//     (admin, super admin, sales executive; same as the CMS "Record Payment").
 
 /** Invoice types (WN_Invoices_Insert): 1 Standard, 2 Advance, 3 Recurring, 4 Custom, 5 Surcharge, 6 WHT. */
 export const INVOICE_TYPES: Record<number, string> = {
@@ -93,6 +96,18 @@ export type StaffInvoice = {
   notes: string | null;
   createdOn: string | null;
 };
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * What is still to be paid in cash / bank: the total less the withholding tax (the customer pays that to the tax
+ * office, not to WorkNest) less what was paid; 0 for a Paid or Cancelled invoice.
+ */
+export function invoiceCashBalance(inv: Pick<StaffInvoice, "grandTotal" | "whtAmount" | "paidTotal" | "statusLabel">): number {
+  const label = (inv.statusLabel ?? "").trim().toLowerCase();
+  if (label === "paid" || label === "cancelled") return 0;
+  return Math.max(0, round2(inv.grandTotal - inv.whtAmount - inv.paidTotal));
+}
 
 export function normalizeInvoice(raw: any): StaffInvoice {
   const grandTotal = num(raw, "grandTotal");
@@ -187,7 +202,13 @@ export async function getInvoice(id: number | string, listRow?: StaffInvoice): P
   const merged = listRow
     ? { ...listRow, ...Object.fromEntries(Object.entries(d).filter(([, v]) => v != null)) }
     : d;
-  const base = normalizeInvoice(merged);
+  const normalized = normalizeInvoice(merged);
+  const base = {
+    ...normalized,
+    // The list's name comes from the customer record; the detail's from WN_Users, which can hold an old doubled name.
+    customerName: listRow?.customerName || normalized.customerName,
+    balanceDue: invoiceCashBalance(normalized),
+  };
   const lines = pick(d, "lines");
   return {
     ...base,
@@ -227,6 +248,60 @@ export async function listCustomerInvoices(
     }),
   );
   return toPage(raw, normalizeInvoice, { page, limit });
+}
+
+// ─── Record payment ───────────────────────────────────────────────────────────────────────────────────────
+
+/** Payment methods (the CMS Record Payment list). */
+export const PAYMENT_METHODS = ["Bank Transfer", "Cash", "Cheque", "Credit Card", "Online"] as const;
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+
+export type RecordPaymentInput = {
+  paidAmount: number;
+  paymentMethod: PaymentMethod;
+  transactionRef?: string;
+  notes?: string;
+};
+
+/**
+ * First problem with a payment, or null. `maxAmount`: what is left on the invoice including the WHT (an amount above
+ * it is refused, so a typo can't mark far more as paid).
+ */
+export function validateRecordPayment(input: RecordPaymentInput, maxAmount?: number | null): string | null {
+  const amount = Number(input.paidAmount);
+  if (!Number.isFinite(amount) || amount <= 0) return "Enter the amount received (more than 0).";
+  if (maxAmount != null && maxAmount > 0 && amount > round2(maxAmount) + 0.009) {
+    return `The amount is more than what is left on this invoice (${round2(maxAmount).toLocaleString("en-US")}).`;
+  }
+  if (!PAYMENT_METHODS.includes(input.paymentMethod)) return "Choose how it was paid.";
+  if ((input.transactionRef ?? "").trim().length > 100) return "Keep the reference under 100 characters.";
+  if ((input.notes ?? "").trim().length > 1000) return "Keep the notes under 1000 characters.";
+  return null;
+}
+
+/**
+ * POST invoice/{id}/record-payment — records a part or full payment (cash, cheque, bank transfer...). The server
+ * updates the paid total and status, re-activates the booking's access cards and writes the payment.
+ */
+export async function recordInvoicePayment(
+  id: number,
+  input: RecordPaymentInput,
+  maxAmount?: number | null,
+): Promise<ActionResult<{ paidTotal: number | null; statusId: number | null }>> {
+  const invalid = validateRecordPayment(input, maxAmount);
+  if (invalid) throw new Error(invalid);
+  const raw = await staffPost<any>(STAFF_ENDPOINTS.invoices.recordPayment(id), {
+    paidAmount: round2(Number(input.paidAmount)),
+    paymentMethod: input.paymentMethod,
+    transactionRef: input.transactionRef?.trim() || null,
+    notes: input.notes?.trim() || null,
+  });
+  const result = actionResult<any>(raw, "Payment recorded.");
+  const d = result.data ?? {};
+  return {
+    message: result.message === "Payment recorded successfully" ? "Payment recorded." : result.message,
+    data: { paidTotal: optNum(d, "paidTotal"), statusId: optNum(d, "statusId") },
+  };
 }
 
 /** POST invoice/{id}/send-email — emails the invoice with its statement PDF to the customer. */

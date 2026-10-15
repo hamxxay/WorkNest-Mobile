@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { useRoute, type RouteProp } from "@react-navigation/native";
@@ -24,11 +24,13 @@ import {
   BOOKING_STATUS,
   BOOKING_STATUS_OPTIONS,
   bookingSpaceTypeId,
+  canSendInitialInvoice,
   cancelBooking,
   downloadBookingChallanPdf,
   emailBookingChallan,
   getAllSpaces,
   getBooking,
+  getInitialInvoiceStatus,
   getReassignmentSpaces,
   reassignBooking,
   toApiDate,
@@ -43,13 +45,15 @@ import { StaffScreen } from "../shared/StaffScreen";
 import { useAsyncData } from "../shared/hooks";
 import { useOpenFile } from "../shared/useOpenFile";
 import { useRefreshColors } from "../shared/refresh";
+import { InitialInvoiceSheet } from "./InitialInvoiceSheet";
 
 type Route = RouteProp<StaffStackParamList, "BookingDetail">;
 
 /**
  * One booking (GET booking/{id}): customer, space, contract and billing; change the status (PATCH status, as the
  * CMS status menu), cancel (status Cancelled), reassign a confirmed booking to another free space of the same
- * type (PATCH reassign), and the challan PDF / email.
+ * type (PATCH reassign), the challan PDF / email, and "Send initial invoice" until the first invoice is sent (CMS
+ * keeps that button per booking; it also opens straight after a booking is created or an agreement is signed).
  */
 export default function BookingDetailScreen() {
   const { params } = useRoute<Route>();
@@ -58,6 +62,23 @@ export default function BookingDetailScreen() {
   const refreshColors = useRefreshColors();
   const fetcher = useCallback(() => getBooking(params.bookingId), [params.bookingId]);
   const { data: b, loading, refreshing, error, reload, refresh } = useAsyncData<StaffBookingDetail>(fetcher);
+  // Whether the first invoice exists (null: the server can't say, so the button stays offered).
+  const statusFetcher = useCallback(() => getInitialInvoiceStatus(params.bookingId), [params.bookingId]);
+  const firstInvoice = useAsyncData(statusFetcher);
+  const [invoiceOpen, setInvoiceOpen] = useState(false);
+  // Only the invoice offered right after a signed agreement is dated on it; opened from the button it is dated today.
+  const [invoiceIssuedOn, setInvoiceIssuedOn] = useState<string | null>(null);
+  // Opened from "booking created" / "agreement signed": offer the first invoice once, when the booking has loaded.
+  const offered = useRef(false);
+  useEffect(() => {
+    if (!params.offerInitialInvoice || offered.current || !b || firstInvoice.loading) return;
+    offered.current = true;
+    if (firstInvoice.data?.sent !== true && canSendInitialInvoice(b.statusLabel)) {
+      setInvoiceIssuedOn(params.offerInitialInvoice.issuedOn ?? null);
+      setInvoiceOpen(true);
+    }
+  }, [params.offerInitialInvoice, b, firstInvoice.loading, firstInvoice.data]);
+  const invoiceSent = firstInvoice.data?.sent === true;
 
   const [statusOpen, setStatusOpen] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
@@ -162,6 +183,9 @@ export default function BookingDetailScreen() {
 
           <SectionHeader title="Billing" variant="overline" />
           <Card>
+            {invoiceSent ? (
+              <InfoRow label="First invoice" value={firstInvoice.data?.invoiceNumber ? `${firstInvoice.data.invoiceNumber} (sent)` : "Sent"} icon="document-text-outline" />
+            ) : null}
             {b.monthlyRent ? <InfoRow label="Monthly rent" value={formatMoney(b.monthlyRent)} /> : null}
             {b.billingPeriodLabel ? <InfoRow label="Billing" value={b.billingPeriodLabel} /> : null}
             {b.currentCycleAmount ? <InfoRow label="Current cycle" value={formatMoney(b.currentCycleAmount)} /> : null}
@@ -180,6 +204,17 @@ export default function BookingDetailScreen() {
           </Card>
 
           <View style={styles.actions}>
+            {!invoiceSent && !firstInvoice.loading && canSendInitialInvoice(b.statusLabel) ? (
+              <Button
+                title="Send initial invoice"
+                leftIcon="paper-plane-outline"
+                onPress={() => {
+                  setInvoiceIssuedOn(null);
+                  setInvoiceOpen(true);
+                }}
+                fullWidth
+              />
+            ) : null}
             <Button title="Change status" leftIcon="swap-horizontal-outline" onPress={() => setStatusOpen(true)} fullWidth />
             {status === "confirmed" ? (
               <Button title="Reassign space" variant="secondary" leftIcon="git-compare-outline" onPress={() => setReassignOpen(true)} fullWidth />
@@ -238,6 +273,24 @@ export default function BookingDetailScreen() {
         }}
         onConfirm={doCancel}
        />
+
+      {b && invoiceOpen ? (
+        <InitialInvoiceSheet
+          bookingId={b.bookingId}
+          issuedOn={invoiceIssuedOn}
+          customerName={b.customerName}
+          customerEmail={b.customerEmail}
+          spaceName={b.spaceName}
+          onClose={() => setInvoiceOpen(false)}
+          onSent={(message) => {
+            setInvoiceOpen(false);
+            setInvoiceIssuedOn(null);
+            toast.success(message);
+            firstInvoice.refresh();
+            refresh();
+          }}
+        />
+      ) : null}
 
       {b && reassignOpen ? (
         <ReassignSheet

@@ -85,8 +85,10 @@ export const STAFF_ENDPOINTS = {
     reassignmentSpaces: "/booking/available-spaces-reassignment",
     calendar: "/booking/calendar",
     createAdmin: "/booking/create-admin",
-    /** POST ?preview=&invoiceType=&whTaxId= — first invoice of a booking (preview or create / resend). */
+    /** POST ?preview=&issuedOn=&invoiceType=&whTaxId= — first invoice of a booking (preview or create / resend). */
     sendInitialInvoice: (id: Id) => `/booking/${seg(id)}/send-initial-invoice`,
+    /** GET { sent, invoiceId, invoiceNumber } — whether the first invoice exists yet (newer API only). */
+    initialInvoiceStatus: (id: Id) => `/booking/${seg(id)}/initial-invoice`,
   },
   agreements: {
     list: "/agreement",
@@ -107,6 +109,8 @@ export const STAFF_ENDPOINTS = {
     pdf: (id: Id) => `/invoice/${seg(id)}/pdf`,
     statementPdf: (id: Id) => `/invoice/${seg(id)}/statement-pdf`,
     sendEmail: (id: Id) => `/invoice/${seg(id)}/send-email`,
+    /** POST { paidAmount, paymentMethod, transactionRef?, notes? } -> { paidTotal, statusId } */
+    recordPayment: (id: Id) => `/invoice/${seg(id)}/record-payment`,
   },
   attendants: {
     /** POST { customerId, name, email, phone, idType, idNumber } — create / link a person. */
@@ -124,6 +128,13 @@ export const STAFF_ENDPOINTS = {
     /** POST { overrideUntil: yyyy-MM-dd, reason } — temporary access while suspended. */
     extendAccess: (bookingDetailId: Id) => `/bookings/${seg(bookingDetailId)}/access-suspension/extend`,
     challans: (bookingDetailId: Id) => `/bookings/${seg(bookingDetailId)}/challans`,
+    /** POST { idNumber } — a customer-added employee: CNIC check, then on the room (404 canAddManually, 409 already on it). */
+    byCnic: (bookingDetailId: Id) => `/bookings/${seg(bookingDetailId)}/attendants/by-cnic`,
+    /** GET { checked, name, online, canEnrol, reason } — the room machine an enrolment captures on (newer API only). */
+    roomMachine: (bookingDetailId: Id) => `/bookings/${seg(bookingDetailId)}/room-machine`,
+    /** POST { fingerNo, cardNo? } — fingerprint / face / card on the room machine, copied to the entrances. */
+    enrol: (bookingDetailId: Id, personId: Id, kind: "fingerprint" | "face" | "card") =>
+      `/bookings/${seg(bookingDetailId)}/attendants/${seg(personId)}/hik/${kind}`,
   },
   capacityRequests: {
     /** POST { personId, customerId }: a sales executive asks an admin to add a person to a full room. */
@@ -177,5 +188,7 @@ export const STAFF_ENDPOINTS = {
     spaceSummary: (idOrGuid: Id) => `/space/${seg(idOrGuid)}/summary`,
     spaceConfig: "/space-config",
     billingPeriods: "/billing-periods",
+    /** WHT rate options (dbo.WN_WHTaxRate): [{ id, description, rate }] (staff roles). */
+    whtRates: "/amount-fields/wht-rates",
   },
 } as const;
