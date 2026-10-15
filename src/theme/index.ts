@@ -39,6 +39,9 @@ export {
 } from "./inquiryTypes";
 export type { InquiryType } from "./inquiryTypes";
 export { useInquiryTypeColors } from "./useInquiryTypeColors";
+export { complaintStatusColor, darkComplaintStatusColors, lightComplaintStatusColors } from "./complaintStatus";
+export type { ComplaintStatusKey } from "./complaintStatus";
+export { useComplaintStatusColors } from "./useComplaintStatusColors";
 export {
   ThemeProvider,
   useTheme,

@@ -2,7 +2,15 @@ import { cleanParams, periodRange, positiveId } from "../ceo/drill";
 import { count, isMonthKey } from "../ceo/format";
 import type { QueryValue } from "../staff/normalize";
 import { desks } from "./format";
-import type { SmBreakdown, SmBreakdownMetric, SmBreakdownQuery, SmBreakdownRow, SmRecordsQuery, SmScope } from "./types";
+import type {
+  SmBreakdown,
+  SmBreakdownMetric,
+  SmBreakdownQuery,
+  SmBreakdownRow,
+  SmComplaintFilterStatus,
+  SmRecordsQuery,
+  SmScope,
+} from "./types";
 
 // Drill-down routing of the Sales Manager dashboard (pure, unit-tested in __tests__/drill.test.ts), like the CEO's:
 //   level 1 (dashboard) chart element / row -> level 2 breakdown (GET api/sales-manager/breakdown) -> level 3
@@ -18,6 +26,9 @@ import type { SmBreakdown, SmBreakdownMetric, SmBreakdownQuery, SmBreakdownRow, 
 //   Direct: a funnel stage -> its records for the period; "Follow-ups due" -> inquiries?outcome=followup_due;
 //   a not-interested reason -> inquiries?outcome=not_interested; a month of the inquiries chart -> that month's
 //   inquiries. An expiring lease row is already a record (nothing opens).
+//
+//   Complaints (own section, no breakdown level): a card or a part of the status bar -> complaints?status=, a
+//   category -> complaints?category=, a month of the chart -> complaints?month= (created that month).
 //
 // Tour inquiries have no location in the database: inquiry lists never carry a locationId.
 
@@ -181,4 +192,48 @@ export function smNotInterestedRecords(reason: string | null | undefined, scope:
 /** A month of the 12-month inquiries chart -> that month's inquiries (every branch); null without a month. */
 export function smInquiryMonthRecords(month: string | null | undefined): SmRecordsQuery | null {
   return isMonthKey(month) ? { kind: "inquiries", params: { month } } : null;
+}
+
+// ─── Complaints ───────────────────────────────────────────────────────────────────────────────────────────
+
+/** What a complaints list is filtered by; the dashboard's location (and period) are added. */
+export type SmComplaintFilter = {
+  status?: SmComplaintFilterStatus | null;
+  /** Exact category ("Other" also matches complaints without one). */
+  category?: string | null;
+  /** Exact branch; "" (no branch, WhatsApp) is sent as "none". */
+  branch?: string | null;
+  /** yyyy-MM: complaints created that month. */
+  month?: string | null;
+};
+
+/** Statuses that describe complaints as they are now (not bound to the period). */
+const CURRENT_COMPLAINT_STATUSES: ReadonlySet<string> = new Set(["open", "in_progress", "resolved", "closed", "active"]);
+
+/**
+ * The complaints list (records/complaints) for a filter, or null when it has nothing usable (an invalid month).
+ * The period goes with status and category lists (the *_period statuses need it); a month list is that month.
+ */
+export function smComplaintRecords(filter: SmComplaintFilter, scope: SmScope): SmRecordsQuery | null {
+  const month = filter.month ?? null;
+  if (month != null && !isMonthKey(month)) return null;
+  const branch = filter.branch == null ? null : filter.branch.trim() || "none";
+  return {
+    kind: "complaints",
+    params: cleanParams({
+      status: filter.status ?? null,
+      category: filter.category?.trim() || null,
+      branch,
+      month,
+      locationId: scopeLocation(scope),
+      period: month ? null : scope.period,
+    }),
+  };
+}
+
+/** True for a complaints list of complaints as they are now (open, in progress, ...): not bound to the period. */
+export function isCurrentComplaintsList(query: SmRecordsQuery): boolean {
+  if (query.kind !== "complaints") return false;
+  const status = query.params.status;
+  return typeof status === "string" && CURRENT_COMPLAINT_STATUSES.has(status) && !query.params.month;
 }

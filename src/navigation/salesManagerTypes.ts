@@ -5,7 +5,7 @@ import type { CeoDrillContext } from "./ceoTypes";
 // customer (./types.ts), staff (./staffTypes.ts) or CEO (./ceoTypes.ts) routes: its navigator
 // (./salesManager/SalesManagerNavigator.tsx) registers only these four screens.
 //
-//   SalesManagerDashboard  (root) Sales funnel, Team performance, Tour inquiries, Renewals & desks;
+//   SalesManagerDashboard  (root) Sales funnel, Team performance, Tour inquiries, Renewals & desks, Complaints;
 //                          period and location (the manager's own) filters
 //   SalesManagerBreakdown  drill level 2: a chart element's breakdown (GET api/sales-manager/breakdown)
 //   SalesManagerRecords    drill level 3: a read-only list (GET api/sales-manager/records/*)

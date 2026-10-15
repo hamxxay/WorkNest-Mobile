@@ -1,11 +1,17 @@
 import { formatDate, formatNumber } from "../../utils/format";
 import { inquiryCard, joinParts, recordCard, recordFields, type CeoRecordCard } from "../ceo/records";
-import { desks } from "./format";
-import type { SmBookingRecord, SmLeaseRecord, SmQuotationRecord, SmRecords } from "./types";
+import {
+  SM_COMPLAINT_STATUS_LABELS,
+  complaintAgeText,
+  complaintSourceLabel,
+  complaintStatusTone,
+  desks,
+} from "./format";
+import type { SmBookingRecord, SmComplaintRecord, SmLeaseRecord, SmQuotationRecord, SmRecords } from "./types";
 
 // Sales Manager records (drill level 3) as the CEO dashboard's read-only cards (pure, unit-tested): quotations,
 // bookings and expiring leases with their desks on the right (never an amount: a sales manager sees no money),
-// and tour inquiries with their follow-up date.
+// tour inquiries with their follow-up date, and complaints with their status, age and description.
 
 /** "12 days", "1 day", "Today", "Ended 3 days ago"; null when not sent. */
 export function daysLeftText(days: number | null | undefined): string | null {
@@ -58,6 +64,31 @@ export function leaseCard(r: SmLeaseRecord, i: number): CeoRecordCard {
   );
 }
 
+/**
+ * A complaint as a card: complaint no, customer and phone, status (in the status bar's colours) with "Reopened"
+ * under it when the customer said the problem persists, then category, branch, received, age, source and the
+ * start of the description.
+ */
+export function complaintCard(r: SmComplaintRecord, i: number): CeoRecordCard {
+  const card = recordCard(
+    `complaint-${r.complaintId ?? i}-${i}`,
+    r.complaintNo ?? (r.complaintId ? `Complaint ${r.complaintId}` : "Complaint"),
+    joinParts(r.customerName, r.phone),
+    r.status ? SM_COMPLAINT_STATUS_LABELS[r.status] : r.statusText,
+    r.isFollowUp ? "Reopened" : null,
+    recordFields(
+      ["Category", r.category],
+      ["Branch", r.branch ?? "No branch"],
+      ["Received", date(r.createdOn)],
+      ["Age", complaintAgeText(r.ageDays)],
+      ["Updated", r.status === "resolved" || r.status === "closed" ? date(r.updatedOn) : null],
+      ["Source", complaintSourceLabel(r.source)],
+      ["Description", r.description],
+    ),
+  );
+  return { ...card, statusTone: complaintStatusTone(r.status) };
+}
+
 /** One card per row, in the server's order (newest first). */
 export function smRecordCards(records: SmRecords): CeoRecordCard[] {
   switch (records.kind) {
@@ -67,6 +98,8 @@ export function smRecordCards(records: SmRecords): CeoRecordCard[] {
       return records.rows.map((r, i) => inquiryCard(r, i, [["Follow up on", r.followUpOn ? formatDate(r.followUpOn) : null]]));
     case "leases":
       return records.rows.map((r, i) => leaseCard(r, i));
+    case "complaints":
+      return records.rows.map((r, i) => complaintCard(r, i));
     case "quotations":
     default:
       return records.rows.map((r, i) => smQuotationCard(r, i));

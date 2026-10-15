@@ -11,8 +11,8 @@ import type {
 } from "../ceo";
 import type { InquiryType } from "../../theme/inquiryTypes";
 
-// Types of the Sales Manager dashboard API (WN_APIs, contract: GET api/sales-manager/dashboard, breakdown,
-// records/*). Every endpoint is GET, Sales Manager (or super admin) only, camelCase JSON in the usual
+// Types of the Sales Manager dashboard API (WN_APIs, contract: GET api/sales-manager/dashboard, complaints,
+// breakdown, records/*). Every endpoint is GET, Sales Manager (or super admin) only, camelCase JSON in the usual
 // { isSuccessful, data } envelope; dates yyyy-MM-dd (or full ISO), months yyyy-MM.
 //
 // No money: a sales manager sees desks, not PKR (the API sends no amounts for api/sales-manager/*). The desks of a
@@ -162,6 +162,66 @@ export type SmDashboard = {
   renewals: SmRenewals | null;
 };
 
+// ─── GET api/sales-manager/complaints ─────────────────────────────────────────────────────────────────────
+//
+// Loaded on its own (the rest of the dashboard keeps working when it fails). Complaints have no location column:
+// their free-text Branch is matched to the manager's location names; complaints without a branch (WhatsApp) count
+// only under "All my locations". Status counts are CURRENT (every complaint in scope, not bound to the period); the
+// *InPeriod figures and category totals are for the period.
+
+/** A complaint's status: open (new), in_progress, resolved (fixed, waiting for the customer's reply) or closed. */
+export type SmComplaintStatus = "open" | "in_progress" | "resolved" | "closed";
+
+/** Complaints in each status right now. */
+export type SmComplaintStatusCounts = { open: number; inProgress: number; resolved: number; closed: number };
+
+/** A category: open / in progress now, and how many were created in the period ("Other" for none). */
+export type SmComplaintCategory = { category: string; open: number; inProgress: number; total: number };
+
+/** A branch ("" = no branch, labelled "No branch"): open / in progress now, created in the period. */
+export type SmComplaintBranch = { branch: string; label: string; open: number; inProgress: number; total: number };
+
+/** One month: complaints created, and resolved or closed (by when they were last updated). */
+export type SmComplaintMonth = { month: string; created: number; resolved: number };
+
+/** An open or in-progress complaint (the oldest ones are listed). */
+export type SmActiveComplaint = {
+  complaintId: number | null;
+  complaintNo: string | null;
+  customerName: string | null;
+  category: string;
+  branch: string | null;
+  /** open or in_progress (null when the server sent something else). */
+  status: SmComplaintStatus | null;
+  createdOn: string | null;
+  /** Days since it was created; null when not sent. */
+  ageDays: number | null;
+};
+
+export type SmComplaints = {
+  period: SmPeriod;
+  periodLabel: string;
+  status: SmComplaintStatusCounts;
+  /** Open + in progress. */
+  activeTotal: number;
+  /** Created in the period; the previous period's figure is null when not sent (no change shown). */
+  newInPeriod: number;
+  newInPeriodPrev: number | null;
+  /** Resolved or closed in the period (by when they were last updated). */
+  resolvedInPeriod: number;
+  /** Follow-ups created in the period: the customer said the problem persists. */
+  reopenedInPeriod: number;
+  /** Average days from created to resolved of the period's resolved complaints; null when none. */
+  avgResolutionDays: number | null;
+  /** Most open + in progress first, then most created in the period. */
+  byCategory: SmComplaintCategory[];
+  byBranch: SmComplaintBranch[];
+  /** Last 12 months, oldest first. */
+  months: SmComplaintMonth[];
+  /** The oldest open / in-progress complaints, oldest first (at most 8). */
+  oldestActive: SmActiveComplaint[];
+};
+
 // ─── GET api/sales-manager/breakdown (drill level 2) ─────────────────────────────────────────────────────
 
 export type SmBreakdownMetric = "funnel-month" | "staff" | "inquiries-type" | "renewals-month" | "desks-month";
@@ -186,7 +246,7 @@ export type SmBreakdownRow = CeoBreakdownRow;
 
 // ─── GET api/sales-manager/records/* (drill level 3) ─────────────────────────────────────────────────────
 
-export type SmRecordKind = "quotations" | "bookings" | "inquiries" | "leases";
+export type SmRecordKind = "quotations" | "bookings" | "inquiries" | "leases" | "complaints";
 
 export type SmRecordParams = Record<string, string | number | boolean | null | undefined>;
 
@@ -204,6 +264,34 @@ export type SmInquiryRecord = CeoInquiryRecord & {
 };
 export type SmLeaseRecord = SmLease;
 
+/**
+ * records/complaints `status` filter: one status, active (open + in progress), or the period's resolved / new /
+ * reopened complaints.
+ */
+export type SmComplaintFilterStatus = SmComplaintStatus | "active" | "resolved_period" | "new_period" | "reopened_period";
+
+/** A complaint in records/complaints (no money). */
+export type SmComplaintRecord = {
+  complaintId: number | null;
+  complaintNo: string | null;
+  customerName: string | null;
+  phone: string | null;
+  category: string;
+  branch: string | null;
+  /** Normalised status (null when the server sent something unknown; `statusText` keeps it). */
+  status: SmComplaintStatus | null;
+  statusText: string | null;
+  /** "whatsapp" or a staff source, as sent. */
+  source: string | null;
+  /** Reopened: the customer said the problem persists. */
+  isFollowUp: boolean;
+  createdOn: string | null;
+  updatedOn: string | null;
+  ageDays: number | null;
+  /** At most 200 characters (cut by the server). */
+  description: string | null;
+};
+
 type RecordsOf<K extends SmRecordKind, Row> = {
   kind: K;
   title: string;
@@ -216,4 +304,5 @@ export type SmRecords =
   | RecordsOf<"quotations", SmQuotationRecord>
   | RecordsOf<"bookings", SmBookingRecord>
   | RecordsOf<"inquiries", SmInquiryRecord>
-  | RecordsOf<"leases", SmLeaseRecord>;
+  | RecordsOf<"leases", SmLeaseRecord>
+  | RecordsOf<"complaints", SmComplaintRecord>;

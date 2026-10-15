@@ -28,7 +28,7 @@ export function RecordCard({ item }: { item: CeoRecordCard }) {
           ) : null}
         </View>
         <View style={styles.side}>
-          {item.status ? <StatusPill status={item.status} size="sm" /> : null}
+          {item.status ? <StatusPill status={item.status} tone={item.statusTone} size="sm" /> : null}
           {item.amount ? (
             <AppText variant="bodyStrong" numberOfLines={1} style={styles.amount}>
               {item.amount}

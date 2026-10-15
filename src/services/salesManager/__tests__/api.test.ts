@@ -29,12 +29,15 @@ jest.mock("../../apiClient", () => {
 
 import { ApiError, apiRequest } from "../../apiClient";
 import { CEO_DB_UPDATE_MESSAGE, ceoErrorView } from "../../ceo/errors";
-import { getSalesManagerBreakdown, getSalesManagerDashboard, getSalesManagerRecords } from "../api";
+import { getSalesManagerBreakdown, getSalesManagerComplaints, getSalesManagerDashboard, getSalesManagerRecords } from "../api";
 import {
+  SM_COMPLAINTS_DB_UPDATE,
   SM_DB_UPDATE_MESSAGE,
   SM_FORBIDDEN_MESSAGE,
   SM_LATEST_DB_UPDATE,
+  salesManagerComplaintsErrorView,
   salesManagerErrorView,
+  smComplaintsDatabaseUpdateMessage,
   smDatabaseUpdateMessage,
   smDatabaseUpdateOf,
   toSalesManagerError,
@@ -175,5 +178,68 @@ describe("salesManagerErrorView", () => {
     expect(salesManagerErrorView(new ApiError("Can't reach the server.", 0))).toMatchObject({ title: "Could not reach WorkNest" });
     expect(salesManagerErrorView(new ApiError("Something went wrong on our side.", 500)).message).toBe("Something went wrong on our side.");
     expect(salesManagerErrorView(new TypeError("boom")).message).toBe("Could not load the figures. Please try again.");
+  });
+});
+
+describe("complaints (own call, database update SM_03)", () => {
+  it("GET sales-manager/complaints with period and location, normalised", async () => {
+    api.mockResolvedValueOnce({ isSuccessful: true, data: { status: { open: 3, inProgress: 1 }, newInPeriod: 2 } });
+    const c = await getSalesManagerComplaints({ period: "quarter", locationId: 2 });
+    expect(lastCall()).toMatchObject({ path: "/sales-manager/complaints?period=quarter&locationId=2", method: "GET", requiresAuth: true });
+    expect(c.status).toEqual({ open: 3, inProgress: 1, resolved: 0, closed: 0 });
+    expect(c.activeTotal).toBe(4);
+    expect(c.period).toBe("quarter");
+
+    api.mockResolvedValueOnce({ isSuccessful: true, data: {} });
+    await getSalesManagerComplaints({ period: "month", locationId: null });
+    expect(lastCall().path).toBe("/sales-manager/complaints?period=month");
+  });
+
+  it("GET sales-manager/records/complaints with its filters", async () => {
+    api.mockResolvedValueOnce({ isSuccessful: true, data: { total: 1, rows: [{ complaintId: 5, status: "open" }] } });
+    const r = await getSalesManagerRecords({ kind: "complaints", params: { status: "active", locationId: 1, period: "month" } });
+    expect(lastCall().path).toBe("/sales-manager/records/complaints?status=active&locationId=1&period=month");
+    expect(r).toMatchObject({ kind: "complaints", title: "Complaints", total: 1 });
+  });
+
+  it("a 503 names SM_03 (the complaints section's update) when the server names none, on both calls", async () => {
+    const calls = [
+      () => getSalesManagerComplaints({ period: "month" }),
+      () => getSalesManagerRecords({ kind: "complaints", params: { status: "open" } }),
+    ];
+    for (const call of calls) {
+      api.mockRejectedValueOnce(new ApiError("The service is temporarily unavailable.", 503));
+      const error = await call().catch((e) => e);
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error.status).toBe(503);
+      expect(error.message).toBe(smComplaintsDatabaseUpdateMessage());
+      expect(error.message).toMatch(/^The complaints section needs the database update SM_03/);
+    }
+    expect(SM_COMPLAINTS_DB_UPDATE).toBe("SM_03");
+  });
+
+  it("names the update the server asked for, and the error view keeps the complaints wording", async () => {
+    api.mockRejectedValueOnce(
+      new ApiError("x", 503, { message: "The complaints section needs the database update SM_03." }),
+    );
+    const sm03 = await getSalesManagerComplaints({ period: "month" }).catch((e) => e);
+    expect(sm03.message).toBe(smComplaintsDatabaseUpdateMessage("SM_03"));
+    expect(salesManagerComplaintsErrorView(sm03)).toMatchObject({ title: "Database update needed", databaseUpdate: true, message: sm03.message });
+
+    api.mockRejectedValueOnce(new ApiError("Run SM_01 first", 503));
+    const sm01 = await getSalesManagerComplaints({ period: "month" }).catch((e) => e);
+    expect(sm01.message).toBe(smComplaintsDatabaseUpdateMessage("SM_01"));
+
+    // Without a named update the view says SM_03 (the dashboard's own view keeps SM_02).
+    expect(salesManagerComplaintsErrorView({ status: 503 }).message).toMatch(/SM_03/);
+    expect(salesManagerErrorView({ status: 503 }).message).toMatch(/SM_02/);
+    expect(salesManagerComplaintsErrorView(new ApiError("Forbidden", 403)).message).toBe(SM_FORBIDDEN_MESSAGE);
+    expect(salesManagerComplaintsErrorView(new TypeError("boom")).message).toBe("Could not load the complaints. Please try again.");
+  });
+
+  it("other errors pass through unchanged", async () => {
+    const offline = new ApiError("Can't reach the server.", 0);
+    api.mockRejectedValueOnce(offline);
+    await expect(getSalesManagerComplaints({ period: "month" })).rejects.toBe(offline);
   });
 });

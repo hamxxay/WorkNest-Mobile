@@ -1,3 +1,4 @@
+import type { Tone } from "../../theme/colors";
 import { INQUIRY_TYPE_LABELS } from "../../theme/inquiryTypes";
 import { formatDate, formatDateTime, formatNumber } from "../../utils/format";
 import { moneyFull } from "./format";
@@ -14,6 +15,8 @@ export type CeoRecordCard = {
   subtitle: string | null;
   /** Status text for a StatusPill (its tone comes from statusTone()). */
   status: string | null;
+  /** Tone of the status pill when it should not come from statusTone() (e.g. the Sales Manager's complaints). */
+  statusTone?: Tone;
   /** Main figure on the right (PKR; desks on the Sales Manager lists), when the record has one. */
   amount: string | null;
   fields: CeoRecordField[];
