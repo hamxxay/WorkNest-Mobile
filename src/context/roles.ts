@@ -6,8 +6,8 @@
 //     /auth/google-login and /auth/me all return { role, roles: [role] }, e.g. "super_admin".
 //   - [Authorize(Roles=...)] attributes also accept the Pascal-case spellings (SuperAdmin, SalesExecutive), and
 //     Roles.ReverseMap accepts "superadmin", "super admin", "administrator", "general_user", and the numeric
-//     RoleIds (1 super admin, 2 admin, 14 general, 16 sales executive, 17 ceo, 18 sales manager). We accept all of
-//     those here.
+//     RoleIds (1 super admin, 2 admin, 14 general, 16 sales executive, 17 ceo, 18 sales manager, 19 access
+//     officer). We accept all of those here.
 //   - The web CMS (AuthService.hasRole) compares roles lower-cased with spaces and underscores removed; the
 //     same normalisation is used below, plus dashes.
 //
@@ -22,9 +22,15 @@
 // Sales Manager ("sales_manager", WN_Roles.Id 18): view only, bound to the locations a super admin assigns (like
 // admins), and nothing but the sales dashboard. It is not a staff role either; it ranks above every staff role
 // (an account that carries it gets the Sales Manager app) and below the CEO.
+//
+// Access Officer ("access_officer", WN_Roles.Id 19): one job, door access by CNIC (look a person up, add them to
+// their room, enrol face / fingerprint, remove or restore access), bound to the locations a super admin assigns
+// (like admins and the Sales Manager), and nothing but the Access screen. Not a staff role either; it ranks above
+// every staff role (an account that carries it never gets the customer or staff app) and below the Sales Manager
+// and the CEO.
 
-export type UserRole = "general" | "sales_executive" | "admin" | "super_admin" | "sales_manager" | "ceo";
-/** Roles that get a staff navigator (./staff/StaffNavigator). The CEO and the Sales Manager are not among them. */
+export type UserRole = "general" | "sales_executive" | "admin" | "super_admin" | "access_officer" | "sales_manager" | "ceo";
+/** Roles that get a staff navigator (./staff/StaffNavigator). The CEO, the Sales Manager and the Access Officer are not among them. */
 export type StaffRole = "sales_executive" | "admin" | "super_admin";
 
 export const STAFF_ROLES: readonly StaffRole[] = ["sales_executive", "admin", "super_admin"];
@@ -35,10 +41,13 @@ const ROLE_RANK: Record<UserRole, number> = {
   sales_executive: 1,
   admin: 2,
   super_admin: 3,
-  // Above every staff role: a Sales Manager is never shown the customer or staff app.
-  sales_manager: 4,
-  // Highest: a CEO must never be shown the customer, staff or Sales Manager app, whatever else the account carries.
-  ceo: 5,
+  // Above every staff role: an Access Officer is never shown the customer or staff app.
+  access_officer: 4,
+  // Above every staff role and the Access Officer: a Sales Manager is never shown the customer or staff app.
+  sales_manager: 5,
+  // Highest: a CEO must never be shown the customer, staff, Access Officer or Sales Manager app, whatever else the
+  // account carries.
+  ceo: 6,
 };
 
 /** Keys are lower-cased with spaces, underscores and dashes removed. */
@@ -62,6 +71,8 @@ const ROLE_ALIASES: Record<string, UserRole> = {
   "17": "ceo",
   salesmanager: "sales_manager",
   "18": "sales_manager",
+  accessofficer: "access_officer",
+  "19": "access_officer",
 };
 
 const roleKey = (value: unknown): string =>
@@ -158,17 +169,22 @@ export function isSalesManager(role: UserRole | null | undefined): role is "sale
   return role === "sales_manager";
 }
 
+/** The Access Officer: door access by CNIC at their assigned locations, only the Access screen. */
+export function isAccessOfficer(role: UserRole | null | undefined): role is "access_officer" {
+  return role === "access_officer";
+}
+
 /** Super admin only (CMS `superAdminOnly`: Space Config, Challan Validity, machine locations / admins). */
 export function isSuperAdmin(role: UserRole | null | undefined): boolean {
   return role === "super_admin";
 }
 
 /**
- * Sales executives, admins and the Sales Manager only see their own location(s); super admins and the CEO see
- * every location (CMS isLocationBound).
+ * Sales executives, admins, the Sales Manager and the Access Officer only see their own location(s); super admins
+ * and the CEO see every location (CMS isLocationBound).
  */
 export function isLocationBound(role: UserRole | null | undefined): boolean {
-  return role === "sales_executive" || role === "admin" || role === "sales_manager";
+  return role === "sales_executive" || role === "admin" || role === "sales_manager" || role === "access_officer";
 }
 
 /** Label shown in the UI, e.g. "Super Admin". */
@@ -184,6 +200,8 @@ export function roleLabel(role: UserRole): string {
       return "CEO";
     case "sales_manager":
       return "Sales Manager";
+    case "access_officer":
+      return "Access Officer";
     default:
       return "Customer";
   }

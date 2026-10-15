@@ -15,9 +15,12 @@ import CeoNavigator from "./ceo/CeoNavigator";
 // ─── Sales Manager navigator (sales dashboard + drill-down + profile only) ─────
 import SalesManagerNavigator from "./salesManager/SalesManagerNavigator";
 
+// ─── Access Officer navigator (Access screen + profile only) ───────────────────
+import AccessOfficerNavigator from "./accessOfficer/AccessOfficerNavigator";
+
 // ─── Customer navigator ───────────────────────────────────────────────────────
 import { AppNavigator } from "./AppNavigator";
-import { navigatorForRole } from "./roleNavigator";
+import { loadsAnnouncements, navigatorForRole } from "./roleNavigator";
 
 // ─── RootNavigator ────────────────────────────────────────────────────────────
 //
@@ -26,6 +29,8 @@ import { navigatorForRole } from "./roleNavigator";
 //
 //   "ceo"              → CeoNavigator (only the CEO dashboard; never a customer or staff screen)
 //   "sales_manager"    → SalesManagerNavigator (only the sales dashboard; never a customer, staff or CEO screen)
+//   "access_officer"   → AccessOfficerNavigator (only the Access screen; never a customer, staff, CEO or Sales
+//                        Manager screen)
 //   "super_admin"      → SuperAdminStack
 //   "admin"            → AdminStack
 //   "sales_executive"  → SaleStack
@@ -39,8 +44,9 @@ export default function RootNavigator() {
 
   // Push notifications for every signed-in role (customers and staff): registers the FCM token at
   // POST /mobile/device-token after sign-in ([Authorize], any role) and deletes it on sign-out. Lives here, above
-  // the per-role navigators, so switching navigator on sign-in / sign-out never skips either step.
-  usePushNotifications(typeof user?.email === "string" ? user.email : null);
+  // the per-role navigators, so switching navigator on sign-in / sign-out never skips either step. The Access
+  // Officer's app does not load announcements (the API refuses that role everything but its own page).
+  usePushNotifications(typeof user?.email === "string" ? user.email : null, { announcements: loadsAnnouncements(role) });
 
   // While the session is being restored, keep the splash look (navy + the W) so the launch goes system splash ->
   // this -> JS splash without a white flash, and never shows the wrong navigator before the role is known.
@@ -62,6 +68,9 @@ export default function RootNavigator() {
 
     case "sales_manager":
       return <SalesManagerNavigator key="sales_manager" />;
+
+    case "access_officer":
+      return <AccessOfficerNavigator key="access_officer" />;
 
     case "super_admin":
       return <SuperAdminStack key="super_admin" />;

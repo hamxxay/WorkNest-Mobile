@@ -11,6 +11,7 @@ import {
   apiRequest,
   isAuthEndpoint,
   onSessionExpired,
+  requestTimeout,
   resetSessionExpiredState,
   setSessionRefresher,
 } from "../services/apiClient";
@@ -311,5 +312,15 @@ describe("isAuthEndpoint", () => {
     expect(isAuthEndpoint("/auth/me")).toBe(true);
     expect(isAuthEndpoint("/Agreement/my")).toBe(false);
     expect(isAuthEndpoint("/booking/12/challan")).toBe(false);
+  });
+});
+
+describe("requestTimeout", () => {
+  it("is 20 s unless a call asks for longer (e.g. a door machine capture)", () => {
+    expect(requestTimeout()).toBe(20000);
+    expect(requestTimeout(120000)).toBe(120000);
+    expect(requestTimeout(0)).toBe(20000);
+    expect(requestTimeout(-5)).toBe(20000);
+    expect(requestTimeout(NaN)).toBe(20000);
   });
 });

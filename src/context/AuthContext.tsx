@@ -12,6 +12,7 @@ import { hydrateSessionUser, subscribeToAuthChanges } from "../services/authServ
 
 import {
   hasRole as userHasRole,
+  isAccessOfficer as isAccessOfficerRole,
   isAdminOrAbove,
   isCeo as isCeoRole,
   isLocationBound,
@@ -27,6 +28,7 @@ import { greetingName, userDisplayName, userRoleLabel } from "./userDisplay";
 // The role model lives in ./roles (pure, unit-tested); re-exported here for existing imports.
 export {
   hasRole,
+  isAccessOfficer,
   isAdminOrAbove,
   isCeo,
   isLocationBound,
@@ -44,23 +46,28 @@ export { emailPrefixName, greetingName, realName, userDisplayName, userRoleLabel
 
 type AuthContextValue = {
   user: StoredUser | null;
-  /** The experience to show: general (customer app), sales_executive, admin, super_admin, sales_manager or ceo. */
+  /**
+   * The experience to show: general (customer app), sales_executive, admin, super_admin, access_officer,
+   * sales_manager or ceo.
+   */
   role: UserRole;
   /** The staff role, or null for customers. */
   staffRole: StaffRole | null;
-  /** Sales executive, admin or super admin (never the CEO or the Sales Manager). */
+  /** Sales executive, admin or super admin (never the CEO, the Sales Manager or the Access Officer). */
   isStaff: boolean;
   /** The CEO: read-only, every location, only the CEO dashboard (its own navigator). */
   isCeo: boolean;
   /** The Sales Manager: read-only, their assigned locations, only the sales dashboard (its own navigator). */
   isSalesManager: boolean;
+  /** The Access Officer: door access by CNIC at their assigned locations, only the Access screen (its own navigator). */
+  isAccessOfficer: boolean;
   /** Admin or super admin (CMS `adminOnly`, API "admin,Admin,super_admin,SuperAdmin"). */
   isAdmin: boolean;
   /** Super admin only (CMS `superAdminOnly`). */
   isSuperAdmin: boolean;
   /** Sales executive and not an admin. */
   isSalesExecutive: boolean;
-  /** Admins, sales executives and the Sales Manager only see their own location(s); super admins see all. */
+  /** Admins, sales executives, the Sales Manager and the Access Officer only see their own location(s); super admins see all. */
   isLocationBound: boolean;
   /** The user's name from auth/me (WN_Users.Name) as it is; the email prefix only when there is none. */
   displayName: string;
@@ -134,6 +141,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isStaff: isStaffRole(role),
       isCeo: isCeoRole(role),
       isSalesManager: isSalesManagerRole(role),
+      isAccessOfficer: isAccessOfficerRole(role),
       isAdmin: isAdminOrAbove(role),
       isSuperAdmin: isSuperAdminRole(role),
       isSalesExecutive: role === "sales_executive",

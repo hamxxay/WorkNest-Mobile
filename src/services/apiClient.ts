@@ -7,6 +7,11 @@ type RequestOptions = {
   requiresAuth?: boolean;
   headers?: Record<string, string>;
   unwrapData?: boolean;
+  /**
+   * How long to wait for the answer (ms). Default REQUEST_TIMEOUT_MS (20 s). Only for calls that wait for something
+   * slow on purpose, e.g. a door machine capturing a face or fingerprint (Access Officer enrolment, ~90 s).
+   */
+  timeoutMs?: number;
 };
 
 export class ApiError extends Error {
@@ -221,6 +226,10 @@ export function errorMessage(error: unknown, fallback = FALLBACK_MESSAGE): strin
 
 /** How long a request may take before the app gives up and shows an error. */
 const REQUEST_TIMEOUT_MS = 20000;
+/** The time limit for a request: `timeoutMs` when it is a positive number, otherwise REQUEST_TIMEOUT_MS. */
+export function requestTimeout(timeoutMs?: number): number {
+  return typeof timeoutMs === "number" && Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : REQUEST_TIMEOUT_MS;
+}
 /** PDFs are generated on the server and can take longer than a JSON call. */
 const FILE_TIMEOUT_MS = 60000;
 
@@ -309,7 +318,7 @@ export async function apiRequest<T>(
 
   const body = options.body !== undefined ? JSON.stringify(options.body) : undefined;
   const response = await sendWithSessionRefresh(path, await buildHeaders(options), headers =>
-    fetchWithTimeout(requestUrl, { method, headers, body }, REQUEST_TIMEOUT_MS),
+    fetchWithTimeout(requestUrl, { method, headers, body }, requestTimeout(options.timeoutMs)),
   );
 
   const payload = await parsePayload(response);

@@ -18,8 +18,9 @@ import { useAuth, userDisplayName } from "../../../context/AuthContext";
 import { logoutUser } from "../../../services/authService";
 import { spacing } from "../../../theme";
 
-// Profile of a view-only app (CEO, Sales Manager): who is signed in (name and role from the database, via auth/me),
-// the locations they see, appearance (System / Light / Dark) and sign out. Nothing to edit.
+// Profile of a single-purpose app (CEO, Sales Manager, Access Officer): who is signed in (name and role from the
+// database, via auth/me), the locations they see, what the account can do, appearance (System / Light / Dark) and
+// sign out. Nothing to edit.
 
 export type ViewOnlyProfileProps = {
   /** Shown when the account has neither a name nor an email (e.g. "CEO"). */
@@ -28,9 +29,19 @@ export type ViewOnlyProfileProps = {
   locations: string;
   /** Under "Sign out?": what signing out means for this app. */
   signOutMessage: string;
+  /** The "Access" row: what this account can do. Default "View only" (CEO, Sales Manager). */
+  access?: string;
+  /** Ionicons name for the "Access" row. Default "eye-outline". */
+  accessIcon?: string;
 };
 
-export function ViewOnlyProfile({ fallbackName, locations, signOutMessage }: ViewOnlyProfileProps) {
+export function ViewOnlyProfile({
+  fallbackName,
+  locations,
+  signOutMessage,
+  access = "View only",
+  accessIcon = "eye-outline",
+}: ViewOnlyProfileProps) {
   const { user, roleDisplayLabel, clearSession } = useAuth();
   const [confirmSignOut, setConfirmSignOut] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -71,7 +82,7 @@ export function ViewOnlyProfile({ fallbackName, locations, signOutMessage }: Vie
           <InfoRow label="Role" value={roleDisplayLabel} icon="shield-checkmark-outline" />
           {/* A long list of locations wraps under its label. */}
           <InfoRow label="Locations" value={locations} icon="location-outline" layout={locations.length > 24 ? "stacked" : undefined} />
-          <InfoRow label="Access" value="View only" icon="eye-outline" />
+          <InfoRow label="Access" value={access} icon={accessIcon} layout={access.length > 24 ? "stacked" : undefined} />
         </Card>
 
         <SectionHeader title="Appearance" variant="overline" />
