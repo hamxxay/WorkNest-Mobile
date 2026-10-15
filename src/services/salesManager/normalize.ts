@@ -1,5 +1,5 @@
 import { INQUIRY_TYPES, type InquiryType } from "../../theme/inquiryTypes";
-import { num, optNum, optStr, pick, str } from "../staff/normalize";
+import { bool, num, optNum, optStr, pick, str } from "../staff/normalize";
 import {
   normalizeBreakdownWith,
   normalizeFunnel,
@@ -15,9 +15,13 @@ import {
 } from "../ceo/normalize";
 import { byMonth, list, optId, payload, section, type Row } from "../ceo/readers";
 import type {
+  SmActiveComplaint,
   SmBookingRecord,
   SmBreakdown,
   SmBreakdownMetric,
+  SmComplaintRecord,
+  SmComplaints,
+  SmComplaintStatus,
   SmDashboard,
   SmFunnel,
   SmInquiries,
@@ -207,6 +211,110 @@ export function normalizeSalesManagerDashboard(raw: unknown, requested: SmPeriod
   };
 }
 
+// ─── Complaints ───────────────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * A complaint status as the API normalises it (trimmed, lower-case, spaces to "_"), with "new" read as open and
+ * "inprogress" / "in-progress" as in_progress; null for anything else.
+ */
+export function normalizeSmComplaintStatus(value: unknown): SmComplaintStatus | null {
+  if (value == null) return null;
+  const key = String(value).trim().toLowerCase().replace(/[\s-]+/g, "_");
+  switch (key) {
+    case "open":
+    case "new":
+      return "open";
+    case "in_progress":
+    case "inprogress":
+      return "in_progress";
+    case "resolved":
+      return "resolved";
+    case "closed":
+      return "closed";
+    default:
+      return null;
+  }
+}
+
+/** A category name; none (a NULL category) is "Other", as the API groups it. */
+const categoryOf = (row: Row) => optStr(row, "category") ?? "Other";
+
+const toActiveComplaint = (c: Row): SmActiveComplaint => ({
+  complaintId: optId(c, "complaintId", "id"),
+  complaintNo: optStr(c, "complaintNo"),
+  customerName: optStr(c, "customerName", "customer"),
+  category: categoryOf(c),
+  branch: optStr(c, "branch"),
+  status: normalizeSmComplaintStatus(pick(c, "status")),
+  createdOn: optStr(c, "createdOn"),
+  ageDays: optNum(c, "ageDays"),
+});
+
+/** Average days to resolve, one decimal; null when not sent (or not a usable figure). */
+const avgDays = (raw: Row): number | null => {
+  const n = optNum(raw, "avgResolutionDays");
+  return n != null && n >= 0 ? Math.round(n * 10) / 10 : null;
+};
+
+/** GET api/sales-manager/complaints answer (envelope or bare object). Missing counts are 0, missing lists []. */
+export function normalizeSalesManagerComplaints(raw: unknown, requested: SmPeriod = "month"): SmComplaints {
+  const d = payload(raw);
+  const s = section(d, "status") ?? {};
+  const status = {
+    open: num(s, "open", "new"),
+    inProgress: num(s, "inProgress", "in_progress"),
+    resolved: num(s, "resolved"),
+    closed: num(s, "closed"),
+  };
+  return {
+    period: pick(d, "period") != null ? normalizePeriod(pick(d, "period")) : requested,
+    periodLabel: str(d, "periodLabel"),
+    status,
+    activeTotal: optNum(d, "activeTotal") ?? status.open + status.inProgress,
+    newInPeriod: num(d, "newInPeriod"),
+    newInPeriodPrev: optNum(d, "newInPeriodPrev"),
+    resolvedInPeriod: num(d, "resolvedInPeriod"),
+    reopenedInPeriod: num(d, "reopenedInPeriod"),
+    avgResolutionDays: avgDays(d),
+    byCategory: list(d, "byCategory", (c) => ({
+      category: categoryOf(c),
+      open: num(c, "open"),
+      inProgress: num(c, "inProgress"),
+      total: num(c, "total"),
+    })),
+    byBranch: list(d, "byBranch", (b) => {
+      const branch = str(b, "branch").trim();
+      return {
+        branch,
+        label: optStr(b, "label") ?? (branch || "No branch"),
+        open: num(b, "open"),
+        inProgress: num(b, "inProgress"),
+        total: num(b, "total"),
+      };
+    }),
+    months: byMonth(list(d, "months", (m) => ({ month: str(m, "month"), created: num(m, "created"), resolved: num(m, "resolved") }))),
+    oldestActive: list(d, "oldestActive", toActiveComplaint),
+  };
+}
+
+/** A records/complaints row. */
+export const toComplaintRecord = (r: Row): SmComplaintRecord => ({
+  complaintId: optId(r, "complaintId", "id"),
+  complaintNo: optStr(r, "complaintNo"),
+  customerName: optStr(r, "customerName", "customer"),
+  phone: optStr(r, "phone", "phoneNumber"),
+  category: categoryOf(r),
+  branch: optStr(r, "branch"),
+  status: normalizeSmComplaintStatus(pick(r, "status")),
+  statusText: optStr(r, "status"),
+  source: optStr(r, "source"),
+  isFollowUp: bool(r, "isFollowUp"),
+  createdOn: optStr(r, "createdOn"),
+  updatedOn: optStr(r, "updatedOn"),
+  ageDays: optNum(r, "ageDays"),
+  description: optStr(r, "description"),
+});
+
 // ─── Breakdown ────────────────────────────────────────────────────────────────────────────────────────────
 
 /** Title and value labels when the server sent none. */
@@ -234,6 +342,7 @@ const RECORD_TITLES: Record<SmRecordKind, string> = {
   bookings: "Bookings",
   inquiries: "Tour inquiries",
   leases: "Expiring leases",
+  complaints: "Complaints",
 };
 
 const toSmInquiry = (r: Row): SmInquiryRecord => ({ ...toInquiryRecord(r), followUpOn: optStr(r, "followUpOn", "followUpDate") });
@@ -283,6 +392,10 @@ export function normalizeSalesManagerRecords(kind: SmRecordKind, raw: unknown): 
     }
     case "leases": {
       const rows = list(d, "rows", toLease);
+      return { kind, title, total: recordsTotal(d, rows.length), rows };
+    }
+    case "complaints": {
+      const rows = list(d, "rows", toComplaintRecord);
       return { kind, title, total: recordsTotal(d, rows.length), rows };
     }
     case "quotations":

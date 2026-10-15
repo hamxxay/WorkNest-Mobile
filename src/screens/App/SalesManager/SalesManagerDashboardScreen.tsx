@@ -9,8 +9,10 @@ import { useReduceMotion } from "../../../hooks/useReduceMotion";
 import type { SalesManagerStackParamList } from "../../../navigation/salesManagerTypes";
 import { PERIOD_OPTIONS, periodWords, type CeoPeriod } from "../../../services/ceo";
 import {
+  getSalesManagerComplaints,
   getSalesManagerDashboard,
   isCompleteSmBreakdown,
+  isCurrentComplaintsList,
   salesManagerErrorView,
   type SmLocation,
   type SmRecordsQuery,
@@ -20,6 +22,7 @@ import { spacing, useThemeColors } from "../../../theme";
 import { formatTime } from "../../../utils/format";
 import { CeoErrorState, CeoSection, StaleBanner, useCeoQuery } from "../Ceo/parts";
 import { useRefreshColors } from "../Staff/shared/refresh";
+import { ComplaintsBlock } from "./ComplaintsSection";
 import {
   FunnelSection,
   InquiriesSection,
@@ -37,9 +40,10 @@ const ALL_MY_LOCATIONS = "All my locations";
 /**
  * The Sales Manager dashboard (GET api/sales-manager/dashboard): Sales funnel, Team performance, Tour inquiries and
  * Renewals & desks for this month / quarter / year against the previous period, for all the manager's locations
- * or one of them (tour inquiries always cover every branch). Desks, never money ("91 desks booked"). View only:
- * tapping a chart element or row drills down (a breakdown screen, then a records list; some open their records
- * directly). Pull to refresh reloads it.
+ * or one of them (tour inquiries always cover every branch). Desks, never money ("91 desks booked"). Last comes
+ * Complaints, loaded on its own (GET api/sales-manager/complaints, same period and location), so the rest keeps
+ * working when only that call fails. View only: tapping a chart element or row drills down (a breakdown screen,
+ * then a records list; some open their records directly). Pull to refresh reloads both.
  */
 export default function SalesManagerDashboardScreen() {
   const navigation = useNavigation<Nav>();
@@ -64,6 +68,14 @@ export default function SalesManagerDashboardScreen() {
   );
   const dashboard = useCeoQuery(load);
   const d = dashboard.data;
+  const loadComplaints = useCallback(() => getSalesManagerComplaints(scope), [scope]);
+  const complaints = useCeoQuery(loadComplaints);
+  const { refresh: refreshDashboard } = dashboard;
+  const { refresh: refreshComplaints } = complaints;
+  const refreshAll = useCallback(() => {
+    refreshDashboard();
+    refreshComplaints();
+  }, [refreshDashboard, refreshComplaints]);
 
   // ─── Scroll targets for the KPI cards ──────────────────────────────────────────────────────────────────
   const scrollRef = useRef<ScrollView>(null);
@@ -92,7 +104,8 @@ export default function SalesManagerDashboardScreen() {
   // ─── Drill-down ──────────────────────────────────────────────────────────────────────────────────────────
   const locationName = knownLocations.find((l) => l.locationId === locationId)?.name;
   const periodText = d?.periodLabel || PERIOD_OPTIONS.find((p) => p.value === period)?.label;
-  const scopeLabel = [periodText, locationId ? locationName ?? "One location" : ALL_MY_LOCATIONS].filter(Boolean).join(" · ");
+  const locationText = locationId ? locationName ?? "One location" : ALL_MY_LOCATIONS;
+  const scopeLabel = [periodText, locationText].filter(Boolean).join(" · ");
 
   const drill = useMemo<SmDrill>(
     () => ({
@@ -105,13 +118,19 @@ export default function SalesManagerDashboardScreen() {
       },
       records: (query: SmRecordsQuery | null, trail: string[], title?: string) => {
         if (!query) return;
-        const label = query.kind === "inquiries" ? [periodText, "All branches"].filter(Boolean).join(" · ") : scopeLabel;
+        // Complaints as they are now (open, in progress...) are not bound to the period: name only the location.
+        const label =
+          query.kind === "inquiries"
+            ? [periodText, "All branches"].filter(Boolean).join(" · ")
+            : isCurrentComplaintsList(query)
+              ? locationText
+              : scopeLabel;
         navigation.navigate("SalesManagerRecords", { query, trail, title, scopeLabel: label });
       },
       focus,
       target,
     }),
-    [scope, period, navigation, scopeLabel, periodText, focus, target],
+    [scope, period, navigation, scopeLabel, periodText, locationText, focus, target],
   );
 
   const words = periodWords(period);
@@ -134,7 +153,7 @@ export default function SalesManagerDashboardScreen() {
       <ScrollView
         ref={scrollRef}
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={dashboard.refreshing} onRefresh={dashboard.refresh} {...refreshColors} />}
+        refreshControl={<RefreshControl refreshing={dashboard.refreshing || complaints.refreshing} onRefresh={refreshAll} {...refreshColors} />}
       >
         <View ref={contentRef} collapsable={false} style={styles.stack}>
           <View style={styles.controls}>
@@ -215,6 +234,9 @@ export default function SalesManagerDashboardScreen() {
               </CeoSection>
             </>
           )}
+
+          {/* Own call: shown (with its own error state) whether or not the rest of the dashboard loaded. */}
+          <ComplaintsBlock query={complaints} drill={drill} periodLabel={periodText} oneLocation={!!locationId || knownLocations.length === 1} />
         </View>
       </ScrollView>
     </Screen>

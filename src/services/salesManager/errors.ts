@@ -5,18 +5,28 @@ import { dashboardErrorView, needsDatabaseUpdate, withDatabaseUpdateMessage, typ
 // dashboard's wording).
 //
 // The endpoints answer 503 when a database update they need has not been run yet: SM_01 (the Sales Manager role and
-// its procedures) or SM_02 (the procedures that count desks instead of PKR). That is not a passing outage, so it gets
-// its own clear message, naming the update the server asked for (SM_02, the newest, when it named none).
+// its procedures), SM_02 (the procedures that count desks instead of PKR) or SM_03 (the complaints section, loaded
+// on its own from api/sales-manager/complaints and records/complaints). That is not a passing outage, so it gets its
+// own clear message, naming the update the server asked for (SM_02 for the dashboard, SM_03 for complaints, when it
+// named none).
 
-/** The newest database update this dashboard needs (desks instead of PKR). */
+/** The newest database update the dashboard (funnel, team, inquiries, renewals) needs: desks instead of PKR. */
 export const SM_LATEST_DB_UPDATE = "SM_02";
 
-/** The 503 message for a database update ("SM_02" by default). */
-export function smDatabaseUpdateMessage(update: string = SM_LATEST_DB_UPDATE): string {
+/** The database update the complaints section (and its records) needs. */
+export const SM_COMPLAINTS_DB_UPDATE = "SM_03";
+
+/** The 503 message for a database update ("SM_02" by default); `subject` names what needs it. */
+export function smDatabaseUpdateMessage(update: string = SM_LATEST_DB_UPDATE, subject = "The sales dashboard"): string {
   return (
-    `The sales dashboard needs the database update ${update} on the server before it can show figures. ` +
+    `${subject} needs the database update ${update} on the server before it can show figures. ` +
     "Please ask your WorkNest administrator to run it, then pull down to refresh."
   );
+}
+
+/** The complaints section's 503 message ("SM_03" by default). */
+export function smComplaintsDatabaseUpdateMessage(update: string = SM_COMPLAINTS_DB_UPDATE): string {
+  return smDatabaseUpdateMessage(update, "The complaints section");
 }
 
 /** The 503 message when the server names no update (SM_02). */
@@ -30,9 +40,9 @@ const UPDATE_NAME = /\bSM_(\d{2})\b/i;
 
 /**
  * The database update a 503 names ("...needs the database update SM_01."), read from the error's message or the
- * server's answer kept with it; SM_02 when it names none.
+ * server's answer kept with it; `fallback` (SM_02) when it names none.
  */
-export function smDatabaseUpdateOf(error: unknown): string {
+export function smDatabaseUpdateOf(error: unknown, fallback: string = SM_LATEST_DB_UPDATE): string {
   const texts: unknown[] = [];
   if (error && typeof error === "object") {
     const e = error as { message?: unknown; details?: unknown };
@@ -42,7 +52,7 @@ export function smDatabaseUpdateOf(error: unknown): string {
     const m = typeof text === "string" ? UPDATE_NAME.exec(text) : null;
     if (m) return `SM_${m[1]}`;
   }
-  return SM_LATEST_DB_UPDATE;
+  return fallback;
 }
 
 /** The error to throw from a Sales Manager call: a 503 becomes the database update message, anything else is kept. */
@@ -53,5 +63,18 @@ export function toSalesManagerError(error: unknown): unknown {
 /** Title, message and icon for an error state on a Sales Manager screen. */
 export function salesManagerErrorView(error: unknown, fallback?: string): CeoErrorView {
   const databaseUpdate = smDatabaseUpdateMessage(smDatabaseUpdateOf(error));
+  return dashboardErrorView(error, { databaseUpdate, forbidden: SM_FORBIDDEN_MESSAGE }, fallback);
+}
+
+/** The error to throw from a complaints call: a 503 becomes the complaints section's database update message. */
+export function toSalesManagerComplaintsError(error: unknown): unknown {
+  return needsDatabaseUpdate(error)
+    ? withDatabaseUpdateMessage(error, smComplaintsDatabaseUpdateMessage(smDatabaseUpdateOf(error, SM_COMPLAINTS_DB_UPDATE)))
+    : error;
+}
+
+/** Title, message and icon for an error state of the complaints section or a complaints list (503: SM_03). */
+export function salesManagerComplaintsErrorView(error: unknown, fallback = "Could not load the complaints. Please try again."): CeoErrorView {
+  const databaseUpdate = smComplaintsDatabaseUpdateMessage(smDatabaseUpdateOf(error, SM_COMPLAINTS_DB_UPDATE));
   return dashboardErrorView(error, { databaseUpdate, forbidden: SM_FORBIDDEN_MESSAGE }, fallback);
 }
