@@ -84,7 +84,7 @@ const SECTIONS: Section[] = [
     number: "7",
     icon: "time-outline",
     title: "Data Retention",
-    body: "We keep your data as long as necessary for the purposes outlined or as required by law. You can request deletion of your account and associated data (subject to legal obligations).",
+    body: "We keep your data as long as necessary for the purposes outlined or as required by law. You can delete your account yourself in the app (Profile > Delete account) or at worknestpk.com/delete-account: your sign-in and personal details are removed. Bookings, invoices, payments and signed agreements are kept for accounting and legal reasons, no longer linked to your name.",
   },
   {
     number: "8",

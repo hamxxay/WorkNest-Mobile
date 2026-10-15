@@ -17,6 +17,7 @@ import {
 import { useAuth, userDisplayName } from "../../../context/AuthContext";
 import { logoutUser } from "../../../services/authService";
 import { spacing } from "../../../theme";
+import { AccountSecurityCard } from "../../../components/account/AccountSecurityCard";
 
 // Profile of a single-purpose app (CEO, Sales Manager, Access Officer): who is signed in (name and role from the
 // database, via auth/me), the locations they see, what the account can do, appearance (System / Light / Dark) and
@@ -84,6 +85,9 @@ export function ViewOnlyProfile({
           <InfoRow label="Locations" value={locations} icon="location-outline" layout={locations.length > 24 ? "stacked" : undefined} />
           <InfoRow label="Access" value={access} icon={accessIcon} layout={access.length > 24 ? "stacked" : undefined} />
         </Card>
+
+        <SectionHeader title="Account" variant="overline" />
+        <AccountSecurityCard />
 
         <SectionHeader title="Appearance" variant="overline" />
         <Card>
