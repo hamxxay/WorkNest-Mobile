@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { DeviceEventEmitter } from "react-native";
 import { buildApiPath } from "../config/api";
-import { apiRequest } from "./apiClient";
+import { ApiError, apiRequest } from "./apiClient";
 
 export type DoorAccessDetails = {
   name: string;
@@ -160,6 +160,16 @@ export async function getDoorAccess(accountEmail: string, forceRecheck = false):
   } catch {
     return withSelection(stored.result, selected, stored.details);
   }
+}
+
+/**
+ * The server answered and said no (access turned off, suspended for an unpaid bill, booking ended, no door set up):
+ * apiClient turns its { isSuccessful: false, message } into an ApiError with the 2xx status, or a 403 / 404. Trying
+ * again would not help, so the screen shows the message without a retry. Network failures (status 0) and server
+ * errors (5xx) are not refusals.
+ */
+export function isDoorRefusal(error: unknown): error is ApiError {
+  return error instanceof ApiError && ((error.status >= 200 && error.status < 300) || error.status === 403 || error.status === 404);
 }
 
 /** API answers { isSuccessful: false, message } when it refuses: turn that into an error with the message. */

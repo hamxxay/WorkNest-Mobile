@@ -202,8 +202,12 @@ export const API_ENDPOINTS = {
       `/quotation/${id}/versions/${version}/decline`,
     versionCreate: (id: string) => `/quotation/${id}/versions`,
   },
-  // There is no "my invoices" list for customers yet: the customer area uses /payment/my + booking challans.
   invoices: {
+    /**
+     * GET /api/invoice/my — the signed-in customer's own bills (Payments tab): invoices plus booking challans that
+     * have no invoice, with status (paid / unpaid / overdue), balance and totals.
+     */
+    my: "/invoice/my",
     /** GET /api/invoice — staff only. */
     list: "/invoice",
     /** GET /api/invoice/{id} — staff only. */

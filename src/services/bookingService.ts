@@ -199,7 +199,36 @@ export type MyBooking = {
   totalPaidAmount: number | null;
   challanNumber: string | null;
   challanValidUntil: string | null;
+} & DoorAccessNotice;
+
+/**
+ * Door access to the space is suspended because a bill is unpaid (the API's WN_HIK_BookingAccessSuspensions):
+ * `accessSuspendedReason` is the API's plain text; the invoice (id / number) is the bill to pay, null when it is
+ * the booking challan.
+ */
+export type DoorAccessNotice = {
+  accessSuspended: boolean;
+  accessSuspendedReason: string | null;
+  accessSuspendedInvoiceId: number | null;
+  accessSuspendedInvoiceNumber: string | null;
 };
+
+function doorAccessNotice(raw: Record<string, unknown>): DoorAccessNotice {
+  const flag = pick(raw, "accessSuspended", "AccessSuspended");
+  const suspended = flag === true || flag === 1 || text(flag).toLowerCase() === "true";
+  return {
+    accessSuspended: suspended,
+    accessSuspendedReason: suspended ? textOrNull(pick(raw, "accessSuspendedReason", "AccessSuspendedReason")) : null,
+    accessSuspendedInvoiceId: suspended ? idOrNull(pick(raw, "accessSuspendedInvoiceId", "AccessSuspendedInvoiceId")) : null,
+    accessSuspendedInvoiceNumber: suspended
+      ? textOrNull(pick(raw, "accessSuspendedInvoiceNumber", "AccessSuspendedInvoiceNumber"))
+      : null,
+  };
+}
+
+/** The banner text when the API sent no reason of its own. */
+export const DOOR_SUSPENDED_FALLBACK =
+  "Door access to this space is suspended because a bill is unpaid. Access comes back once the payment is recorded.";
 
 export function normalizeMyBooking(input: unknown): MyBooking {
   const raw = (input ?? {}) as Record<string, unknown>;
@@ -225,6 +254,7 @@ export function normalizeMyBooking(input: unknown): MyBooking {
     totalPaidAmount: paidAmountOf(raw),
     challanNumber: textOrNull(pick(raw, "challanNumber", "ChallanNumber")),
     challanValidUntil: textOrNull(pick(raw, "challanValidUntil", "ChallanValidUntil")),
+    ...doorAccessNotice(raw),
   };
 }
 
@@ -438,6 +468,14 @@ export type BookingChallan = {
   totalPaidAmount: number | null;
   balanceLeft: number | null;
   nextBillDueDate: string | null;
+  /** Advance rent on the booking's challan (may include the rest of the first month). GET /booking/{id} only. */
+  firstCycleRent: number | null;
+  /**
+   * GET /booking/{id}: false while the API says next bill / balance left can't be trusted (database update not
+   * installed yet, or a confirmed booking without invoices). Those figures are not shown then. True when the API
+   * did not send the flag (the challan endpoint).
+   */
+  billingFiguresReliable: boolean;
   /**
    * The API's amount breakdown (same as the challan PDF): its amount rows add up to totalPayable. Empty when the
    * API sent none (GET /booking/{id} has no breakdown).
@@ -445,7 +483,7 @@ export type BookingChallan = {
   fields: BreakdownField[];
   /** Ledger lines (accounting entries). They do not add up to the total payable: show `fields` instead. */
   lines: ChallanLine[];
-};
+} & DoorAccessNotice;
 
 export function normalizeChallan(input: unknown, bookingIdFallback?: number): BookingChallan {
   const raw = (input ?? {}) as Record<string, unknown>;
@@ -491,6 +529,12 @@ export function normalizeChallan(input: unknown, bookingIdFallback?: number): Bo
       pick(raw, "nextBillDueDate", "NextBillDueDate", "nextBillingDate", "NextBillingDate") ??
         pick(contract, "nextBillDueDate", "NextBillDueDate", "nextBillingDate", "NextBillingDate"),
     ),
+    firstCycleRent: amountOrNull(pick(raw, "firstCycleRent", "FirstCycleRent")),
+    billingFiguresReliable: (() => {
+      const flag = pick(raw, "billingFiguresReliable", "BillingFiguresReliable");
+      return flag === undefined ? true : flag === true || flag === 1 || text(flag).toLowerCase() === "true";
+    })(),
+    ...doorAccessNotice(raw),
     fields: normalizeBreakdownFields(raw),
     lines: rawLines.map((line: any) => {
       const l = (line ?? {}) as Record<string, unknown>;
