@@ -332,7 +332,9 @@ export type EmployeeFormField = "personId" | "fullName" | "email" | "phone" | "i
 export type EmployeeFormErrors = Partial<Record<EmployeeFormField, string>>;
 
 export const NAME_MIN = 2;
-export const NAME_MAX = 200;
+/** Same limits as the API (BookingEmployeeService: WN_Persons.Name / Email are 150 characters). */
+export const NAME_MAX = 150;
+export const EMAIL_MAX = 150;
 export const PASSPORT_MIN = 6;
 export const PASSPORT_MAX = 20;
 export const PASSPORT_ERROR = `Passport number must be ${PASSPORT_MIN} to ${PASSPORT_MAX} letters and numbers.`;
@@ -342,7 +344,7 @@ export function formatPassportInput(value: string): string {
   return (value ?? "").replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, PASSPORT_MAX);
 }
 
-/** Same rules as the API: name 2-200, email and phone optional but valid, CNIC 13 digits, passport 6-20 letters / numbers. */
+/** Same rules as the API: name 2-150, email (up to 150) and phone optional but valid, CNIC 13 digits, passport 6-20 letters / numbers. */
 export function validateEmployeeForm(form: EmployeeForm): EmployeeFormErrors {
   const errors: EmployeeFormErrors = {};
   if (form.mode === "existing") {
@@ -356,7 +358,8 @@ export function validateEmployeeForm(form: EmployeeForm): EmployeeFormErrors {
   else if (name.length > NAME_MAX) errors.fullName = `Full name must be ${NAME_MAX} characters or fewer.`;
 
   const email = text(form.email);
-  if (email && !isValidEmail(email)) errors.email = "Enter a valid email address, or leave it empty.";
+  if (email.length > EMAIL_MAX) errors.email = `Email must be ${EMAIL_MAX} characters or fewer.`;
+  else if (email && !isValidEmail(email)) errors.email = "Enter a valid email address, or leave it empty.";
 
   const phone = phoneError(text(form.phone));
   if (phone) errors.phone = phone;

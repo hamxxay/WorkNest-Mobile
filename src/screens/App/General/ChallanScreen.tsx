@@ -31,6 +31,8 @@ import {
   type BookingChallan,
 } from "../../../services/bookingService";
 import { breakdownValue, monthsLabel } from "../../../services/amountBreakdown";
+import { refundNote } from "../../../services/billService";
+import { returnToBookingScreen } from "../../../navigation/stackReturn";
 import { AmountBreakdown } from "./shared/AmountBreakdown";
 import { ChallanPayHelp } from "./shared/ChallanPayHelp";
 import type { AppStackParamList } from "../../../navigation/types";
@@ -62,7 +64,8 @@ function challanState(challan: BookingChallan) {
  *
  * The breakdown is the API's `fields` (adds up to the total payable). Payment instructions only appear while the
  * challan can be paid: an expired challan asks the customer to contact WorkNest for a new one, and a cancelled,
- * rejected or no-show booking says the challan can no longer be paid.
+ * rejected or no-show booking says the challan can no longer be paid (or, when it was paid, how much and to ask
+ * WorkNest about a refund).
  */
 export default function ChallanScreen() {
   const navigation = useNavigation<Nav>();
@@ -120,6 +123,15 @@ export default function ChallanScreen() {
     ? breakdownValue(challan.fields, "advanceRentPeriod") ?? monthsLabel(challan.billingPeriodMonths)
     : null;
   const totalLabel = state?.payable ? "Total payable" : "Challan total";
+  // Paid, then the booking was rejected / cancelled: the amount paid and who to ask about a refund.
+  const refund = challan && state?.isVoid ? refundNote(challan.totalPaidAmount, challan.bookingStatus) : null;
+
+  // Challan and Booking details link to each other: go back when the booking is already open below this screen.
+  const openBooking = () => {
+    if (!challan) return;
+    if (returnToBookingScreen(navigation, "BookingDetail", [challan.bookingId, challan.bookingPublicId])) return;
+    navigation.navigate("BookingDetail", { bookingId: challan.bookingId });
+  };
 
   return (
     <Screen>
@@ -174,6 +186,14 @@ export default function ChallanScreen() {
               actionLabel="Contact us"
               onAction={() => navigation.navigate("ContactUs")}
             />
+          ) : state.isVoid && refund ? (
+            <Banner
+              tone="warning"
+              title="Refund"
+              message={refund}
+              actionLabel="Contact us"
+              onAction={() => navigation.navigate("ContactUs")}
+            />
           ) : state.isVoid ? (
             <Banner
               tone="info"
@@ -202,7 +222,11 @@ export default function ChallanScreen() {
             ) : state.expired ? (
               <InfoRow label="Expired on" value={formatDate(challan.validUntil)} icon="time-outline" />
             ) : challan.issuedOn ? (
+              // Pakistan date from the API (it converts the stored UTC time, like validUntil).
               <InfoRow label="Issued" value={formatDate(challan.issuedOn)} icon="calendar-outline" />
+            ) : null}
+            {refund && challan.totalPaidAmount ? (
+              <InfoRow label="You paid" value={formatMoney(challan.totalPaidAmount)} icon="cash-outline" />
             ) : null}
             <Divider spacing={8} />
             <InfoRow label={totalLabel} value={formatMoney(challan.totalPayable)} emphasize />
@@ -263,12 +287,7 @@ export default function ChallanScreen() {
             {pdfAvailable ? (
               <Button title="Download / share PDF" leftIcon="download-outline" fullWidth loading={pdfBusy} onPress={openPdf} />
             ) : null}
-            <Button
-              title="View booking"
-              variant="outline"
-              fullWidth
-              onPress={() => navigation.navigate("BookingDetail", { bookingId: challan.bookingId })}
-            />
+            <Button title="View booking" variant="outline" fullWidth onPress={openBooking} />
           </View>
         </ScrollView>
       )}

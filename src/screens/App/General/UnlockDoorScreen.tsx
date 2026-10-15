@@ -15,7 +15,15 @@ import {
 } from "../../../components/ui";
 import { useTheme, useThemedStyles, type AppColors, type Theme } from "../../../theme";
 import { useAuth } from "../../../context/AuthContext";
-import { getDoorAccess, getDoors, unlockDoor, type DoorAccess, type DoorInfo } from "../../../services/doorAccessService";
+import {
+  getDoorAccess,
+  getDoors,
+  isDoorRefusal,
+  notifyDoorAccessChanged,
+  unlockDoor,
+  type DoorAccess,
+  type DoorInfo,
+} from "../../../services/doorAccessService";
 import { errorMessage } from "../../../services/apiClient";
 import { haptics } from "../../../utils/haptics";
 
@@ -24,6 +32,8 @@ type Status = { kind: "ok" | "error"; text: string } | null;
 /**
  * Unlock Door: opens the verified access user's room door only (entrances use card, fingerprint or face).
  * Tapping Unlock asks the API to open it on the machine; the result shows under the door.
+ * When the server refuses (access turned off, suspended for an unpaid bill, booking ended) its own message is shown
+ * without a retry, and the door buttons elsewhere in the app re-check access (notifyDoorAccessChanged).
  */
 export default function UnlockDoorScreen() {
   const navigation = useNavigation<any>();
@@ -34,6 +44,8 @@ export default function UnlockDoorScreen() {
   const [doors, setDoors] = useState<DoorInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  /** The server's refusal (no retry offered: trying again would not change its answer). */
+  const [refusal, setRefusal] = useState<string | null>(null);
   const [needsVerification, setNeedsVerification] = useState(false);
   const [unlocking, setUnlocking] = useState<number | null>(null);
   const [status, setStatus] = useState<Record<number, Status>>({});
@@ -41,6 +53,7 @@ export default function UnlockDoorScreen() {
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setRefusal(null);
     setNeedsVerification(false);
     try {
       const current = typeof user?.email === "string" ? await getDoorAccess(user.email) : null;
@@ -52,10 +65,15 @@ export default function UnlockDoorScreen() {
       }
       const result = await getDoors(current);
       setDoors(result.doors ?? []);
-      if (!result.doors?.length) setError(result.message || "No doors found for your room.");
+      if (!result.doors?.length) setRefusal(result.message || "No door machine is set up for your room yet. Please contact reception.");
     } catch (err) {
       setDoors([]);
-      setError(errorMessage(err, "Could not load your doors. Please try again."));
+      if (isDoorRefusal(err)) {
+        setRefusal(errorMessage(err, "Door access is not available right now. Please contact reception."));
+        notifyDoorAccessChanged();
+      } else {
+        setError(errorMessage(err, "Could not load your doors. Please try again."));
+      }
     } finally {
       setLoading(false);
     }
@@ -78,6 +96,12 @@ export default function UnlockDoorScreen() {
       haptics.success();
     } catch (err) {
       haptics.error();
+      if (isDoorRefusal(err)) {
+        // Access changed since the screen loaded (turned off, suspended, ended): show why, no retry.
+        notifyDoorAccessChanged();
+        setRefusal(errorMessage(err, "Door access is not available right now. Please contact reception."));
+        return;
+      }
       setStatus((prev) => ({
         ...prev,
         [door.deviceId]: { kind: "error", text: errorMessage(err, "The door did not unlock. Please try again.") },
@@ -99,6 +123,14 @@ export default function UnlockDoorScreen() {
           message="Confirm your details once (Access Request) and you can unlock your room door from the app."
           actionLabel="Access request"
           onAction={() => navigation.navigate("AccessRequest")}
+        />
+      ) : refusal ? (
+        <EmptyState
+          illustration="door"
+          title="Door can't be unlocked from the app"
+          message={refusal}
+          actionLabel="Contact us"
+          onAction={() => navigation.navigate("ContactUs")}
         />
       ) : error ? (
         <ErrorState message={error} onRetry={load} />

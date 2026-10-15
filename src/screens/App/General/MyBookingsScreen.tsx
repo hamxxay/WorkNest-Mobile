@@ -33,7 +33,9 @@ import {
 } from "../../../services/bookingService";
 import { employeesButtonLabel, seatsUsedLabel, showsEmployees } from "../../../services/employeeService";
 import { GuestState } from "./shared/GuestState";
+import { DoorSuspendedBanner } from "./shared/DoorSuspendedBanner";
 import { useEmployeeSummaries } from "./shared/useEmployeeSummaries";
+import { useInvoicePdf } from "./shared/useInvoicePdf";
 import type { AppStackParamList, MainTabParamList } from "../../../navigation/types";
 
 type Nav = NativeStackNavigationProp<AppStackParamList>;
@@ -62,6 +64,7 @@ export default function MyBookingsScreen() {
   const bell = useNotificationsAction();
   const confirm = useConfirm();
   const toast = useToast();
+  const invoicePdf = useInvoicePdf();
 
   const [bookings, setBookings] = useState<MyBooking[]>([]);
   const [loading, setLoading] = useState(true);
@@ -227,6 +230,15 @@ export default function MyBookingsScreen() {
                   <InfoRow label="Challan" value={challanText(item)} icon="document-text-outline" />
                 ) : null}
               </View>
+              {/* Door access suspended for an unpaid bill: why, and the bill to pay. */}
+              <DoorSuspendedBanner
+                notice={item}
+                style={styles.notice}
+                onOpenInvoice={(id, number) => invoicePdf.open(id, number)}
+                onOpenChallan={() =>
+                  navigation.navigate("Challan", { bookingId: item.id, challanNumber: item.challanNumber ?? undefined })
+                }
+              />
               {hasChallan || cancellable || hasEmployees ? (
                 <View style={styles.actions}>
                   {hasChallan ? (
@@ -269,5 +281,6 @@ const createStyles = (_c: AppColors, t: Theme) =>
     titleRow: { flexDirection: "row", alignItems: "center", gap: t.spacing.sm },
     flex: { flex: 1 },
     rows: { marginTop: t.spacing.sm },
+    notice: { marginTop: t.spacing.sm },
     actions: { flexDirection: "row", gap: t.spacing.sm, marginTop: t.spacing.sm, flexWrap: "wrap" },
   });
