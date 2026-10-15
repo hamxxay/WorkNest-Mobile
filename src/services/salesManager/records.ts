@@ -1,5 +1,5 @@
-import { formatDate, formatNumber } from "../../utils/format";
-import { inquiryCard, joinParts, recordCard, recordFields, type CeoRecordCard } from "../ceo/records";
+import { formatDate } from "../../utils/format";
+import { daysLeftText, inquiryCard, joinParts, recordCard, recordFields, type CeoRecordCard } from "../ceo/records";
 import {
   SM_COMPLAINT_STATUS_LABELS,
   complaintAgeText,
@@ -13,14 +13,8 @@ import type { SmBookingRecord, SmComplaintRecord, SmLeaseRecord, SmQuotationReco
 // bookings and expiring leases with their desks on the right (never an amount: a sales manager sees no money),
 // tour inquiries with their follow-up date, and complaints with their status, age and description.
 
-/** "12 days", "1 day", "Today", "Ended 3 days ago"; null when not sent. */
-export function daysLeftText(days: number | null | undefined): string | null {
-  if (days == null || !Number.isFinite(days)) return null;
-  const n = Math.round(days);
-  if (n === 0) return "Today";
-  if (n < 0) return `Ended ${formatNumber(-n, 0)} ${n === -1 ? "day" : "days"} ago`;
-  return `${formatNumber(n, 0)} ${n === 1 ? "day" : "days"}`;
-}
+// "12 days", "Today", "Ended 3 days ago": shared with the CEO's lease cards.
+export { daysLeftText };
 
 const date = (value: string | null) => (value ? formatDate(value) : null);
 

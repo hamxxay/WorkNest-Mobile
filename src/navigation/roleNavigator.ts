@@ -40,11 +40,15 @@ export function navigatorForRole(role: UserRole | null | undefined): RoleNavigat
   }
 }
 
+/** Roles whose app may call only its own page(s), auth/me and the push device token (the API answers 403 to the rest). */
+const NO_ANNOUNCEMENTS: ReadonlySet<UserRole> = new Set<UserRole>(["ceo", "sales_manager", "access_officer"]);
+
 /**
- * Whether the signed-in app loads the announcements (GET mobile/announcements) in the background. Not for the
- * Access Officer: the API answers 403 on everything but the Access page, auth/me and the push device token, and its
- * app has no notifications screen. (The CEO and Sales Manager apps have none either and are left as they are.)
+ * Whether the signed-in app loads the announcements (GET mobile/announcements) in the background (on start, when the
+ * app returns to the foreground and on a push). Not for the CEO, the Sales Manager or the Access Officer: the API
+ * answers 403 to them on everything but their own dashboard / page, auth/me and the push device token, and their apps
+ * have no notifications screen. Their device token is still registered (usePushNotifications).
  */
 export function loadsAnnouncements(role: UserRole | null | undefined): boolean {
-  return role !== "access_officer";
+  return !role || !NO_ANNOUNCEMENTS.has(role);
 }

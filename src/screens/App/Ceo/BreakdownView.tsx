@@ -32,6 +32,11 @@ export type BreakdownViewProps<R> = {
   rowMeta?: (row: CeoBreakdownRow) => string | undefined;
   /** The records a row opens, or null when it opens none (not tappable). */
   recordsFor: (row: CeoBreakdownRow) => R | null;
+  /**
+   * A second list a row offers (e.g. the leases ending that month next to its bookings), shown as a link under the
+   * row; null for none.
+   */
+  secondaryRecordsFor?: (row: CeoBreakdownRow) => { title: string; subtitle?: string; records: R } | null;
   /** Opens the records of a row. */
   onOpenRecords: (row: CeoBreakdownRow, records: R) => void;
   /** Error wording (default the CEO's). */
@@ -48,6 +53,7 @@ export function BreakdownView<R>({
   rowDetail,
   rowMeta = (row) => format(row.value),
   recordsFor,
+  secondaryRecordsFor,
   onOpenRecords,
   describeError = ceoErrorView,
 }: BreakdownViewProps<R>) {
@@ -116,6 +122,7 @@ export function BreakdownView<R>({
             <Card padding={0}>
               {rows.map((row, i) => {
                 const records = recordsFor(row);
+                const secondary = secondaryRecordsFor?.(row) ?? null;
                 return (
                   <Fragment key={`${row.key || row.label}-${i}`}>
                     {i > 0 ? <Divider inset={16} /> : null}
@@ -126,6 +133,16 @@ export function BreakdownView<R>({
                       accessibilityHint={records ? "Opens the list" : undefined}
                       onPress={records ? () => openRow(row) : undefined}
                     />
+                    {secondary ? (
+                      <ListRow
+                        leftIcon="list-outline"
+                        title={secondary.title}
+                        subtitle={secondary.subtitle}
+                        accessibilityLabel={[row.label, secondary.title, secondary.subtitle].filter(Boolean).join(", ")}
+                        accessibilityHint="Opens the list"
+                        onPress={() => onOpenRecords(row, secondary.records)}
+                      />
+                    ) : null}
                   </Fragment>
                 );
               })}

@@ -1,5 +1,5 @@
 import { formatMoney, formatNumber } from "../../utils/format";
-import type { CeoAgingBucketKey, CeoFunnelStageKey, CeoPeriod } from "./types";
+import type { CeoAgingBucketKey, CeoFunnelStageKey, CeoPeriod, CeoSales } from "./types";
 
 // Display helpers for the CEO screens (pure, unit-tested).
 
@@ -101,3 +101,11 @@ export const FUNNEL_LABELS: Record<CeoFunnelStageKey, string> = {
   accepted: "Accepted",
   bookings: "Bookings",
 };
+
+/**
+ * True when one location is chosen but the tour inquiry figures still count every location (the server's database
+ * update QA_07 has not run, or an older API): the inquiry tiles then say "all locations".
+ */
+export function inquiriesCountAllLocations(sales: Pick<CeoSales, "inquiriesAllLocations">, locationId: number | null | undefined): boolean {
+  return !!locationId && sales.inquiriesAllLocations;
+}

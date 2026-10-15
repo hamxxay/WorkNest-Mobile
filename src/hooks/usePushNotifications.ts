@@ -12,8 +12,8 @@ import {
 export type PushNotificationOptions = {
   /**
    * Load the announcements (GET /mobile/announcements) on start, on a foreground push and when the app returns to
-   * the foreground. Default true. False for an app that may not call it (the Access Officer: the API answers 403
-   * on everything but its own page, auth/me and the device token).
+   * the foreground. Default true. False for an app that may not call it (the CEO, Sales Manager and Access Officer:
+   * the API answers 403 on everything but their own pages, auth/me and the device token; see loadsAnnouncements).
    */
   announcements?: boolean;
 };

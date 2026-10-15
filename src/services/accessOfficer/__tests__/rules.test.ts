@@ -5,6 +5,7 @@ import { match, person } from "../__fixtures__";
 import {
   AO_NO_PERSON_REASON,
   actionsNote,
+  createActionLock,
   enrolBlockedReason,
   matchActions,
   personIdFor,
@@ -133,5 +134,26 @@ describe("withUpdatedMatch (after a write)", () => {
     const next = withUpdatedMatch(l, 102, { personId: null, bookingDetailId: 5 } as never);
     expect(next.matches[1]).toMatchObject({ bookingDetailId: 102, personId: 30 });
     expect(next.person?.personId).toBe(12);
+  });
+});
+
+describe("createActionLock (one write or enrolment at a time)", () => {
+  it("a second take while held is refused at once; release frees it", () => {
+    const lock = createActionLock();
+    expect(lock.held).toBe(false);
+    expect(lock.take()).toBe(true);
+    // The fast second tap, before any re-render.
+    expect(lock.take()).toBe(false);
+    expect(lock.held).toBe(true);
+    lock.release();
+    expect(lock.held).toBe(false);
+    expect(lock.take()).toBe(true);
+  });
+
+  it("each screen has its own lock", () => {
+    const a = createActionLock();
+    const b = createActionLock();
+    expect(a.take()).toBe(true);
+    expect(b.take()).toBe(true);
   });
 });

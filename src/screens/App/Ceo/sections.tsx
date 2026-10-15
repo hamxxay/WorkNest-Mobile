@@ -5,6 +5,7 @@ import { AppText, Divider, ListRow, SegmentedControl, type StatCardProps } from 
 import {
   clampPct,
   count,
+  inquiriesCountAllLocations,
   monthLabel,
   monthShort,
   money,
@@ -38,6 +39,8 @@ export type FocusTarget = "revenue" | "aging" | "byLocation" | "leases";
 /** What the sections may do: open a drill screen or scroll to a chart. */
 export type Drill = {
   period: CeoPeriod;
+  /** The dashboard's location filter (null = all locations). */
+  locationId: number | null;
   breakdown: (target: BreakdownTarget, trail: string[]) => void;
   records: (query: CeoRecordsQuery | null, trail: string[], title?: string) => void;
   focus: (target: FocusTarget) => void;
@@ -48,7 +51,10 @@ export type Drill = {
   newBookingsRecords: () => CeoRecordsQuery;
   funnelRecords: (stage: string) => CeoRecordsQuery | null;
   customerRecords: (customerId: number | null) => CeoRecordsQuery | null;
+  /** Every lease ending in the next 90 days (records/leases). */
+  leasesRecords: () => CeoRecordsQuery;
 };
+
 
 const DONUT_SIZE = 112;
 
@@ -190,6 +196,13 @@ export function OccupancySection({ occupancy: o, drill }: { occupancy: CeoOccupa
   const words = periodWords(drill.period);
   const [view, setView] = useState<TrendView>("occupancy");
   const recent = o.months.slice(-12);
+  // The true number when the server sent it (its list holds the first 50), else what the list holds.
+  const expiringCount = o.leasesExpiringCount ?? o.leasesExpiring.length;
+  const shownLeases = o.leasesExpiring.slice(0, LEASES_SHOWN);
+  const moreLeases = expiringCount - shownLeases.length;
+  // The full list can be opened once the server counts them all (records/leases comes with that update).
+  const canOpenAllLeases = o.leasesExpiringCount != null;
+  const openAllLeases = () => drill.records(drill.leasesRecords(), ["Occupancy", "Leases expiring"], "Leases expiring");
   const tiles: StatCardProps[] = [
     {
       label: "Occupancy",
@@ -212,10 +225,10 @@ export function OccupancySection({ occupancy: o, drill }: { occupancy: CeoOccupa
     { label: "Active bookings", value: count(o.activeBookings), sub: "running today", icon: "time-outline", tone: "info" },
     {
       label: "Leases expiring",
-      value: count(o.leasesExpiring.length),
+      value: count(expiringCount),
       sub: "in the next 90 days",
       icon: "hourglass-outline",
-      tone: o.leasesExpiring.length ? "warning" : "success",
+      tone: expiringCount ? "warning" : "success",
       onPress: () => drill.focus("leases"),
     },
   ];
@@ -298,10 +311,14 @@ export function OccupancySection({ occupancy: o, drill }: { occupancy: CeoOccupa
         </ChartCard>
       </View>
       <View ref={drill.target("leases")} collapsable={false}>
-        <ChartCard title="Leases expiring" caption="Ending in the next 90 days" padding={0}>
+        <ChartCard
+          title="Leases expiring"
+          caption={["Ending in the next 90 days", o.leasesExpiringMonthly ? `${money(o.leasesExpiringMonthly)} a month` : null].filter(Boolean).join(" · ")}
+          padding={0}
+        >
           {o.leasesExpiring.length ? (
             <>
-              {o.leasesExpiring.slice(0, LEASES_SHOWN).map((b, i) => (
+              {shownLeases.map((b, i) => (
                 <Fragment key={`${b.bookingId ?? b.customer}-${i}`}>
                   {i > 0 ? <Divider inset={16} /> : null}
                   <ListRow
@@ -313,10 +330,21 @@ export function OccupancySection({ occupancy: o, drill }: { occupancy: CeoOccupa
                   />
                 </Fragment>
               ))}
-              {o.leasesExpiring.length > LEASES_SHOWN ? (
+              {moreLeases > 0 && canOpenAllLeases ? (
+                <>
+                  <Divider inset={16} />
+                  <ListRow
+                    leftIcon="list-outline"
+                    title={`All ${count(expiringCount)} leases expiring`}
+                    subtitle={`and ${count(moreLeases)} more not shown here`}
+                    accessibilityHint="Opens every lease ending in the next 90 days"
+                    onPress={openAllLeases}
+                  />
+                </>
+              ) : moreLeases > 0 ? (
                 <View style={styles.padded}>
                   <AppText variant="caption" color="textMuted">
-                    and {o.leasesExpiring.length - LEASES_SHOWN} more
+                    and {count(moreLeases)} more
                   </AppText>
                 </View>
               ) : null}
@@ -336,6 +364,9 @@ export function OccupancySection({ occupancy: o, drill }: { occupancy: CeoOccupa
 
 export function SalesSection({ sales: s, drill }: { sales: CeoSales; drill: Drill }) {
   const words = periodWords(drill.period);
+  // Before the server's update QA_07 the inquiry figures count every location even when one is chosen: say so.
+  const inquiriesEverywhere = inquiriesCountAllLocations(s, drill.locationId);
+  const inquiryWords = inquiriesEverywhere ? `${words}, all locations` : words;
   const colorOf = useInquiryTypeColors();
   const stage = (key: string) => s.funnel.find((f) => f.stage === key)?.count ?? 0;
   const inquiries = stage("inquiries");
@@ -348,7 +379,7 @@ export function SalesSection({ sales: s, drill }: { sales: CeoSales; drill: Dril
     {
       label: "Tour inquiries",
       value: count(inquiries),
-      sub: words,
+      sub: inquiryWords,
       icon: "walk-outline",
       onPress: () => drill.records(drill.funnelRecords("inquiries"), ["Sales", "Tour inquiries"], "Tour inquiries"),
     },
@@ -400,7 +431,7 @@ export function SalesSection({ sales: s, drill }: { sales: CeoSales; drill: Dril
               label={`Sales funnel ${words}`}
               items={s.funnel.map((f) => ({
                 key: f.stage,
-                label: f.label,
+                label: f.stage === "inquiries" && inquiriesEverywhere ? `${f.label} (all locations)` : f.label,
                 value: f.count,
                 // No share over 100% (most quotations don't start as tour inquiries): just the count then.
                 valueLabel: top > 0 && f.stage !== s.funnel[0]?.stage && f.count <= top ? `${count(f.count)} · ${pct(shareOf(f.count, top))}` : count(f.count),
@@ -416,7 +447,7 @@ export function SalesSection({ sales: s, drill }: { sales: CeoSales; drill: Dril
           <InlineEmpty text={`No inquiries or quotations ${words}.`} />
         )}
       </ChartCard>
-      <ChartCard title="Inquiries by type" caption={`How visitors found WorkNest, ${words}. Tap a type for the last 6 months.`}>
+      <ChartCard title="Inquiries by type" caption={`How visitors found WorkNest, ${inquiryWords}. Tap a type for the last 6 months.`}>
         {typeItems.length && typeTotal > 0 ? (
           <>
             <View style={styles.donutCenter}>
@@ -426,7 +457,7 @@ export function SalesSection({ sales: s, drill }: { sales: CeoSales; drill: Dril
                 legend={false}
                 centerLabel={count(typeTotal)}
                 centerCaption="inquiries"
-                label={`Inquiries by type ${words}`}
+                label={`Inquiries by type ${inquiryWords}`}
               />
             </View>
             <HBarList

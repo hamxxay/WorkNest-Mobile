@@ -25,6 +25,7 @@ import {
   addToRoom,
   checkAoId,
   clampFinger,
+  createActionLock,
   enrol,
   formatAoIdInput,
   getMyLocationNames,
@@ -94,6 +95,8 @@ export default function AccessOfficerScreen() {
   const [flow, setFlow] = useState<EnrolFlow | null>(null);
   /** The last write's outcome per room (bookingDetailId), shown on its card until dismissed or a new Find. */
   const [notices, setNotices] = useState<Record<number, AoCardNotice>>({});
+  /** One write or enrolment at a time, checked at once (a fast double tap must not start two). */
+  const [actionLock] = useState(createActionLock);
 
   // Answers to an older lookup are ignored (a newer Find or refresh replaced it).
   const generation = useRef(0);
@@ -208,6 +211,7 @@ export default function AccessOfficerScreen() {
     patch: Partial<AoMatch>,
     enable: boolean | null,
   ) => {
+    if (!actionLock.take()) return;
     setBusy({ bookingDetailId: match.bookingDetailId, kind });
     try {
       const result = await call();
@@ -218,6 +222,7 @@ export default function AccessOfficerScreen() {
       const status = statusOf(error);
       if ((status === 409 || status === 404) && lastCnic) runLookup(lastCnic, "silent");
     } finally {
+      actionLock.release();
       if (alive.current) setBusy(null);
     }
   };
@@ -280,6 +285,8 @@ export default function AccessOfficerScreen() {
 
   const startEnrol = async () => {
     if (!flow || flow.phase !== "ready") return;
+    // `flow` is this render's: a second tap before the re-render still sees "ready". The lock is taken at once.
+    if (!actionLock.take()) return;
     const started: EnrolFlow = { ...flow, phase: "waiting", startedAt: Date.now(), result: undefined, error: undefined };
     setFlow(started);
     try {
@@ -297,6 +304,8 @@ export default function AccessOfficerScreen() {
       if (!alive.current) return;
       haptics.error();
       setFlow({ ...started, phase: "done", error: accessOfficerEnrolMessage(error) });
+    } finally {
+      actionLock.release();
     }
     // Enrolled chips (and anything else) as the server has them now.
     if (lastCnic) runLookup(lastCnic, "silent");

@@ -1,11 +1,19 @@
 import { ApiError, errorMessage, serverMessage } from "../apiClient";
-import { dashboardErrorView, needsDatabaseUpdate, statusOf, withDatabaseUpdateMessage, type CeoErrorView } from "../ceo/errors";
+import {
+  dashboardErrorView,
+  databaseUpdateNameOf,
+  needsDatabaseUpdate,
+  statusOf,
+  withDatabaseUpdateMessage,
+  type CeoErrorView,
+} from "../ceo/errors";
 
 // Errors of the Access Officer API, in words an access officer can act on (the CEO / Sales Manager error handling
 // with this page's wording).
 //
-//   503  the database update AO_01 (the role and its procedures) has not been run: its own message, naming the
-//        update the server asked for (AO_01 when it named none). Retrying will not help until it is run.
+//   503  a database update has not been run (AO_01: the role and its procedures; the server may name another one,
+//        e.g. EMP_01 for the employees it looks up): its own message, naming the update the server asked for as it
+//        wrote it (AO_01 when it named none). Retrying will not help until it is run.
 //   404  on a lookup: nobody with this CNIC is on a confirmed booking at the officer's locations. Not an error: the
 //        screen shows the API's message (ours when it sent none).
 //   403  the room is not at one of the officer's locations (or the account lost the role).
@@ -46,23 +54,12 @@ export const AO_ENROL_NO_ANSWER_MESSAGE =
   "No answer from the server in time, or the connection dropped. The enrolment may still have finished on the " +
   "machine: pull down to refresh to check, then try again if it is not shown as enrolled.";
 
-const UPDATE_NAME = /\bAO_(\d{2})\b/i;
-
 /**
- * The database update a 503 names ("...needs the database update AO_01."), read from the error's message or the
- * server's answer kept with it; `fallback` (AO_01) when it names none.
+ * The database update a 503 names ("...needs the database update AO_01." or "...EMP_01."), read from the error's
+ * message or the server's answer kept with it, kept as the server wrote it; `fallback` (AO_01) when it names none.
  */
 export function aoDatabaseUpdateOf(error: unknown, fallback: string = AO_DB_UPDATE): string {
-  const texts: unknown[] = [];
-  if (error && typeof error === "object") {
-    const e = error as { message?: unknown; details?: unknown };
-    texts.push(e.message, serverMessage(e.details));
-  }
-  for (const text of texts) {
-    const m = typeof text === "string" ? UPDATE_NAME.exec(text) : null;
-    if (m) return `AO_${m[1]}`;
-  }
-  return fallback;
+  return databaseUpdateNameOf(error, fallback);
 }
 
 /** The error to throw from an Access Officer call: a 503 becomes the database update message, anything else is kept. */

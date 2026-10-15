@@ -3,6 +3,7 @@
 import {
   breakdownParams,
   isCompleteBreakdown,
+  leasesExpiringRecords,
   newBookingsRecords,
   overdueInvoicesRecords,
   periodRange,
@@ -10,9 +11,11 @@ import {
   recordsForBreakdownRow,
   recordsForCustomer,
   recordsForFunnelStage,
+  rowLocation,
   trailForSpeech,
   trailOf,
 } from "../drill";
+import { inquiriesCountAllLocations } from "../format";
 import type { CeoBreakdownRow } from "../types";
 
 const row = (key: string, label = key): CeoBreakdownRow => ({ key, label, value: 1, value2: null, count: null });
@@ -111,6 +114,40 @@ describe("recordsForBreakdownRow (the contract's next-level column)", () => {
     });
   });
 
+  it("the 'No location' row (key none) opens its records with locationId=none", () => {
+    expect(rowLocation("none")).toBe("none");
+    expect(rowLocation(" None ")).toBe("none");
+    expect(rowLocation("3")).toBe(3);
+    expect(rowLocation("Other")).toBeNull();
+    const none = row("none", "No location");
+    expect(recordsForBreakdownRow({ metric: "revenue", month: "2026-08", period: "month" }, none)).toEqual({
+      kind: "invoices",
+      params: { month: "2026-08", locationId: "none" },
+    });
+    expect(recordsForBreakdownRow({ metric: "aging", bucket: "31_60", period: "month" }, none)).toEqual({
+      kind: "invoices",
+      params: { bucket: "31_60", locationId: "none" },
+    });
+    expect(recordsForBreakdownRow({ metric: "bookings-month", month: "2026-09", period: "month" }, none)).toEqual({
+      kind: "bookings",
+      params: { month: "2026-09", locationId: "none" },
+    });
+    expect(recordsForBreakdownRow({ metric: "occupancy-type", spaceTypeId: 3, period: "month" }, none)).toEqual({
+      kind: "spaces",
+      params: { spaceTypeId: 3, locationId: "none" },
+    });
+    // Rows that are not locations never take it: space types, months.
+    expect(recordsForBreakdownRow({ metric: "occupancy-location", locationId: 1, period: "month" }, none)).toBeNull();
+    expect(recordsForBreakdownRow({ metric: "inquiries-type", type: "Website", period: "month" }, none)).toBeNull();
+  });
+
+  it("an inquiry type's month keeps the dashboard's location (inquiries follow it by branch)", () => {
+    expect(recordsForBreakdownRow({ metric: "inquiries-type", type: "WalkIn", period: "month", locationId: 2 }, row("2026-09"))).toEqual({
+      kind: "inquiries",
+      params: { type: "WalkIn", month: "2026-09", locationId: 2 },
+    });
+  });
+
   it("is null for a row without a usable key (e.g. 'Other') or a query without its key", () => {
     expect(recordsForBreakdownRow({ metric: "revenue", month: "2026-10", period: "month" }, row("", "Other"))).toBeNull();
     expect(recordsForBreakdownRow({ metric: "inquiries-type", type: "Website", period: "month" }, row("7"))).toBeNull();
@@ -128,10 +165,12 @@ describe("records straight from the dashboard", () => {
 
   it("funnel stages open their records for the period", () => {
     const scope = { period: "quarter" as const, locationId: 2 };
+    // Tour inquiries follow the location filter by branch (QA_07), like every other stage.
     expect(recordsForFunnelStage("inquiries", scope, TODAY)).toEqual({
       kind: "inquiries",
-      params: { period: "quarter", from: "2026-10-01", to: "2026-10-14" },
+      params: { period: "quarter", from: "2026-10-01", to: "2026-10-14", locationId: 2 },
     });
+    expect(recordsForFunnelStage("inquiries", { period: "month" }, TODAY)?.params).toEqual({ period: "month", from: "2026-10-01", to: "2026-10-14" });
     expect(recordsForFunnelStage("accepted", scope, TODAY)).toEqual({
       kind: "quotations",
       params: { stage: "accepted", period: "quarter", from: "2026-10-01", to: "2026-10-14", locationId: 2 },
@@ -152,6 +191,20 @@ describe("records straight from the dashboard", () => {
     expect(overdueInvoicesRecords({ period: "year", locationId: 3 })).toEqual({ kind: "invoices", params: { status: "overdue", locationId: 3 } });
     expect(overdueInvoicesRecords({ period: "year", locationId: null })).toEqual({ kind: "invoices", params: { status: "overdue" } });
     expect(newBookingsRecords({ period: "month" })).toEqual({ kind: "bookings", params: { period: "month" } });
+  });
+
+  it("leases expiring -> every lease ending in the next 90 days (no window), with the location filter", () => {
+    expect(leasesExpiringRecords({ locationId: 4 })).toEqual({ kind: "leases", params: { locationId: 4 } });
+    expect(leasesExpiringRecords({ locationId: null })).toEqual({ kind: "leases", params: {} });
+  });
+});
+
+describe("inquiriesCountAllLocations", () => {
+  it("only with one location chosen and inquiry figures that still count every location", () => {
+    expect(inquiriesCountAllLocations({ inquiriesAllLocations: true }, 2)).toBe(true);
+    expect(inquiriesCountAllLocations({ inquiriesAllLocations: false }, 2)).toBe(false);
+    expect(inquiriesCountAllLocations({ inquiriesAllLocations: true }, null)).toBe(false);
+    expect(inquiriesCountAllLocations({ inquiriesAllLocations: true }, 0)).toBe(false);
   });
 });
 

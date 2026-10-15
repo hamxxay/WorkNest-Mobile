@@ -204,6 +204,7 @@ export function normalizeSalesManagerDashboard(raw: unknown, requested: SmPeriod
     periodLabel: str(d, "periodLabel"),
     generatedAt: optStr(d, "generatedAt"),
     locations: normalizeLocations(pick(d, "locations")),
+    inquiriesAllBranches: bool(d, "inquiriesAllBranches"),
     funnel,
     team: normalizeTeamSection(section(d, "team")),
     inquiries: normalizeInquiriesSection(section(d, "inquiries")),

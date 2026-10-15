@@ -2,7 +2,7 @@ import type { Tone } from "../../theme/colors";
 import { INQUIRY_TYPE_LABELS } from "../../theme/inquiryTypes";
 import { formatDate, formatDateTime, formatNumber } from "../../utils/format";
 import { moneyFull } from "./format";
-import type { CeoBookingRecord, CeoInquiryRecord, CeoQuotationRecord, CeoRecords } from "./types";
+import type { CeoBookingRecord, CeoInquiryRecord, CeoLeaseRecord, CeoQuotationRecord, CeoRecords } from "./types";
 
 // Records (drill level 3) as read-only cards: one shape for every list, so the Records screen renders them the
 // same way. Pure, unit-tested. The card builders are shared with the Sales Manager records lists.
@@ -31,6 +31,15 @@ export const joinParts = (...parts: (string | null | undefined)[]): string | nul
 };
 
 const date = (value: string | null) => (value ? formatDate(value) : null);
+
+/** "12 days", "1 day", "Today", "Ended 3 days ago"; null when not sent (lease cards, CEO and Sales Manager). */
+export function daysLeftText(days: number | null | undefined): string | null {
+  if (days == null || !Number.isFinite(days)) return null;
+  const n = Math.round(days);
+  if (n === 0) return "Today";
+  if (n < 0) return `Ended ${formatNumber(-n, 0)} ${n === -1 ? "day" : "days"} ago`;
+  return `${formatNumber(n, 0)} ${n === 1 ? "day" : "days"}`;
+}
 
 /** Fields without a value are left out. */
 export function recordFields(...items: [string, string | null | undefined][]): CeoRecordField[] {
@@ -89,7 +98,19 @@ export function quotationCard(r: CeoQuotationRecord, i: number): CeoRecordCard {
   );
 }
 
-/** One card per row, in the server's order (newest first). */
+/** A lease ending soon as a card: customer, space and location, monthly rent, end date, days left. */
+export function ceoLeaseCard(r: CeoLeaseRecord, i: number): CeoRecordCard {
+  return recordCard(
+    `lease-${r.bookingId ?? i}-${i}`,
+    r.customer || "Customer",
+    joinParts(r.space, r.location),
+    null,
+    r.monthlyAmount != null ? `${moneyFull(r.monthlyAmount)}/mo` : null,
+    recordFields(["Ends", date(r.endOn)], ["Days left", daysLeftText(r.daysLeft)], ["Booking", r.bookingId ? `#${r.bookingId}` : null]),
+  );
+}
+
+/** One card per row, in the server's order (newest first; leases soonest first). */
 export function recordCards(records: CeoRecords): CeoRecordCard[] {
   switch (records.kind) {
     case "invoices":
@@ -122,6 +143,8 @@ export function recordCards(records: CeoRecords): CeoRecordCard[] {
       return records.rows.map((r, i) => bookingCard(r, i));
     case "inquiries":
       return records.rows.map((r, i) => inquiryCard(r, i));
+    case "leases":
+      return records.rows.map((r, i) => ceoLeaseCard(r, i));
     case "quotations":
     default:
       return records.rows.map((r, i) => quotationCard(r, i));
