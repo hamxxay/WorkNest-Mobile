@@ -36,9 +36,10 @@ const ALL_MY_LOCATIONS = "All my locations";
 
 /**
  * The Sales Manager dashboard (GET api/sales-manager/dashboard): Sales funnel, Team performance, Tour inquiries and
- * Renewals & revenue for this month / quarter / year against the previous period, for all the manager's locations
- * or one of them (tour inquiries always cover every branch). View only: tapping a chart element or row drills down
- * (a breakdown screen, then a records list; some open their records directly). Pull to refresh reloads it.
+ * Renewals & desks for this month / quarter / year against the previous period, for all the manager's locations
+ * or one of them (tour inquiries always cover every branch). Desks, never money ("91 desks booked"). View only:
+ * tapping a chart element or row drills down (a breakdown screen, then a records list; some open their records
+ * directly). Pull to refresh reloads it.
  */
 export default function SalesManagerDashboardScreen() {
   const navigation = useNavigation<Nav>();
@@ -175,7 +176,7 @@ export default function SalesManagerDashboardScreen() {
             <>
               <CeoSection
                 title="Sales funnel"
-                subtitle={`Inquiries, quotations and bookings ${words}`}
+                subtitle={`Inquiries, quotations, bookings and desks ${words}`}
                 loading={loading}
                 empty={!d?.funnel}
                 emptyMessage="No sales figures were sent for this period."
@@ -204,11 +205,11 @@ export default function SalesManagerDashboardScreen() {
               </CeoSection>
 
               <CeoSection
-                title="Renewals & revenue"
-                subtitle="Leases ending soon and revenue from new bookings"
+                title="Renewals & desks"
+                subtitle="Leases ending soon, desks booked and desks ending"
                 loading={loading}
                 empty={!d?.renewals}
-                emptyMessage="No renewal or revenue figures were sent for this period."
+                emptyMessage="No renewal or desk figures were sent for this period."
               >
                 {d?.renewals ? <RenewalsSection renewals={d.renewals} drill={drill} /> : null}
               </CeoSection>

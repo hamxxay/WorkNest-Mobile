@@ -1,7 +1,8 @@
 import { cleanParams, periodRange, positiveId } from "../ceo/drill";
-import { isMonthKey } from "../ceo/format";
+import { count, isMonthKey } from "../ceo/format";
 import type { QueryValue } from "../staff/normalize";
-import type { SmBreakdownMetric, SmBreakdownQuery, SmBreakdownRow, SmRecordsQuery, SmScope } from "./types";
+import { desks } from "./format";
+import type { SmBreakdown, SmBreakdownMetric, SmBreakdownQuery, SmBreakdownRow, SmRecordsQuery, SmScope } from "./types";
 
 // Drill-down routing of the Sales Manager dashboard (pure, unit-tested in __tests__/drill.test.ts), like the CEO's:
 //   level 1 (dashboard) chart element / row -> level 2 breakdown (GET api/sales-manager/breakdown) -> level 3
@@ -12,7 +13,7 @@ import type { SmBreakdownMetric, SmBreakdownQuery, SmBreakdownRow, SmRecordsQuer
 //   staff            userId   last 6 months         quotations userId + month = row (+ the location filter)
 //   inquiries-type   type     last 6 months         inquiries  type + month = row
 //   renewals-month   month    the manager's locs    leases     month + locationId = row
-//   revenue-month    month    the manager's locs    bookings   month + locationId = row
+//   desks-month      month    the manager's locs    bookings   month + locationId = row
 //
 //   Direct: a funnel stage -> its records for the period; "Follow-ups due" -> inquiries?outcome=followup_due;
 //   a not-interested reason -> inquiries?outcome=not_interested; a month of the inquiries chart -> that month's
@@ -29,26 +30,50 @@ export const SM_BREAKDOWN_ROOTS: Record<SmBreakdownMetric, string> = {
   staff: "Team",
   "inquiries-type": "Tour inquiries",
   "renewals-month": "Renewals",
-  "revenue-month": "Revenue",
+  "desks-month": "Desks",
 };
 
-export type SmUnit = "money" | "count";
+/** What a breakdown value counts: desks, or anything else (quotations, bookings, leases, inquiries). */
+export type SmUnit = "desks" | "count";
 
-/** How a metric's two values read (value2 null = the metric has none). */
+/** How a metric's two values read (value2 null = the metric has none). No money: desks or plain counts. */
 export function smMetricUnits(metric: SmBreakdownMetric): { value: SmUnit; value2: SmUnit | null } {
   switch (metric) {
     case "funnel-month":
+      // Desks booked, bookings.
+      return { value: "desks", value2: "count" };
     case "staff":
-      return { value: "count", value2: "count" };
+      // Quotations, desks sold.
+      return { value: "count", value2: "desks" };
     case "renewals-month":
-      // Expiring leases (count), their monthly value (PKR).
-      return { value: "count", value2: "money" };
-    case "revenue-month":
-      return { value: "money", value2: null };
+      // Leases ending, their desks.
+      return { value: "count", value2: "desks" };
+    case "desks-month":
+      // Desks booked, desks ending.
+      return { value: "desks", value2: "desks" };
     case "inquiries-type":
     default:
       return { value: "count", value2: null };
   }
+}
+
+/**
+ * The figure on the right of a breakdown row: its desks with the unit word when the metric counts desks
+ * ("91 desks"; staff and renewals: the second value, desks sold / the leases' desks), else the main count ("3").
+ */
+export function smBreakdownRowFigure(metric: SmBreakdownMetric, row: SmBreakdownRow): string | undefined {
+  const units = smMetricUnits(metric);
+  if (units.value === "desks") return desks(row.value);
+  if (units.value2 === "desks") return row.value2 != null ? desks(row.value2) : undefined;
+  return count(row.value);
+}
+
+/** The line under a breakdown row's name: "Desks booked 91 · Bookings 17" (the labels carry the words). */
+export function smBreakdownRowDetail(breakdown: Pick<SmBreakdown, "valueLabel" | "value2Label">, row: SmBreakdownRow): string {
+  const parts = [`${breakdown.valueLabel} ${count(row.value)}`];
+  if (row.value2 != null && breakdown.value2Label) parts.push(`${breakdown.value2Label} ${count(row.value2)}`);
+  if (row.count != null) parts.push(`${count(row.count)} in total`);
+  return parts.join(" · ");
 }
 
 /** Query string parameters of GET api/sales-manager/breakdown: metric, its key, period and (when set) locationId. */
@@ -57,7 +82,7 @@ export function smBreakdownParams(query: SmBreakdownQuery): Record<string, Query
   switch (query.metric) {
     case "funnel-month":
     case "renewals-month":
-    case "revenue-month":
+    case "desks-month":
       params.month = query.month;
       break;
     case "staff":
@@ -78,7 +103,7 @@ export function isCompleteSmBreakdown(query: SmBreakdownQuery): boolean {
   switch (query.metric) {
     case "funnel-month":
     case "renewals-month":
-    case "revenue-month":
+    case "desks-month":
       return isMonthKey(query.month);
     case "staff":
       return positiveId(query.userId) != null;
@@ -96,7 +121,7 @@ export function smRecordsForBreakdownRow(query: SmBreakdownQuery, row: SmBreakdo
   const month = isMonthKey(query.month) ? query.month : null;
   switch (query.metric) {
     case "funnel-month":
-    case "revenue-month":
+    case "desks-month":
       return rowId && month ? { kind: "bookings", params: cleanParams({ month, locationId: rowId }) } : null;
     case "renewals-month":
       return rowId && month ? { kind: "leases", params: cleanParams({ month, locationId: rowId }) } : null;

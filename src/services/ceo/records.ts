@@ -14,7 +14,7 @@ export type CeoRecordCard = {
   subtitle: string | null;
   /** Status text for a StatusPill (its tone comes from statusTone()). */
   status: string | null;
-  /** Main figure on the right (PKR), when the record has one. */
+  /** Main figure on the right (PKR; desks on the Sales Manager lists), when the record has one. */
   amount: string | null;
   fields: CeoRecordField[];
   /** The whole card as one sentence for screen readers. */

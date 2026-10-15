@@ -5,6 +5,8 @@ import {
   SM_BREAKDOWN_ROOTS,
   isCompleteSmBreakdown,
   smBreakdownParams,
+  smBreakdownRowDetail,
+  smBreakdownRowFigure,
   smFollowUpsDueRecords,
   smInquiryMonthRecords,
   smInquiryOutcomeRecords,
@@ -32,7 +34,12 @@ describe("smBreakdownParams", () => {
       period: "quarter",
       locationId: null,
     });
-    expect(smBreakdownParams({ metric: "revenue-month", month: "2026-09", period: "year" })).toMatchObject({ month: "2026-09" });
+    expect(smBreakdownParams({ metric: "desks-month", month: "2026-09", period: "year" })).toEqual({
+      metric: "desks-month",
+      month: "2026-09",
+      period: "year",
+      locationId: null,
+    });
     expect(smBreakdownParams({ metric: "staff", userId: 7, period: "month", locationId: 3 })).toEqual({
       metric: "staff",
       userId: 7,
@@ -54,7 +61,10 @@ describe("smBreakdownParams", () => {
     expect(isCompleteSmBreakdown({ metric: "funnel-month", month: "2026-10", period: "month" })).toBe(true);
     expect(isCompleteSmBreakdown({ metric: "funnel-month", month: "Oct", period: "month" })).toBe(false);
     expect(isCompleteSmBreakdown({ metric: "renewals-month", period: "month" })).toBe(false);
-    expect(isCompleteSmBreakdown({ metric: "revenue-month", month: "2026-13", period: "month" })).toBe(false);
+    expect(isCompleteSmBreakdown({ metric: "desks-month", month: "2026-13", period: "month" })).toBe(false);
+    expect(isCompleteSmBreakdown({ metric: "desks-month", month: "2026-12", period: "month" })).toBe(true);
+    // The money metric is gone.
+    expect(isCompleteSmBreakdown({ metric: "revenue-month" as SmBreakdownMetric, month: "2026-10", period: "month" })).toBe(false);
     expect(isCompleteSmBreakdown({ metric: "staff", userId: 0, period: "month" })).toBe(false);
     expect(isCompleteSmBreakdown({ metric: "staff", userId: 5, period: "month" })).toBe(true);
     expect(isCompleteSmBreakdown({ metric: "inquiries-type", type: "", period: "month" })).toBe(false);
@@ -62,20 +72,46 @@ describe("smBreakdownParams", () => {
     expect(isCompleteSmBreakdown({ metric: "unknown" as SmBreakdownMetric, period: "month" })).toBe(false);
   });
 
-  it("has a trail root and units for every metric", () => {
-    const metrics: SmBreakdownMetric[] = ["funnel-month", "staff", "inquiries-type", "renewals-month", "revenue-month"];
+  it("has a trail root and units for every metric, and no money anywhere", () => {
+    const metrics: SmBreakdownMetric[] = ["funnel-month", "staff", "inquiries-type", "renewals-month", "desks-month"];
     for (const m of metrics) expect(SM_BREAKDOWN_ROOTS[m]).toBeTruthy();
-    expect(smMetricUnits("renewals-month")).toEqual({ value: "count", value2: "money" });
-    expect(smMetricUnits("revenue-month")).toEqual({ value: "money", value2: null });
-    expect(smMetricUnits("funnel-month")).toEqual({ value: "count", value2: "count" });
-    expect(smMetricUnits("staff")).toEqual({ value: "count", value2: "count" });
+    expect(SM_BREAKDOWN_ROOTS["desks-month"]).toBe("Desks");
+    // Desks booked / bookings; quotations / desks sold; leases ending / desks; desks booked / desks ending.
+    expect(smMetricUnits("funnel-month")).toEqual({ value: "desks", value2: "count" });
+    expect(smMetricUnits("staff")).toEqual({ value: "count", value2: "desks" });
+    expect(smMetricUnits("renewals-month")).toEqual({ value: "count", value2: "desks" });
+    expect(smMetricUnits("desks-month")).toEqual({ value: "desks", value2: "desks" });
     expect(smMetricUnits("inquiries-type")).toEqual({ value: "count", value2: null });
+    for (const m of metrics) expect(Object.values(smMetricUnits(m))).not.toContain("money");
+  });
+});
+
+describe("breakdown row wording", () => {
+  const r = (value: number, value2: number | null, count: number | null = null): SmBreakdownRow => ({ key: "1", label: "I-8", value, value2, count });
+
+  it("shows the desks on the right, with the unit word", () => {
+    expect(smBreakdownRowFigure("funnel-month", r(91, 17))).toBe("91 desks");
+    expect(smBreakdownRowFigure("desks-month", r(1, 6))).toBe("1 desk");
+    // Staff and renewals: desks are the second value (desks sold, the leases' desks).
+    expect(smBreakdownRowFigure("staff", r(6, 4))).toBe("4 desks");
+    expect(smBreakdownRowFigure("renewals-month", r(2, 1))).toBe("1 desk");
+    expect(smBreakdownRowFigure("renewals-month", r(2, null))).toBeUndefined();
+    // No desks: the plain count.
+    expect(smBreakdownRowFigure("inquiries-type", r(1250, null))).toBe("1,250");
+  });
+
+  it("lists both values under the name, the labels carrying the words", () => {
+    expect(smBreakdownRowDetail({ valueLabel: "Desks booked", value2Label: "Bookings" }, r(91, 17))).toBe("Desks booked 91 · Bookings 17");
+    expect(smBreakdownRowDetail({ valueLabel: "Leases ending", value2Label: "Desks" }, r(2, 6, 9))).toBe("Leases ending 2 · Desks 6 · 9 in total");
+    expect(smBreakdownRowDetail({ valueLabel: "Inquiries", value2Label: null }, r(3, 5))).toBe("Inquiries 3");
+    expect(smBreakdownRowDetail({ valueLabel: "Desks booked", value2Label: "Desks ending" }, r(4, null))).toBe("Desks booked 4");
+    expect(smBreakdownRowDetail({ valueLabel: "Desks booked", value2Label: "Bookings" }, r(91, 17))).not.toMatch(/PKR/);
   });
 });
 
 describe("smRecordsForBreakdownRow (level 2 -> 3)", () => {
-  it("funnel-month and revenue-month: a location row opens that month's bookings there", () => {
-    for (const metric of ["funnel-month", "revenue-month"] as const) {
+  it("funnel-month and desks-month: a location row opens that month's bookings there", () => {
+    for (const metric of ["funnel-month", "desks-month"] as const) {
       expect(smRecordsForBreakdownRow({ metric, month: "2026-10", period: "month", locationId: null }, row("2", "F-7"))).toEqual({
         kind: "bookings",
         params: { month: "2026-10", locationId: 2 },
@@ -113,7 +149,7 @@ describe("smRecordsForBreakdownRow (level 2 -> 3)", () => {
     expect(smRecordsForBreakdownRow({ metric: "renewals-month", month: "2026-10", period: "month" }, row("2026-10"))).toBeNull();
     expect(smRecordsForBreakdownRow({ metric: "staff", userId: 5, period: "month" }, row("3"))).toBeNull();
     expect(smRecordsForBreakdownRow({ metric: "inquiries-type", type: "", period: "month" }, row("2026-08"))).toBeNull();
-    expect(smRecordsForBreakdownRow({ metric: "revenue-month", period: "month" }, row("2"))).toBeNull();
+    expect(smRecordsForBreakdownRow({ metric: "desks-month", period: "month" }, row("2"))).toBeNull();
   });
 });
 

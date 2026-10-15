@@ -8,7 +8,8 @@ import type { SmBreakdown, SmBreakdownQuery, SmDashboard, SmRecordKind, SmRecord
 
 // Sales Manager dashboard calls. Same transport as the staff and CEO apps (services/staff/http: Bearer JWT, one
 // silent token renewal on 401, readable ApiError messages); the API is read-only, so every call is a GET. A 503
-// means the server still needs the SM_01 database update and is turned into that message (./errors.ts).
+// means the server still needs a database update (SM_01, or SM_02 for desks) and is turned into that message
+// (./errors.ts).
 
 /** API paths (relative to API_BASE_URL, which already ends in /api). */
 export const SALES_MANAGER_ENDPOINTS = {

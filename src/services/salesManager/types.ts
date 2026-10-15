@@ -13,7 +13,11 @@ import type { InquiryType } from "../../theme/inquiryTypes";
 
 // Types of the Sales Manager dashboard API (WN_APIs, contract: GET api/sales-manager/dashboard, breakdown,
 // records/*). Every endpoint is GET, Sales Manager (or super admin) only, camelCase JSON in the usual
-// { isSuccessful, data } envelope; money in PKR, dates yyyy-MM-dd (or full ISO), months yyyy-MM.
+// { isSuccessful, data } envelope; dates yyyy-MM-dd (or full ISO), months yyyy-MM.
+//
+// No money: a sales manager sees desks, not PKR (the API sends no amounts for api/sales-manager/*). The desks of a
+// booking or quotation are its seats (its own capacity, else its space's); meeting rooms count 0 desks, but their
+// bookings and quotations still count in the funnel. Every desk figure is a whole number.
 //
 // Scope: the manager's locations (JWT location_ids), or one of them (?locationId=, anything else is 403). Tour
 // inquiries have no location in the database, so their figures always cover every branch.
@@ -32,7 +36,7 @@ export type SmLocation = CeoLocation;
 
 // ─── GET api/sales-manager/dashboard ─────────────────────────────────────────────────────────────────────
 
-export type SmFunnelMonth = { month: string; quotations: number; accepted: number; bookings: number; bookedValue: number };
+export type SmFunnelMonth = { month: string; quotations: number; accepted: number; bookings: number; bookedDesks: number };
 
 export type SmFunnel = {
   /** inquiries, quotations, accepted, bookings (created in the period), in that order; extra stages after them. */
@@ -40,9 +44,12 @@ export type SmFunnel = {
   /** Bookings / quotations in the period, percent; null when not sent. */
   conversionRate: number | null;
   conversionRatePrev: number | null;
-  quotedValue: number;
-  bookedValue: number;
-  bookedValuePrev: number | null;
+  /** Desks on the quotations created in the period. */
+  quotedDesks: number;
+  /** Desks on the bookings created in the period. */
+  bookedDesks: number;
+  /** The same for the previous period; null when not sent (no change shown). */
+  bookedDesksPrev: number | null;
   /** Last 12 months, oldest first. */
   months: SmFunnelMonth[];
 };
@@ -57,7 +64,8 @@ export type SmPerson = {
   quotations: number;
   accepted: number;
   converted: number;
-  convertedValue: number;
+  /** Desks on this person's converted quotations created in the period. */
+  desksSold: number;
   /** Converted / quotations, percent; null when not sent and there are no quotations. */
   conversionRate: number | null;
   /** Follow-ups due now (not just in the period). */
@@ -70,11 +78,12 @@ export type SmTeamLocation = {
   salesExecutives: number;
   quotations: number;
   converted: number;
-  convertedValue: number;
+  /** Desks on the converted quotations at this location created in the period. */
+  desksSold: number;
 };
 
 export type SmTeam = {
-  /** Ranked by converted value (highest first). */
+  /** Ranked by desks sold, then converted, then quotations (highest first), then name. */
   people: SmPerson[];
   perLocation: SmTeamLocation[];
 };
@@ -108,21 +117,35 @@ export type SmLease = {
   location: string | null;
   /** yyyy-MM-dd */
   endOn: string | null;
-  monthlyAmount: number | null;
+  /** Desks the lease holds (0 for a meeting room). */
+  desks: number;
   daysLeft: number | null;
 };
 
-export type SmRenewalMonth = { month: string; newBookingRevenue: number; expiring: number };
+/**
+ * One month of the "Desks booked & desks ending" chart: desks on bookings created that month, desks on leases
+ * ending that month and how many leases end. Future months (the next 3) have no booked desks.
+ */
+export type SmRenewalMonth = { month: string; bookedDesks: number; endingDesks: number; expiring: number };
 
 export type SmRenewals = {
-  /** Soonest first. */
+  /** Leases ending in the next 90 days, soonest first (the list may be cut short). */
   expiring: SmLease[];
+  /** Leases ending in the next 90 days, and their desks. */
   expiringCount: number;
-  expiringMonthlyValue: number;
-  /** Invoiced on bookings created in the period. */
-  newBookingRevenue: number;
-  newBookingRevenuePrev: number | null;
-  /** Last 12 months (the next 3 may follow for expiring leases), oldest first. */
+  expiringDesks: number;
+  /** Leases ending in the next 30 days, and their desks. */
+  expiring30Count: number;
+  expiring30Desks: number;
+  /** Desks on bookings created in the period (the funnel's desks booked). */
+  bookedDesks: number;
+  /** Desks on leases that ended in the period. */
+  endedDesks: number;
+  /** Desks booked minus desks ended in the period (may be negative). */
+  netDesks: number;
+  /** The same for the previous period; null when not sent (no change shown). */
+  netDesksPrev: number | null;
+  /** Last 12 months and the next 3, oldest first. */
   months: SmRenewalMonth[];
 };
 
@@ -141,7 +164,7 @@ export type SmDashboard = {
 
 // ─── GET api/sales-manager/breakdown (drill level 2) ─────────────────────────────────────────────────────
 
-export type SmBreakdownMetric = "funnel-month" | "staff" | "inquiries-type" | "renewals-month" | "revenue-month";
+export type SmBreakdownMetric = "funnel-month" | "staff" | "inquiries-type" | "renewals-month" | "desks-month";
 
 /** A breakdown request: the metric, its key (month / userId / type) and the scope. */
 export type SmBreakdownQuery = {
@@ -149,7 +172,7 @@ export type SmBreakdownQuery = {
   period: SmPeriod;
   /** Dashboard location filter (null = all the manager's locations). */
   locationId?: number | null;
-  /** yyyy-MM: funnel-month, renewals-month, revenue-month. */
+  /** yyyy-MM: funnel-month, renewals-month, desks-month. */
   month?: string;
   /** staff */
   userId?: number;
@@ -170,8 +193,11 @@ export type SmRecordParams = Record<string, string | number | boolean | null | u
 /** A records request: which list and its filters (sent as the query string as they are). */
 export type SmRecordsQuery = { kind: SmRecordKind; params: SmRecordParams };
 
-export type SmQuotationRecord = CeoQuotationRecord;
-export type SmBookingRecord = CeoBookingRecord;
+/** A quotation as the CEO sees it, without its amount: its desks instead. */
+export type SmQuotationRecord = Omit<CeoQuotationRecord, "total"> & { desks: number };
+
+/** A booking as the CEO sees it, without its amount: its desks instead. */
+export type SmBookingRecord = Omit<CeoBookingRecord, "totalAmount"> & { desks: number };
 export type SmInquiryRecord = CeoInquiryRecord & {
   /** yyyy-MM-dd (or ISO): when to follow up a future prospect. */
   followUpOn: string | null;
