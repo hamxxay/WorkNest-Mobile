@@ -1,19 +1,21 @@
-import { CHAT_FALLBACK, CHAT_QUICK_QUESTIONS, CHAT_RULES, getBotReply } from "./chatBotReplies";
+import { answerText, CHAT_FALLBACK, CHAT_QUICK_QUESTIONS, CHAT_RULES, getBotReply } from "./chatBotReplies";
 
 describe("WorkNest assistant answers", () => {
   it("answers each quick question with its own topic", () => {
-    const [book, payment, wifi, hourly, cancel, locations] = CHAT_QUICK_QUESTIONS.map(getBotReply);
+    const [book, payment, wifi, hourly, cancel, locations] = CHAT_QUICK_QUESTIONS.map((q) => getBotReply(q));
     expect(book).toContain("Book this space");
     expect(payment).toContain("bank challan");
     expect(wifi).toContain("Amenities");
     expect(hourly).toContain("by the hour");
     // Used to get the booking steps because "booking" contains "book".
     expect(cancel).toContain("tap Cancel");
-    expect(locations).toContain("Location filter");
+    // Without the list from the API: where to find the locations (not the Spaces filter, hidden with one location).
+    expect(locations).toContain("Book a tour");
+    expect(locations).not.toContain("Location filter");
   });
 
   it("points to screens that exist (no Booking tab, menu, Book Now or Profile > My Bookings)", () => {
-    const texts = [...CHAT_RULES.map((r) => r.answer), CHAT_FALLBACK].join("\n");
+    const texts = [...CHAT_RULES.map((r) => answerText(r)), CHAT_FALLBACK].join("\n");
     expect(texts).not.toMatch(/Booking tab/);
     expect(texts).not.toMatch(/\bmenu\b/i);
     expect(texts).not.toMatch(/Book Now/);
@@ -28,5 +30,18 @@ describe("WorkNest assistant answers", () => {
     expect(getBotReply("I need to sign my agreement")).toContain("Agreements tab");
     expect(getBotReply("how do I unlock my door")).toContain("Access request");
     expect(getBotReply("any quotation for me?")).toContain("Quotations");
+  });
+
+  it("answers 'Where are your locations?' with the locations from the API", () => {
+    const reply = getBotReply("Where are your locations?", {
+      locations: [
+        { name: "I-8", address: "3rd Floor EOBI Building 2, I-8 markaz, Islamabad, Pakistan" },
+        { name: "F-7", address: null },
+      ],
+    });
+    expect(reply).toContain("WorkNest has 2 locations");
+    expect(reply).toContain("- I-8: 3rd Floor EOBI Building 2, I-8 markaz, Islamabad, Pakistan");
+    expect(reply).toContain("- F-7");
+    expect(getBotReply("which branch is near me?", { locations: [{ name: "I-8" }] })).toContain("WorkNest has one location");
   });
 });

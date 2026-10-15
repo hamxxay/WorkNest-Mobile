@@ -121,6 +121,34 @@ export function passwordForState(value: string): string {
   return trimToMax(typeof value === "string" ? value : "", INPUT_LIMITS.password);
 }
 
+/**
+ * A person's name: letters of any language (Unicode letters and their accents, e.g. "Zoë", "Muñoz", "محمد علی"),
+ * spaces, apostrophes (' and ’), periods and hyphens; it starts with a letter and ends with a letter or a period.
+ */
+const NAME_PATTERN = /^[\p{L}\p{M}](?:[\p{L}\p{M} '\u2019.-]*[\p{L}\p{M}.])?$/u;
+
+/** While typing: only characters a name may have (it may still end with a space or hyphen). */
+const NAME_TYPING_PATTERN = /^[\p{L}\p{M}][\p{L}\p{M} '\u2019.-]*$/u;
+
+/**
+ * Why a name can't be used, or null when it is fine, for a message under the field. `typing: true` (on every key)
+ * only flags characters a name can't have; the full check (empty, too short, how it ends) runs on leaving the field
+ * and on submit.
+ */
+export function nameError(
+  value: string,
+  fieldLabel = "Name",
+  options: { required?: boolean; typing?: boolean } = {},
+): string | null {
+  const normalized = collapseWhitespace(removeControls(value ?? ""));
+  const invalid = `${fieldLabel} can only have letters, spaces, apostrophes, periods and hyphens.`;
+  if (options.typing) return normalized && !NAME_TYPING_PATTERN.test(normalized) ? invalid : null;
+  if (!normalized) return options.required === false ? null : `Enter your ${fieldLabel.toLowerCase()}.`;
+  if (normalized.length < 2) return `Enter your ${fieldLabel.toLowerCase()}.`;
+  if (normalized.length > INPUT_LIMITS.name) return `${fieldLabel} must be ${INPUT_LIMITS.name} characters or fewer.`;
+  return NAME_PATTERN.test(normalized) ? null : invalid;
+}
+
 export function sanitizeNameInput(value: string, fieldLabel = "Name"): string {
   const normalized = collapseWhitespace(removeControls(value));
   ensurePresent(normalized, fieldLabel);
@@ -128,8 +156,8 @@ export function sanitizeNameInput(value: string, fieldLabel = "Name"): string {
   return ensurePattern(
     normalized,
     fieldLabel,
-    /^[A-Za-z][A-Za-z '.-]*[A-Za-z.]$|^[A-Za-z]$/,
-    `${fieldLabel} contains invalid characters.`
+    NAME_PATTERN,
+    `${fieldLabel} can only have letters, spaces, apostrophes, periods and hyphens.`
   );
 }
 

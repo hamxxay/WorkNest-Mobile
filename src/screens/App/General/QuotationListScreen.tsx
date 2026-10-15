@@ -7,7 +7,12 @@ import { useThemedStyles, type AppColors, type Theme } from "../../../theme";
 import { formatDate, formatMoney } from "../../../utils/format";
 import { useAuth } from "../../../context/AuthContext";
 import { errorMessage } from "../../../services/apiClient";
-import { canRespondToQuotation, getMyQuotations, type Quotation } from "../../../services/customerQuotationService";
+import {
+  canRespondToQuotation,
+  getMyQuotations,
+  quotationDisplayStatus,
+  type Quotation,
+} from "../../../services/customerQuotationService";
 import { GuestState } from "./shared/GuestState";
 import type { AppStackParamList } from "../../../navigation/types";
 
@@ -38,7 +43,7 @@ export default function QuotationListScreen() {
       try {
         const data = await getMyQuotations();
         const rank = (q: Quotation) => {
-          const i = ORDER.indexOf((q.status ?? "").toLowerCase());
+          const i = ORDER.indexOf(quotationDisplayStatus(q).toLowerCase());
           return i === -1 ? 99 : i;
         };
         setQuotations(data.sort((a, b) => rank(a) - rank(b) || Number(b.id) - Number(a.id)));
@@ -86,12 +91,15 @@ export default function QuotationListScreen() {
           renderItem={({ item }) => {
             const respond = canRespondToQuotation(item);
             return (
-              <Card onPress={() => open(item)} accessibilityLabel={`Quotation ${item.quotationNumber || item.id}, ${item.status}`}>
+              <Card
+                onPress={() => open(item)}
+                accessibilityLabel={`Quotation ${item.quotationNumber || item.id}, ${quotationDisplayStatus(item)}`}
+              >
                 <View style={styles.titleRow}>
                   <AppText variant="subheading" numberOfLines={1} style={styles.flex}>
                     {item.quotationNumber || `Quotation #${item.id}`}
                   </AppText>
-                  <StatusPill status={item.status} />
+                  <StatusPill status={quotationDisplayStatus(item)} />
                 </View>
                 {item.spaceName || item.locationName ? (
                   <AppText variant="caption" color="textMuted" numberOfLines={1}>
@@ -106,6 +114,10 @@ export default function QuotationListScreen() {
                 {respond ? (
                   <AppText variant="captionStrong" color="primary" style={styles.cta}>
                     Waiting for your answer: open to accept or decline
+                  </AppText>
+                ) : item.expired ? (
+                  <AppText variant="caption" color="textMuted" style={styles.cta}>
+                    Expired: ask our team for a new quotation
                   </AppText>
                 ) : null}
               </Card>

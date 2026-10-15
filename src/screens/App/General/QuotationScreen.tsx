@@ -27,6 +27,7 @@ import { formatDate, formatMoney } from "../../../utils/format";
 import {
   acceptQuotation,
   canRespondToQuotation,
+  quotationDisplayStatus,
   declineQuotation,
   getQuotationActivities,
   getQuotationById,
@@ -191,7 +192,7 @@ export default function QuotationScreen() {
               <AppText variant="overline" color="textMuted" style={styles.flex}>
                 {quotation.customerName || "Quotation"}
               </AppText>
-              <StatusPill status={quotation.status} size="md" />
+              <StatusPill status={quotationDisplayStatus(quotation)} size="md" />
             </View>
             <AppText variant="display" style={styles.total}>
               {formatMoney(quotation.total)}
@@ -258,6 +259,14 @@ export default function QuotationScreen() {
             />
           ) : declined && isCustomer ? (
             <Banner tone="danger" title="Declined" message="You declined this quotation. Contact us if you would like a new one." />
+          ) : quotation.expired ? (
+            <Banner
+              tone="warning"
+              title="Expired"
+              message={`This quotation was valid until ${formatDate(quotation.validUntil)}, so it can no longer be accepted or declined. Ask our team for a new quotation.`}
+              actionLabel={isCustomer ? "Contact us" : undefined}
+              onAction={isCustomer ? () => navigation.navigate("ContactUs") : undefined}
+            />
           ) : null}
 
           {versions.length > 1 ? (

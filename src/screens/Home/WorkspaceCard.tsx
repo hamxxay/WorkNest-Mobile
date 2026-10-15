@@ -7,9 +7,13 @@ import { capacityLabel, listedRate, type Workspace } from "../../services/worksp
 // Re-exported for the screens that import it from here.
 export { listedRate };
 
-/** Spaces still free of this type at this location, as reported by GET /space/available. */
-export function availabilityOf(workspace: Workspace): { label: string; tone: "success" | "warning" | "danger" } {
-  if (!workspace.available || workspace.availableCount <= 0) return { label: "Fully booked", tone: "danger" };
+/**
+ * Spaces of this type at this location free right now (GET /space/available). "Fully booked now" is not "can't be
+ * booked": a later period may be free, which the booking screen checks for the dates chosen.
+ */
+export function availabilityOf(workspace: Workspace): { label: string; tone: "success" | "warning" | "danger" | "neutral" } {
+  if (!workspace.bookable) return { label: "Price on request", tone: "neutral" };
+  if (!workspace.available || workspace.availableCount <= 0) return { label: "Fully booked now", tone: "warning" };
   if (workspace.availableCount <= 2) return { label: `${workspace.availableCount} left`, tone: "warning" };
   return { label: `${workspace.availableCount} available`, tone: "success" };
 }

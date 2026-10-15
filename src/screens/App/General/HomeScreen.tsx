@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -41,6 +41,9 @@ const HOME_SPACES = 4;
 
 type QuickAction = { key: string; label: string; icon: string; onPress: () => void; busy?: boolean };
 
+/** Home reloads the space cards when it comes back into view, at most this often. */
+const SPACES_REFRESH_MS = 15000;
+
 /**
  * Customer home: the challan waiting to be paid (if any), quick actions and the spaces open for booking.
  */
@@ -61,11 +64,16 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [chatVisible, setChatVisible] = useState(true);
 
+  // When the spaces were last loaded: coming back to Home reloads them (availability changes as people book),
+  // but not more often than SPACES_REFRESH_MS.
+  const spacesLoadedAt = useRef(0);
   const loadSpaces = useCallback(async () => {
+    spacesLoadedAt.current = Date.now();
     setSpacesError("");
     try {
       setSpaces(await getWorkspaces());
     } catch (err) {
+      spacesLoadedAt.current = 0;
       setSpacesError(errorMessage(err, "Spaces could not be loaded. Please try again."));
     } finally {
       setSpacesLoading(false);
@@ -87,14 +95,11 @@ export default function HomeScreen() {
     }
   }, [user]);
 
-  useEffect(() => {
-    loadSpaces();
-  }, [loadSpaces]);
-
   useFocusEffect(
     useCallback(() => {
+      if (Date.now() - spacesLoadedAt.current > SPACES_REFRESH_MS) loadSpaces();
       loadPendingChallan();
-    }, [loadPendingChallan]),
+    }, [loadSpaces, loadPendingChallan]),
   );
 
   const onRefresh = async () => {

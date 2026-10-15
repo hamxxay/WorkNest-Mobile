@@ -47,6 +47,17 @@ export type BookingDraft = {
   capacity?: number;
   notes?: string;
   guest: { name: string; email: string; phone: string };
+  /**
+   * Listed price per billing period of the space this booking gets, from the availability check on BookingInfo
+   * (a private office: the whole office). Missing when the check did not answer: Confirm then shows the card's rate.
+   */
+  listedPrice?: number;
+  /** Billing period of listedPrice (Monthly, Hourly...). */
+  priceUnit?: string;
+  /** Seats of that space (shown for private offices, which are priced per office). */
+  seats?: number;
+  /** The customer already has a customer account: name and phone come from it (edited in Profile), not this form. */
+  existingCustomer?: boolean;
 };
 
 export type AppStackParamList = {

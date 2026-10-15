@@ -1,6 +1,6 @@
-import { Image, ScrollView, StyleSheet, View } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { AppHeader, AppText, Button, Card, Chip, ListRow, Screen, SectionHeader, Divider } from "../../../components/ui";
+import { AppHeader, AppText, BrandLogo, Button, Card, Chip, ListRow, Screen, SectionHeader, Divider } from "../../../components/ui";
 import { useThemedStyles, type AppColors, type Theme } from "../../../theme";
 
 const FEATURES = [
@@ -21,7 +21,8 @@ export default function AboutUsScreen() {
       <AppHeader title="About WorkNest" />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Card style={styles.hero}>
-          <Image source={require("../../../../public/Logo.png")} style={styles.logo} resizeMode="contain" accessibilityIgnoresInvertColors />
+          {/* The W on its navy tile reads in light and dark mode (the plain logo was faint on the light card). */}
+          <BrandLogo variant="tile" size={72} accessible={false} />
           <AppText variant="title" align="center">
             WorkNest
           </AppText>
@@ -71,7 +72,6 @@ const createStyles = (_c: AppColors, t: Theme) =>
   StyleSheet.create({
     content: { padding: t.spacing.screen, gap: t.spacing.lg, paddingBottom: t.spacing.xxl },
     hero: { alignItems: "center", gap: t.spacing.sm, paddingVertical: t.spacing.xl },
-    logo: { width: 72, height: 72 },
     chips: { flexDirection: "row", flexWrap: "wrap", gap: t.spacing.sm },
     actions: { gap: t.spacing.md },
   });

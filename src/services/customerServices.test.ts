@@ -1,12 +1,15 @@
 import { getToken, getUser } from "../utils/authStorage";
 import { ApiError, resetSessionExpiredState, setSessionRefresher } from "./apiClient";
 import {
+  BOOKING_OUTCOME_UNKNOWN_MESSAGE,
+  bookingOutcomeUnknown,
   cancelMyBooking,
   canCancelBooking,
   categoryCodeForMode,
   challanStage,
   createSmartBooking,
   CustomerProfileRequiredError,
+  findBookingForPeriod,
   getBookingDetails,
   getMyBookings,
   getSmartAvailability,
@@ -27,12 +30,20 @@ import {
   normalizeAgreement,
   signedUploadError,
 } from "./agreementService";
-import { buildTourMessage, submitContactMessage, submitTourRequest } from "./tourService";
+import {
+  buildTourMessage,
+  CONTACT_SENT_MESSAGE,
+  submitContactMessage,
+  submitTourRequest,
+  TOUR_SENT_MESSAGE,
+} from "./tourService";
 import {
   canRespondToQuotation,
   getMyQuotations,
+  isReplacedVersion,
   normalizeQuotation,
   normalizeQuotationApiId,
+  quotationDisplayStatus,
 } from "./customerQuotationService";
 
 jest.mock("react-native-share", () => ({ __esModule: true, default: { open: jest.fn() } }));
@@ -269,7 +280,89 @@ describe("bookings (website My Bookings rules)", () => {
 
     expect(fetchMock.mock.calls[0][0]).toMatch(/\/booking\/smart$/);
     expect(sentBody(fetchMock)).toMatchObject({ categoryCode: "MeetingRoom", startDateTime: "2026-10-14T09:00:00" });
-    expect(created).toMatchObject({ bookingId: 55, challanNumber: "1009", totalAmount: 1200 });
+    expect(sentBody(fetchMock)).not.toHaveProperty("locationId");
+    expect(created).toMatchObject({ bookingId: 55, challanNumber: "1009", totalAmount: 1200, duplicate: false });
+  });
+
+  it("books at the card's location", async () => {
+    const fetchMock = installFetch(jsonResponse(201, { isSuccessful: true, data: { bookingId: 56, challanNumber: "1010" } }));
+    const created = await createSmartBooking({
+      categoryCode: "PrivateOffice",
+      locationId: 2,
+      startDateTime: "2026-11-01T00:00:00",
+      endDateTime: "2026-12-01T00:00:00",
+    });
+    expect(sentBody(fetchMock)).toMatchObject({ categoryCode: "PrivateOffice", locationId: 2 });
+    expect(created.bookingId).toBe(56);
+  });
+
+  it("waits a minute for the booking (not the usual 20 seconds) before giving up", async () => {
+    jest.useFakeTimers();
+    try {
+      // A server that never answers: the request ends only when the app aborts it.
+      const fetchMock: FetchMock = jest.fn(
+        (_url: string, init: RequestInit) =>
+          new Promise<Partial<Response>>((_resolve, reject) => {
+            init.signal?.addEventListener("abort", () => reject(new Error("Aborted")));
+          }),
+      );
+      (globalThis as unknown as { fetch: unknown }).fetch = fetchMock;
+      let settled: unknown = "pending";
+      createSmartBooking({ categoryCode: "SharedSpace", startDateTime: "2026-11-01T00:00:00", endDateTime: "2026-12-01T00:00:00" }).then(
+        () => (settled = "booked"),
+        (e) => (settled = e),
+      );
+      await jest.advanceTimersByTimeAsync(21000);
+      expect(settled).toBe("pending");
+      await jest.advanceTimersByTimeAsync(40000);
+      expect(settled).toBeInstanceOf(ApiError);
+      expect(bookingOutcomeUnknown(settled)).toBe(true);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("knows when the API returned the booking made a moment ago", async () => {
+    installFetch(
+      jsonResponse(200, {
+        isSuccessful: true,
+        message: "You made this booking a moment ago, so no second booking was made.",
+        data: { bookingId: 561, challanNumber: "WN-20261015-9334", isDuplicate: true },
+      }),
+    );
+    const created = await createSmartBooking({
+      categoryCode: "PrivateOffice",
+      locationId: 1,
+      startDateTime: "2026-10-15T00:00:00",
+      endDateTime: "2027-10-15T00:00:00",
+    });
+    expect(created).toMatchObject({ bookingId: 561, duplicate: true });
+  });
+
+  it("treats a time-out or gateway error as 'booking may exist', never a refusal", () => {
+    expect(bookingOutcomeUnknown(new ApiError("The server took too long to respond. Please try again.", 0))).toBe(true);
+    expect(bookingOutcomeUnknown(new ApiError("x", 504))).toBe(true);
+    expect(bookingOutcomeUnknown(new ApiError("x", 502))).toBe(true);
+    expect(bookingOutcomeUnknown(new ApiError("No available space for the requested period.", 400))).toBe(false);
+    expect(bookingOutcomeUnknown(new CustomerProfileRequiredError("Please complete your profile."))).toBe(false);
+    expect(bookingOutcomeUnknown(new Error("boom"))).toBe(false);
+    expect(BOOKING_OUTCOME_UNKNOWN_MESSAGE).toContain("Check My Bookings before trying again");
+  });
+
+  it("finds the booking for the same period in My Bookings after a time-out", async () => {
+    const rows = [
+      { bookingId: 570, startOn: "2026-11-01T00:00:00.000", endOn: "2026-12-01T00:00:00.000", bookingStatusLabel: "Cancelled", locationName: "I-8" },
+      { bookingId: 571, startOn: "2026-11-01T00:00:00.000", endOn: "2026-12-01T00:00:00.000", bookingStatusLabel: "Pending", locationName: "I-8", challanNumber: "WN-1" },
+      { bookingId: 572, startOn: "2026-11-02T00:00:00.000", endOn: "2026-12-02T00:00:00.000", bookingStatusLabel: "Pending", locationName: "I-8" },
+    ];
+    installFetch(jsonResponse(200, { isSuccessful: true, data: rows }));
+    const found = await findBookingForPeriod({ startDateTime: "2026-11-01T00:00:00", endDateTime: "2026-12-01T00:00:00", locationName: "I-8" });
+    expect(found?.id).toBe(571);
+
+    installFetch(jsonResponse(200, { isSuccessful: true, data: rows }));
+    expect(
+      await findBookingForPeriod({ startDateTime: "2026-11-01T00:00:00", endDateTime: "2026-12-01T00:00:00", locationName: "F-7" }),
+    ).toBeNull();
   });
 
   it("turns CustomerProfileRequired into a typed error with the API's explanation", async () => {
@@ -326,7 +419,55 @@ describe("availability and booking details", () => {
     expect(url).toContain("/booking/smart/available?");
     expect(url).toContain("categoryCode=PrivateOffice");
     expect(url).toContain("capacity=4");
-    expect(result).toEqual({ count: 2, fromPrice: 25000, billingPeriodCode: "Monthly", securityDeposit: 50000 });
+    expect(url).not.toContain("locationId");
+    // The first row is the space the booking gets: its price; fromPrice is the lowest.
+    expect(result).toEqual({
+      count: 2,
+      unpricedCount: 0,
+      price: 30000,
+      seats: null,
+      fromPrice: 25000,
+      billingPeriodCode: "Monthly",
+      securityDeposit: 50000,
+    });
+  });
+
+  it("counts one location's priced spaces and prices a private office whole", async () => {
+    const fetchMock = installFetch(
+      jsonResponse(200, {
+        isSuccessful: true,
+        data: [
+          // An API without the location filter answers for every location: the I-8 row is left out.
+          { id: 71, locationId: 1, categoryCode: "PrivateOffice", capacity: 5, seatPrice: 35000, roomPrice: 175000, billingPeriodCode: "Monthly" },
+          { id: 200, locationId: 2, categoryCode: "PrivateOffice", capacity: 3, seatPrice: 35000, roomPrice: 105000, billingPeriodCode: "Monthly", bookable: true },
+          { id: 201, locationId: 2, categoryCode: "PrivateOffice", capacity: 6, seatPrice: 35000, roomPrice: 210000, billingPeriodCode: "Monthly", bookable: true },
+          { id: 202, locationId: 2, categoryCode: "PrivateOffice", capacity: 2, seatPrice: null, billingPeriodCode: null, bookable: false },
+        ],
+      }),
+    );
+    const result = await getSmartAvailability({
+      categoryCode: "PrivateOffice",
+      startOn: "2026-11-01T00:00:00",
+      endOn: "2026-12-01T00:00:00",
+      locationId: 2,
+    });
+    expect(String(fetchMock.mock.calls[0][0])).toContain("locationId=2");
+    expect(result).toMatchObject({ count: 2, unpricedCount: 1, price: 105000, seats: 3, fromPrice: 105000 });
+  });
+
+  it("only counts meeting rooms with an hourly price (no active price: not bookable)", async () => {
+    installFetch(
+      jsonResponse(200, {
+        isSuccessful: true,
+        data: [
+          { id: 127, locationId: 1, categoryCode: "MeetingRoom", capacity: 1, seatPrice: null, billingPeriodCode: null },
+          { id: 126, locationId: 1, categoryCode: "MeetingRoom", capacity: 8, seatPrice: 6000, roomPrice: 48000, billingPeriodCode: "Hourly" },
+        ],
+      }),
+    );
+    const result = await getSmartAvailability({ categoryCode: "MeetingRoom", startOn: "a", endOn: "b", locationId: 1 });
+    // A meeting room is charged its seat (room) price per hour, not seat x capacity.
+    expect(result).toMatchObject({ count: 1, unpricedCount: 1, price: 6000 });
   });
 
   it("reports no space as count 0", async () => {
@@ -444,7 +585,8 @@ describe("book a tour", () => {
     expect(fetchMock.mock.calls[0][0]).toMatch(/\/book-tour$/);
     expect(sentBody(fetchMock)).toMatchObject({ fullName: "Ali Khan", email: "ali@example.com", message: "Tour Request" });
     expect(sentBody(fetchMock)).not.toHaveProperty("locationId");
-    expect(message).toBe("Thank you.");
+    // The app's own words, not the API's text for staff (e.g. "Contact recorded.").
+    expect(message).toBe(TOUR_SENT_MESSAGE);
   });
 
   it("sends the chosen location's id so the branch's staff get the request", async () => {
@@ -465,7 +607,13 @@ describe("contact us", () => {
     });
     expect(String(fetchMock.mock.calls[0][0])).toMatch(/\/contact$/);
     expect(sentBody(fetchMock)).toMatchObject({ fullName: "Ali Khan", message: "Do you have parking?" });
-    expect(message).toBe("Thanks.");
+    expect(message).toBe(CONTACT_SENT_MESSAGE);
+  });
+
+  it("accepts names in any language", async () => {
+    const fetchMock = installFetch(jsonResponse(201, { isSuccessful: true, message: "Contact recorded." }));
+    await submitContactMessage({ fullName: "Zoë Muñoz-O’Neil", email: "zoe@example.com", phone: "", message: "Hello there" });
+    expect(sentBody(fetchMock)).toMatchObject({ fullName: "Zoë Muñoz-O’Neil" });
   });
 
   it("refuses an empty message before calling the API", async () => {
@@ -510,6 +658,49 @@ describe("quotations (customer actions)", () => {
     expect(q.total).toBe(879800);
     expect(q.subtotal).toBe(2100000);
     expect(q.fields).toEqual([{ key: "advanceRent", label: "Advance Rent (3 Months)", value: "PKR 525,000", isHeader: false }]);
+  });
+
+  it("shows an expired quotation as Expired and never lets it be answered", () => {
+    const now = new Date("2026-10-15T10:00:00+05:00");
+    jest.useFakeTimers().setSystemTime(now);
+    try {
+      // Older API: no isExpired / canRespond, worked out from validUntil (the last valid day, Pakistan date).
+      const old = normalizeQuotation({ id: 218, status: "Sent", isActive: true, validUntil: "2026-10-13T00:00:00" });
+      expect(old.expired).toBe(true);
+      expect(canRespondToQuotation(old)).toBe(false);
+      expect(quotationDisplayStatus(old)).toBe("expired");
+      const lastDay = normalizeQuotation({ id: 219, status: "Sent", isActive: true, validUntil: "2026-10-15T00:00:00" });
+      expect(lastDay.expired).toBe(false);
+      expect(canRespondToQuotation(lastDay)).toBe(true);
+      // An answered quotation is not "expired".
+      expect(normalizeQuotation({ id: 148, status: "Signed", validUntil: "2026-09-30T00:00:00" }).expired).toBe(false);
+      // The API's flag wins; an expired quotation can't be answered even when an old API says canRespond.
+      const api = normalizeQuotation({ id: 220, status: "Sent", validUntil: "2026-10-13T00:00:00", canRespond: true, isExpired: true });
+      expect(canRespondToQuotation(api)).toBe(false);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("hides older versions replaced by a newer one but keeps converted quotations", async () => {
+    expect(isReplacedVersion({ status: "inactive", isActive: false })).toBe(true);
+    expect(isReplacedVersion({ status: "sent", isActive: false })).toBe(true);
+    expect(isReplacedVersion({ status: "converted", isActive: false })).toBe(false);
+    expect(isReplacedVersion({ status: "signed", isActive: true })).toBe(false);
+    installFetch(
+      jsonResponse(200, {
+        isSuccessful: true,
+        data: [
+          { id: 218, status: "Signed", isActive: true, version: 2 },
+          { id: 217, status: "Inactive", isActive: false, version: 1 },
+          { id: 148, status: "Signed", isActive: true, version: 2 },
+          { id: 147, status: "Inactive", isActive: false, version: 1 },
+          { id: 149, status: "Converted", isActive: false, version: 1 },
+        ],
+      }),
+    );
+    const list = await getMyQuotations();
+    expect(list.map((q) => q.id)).toEqual(["218", "148", "149"]);
   });
 
   it("never lists draft quotations", async () => {
