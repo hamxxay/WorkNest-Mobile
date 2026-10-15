@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import {
   AppHeader,
@@ -6,22 +5,20 @@ import {
   AppearanceSetting,
   Avatar,
   Card,
-  ConfirmDialog,
   Divider,
   HapticsSetting,
   InfoRow,
-  ListRow,
   Screen,
   SectionHeader,
 } from "../../../components/ui";
 import { useAuth, userDisplayName } from "../../../context/AuthContext";
-import { logoutUser } from "../../../services/authService";
 import { spacing } from "../../../theme";
 import { AccountSecurityCard } from "../../../components/account/AccountSecurityCard";
+import { SignOutButton } from "../../../components/account/SignOutButton";
 
 // Profile of a single-purpose app (CEO, Sales Manager, Access Officer): who is signed in (name and role from the
 // database, via auth/me), the locations they see, what the account can do, appearance (System / Light / Dark) and
-// sign out. Nothing to edit.
+// sign out (at the top, under who is signed in). Nothing to edit.
 
 export type ViewOnlyProfileProps = {
   /** Shown when the account has neither a name nor an email (e.g. "CEO"). */
@@ -43,23 +40,10 @@ export function ViewOnlyProfile({
   access = "View only",
   accessIcon = "eye-outline",
 }: ViewOnlyProfileProps) {
-  const { user, roleDisplayLabel, clearSession } = useAuth();
-  const [confirmSignOut, setConfirmSignOut] = useState(false);
-  const [signingOut, setSigningOut] = useState(false);
+  const { user, roleDisplayLabel } = useAuth();
 
   const email = typeof user?.email === "string" ? user.email : "";
   const displayName = userDisplayName(user, fallbackName);
-
-  const signOut = async () => {
-    setSigningOut(true);
-    try {
-      await logoutUser();
-    } catch {
-      // Google / Firebase sign-out can fail offline; the local session is still ended below.
-    } finally {
-      await clearSession();
-    }
-  };
 
   return (
     <Screen>
@@ -84,6 +68,7 @@ export function ViewOnlyProfile({
           {/* A long list of locations wraps under its label. */}
           <InfoRow label="Locations" value={locations} icon="location-outline" layout={locations.length > 24 ? "stacked" : undefined} />
           <InfoRow label="Access" value={access} icon={accessIcon} layout={access.length > 24 ? "stacked" : undefined} />
+          <SignOutButton message={signOutMessage} style={styles.signOut} />
         </Card>
 
         <SectionHeader title="Account" variant="overline" />
@@ -95,31 +80,7 @@ export function ViewOnlyProfile({
           <Divider spacing={12} />
           <HapticsSetting />
         </Card>
-
-        <Card padding={0}>
-          <ListRow
-            leftIcon="log-out-outline"
-            title={signingOut ? "Signing out..." : "Sign out"}
-            destructive
-            disabled={signingOut}
-            chevron={false}
-            onPress={() => setConfirmSignOut(true)}
-          />
-        </Card>
       </ScrollView>
-
-      <ConfirmDialog
-        visible={confirmSignOut}
-        title="Sign out?"
-        message={signOutMessage}
-        confirmLabel="Sign out"
-        cancelLabel="Stay signed in"
-        destructive
-        icon="log-out-outline"
-        loading={signingOut}
-        onCancel={() => setConfirmSignOut(false)}
-        onConfirm={signOut}
-      />
     </Screen>
   );
 }
@@ -128,4 +89,5 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { padding: spacing.screen, gap: spacing.md, paddingBottom: spacing.xxl },
   identity: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  signOut: { alignSelf: "flex-start", marginTop: spacing.md },
 });

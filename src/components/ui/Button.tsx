@@ -15,7 +15,8 @@ import type { HapticKind } from "../../utils/haptics";
 import { PRESS_SCALE, ScalePressable } from "../motion/ScalePressable";
 import { Badge } from "./Badge";
 
-export type ButtonVariant = "primary" | "secondary" | "outline" | "ghost" | "danger";
+/** dangerOutline: a red outlined button for a destructive action that should stand out without shouting (Sign out). */
+export type ButtonVariant = "primary" | "secondary" | "outline" | "ghost" | "danger" | "dangerOutline";
 export type ButtonSize = "sm" | "md" | "lg";
 
 export type ButtonProps = Omit<PressableProps, "children" | "style"> & {
@@ -57,6 +58,8 @@ function variantColors(variant: ButtonVariant, c: AppColors): VariantColors {
       return { bg: "transparent", bgPressed: c.surfaceAlt, fg: c.text, border: c.borderStrong, ripple: c.ripple };
     case "ghost":
       return { bg: "transparent", bgPressed: c.surfaceAlt, fg: c.link, border: "transparent", ripple: c.ripple };
+    case "dangerOutline":
+      return { bg: "transparent", bgPressed: c.dangerSoft, fg: c.danger, border: c.danger, ripple: c.ripple };
     case "danger":
       return { bg: c.dangerStrong, bgPressed: c.dangerPressed, fg: "#ffffff", border: "transparent", ripple: c.rippleOnPrimary };
     case "primary":
@@ -110,7 +113,7 @@ export function Button({
           borderRadius: s.radius,
           backgroundColor: pressed ? v.bgPressed : v.bg,
           borderColor: v.border,
-          borderWidth: variant === "outline" ? 1 : 0,
+          borderWidth: variant === "outline" || variant === "dangerOutline" ? 1 : 0,
         },
         fullWidth && styles.fullWidth,
         inactive && !loading && styles.disabled,
