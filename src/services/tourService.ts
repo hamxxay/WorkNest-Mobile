@@ -31,6 +31,8 @@ export type TourRequest = {
   phone: string;
   /** Location name (from GET /location/all). */
   location?: string;
+  /** Id of that location (WN_Locations.Id): the API sends the request to that branch's staff. */
+  locationId?: number;
   /** yyyy-MM-dd */
   preferredDate?: string;
   timeSlot?: string;
@@ -79,6 +81,8 @@ export async function submitTourRequest(request: TourRequest): Promise<string> {
     timeSlot: request.timeSlot,
     notes: request.notes ? sanitizeTextForState(request.notes, { maxLength: 1000 }).trim() : undefined,
   };
+  const locationId =
+    request.locationId != null && Number.isInteger(request.locationId) && request.locationId > 0 ? request.locationId : undefined;
   const payload = await apiRequest<{ message?: string }>(API_ENDPOINTS.contact.bookTour, {
     method: "POST",
     requiresAuth: true,
@@ -88,6 +92,7 @@ export async function submitTourRequest(request: TourRequest): Promise<string> {
       email: clean.email,
       phone: clean.phone,
       message: buildTourMessage(clean),
+      ...(locationId ? { locationId } : {}),
     },
   });
   return (typeof payload?.message === "string" && payload.message.trim()) || "Your tour request has been sent.";

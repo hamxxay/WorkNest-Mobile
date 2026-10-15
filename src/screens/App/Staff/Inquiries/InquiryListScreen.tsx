@@ -21,18 +21,25 @@ import type { InquiryFilter, StaffStackParamList } from "../../../../navigation/
 import { errorMessage } from "../../../../services/apiClient";
 import {
   INQUIRY_STATUS_LABELS,
+  branchDisplayName,
+  branchFilterOptions,
+  canMoveBranch,
+  chosenBranchId,
   createTourInquiry,
   getTourInquiries,
   saveInquiryFeedback,
   toApiDate,
+  updateInquiryLocation,
   updateInquiryStatus,
   type InquiryOutcome,
+  type StaffLocation,
   type TourInquiry,
 } from "../../../../services/staff";
 import { spacing } from "../../../../theme";
 import { formatDate, formatRelative } from "../../../../utils/format";
 import { inquiryFeedbackText, isNewInquiry, whatsappNumber } from "../../../../utils/inquiry";
 import { phoneError, formatPhoneInput } from "../../../../utils/phone";
+import { BranchField, BranchLine, BranchPicker, useBranchChoice } from "../shared/Branch";
 import { SearchField } from "../shared/SearchField";
 import { StaffScreen, useInTabs } from "../shared/StaffScreen";
 import { useStaffSession } from "../shared/StaffSession";
@@ -44,28 +51,36 @@ type Route = RouteProp<StaffStackParamList, "TourInquiries">;
 const PAGE_SIZE = 50;
 
 /**
- * Tour inquiries (GET contact?page=&limit=&search=) with their latest feedback. Like the CMS: follow-ups that are
- * due come first; feedback (POST contact/{id}/feedback) = not interested (reason), future prospect (follow-up
- * date) or converted (create the quotation); staff can add a phone / walk-in inquiry (POST book-tour).
+ * Tour inquiries (GET contact?page=&limit=&search=&locationId=) with their latest feedback. Like the CMS: follow-ups
+ * that are due come first; feedback (POST contact/{id}/feedback) = not interested (reason), future prospect
+ * (follow-up date) or converted (create the quotation); staff can add a phone / walk-in inquiry (POST book-tour).
+ * Branch routing: the API lists the user's locations plus inquiries with no branch; each row shows its branch, a
+ * location filter appears for users who see more than one location, and staff can set or change the branch
+ * (PATCH contact/{publicId}/location).
  */
 export default function InquiryListScreen() {
   const inTabs = useInTabs();
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
-  const { refreshBadges } = useStaffSession();
+  const { role, refreshBadges } = useStaffSession();
+  const { choice: branches, locations } = useBranchChoice();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<InquiryFilter>(route.params?.filter ?? "all");
+  const [locationFilter, setLocationFilter] = useState(0);
   const [feedbackFor, setFeedbackFor] = useState<TourInquiry | null>(null);
+  const [branchFor, setBranchFor] = useState<TourInquiry | null>(null);
   const [adding, setAdding] = useState(false);
   const toast = useToast();
   const search = useDebounced(query.trim());
+  const locationFilters = useMemo(() => branchFilterOptions(role, locations), [role, locations]);
+  const locationId = locationFilters.some((o) => o.value === locationFilter) ? locationFilter : 0;
 
   const fetchPage = useCallback(
     async (page: number) => {
-      const res = await getTourInquiries(page, PAGE_SIZE, search || undefined);
+      const res = await getTourInquiries(page, PAGE_SIZE, search || undefined, locationId || undefined);
       return { items: res.items, total: res.total, page, limit: PAGE_SIZE, hasMore: page * PAGE_SIZE < res.total };
     },
-    [search],
+    [search, locationId],
   );
   const list = usePagedList(fetchPage);
 
@@ -118,6 +133,16 @@ export default function InquiryListScreen() {
         style={styles.chipBar}
         contentContainerStyle={styles.chips}
       />
+      {locationFilters.length ? (
+        <FilterChips
+          value={locationId}
+          onChange={setLocationFilter}
+          options={locationFilters}
+          accessibilityLabel="Location filter"
+          style={styles.chipBar}
+          contentContainerStyle={styles.chips}
+        />
+      ) : null}
       <AsyncList
         data={rows}
         keyExtractor={(i, index) => rowKey(i, index)}
@@ -135,7 +160,15 @@ export default function InquiryListScreen() {
           title: filter === "due" ? "No follow-ups due" : filter === "new" ? "No new inquiries" : "No inquiries",
           message: filter === "all" ? "Tour requests from the website and app show up here." : undefined,
         }}
-        renderItem={({ item }) => <InquiryCard item={item} onFeedback={() => setFeedbackFor(item)} onConvert={() => convert(item)} />}
+        renderItem={({ item }) => (
+          <InquiryCard
+            item={item}
+            branch={branchDisplayName({ locationId: item.locationId, name: item.locationName }, locations)}
+            onSetBranch={item.publicId && canMoveBranch(item.locationId, branches.options) ? () => setBranchFor(item) : undefined}
+            onFeedback={() => setFeedbackFor(item)}
+            onConvert={() => convert(item)}
+          />
+        )}
       />
 
       {feedbackFor ? (
@@ -153,6 +186,17 @@ export default function InquiryListScreen() {
           }}
         />
       ) : null}
+      {branchFor ? (
+        <InquiryBranchSheet
+          item={branchFor}
+          options={branches.options}
+          onClose={() => setBranchFor(null)}
+          onSaved={(message) => {
+            setBranchFor(null);
+            afterChange(message);
+          }}
+        />
+      ) : null}
       {adding ? (
         <AddInquirySheet
           onClose={() => setAdding(false)}
@@ -166,7 +210,21 @@ export default function InquiryListScreen() {
   );
 }
 
-function InquiryCard({ item, onFeedback, onConvert }: { item: TourInquiry; onFeedback: () => void; onConvert: () => void }) {
+function InquiryCard({
+  item,
+  branch,
+  onSetBranch,
+  onFeedback,
+  onConvert,
+}: {
+  item: TourInquiry;
+  /** Branch name; null = no branch. */
+  branch: string | null;
+  /** Set when the user may set / change the branch. */
+  onSetBranch?: () => void;
+  onFeedback: () => void;
+  onConvert: () => void;
+}) {
   const feedback = inquiryFeedbackText(item);
   const status = item.followUpDue ? "Follow-up due" : INQUIRY_STATUS_LABELS[item.statusId] ?? "New";
   const tone = item.followUpDue ? "warning" : undefined;
@@ -182,6 +240,18 @@ function InquiryCard({ item, onFeedback, onConvert }: { item: TourInquiry; onFee
           </AppText>
         </View>
         <StatusPill status={status} tone={tone} />
+      </View>
+      <View style={[styles.row, styles.gapTop]}>
+        <BranchLine name={branch} style={styles.flex} />
+        {onSetBranch ? (
+          <Button
+            title={branch ? "Change branch" : "Set branch"}
+            size="sm"
+            variant="ghost"
+            onPress={onSetBranch}
+            accessibilityLabel={`${branch ? "Change" : "Set"} the branch of ${item.fullName || item.email || "this inquiry"}`}
+          />
+        ) : null}
       </View>
       {item.message ? (
         <AppText variant="bodySmall" color="textSecondary" numberOfLines={3} style={styles.gapTop}>
@@ -330,12 +400,74 @@ function FeedbackSheet({
   );
 }
 
+/** Set or change an inquiry's branch: a picker of the branches the user may choose (one: chosen already). */
+function InquiryBranchSheet({
+  item,
+  options,
+  onClose,
+  onSaved,
+}: {
+  item: TourInquiry;
+  options: StaffLocation[];
+  onClose: () => void;
+  onSaved: (m: string) => void;
+}) {
+  const [picked, setPicked] = useState<number | null>(item.locationId ?? (options.length === 1 ? options[0].id : null));
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const save = useSingleFlight(async () => {
+    const id = chosenBranchId({ options, fixed: null }, picked);
+    if (id == null) return setError("Choose the branch.");
+    if (id === item.locationId) return onClose();
+    setSaving(true);
+    setError(null);
+    try {
+      onSaved((await updateInquiryLocation(item, id)).message);
+    } catch (err) {
+      setError(errorMessage(err, "Could not change the branch."));
+    } finally {
+      setSaving(false);
+    }
+  });
+
+  return (
+    <BottomSheet
+      error={error}
+      visible
+      onClose={onClose}
+      dismissible={!saving}
+      title={item.locationId ? "Change branch" : "Set branch"}
+      subtitle={item.fullName || item.email}
+      footer={
+        <>
+          <Button title="Cancel" variant="outline" onPress={onClose} disabled={saving} style={styles.flex} />
+          <Button title="Save" onPress={save} loading={saving} style={styles.flex} />
+        </>
+      }
+    >
+      <BranchPicker
+        required
+        options={options}
+        value={picked}
+        onChange={(id) => {
+          setPicked(id);
+          setError(null);
+        }}
+        helperText="The inquiry goes to the staff of this branch."
+      />
+    </BottomSheet>
+  );
+}
+
 function AddInquirySheet({ onClose, onSaved }: { onClose: () => void; onSaved: (m: string) => void }) {
+  const { choice, loading: branchesLoading, error: branchesError } = useBranchChoice();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
-  const [errors, setErrors] = useState<{ name?: string; phone?: string; email?: string; form?: string }>({});
+  const [branch, setBranch] = useState<number | null>(null);
+  const [errors, setErrors] = useState<{ name?: string; phone?: string; email?: string; branch?: string; form?: string }>({});
   const [saving, setSaving] = useState(false);
   const phoneRef = useRef<TextInput>(null);
   const emailRef = useRef<TextInput>(null);
@@ -347,11 +479,13 @@ function AddInquirySheet({ onClose, onSaved }: { onClose: () => void; onSaved: (
     if (!phone.trim()) next.phone = "Enter the phone number.";
     else if (phoneError(phone)) next.phone = phoneError(phone) ?? undefined;
     if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) next.email = "Enter a valid email address.";
+    const locationId = chosenBranchId(choice, branch);
+    if (locationId == null) next.branch = "Choose the branch.";
     setErrors(next);
-    if (next.name || next.phone || next.email) return;
+    if (next.name || next.phone || next.email || next.branch) return;
     setSaving(true);
     try {
-      onSaved(await createTourInquiry({ fullName: name, phone, email, message }));
+      onSaved(await createTourInquiry({ fullName: name, phone, email, message, locationId }));
     } catch (err) {
       setErrors({ form: errorMessage(err, "Could not add the inquiry.") });
     } finally {
@@ -377,6 +511,17 @@ function AddInquirySheet({ onClose, onSaved }: { onClose: () => void; onSaved: (
       <TextField label="Full name" required value={name} onChangeText={setName} error={errors.name} autoCapitalize="words" returnKeyType="next" onSubmitEditing={() => phoneRef.current?.focus()} />
       <TextField ref={phoneRef} label="Phone" required value={phone} onChangeText={(t) => setPhone(formatPhoneInput(t))} error={errors.phone} keyboardType="phone-pad" returnKeyType="next" onSubmitEditing={() => emailRef.current?.focus()} />
       <TextField ref={emailRef} label="Email" value={email} onChangeText={(t) => setEmail(t.trim())} error={errors.email} keyboardType="email-address" autoCapitalize="none" returnKeyType="next" onSubmitEditing={() => messageRef.current?.focus()} />
+      <BranchField
+        choice={choice}
+        value={branch}
+        onChange={(id) => {
+          setBranch(id);
+          setErrors((e) => ({ ...e, branch: undefined }));
+        }}
+        loading={branchesLoading}
+        loadError={branchesError}
+        error={errors.branch}
+      />
       <TextField ref={messageRef} label="Message" value={message} onChangeText={setMessage} multiline rows={3} maxLength={1000} />
     </BottomSheet>
   );

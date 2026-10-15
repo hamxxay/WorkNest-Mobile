@@ -440,7 +440,14 @@ describe("book a tour", () => {
     const message = await submitTourRequest({ fullName: "Ali Khan", email: "ali@example.com", phone: "03001234567" });
     expect(fetchMock.mock.calls[0][0]).toMatch(/\/book-tour$/);
     expect(sentBody(fetchMock)).toMatchObject({ fullName: "Ali Khan", email: "ali@example.com", message: "Tour Request" });
+    expect(sentBody(fetchMock)).not.toHaveProperty("locationId");
     expect(message).toBe("Thank you.");
+  });
+
+  it("sends the chosen location's id so the branch's staff get the request", async () => {
+    const fetchMock = installFetch(jsonResponse(201, { isSuccessful: true, message: "Thank you." }));
+    await submitTourRequest({ fullName: "Ali Khan", email: "ali@example.com", phone: "03001234567", location: "I-8", locationId: 2 });
+    expect(sentBody(fetchMock)).toMatchObject({ message: "Tour Request\nLocation: I-8", locationId: 2 });
   });
 });
 

@@ -1,11 +1,14 @@
 import { phoneError } from "../../utils/phone";
+import { toBranchId } from "./branches";
 import { STAFF_ENDPOINTS } from "./endpoints";
 import { actionResult, staffGet, staffPatch, staffPost, type ActionResult } from "./http";
-import { bool, num, optNum, optStr, str, toPage, withQuery, type Page } from "./normalize";
+import { bool, num, optNum, optStr, pick, str, toPage, withQuery, type Page } from "./normalize";
 
 // Complaints (CMS admin.service.ts getComplaints / createComplaint / updateComplaintStatus; API
-// ComplaintController). Roles: every staff role; not location-scoped. Complaints come from the WhatsApp
-// chatbot or are entered by staff. Marking one resolved (the first time) asks the customer on WhatsApp to confirm.
+// ComplaintController). Roles: every staff role. Complaints come from the WhatsApp chatbot or are entered by staff.
+// Marking one resolved (the first time) asks the customer on WhatsApp to confirm. Branch routing: the API gives
+// location-bound staff (admins, sales executives) the complaints whose Branch is one of their locations plus those
+// with no branch; super admins see all.
 
 export type ComplaintStatus = "open" | "in_progress" | "resolved" | "closed";
 
@@ -47,7 +50,10 @@ export type StaffComplaint = {
   customerName: string | null;
   phoneNumber: string | null;
   email: string | null;
+  /** Branch name (WN_Complaints.Branch = a WN_Locations.Name); null = no branch. */
   branch: string | null;
+  /** The branch's location id when the API resolves it (null when it does not, or there is no branch). */
+  locationId: number | null;
   category: string;
   description: string;
   status: ComplaintStatus | string;
@@ -85,6 +91,7 @@ export function normalizeComplaint(raw: any): StaffComplaint {
     phoneNumber: optStr(raw, "phoneNumber"),
     email: optStr(raw, "email"),
     branch: optStr(raw, "branch"),
+    locationId: toBranchId(pick(raw, "locationId")),
     category: str(raw, "category"),
     description: str(raw, "description"),
     status: normalizeComplaintStatus(status) ?? status,
@@ -101,14 +108,23 @@ export function normalizeComplaint(raw: any): StaffComplaint {
   };
 }
 
-/** GET complaints?page=&limit=&search=&status= — open first, then in progress, resolved, closed; newest first. */
+/**
+ * GET complaints?page=&limit=&search=&status=&locationId= — open first, then in progress, resolved, closed; newest
+ * first. locationId narrows the list to one of the user's locations.
+ */
 export async function listComplaints(
-  query: { page?: number; limit?: number; search?: string; status?: ComplaintStatus | null } = {},
+  query: { page?: number; limit?: number; search?: string; status?: ComplaintStatus | null; locationId?: number | null } = {},
 ): Promise<Page<StaffComplaint>> {
   const page = query.page ?? 1;
   const limit = query.limit ?? 20;
   const raw = await staffGet(
-    withQuery(STAFF_ENDPOINTS.complaints.list, { page, limit, search: query.search?.trim(), status: query.status ?? undefined }),
+    withQuery(STAFF_ENDPOINTS.complaints.list, {
+      page,
+      limit,
+      search: query.search?.trim(),
+      status: query.status ?? undefined,
+      locationId: toBranchId(query.locationId) ?? undefined,
+    }),
   );
   return toPage(raw, normalizeComplaint, { page, limit });
 }
@@ -119,7 +135,10 @@ export type ComplaintInput = {
   customerName?: string;
   phoneNumber?: string;
   email?: string;
+  /** Branch name (sent as `branch`, which the API stores). */
   branch?: string;
+  /** Branch location id (sent as `locationId`, which the API checks against the user's locations). */
+  locationId?: number | null;
 };
 
 /** First problem with a new complaint (API limits: category 50, description 2000, name 200, email 256). */
@@ -145,6 +164,7 @@ export async function createComplaint(input: ComplaintInput): Promise<ActionResu
     phoneNumber: text(input.phoneNumber),
     email: text(input.email),
     branch: text(input.branch),
+    locationId: toBranchId(input.locationId),
   });
   const result = actionResult<any>(raw, "Complaint recorded.");
   return { message: result.message, data: { id: optNum(result.data, "id"), complaintNo: optStr(result.data, "complaintNo") } };
@@ -164,4 +184,12 @@ export async function updateComplaintStatus(
   const raw = await staffPatch(STAFF_ENDPOINTS.complaints.status(id), { status, staffNotes: notes || null });
   const result = actionResult<any>(raw, "Complaint updated.");
   return { message: result.message, data: { notified: bool(result.data, "notified") } };
+}
+
+/** PATCH complaints/{id}/branch { locationId } — set or change a complaint's branch (location-bound: one of theirs). */
+export async function updateComplaintBranch(id: number, locationId: number): Promise<ActionResult> {
+  const branchId = toBranchId(locationId);
+  if (branchId == null) throw new Error("Choose the branch.");
+  const raw = await staffPatch(STAFF_ENDPOINTS.complaints.branch(id), { locationId: branchId });
+  return actionResult(raw, "Branch updated.");
 }

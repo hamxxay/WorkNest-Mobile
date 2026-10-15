@@ -45,6 +45,10 @@ export type TourInquiry = {
   followUpOn: string | null;
   followUpDue: boolean;
   quotationId: number | null;
+  /** Branch (WN_Locations.Id) the inquiry belongs to; null = no branch (old inquiries, general messages). */
+  locationId: number | null;
+  /** Branch name from the API (WN_Locations.Name); null when the inquiry has no branch. */
+  locationName: string | null;
 };
 
 export type TourInquiryPage = {
@@ -62,8 +66,15 @@ export type InquiryFeedbackRequest = {
 const text = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
 
+const positiveId = (value: unknown): number | null => {
+  if (value === null || value === undefined || typeof value === "boolean" || text(value) === "") return null;
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0 ? n : null;
+};
+
 // The list rows come from a stored procedure, so the column names are read the same tolerant way as the website.
-function normalizeInquiry(raw: any): TourInquiry {
+// LocationId / LocationName come with branch routing; when the API does not send them yet the inquiry has no branch.
+export function normalizeInquiry(raw: any): TourInquiry {
   const c = raw ?? {};
   const statusRaw = c.statusId ?? c.StatusId ?? c.status ?? c.Status;
   const statusId = Number(statusRaw);
@@ -88,13 +99,24 @@ function normalizeInquiry(raw: any): TourInquiry {
     followUpOn: text(c.followUpOn ?? c.FollowUpOn) || null,
     followUpDue: !!(c.followUpDue ?? c.FollowUpDue),
     quotationId: quotationId > 0 ? quotationId : null,
+    locationId: positiveId(c.locationId ?? c.LocationId),
+    locationName: text(c.locationName ?? c.LocationName) || null,
   };
 }
 
-/** GET /api/contact?page=&limit=&search= — inquiries with their latest feedback ({ data, total }). */
-export async function getTourInquiries(page = 1, limit = 100, search?: string): Promise<TourInquiryPage> {
+/**
+ * GET /api/contact?page=&limit=&search=&locationId= — inquiries with their latest feedback ({ data, total }).
+ * The API returns the user's locations (plus inquiries with no branch); locationId narrows it to one location.
+ */
+export async function getTourInquiries(
+  page = 1,
+  limit = 100,
+  search?: string,
+  locationId?: number | null,
+): Promise<TourInquiryPage> {
   const query = search ? sanitizeSearchInput(search) : "";
-  const response = await apiRequest<any>(API_ENDPOINTS.contact.list(page, limit, query || undefined), {
+  const path = API_ENDPOINTS.contact.list(page, limit, query || undefined, positiveId(locationId) ?? undefined);
+  const response = await apiRequest<any>(path, {
     method: "GET",
     requiresAuth: true,
     unwrapData: false,
@@ -114,24 +136,29 @@ export async function getTourInquiries(page = 1, limit = 100, search?: string): 
   return { items, total: Number.isFinite(total) ? total : items.length };
 }
 
-/** POST /api/book-tour — an inquiry entered by staff (phone call / walk-in), saved like the website's form. */
+/**
+ * POST /api/book-tour — an inquiry entered by staff (phone call / walk-in), saved like the website's form, with
+ * its branch (locationId; the API keeps a location-bound user to their own locations).
+ */
 export async function createTourInquiry(payload: {
   fullName: string;
   email?: string;
   phone: string;
   message?: string;
+  locationId?: number | null;
 }) {
   const fullName = sanitizeNameInput(payload.fullName, "Full name");
   const email = payload.email?.trim() ? sanitizeEmailInput(payload.email) : "";
   const phone = sanitizePhoneInput(payload.phone);
   const message = payload.message?.trim() ? sanitizeMessageInput(payload.message) : "";
+  const locationId = positiveId(payload.locationId);
   const response = await apiRequest<ApiResponse<{ id?: number; publicId?: string }>>(
     API_ENDPOINTS.contact.bookTour,
     {
       method: "POST",
       requiresAuth: true,
       unwrapData: false,
-      body: { fullName, email, phone, message },
+      body: locationId ? { fullName, email, phone, message, locationId } : { fullName, email, phone, message },
     },
   );
   ensureSuccess(response, "Unable to add the inquiry right now.");
