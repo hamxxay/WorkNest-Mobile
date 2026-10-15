@@ -52,6 +52,18 @@ const toEvent = (e: any): AccessEvent => ({
   time: optStr(e, "time"),
 });
 
+/** The most door events the API returns for one request (the newest ones). */
+export const ACCESS_EVENTS_LIMIT = 2000;
+
+/**
+ * The note under the door events when the list hit the server's limit (older events are not shown), or null.
+ * `count`: events received (before the screen's own filters).
+ */
+export function accessEventsCapNote(count: number, limit: number = ACCESS_EVENTS_LIMIT): string | null {
+  if (count < limit) return null;
+  return `Showing the latest ${limit.toLocaleString("en-US")} door events. Choose a shorter period or one door to see older ones.`;
+}
+
 /**
  * GET hik/access/events?from=&to=&deviceId=&employeeNo=&name=&limit= — door events, newest first.
  * from / to: yyyy-MM-dd or yyyy-MM-ddTHH:mm:ss; `to` is exclusive (the CMS log sends to = last day + 1).
@@ -72,7 +84,7 @@ export async function getAccessEvents(query: {
       deviceId: query.deviceId ?? undefined,
       employeeNo: query.employeeNo?.trim(),
       name: query.employeeNo?.trim() ? undefined : query.name?.trim(),
-      limit: Math.min(Math.max(query.limit ?? 500, 1), 2000),
+      limit: Math.min(Math.max(query.limit ?? 500, 1), ACCESS_EVENTS_LIMIT),
     }),
   );
   return toList(raw, toEvent);

@@ -1,9 +1,11 @@
 import { Fragment, useCallback, useMemo, useRef, useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, View, type TextInput } from "react-native";
+import Ionicons from "react-native-vector-icons/Ionicons";
 import { useRoute, type RouteProp } from "@react-navigation/native";
 import {
   AppHeader,
   AppText,
+  Banner,
   BottomSheet,
   Button,
   Card,
@@ -27,49 +29,62 @@ import { useAuth } from "../../../../context/AuthContext";
 import type { StaffStackParamList } from "../../../../navigation/staffTypes";
 import { errorMessage } from "../../../../services/apiClient";
 import {
+  addAttendantByCnic,
   addPersonAction,
   approveCapacityRequest,
   assignAttendant,
   canDecideCapacityRequest,
   canWithdrawCapacityRequest,
   cancelCapacityRequest,
+  cardNumberError,
   checkRoomCapacity,
   createAttendant,
+  enrolAttendant,
+  enrolBlockedReason,
   extendDoorAccess,
   getAccessSuspension,
   getCustomerAttendants,
   getRoomAttendants,
   getRoomChallans,
+  getRoomMachine,
   listCapacityRequests,
+  machineSyncNotice,
   rejectCapacityRequest,
   removeAttendant,
   requestCapacityApproval,
   setDoorAccess,
   toApiDate,
   validateAttendantInput,
+  type ByCnicOutcome,
   type CapacityCheck,
   type CapacityRequest,
   type CustomerAttendant,
   type IdType,
+  type MachineNotice,
   type RoomAttendant,
+  type StaffEnrolKind,
 } from "../../../../services/staff";
-import { spacing } from "../../../../theme";
+import { spacing, useTheme } from "../../../../theme";
 import { formatDate, formatMoney, formatRelative } from "../../../../utils/format";
-import { formatCnicInput } from "../../../../utils/cnic";
+import { cnicError, formatCnicInput } from "../../../../utils/cnic";
 import { formatPhoneInput } from "../../../../utils/phone";
 import { StaffScreen } from "../shared/StaffScreen";
 import { isAdminRole, useStaffSession } from "../shared/StaffSession";
 import { useAsyncData } from "../shared/hooks";
 import { useRefreshColors } from "../shared/refresh";
+import { StaffEnrolSheet, type StaffEnrolFlow } from "./EnrolSheet";
 
 type Route = RouteProp<StaffStackParamList, "RoomAccess">;
 
 /**
  * People and door access of one booked space (AttendantController). Adding a person follows the capacity rule:
  * a free seat = assign; full room = a sales executive asks an admin (capacity request), an admin overfills a
- * private office after confirming the surcharge, never a meeting room / shared space. Admins approve or reject
- * the room's requests here; the person who asked (or an admin) can withdraw one. Also: door access on / off,
- * remove a person, the challan-based suspension with temporary access, and the room's challans.
+ * private office after confirming the surcharge, never a meeting room / shared space. Sales executives start with
+ * the CNIC check of an employee the customer added online (by-cnic); admins start with the full form, the CNIC check
+ * one tap away (CMS cnicFirst). Admins approve or reject the room's requests here; the person who asked (or an admin)
+ * can withdraw one. Also: fingerprint / face / card enrolment on the room machine, door access on / off and remove
+ * (with what the machines did: queued, failed, suspended), the challan-based suspension with temporary access, and the
+ * room's challans.
  */
 export default function RoomAccessScreen() {
   const { params } = useRoute<Route>();
@@ -77,15 +92,20 @@ export default function RoomAccessScreen() {
   const refreshColors = useRefreshColors();
   const { role, refreshBadges } = useStaffSession();
   const { user } = useAuth();
+  const { colors } = useTheme();
   const isAdmin = isAdminRole(role);
   const { bookingDetailId, customerId } = params;
 
   const fetcher = useCallback(async () => {
-    // People and capacity are required; suspension and challans are side cards whose failure is shown in place.
-    const [capacity, people, requests, suspension, challans] = await Promise.all([
+    // People and capacity are required; requests, suspension and challans are side cards whose failure is shown in
+    // place; the room machine is best effort (null: unknown, the enrolment then reports any problem itself).
+    const [capacity, people, requests, suspension, challans, machine] = await Promise.all([
       checkRoomCapacity(bookingDetailId),
       getRoomAttendants(bookingDetailId),
-      listCapacityRequests({ status: "Pending", bookingDetailId }),
+      listCapacityRequests({ status: "Pending", bookingDetailId }).then(
+        (value) => ({ value, error: null as string | null }),
+        (err) => ({ value: [] as CapacityRequest[], error: errorMessage(err, "Could not load the requests waiting for an admin.") }),
+      ),
       getAccessSuspension(bookingDetailId).then(
         (value) => ({ value, error: null as string | null }),
         (err) => ({ value: null, error: errorMessage(err, "Could not check whether door access is suspended.") }),
@@ -94,11 +114,14 @@ export default function RoomAccessScreen() {
         (value) => ({ value, error: null as string | null }),
         (err) => ({ value: null, error: errorMessage(err, "Could not load the challans.") }),
       ),
+      getRoomMachine(bookingDetailId),
     ]);
     return {
       capacity,
       people,
-      requests,
+      requests: requests.value,
+      requestsError: requests.error,
+      machine,
       suspension: suspension.value,
       suspensionError: suspension.error,
       challans: challans.value,
@@ -116,15 +139,85 @@ export default function RoomAccessScreen() {
   const [busy, setBusy] = useState<string | null>(null);
   // Errors of actions confirmed in a dialog are shown in the dialog (toasts render under modals).
   const [dialogError, setDialogError] = useState<string | null>(null);
+  // What the door machines did when it was not simply "done everywhere" (offline / failed / suspended), or a
+  // surcharge invoice that could not be created: stays on screen until dismissed.
+  const [notice, setNotice] = useState<MachineNotice | null>(null);
+  const [enrol, setEnrol] = useState<StaffEnrolFlow | null>(null);
 
   const capacity = data?.capacity;
   const used = data?.people.length ?? 0;
   const roomFull = !!capacity && capacity.roomCapacity > 0 && used >= capacity.roomCapacity;
+  const enrolBlocked = enrolBlockedReason(data?.machine ?? null);
+  const roomName = params.spaceName || capacity?.spaceName || "the room";
 
-  const finish = (message: string) => {
+  const finish = (message: string, warning?: string | null) => {
     toast.success(message);
+    if (warning) setNotice({ tone: "warning", message: warning, problems: [] });
     refresh();
     refreshBadges();
+  };
+
+  /** A machine notice: a toast when every machine took the change, otherwise kept on screen. */
+  const report = (n: MachineNotice) => {
+    if (n.tone === "success") {
+      toast.success(n.message);
+      setNotice(null);
+    } else {
+      setNotice(n);
+    }
+    refresh();
+    refreshBadges();
+  };
+
+  const toggleAccess = async (p: RoomAttendant, enable: boolean) => {
+    setBusy(`access-${p.personId}`);
+    try {
+      const res = await setDoorAccess({ bookingDetailId, customerId, personId: p.personId, isEnabled: enable });
+      report(machineSyncNotice(res.data.machines, p.name, enable ? "enable" : "disable"));
+    } catch (err) {
+      toast.error(errorMessage(err, "Could not change door access."));
+      refresh();
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const openEnrol = (p: RoomAttendant, kind: StaffEnrolKind) =>
+    setEnrol({
+      kind,
+      personId: p.personId,
+      name: p.name,
+      roomName,
+      machineName: data?.machine?.name ?? null,
+      fingerNo: 1,
+      cardMode: "tap",
+      cardNo: "",
+      phase: "ready",
+      inputError: null,
+    });
+
+  const startEnrol = async () => {
+    const f = enrol;
+    if (!f || f.phase === "waiting") return;
+    const typed = f.kind === "card" && f.cardMode === "type";
+    if (typed) {
+      const invalid = cardNumberError(f.cardNo);
+      if (invalid) return setEnrol({ ...f, inputError: invalid });
+    }
+    setEnrol({ ...f, phase: "waiting", startedAt: Date.now(), result: undefined, error: undefined, inputError: null });
+    try {
+      const result = await enrolAttendant({
+        bookingDetailId,
+        personId: f.personId,
+        kind: f.kind,
+        fingerNo: f.fingerNo,
+        cardNo: typed ? f.cardNo : undefined,
+      });
+      setEnrol((cur) => (cur ? { ...cur, phase: "done", result } : cur));
+      if (result.ok) refresh();
+    } catch (err) {
+      setEnrol((cur) => (cur ? { ...cur, phase: "done", error: errorMessage(err, "The enrolment did not finish. Please try again.") } : cur));
+    }
   };
 
   const run = async (key: string, action: () => Promise<string>, fallback: string) => {
@@ -160,11 +253,14 @@ export default function RoomAccessScreen() {
   };
 
   /** After the person exists: decide with a fresh capacity check (CMS processBookingAssignment). */
-  const addPerson = async (personId: number): Promise<string | null> => {
+  const addPerson = async (personId: number): Promise<AddedResult | null> => {
     const check = await checkRoomCapacity(bookingDetailId);
     const action = addPersonAction(check, role);
-    if (action === "assign") return (await assignAttendant(bookingDetailId, { personId, customerId })).message;
-    if (action === "request-approval") return (await requestCapacityApproval(bookingDetailId, { personId, customerId })).message;
+    if (action === "assign") {
+      const res = await assignAttendant(bookingDetailId, { personId, customerId });
+      return { message: res.message, warning: res.data.surchargeInvoiceError };
+    }
+    if (action === "request-approval") return { message: (await requestCapacityApproval(bookingDetailId, { personId, customerId })).message };
     if (action === "confirm-surcharge") {
       setSurcharge({ check, personId });
       return null;
@@ -187,6 +283,7 @@ export default function RoomAccessScreen() {
           contentContainerStyle={styles.content}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} {...refreshColors} />}
         >
+          {notice ? <MachineNoticeCard notice={notice} onDismiss={() => setNotice(null)} /> : null}
           {data.suspensionError ? <ErrorState compact message={data.suspensionError} onRetry={refresh} /> : null}
           {data.suspension ? (
             <Card variant="outlined">
@@ -209,6 +306,16 @@ export default function RoomAccessScreen() {
           ) : null}
 
           <SectionHeader title={`People (${used})`} variant="overline" />
+          {enrolBlocked && data.people.length ? (
+            <Card variant="filled">
+              <View style={styles.row}>
+                <Ionicons name="cloud-offline-outline" size={18} color={colors.warning} />
+                <AppText variant="bodySmall" color="textSecondary" style={styles.flex}>
+                  {`Fingerprint, face and card are off: ${enrolBlocked}`}
+                </AppText>
+              </View>
+            </Card>
+          ) : null}
           {roomFull && !isAdmin ? (
             <Card variant="filled">
               <AppText variant="bodySmall" color="textSecondary">
@@ -240,16 +347,27 @@ export default function RoomAccessScreen() {
                         value={p.isEnabled}
                         disabled={busy === `access-${p.personId}`}
                         onValueChange={(v) => {
-                          run(
-                            `access-${p.personId}`,
-                            async () => (await setDoorAccess({ bookingDetailId, customerId, personId: p.personId, isEnabled: v })).message,
-                            "Could not change door access.",
-                          );
+                          toggleAccess(p, v);
                         }}
                         accessibilityLabel={`Door access for ${p.name}`}
                       />
                       <Button title="Remove" variant="ghost" size="sm" onPress={() => setRemoving(p)} accessibilityLabel={`Remove ${p.name}`} />
                     </View>
+                  </View>
+                  <View style={styles.enrolActions}>
+                    {ENROL_BUTTONS.map((b) => (
+                      <Button
+                        key={b.kind}
+                        title={b.title}
+                        variant="outline"
+                        size="sm"
+                        leftIcon={b.icon}
+                        disabled={!!enrolBlocked}
+                        onPress={() => openEnrol(p, b.kind)}
+                        accessibilityLabel={`${b.title} for ${p.name}`}
+                        accessibilityHint={enrolBlocked ?? undefined}
+                      />
+                    ))}
                   </View>
                 </Fragment>
               ))}
@@ -262,6 +380,7 @@ export default function RoomAccessScreen() {
             fullWidth
           />
 
+          {data.requestsError ? <ErrorState compact message={data.requestsError} onRetry={refresh} /> : null}
           {data.requests.length ? (
             <>
               <SectionHeader title="Waiting for admin approval" variant="overline" />
@@ -323,14 +442,17 @@ export default function RoomAccessScreen() {
 
       {adding ? (
         <AddPersonSheet
+          bookingDetailId={bookingDetailId}
           customerId={customerId}
+          context={[roomName, capacity?.roomCapacity ? `${used} of ${capacity.roomCapacity} seats used` : null].filter(Boolean).join(" · ")}
+          cnicFirst={role === "sales_executive"}
           inRoom={data?.people.map((p) => p.personId) ?? []}
           requestOnly={roomFull && !isAdmin}
           onClose={() => setAdding(false)}
           addPerson={addPerson}
-          onDone={(message) => {
+          onDone={(added) => {
             setAdding(false);
-            if (message) finish(message);
+            if (added) finish(added.message, added.warning);
             else refresh();
           }}
         />
@@ -351,8 +473,21 @@ export default function RoomAccessScreen() {
         onCancel={closeDialog(() => setSurcharge(null))}
         onConfirm={async () => {
           if (!surcharge) return;
-          const ok = await runInDialog("surcharge", async () => (await assignAttendant(bookingDetailId, { personId: surcharge.personId, customerId })).message, "Could not add the person.");
-          if (ok) setSurcharge(null);
+          let warning: string | null = null;
+          const ok = await runInDialog(
+            "surcharge",
+            async () => {
+              const res = await assignAttendant(bookingDetailId, { personId: surcharge.personId, customerId });
+              warning = res.data.surchargeInvoiceError;
+              return res.message;
+            },
+            "Could not add the person.",
+          );
+          if (ok) {
+            setSurcharge(null);
+            // The person is in the room, but the extra-seat invoice is missing: say so (it has to be made in Invoices).
+            if (warning) setNotice({ tone: "warning", message: warning, problems: [] });
+          }
         }}
        />
       <ConfirmDialog
@@ -366,8 +501,18 @@ export default function RoomAccessScreen() {
         onCancel={closeDialog(() => setRemoving(null))}
         onConfirm={async () => {
           if (!removing) return;
-          const ok = await runInDialog("remove", async () => (await removeAttendant(bookingDetailId, removing.personId)).message, "Could not remove the person.");
-          if (ok) setRemoving(null);
+          const person = removing;
+          setBusy("remove");
+          setDialogError(null);
+          try {
+            const res = await removeAttendant(bookingDetailId, person.personId);
+            setRemoving(null);
+            report(machineSyncNotice(res.data.machines, person.name, "remove"));
+          } catch (err) {
+            setDialogError(errorMessage(err, "Could not remove the person."));
+          } finally {
+            setBusy(null);
+          }
         }}
        />
       <ConfirmDialog
@@ -405,25 +550,88 @@ export default function RoomAccessScreen() {
           }}
         />
       ) : null}
+      <StaffEnrolSheet
+        flow={enrol}
+        onClose={() => setEnrol((cur) => (cur?.phase === "waiting" ? cur : null))}
+        onChange={(patch) => setEnrol((cur) => (cur ? { ...cur, ...patch } : cur))}
+        onStart={startEnrol}
+        onRetry={() => setEnrol((cur) => (cur ? { ...cur, phase: "ready", result: undefined, error: undefined } : cur))}
+      />
     </StaffScreen>
   );
 }
 
+/** What adding a person did: the message, and a warning when the extra-seat invoice could not be created. */
+type AddedResult = { message: string; warning?: string | null };
+
+const ENROL_BUTTONS: { kind: StaffEnrolKind; title: string; icon: string }[] = [
+  { kind: "fingerprint", title: "Fingerprint", icon: "finger-print-outline" },
+  { kind: "face", title: "Face", icon: "scan-outline" },
+  { kind: "card", title: "Card", icon: "card-outline" },
+];
+
+/** The machines' side of the last change when it was not simply done everywhere: the message and each machine. */
+function MachineNoticeCard({ notice, onDismiss }: { notice: MachineNotice; onDismiss: () => void }) {
+  const { tones } = useTheme();
+  return (
+    <View style={styles.notice}>
+      <Banner
+        tone={notice.tone}
+        title={notice.tone === "danger" ? "Some door machines were not updated" : notice.problems.length ? "Some door machines are offline" : "Please check"}
+        message={notice.message}
+        onDismiss={onDismiss}
+      />
+      {notice.problems.length ? (
+        <Card padding={0}>
+          {notice.problems.map((m, i) => {
+            const tone = tones[m.queued ? "warning" : "danger"];
+            return (
+              <Fragment key={`${m.device}-${i}`}>
+                {i > 0 ? <Divider inset={16} /> : null}
+                <View style={styles.machine} accessible accessibilityLabel={`${m.device}: ${m.status}`}>
+                  <Ionicons name={m.queued ? "time-outline" : "alert-circle-outline"} size={18} color={tone.fg} />
+                  <View style={styles.flex}>
+                    <AppText variant="bodyStrong" numberOfLines={1}>
+                      {m.device}
+                    </AppText>
+                    <AppText variant="caption" color="textMuted">
+                      {m.status}
+                    </AppText>
+                  </View>
+                </View>
+              </Fragment>
+            );
+          })}
+        </Card>
+      ) : null}
+    </View>
+  );
+}
+
 function AddPersonSheet({
+  bookingDetailId,
   customerId,
+  context,
+  cnicFirst,
   inRoom,
   requestOnly,
   onClose,
   addPerson,
   onDone,
 }: {
+  bookingDetailId: number;
   customerId: number;
+  /** "Office 329 · 3 of 6 seats used" */
+  context: string;
+  /** Sales executives start with the CNIC check of an employee the customer added online; admins with the form. */
+  cnicFirst: boolean;
   inRoom: number[];
   requestOnly: boolean;
   onClose: () => void;
-  addPerson: (personId: number) => Promise<string | null>;
-  onDone: (message: string | null) => void;
+  addPerson: (personId: number) => Promise<AddedResult | null>;
+  onDone: (added: AddedResult | null) => void;
 }) {
+  const [step, setStep] = useState<"cnic" | "form">(cnicFirst ? "cnic" : "form");
   const [mode, setMode] = useState<"existing" | "new">("existing");
   const fetcher = useCallback(() => getCustomerAttendants(customerId), [customerId]);
   const people = useAsyncData<CustomerAttendant[]>(fetcher);
@@ -439,6 +647,55 @@ function AddPersonSheet({
   const emailRef = useRef<TextInput>(null);
   const phoneRef = useRef<TextInput>(null);
   const idRef = useRef<TextInput>(null);
+
+  // CNIC check (POST bookings/{id}/attendants/by-cnic)
+  const [lookupCnic, setLookupCnic] = useState("");
+  const [lookupTried, setLookupTried] = useState(false);
+  const [lookupBusy, setLookupBusy] = useState(false);
+  const [problem, setProblem] = useState<{ text: string; manual: boolean } | null>(null);
+  const [added, setAdded] = useState<Extract<ByCnicOutcome, { kind: "added" }> | null>(null);
+  const lookupError = !lookupCnic.trim() ? "Enter the CNIC." : cnicError(lookupCnic);
+
+  const close = () => {
+    // Someone was already added by the CNIC check: the room must be reloaded either way.
+    if (added) onDone({ message: added.message });
+    else onClose();
+  };
+
+  const findByCnic = async () => {
+    if (lookupBusy) return;
+    setLookupTried(true);
+    setProblem(null);
+    if (lookupError) return;
+    setLookupBusy(true);
+    try {
+      const outcome = await addAttendantByCnic(bookingDetailId, lookupCnic);
+      if (outcome.kind === "added") setAdded(outcome);
+      else setProblem({ text: outcome.message, manual: outcome.canAddManually });
+    } catch (err) {
+      setProblem({ text: errorMessage(err, "The CNIC could not be checked. Please try again."), manual: false });
+    } finally {
+      setLookupBusy(false);
+    }
+  };
+
+  /** Full form (new person / someone already on this customer), with the CNIC typed so far filled in. */
+  const addManually = () => {
+    setStep("form");
+    setMode("new");
+    setError(null);
+    if (!idNumber && lookupCnic.trim() && !cnicError(lookupCnic)) {
+      setIdType("CNIC");
+      setIdNumber(formatCnicInput(lookupCnic));
+    }
+  };
+
+  const findByCnicInstead = () => {
+    setStep("cnic");
+    setLookupTried(false);
+    setProblem(null);
+    setError(null);
+  };
 
   const submit = async () => {
     setError(null);
@@ -468,6 +725,72 @@ function AddPersonSheet({
     }
   };
 
+  if (step === "cnic") {
+    return (
+      <BottomSheet
+        visible
+        onClose={close}
+        dismissible={!lookupBusy}
+        title="Add a person"
+        subtitle={context || undefined}
+        footer={
+          added ? (
+            <Button title="Done" leftIcon="checkmark" onPress={close} fullWidth />
+          ) : (
+            <>
+              <Button title="Cancel" variant="outline" onPress={close} disabled={lookupBusy} style={styles.flex} />
+              <Button title="Find and add" leftIcon="search" onPress={findByCnic} loading={lookupBusy} style={styles.flex} />
+            </>
+          )
+        }
+      >
+        {added ? (
+          <>
+            <Banner tone="success" message={added.message} />
+            <Card variant="outlined">
+              <InfoRow label="Name" value={added.person.name || "—"} />
+              <InfoRow label="Phone" value={added.person.phone || "—"} />
+              <InfoRow label="Email" value={added.person.email || "—"} />
+              <InfoRow label={added.person.idType || "CNIC"} value={added.person.idNumber || lookupCnic} />
+            </Card>
+            <AppText variant="bodySmall" color="textMuted">
+              They are now in this room. Use Fingerprint, Face or Card on their row to give them door access.
+            </AppText>
+          </>
+        ) : (
+          <>
+            <AppText variant="bodySmall" color="textSecondary">
+              Customers add their employees online. Enter the employee's CNIC to check it and add them to this room.
+            </AppText>
+            <TextField
+              label="CNIC"
+              required
+              value={lookupCnic}
+              onChangeText={(t) => {
+                setLookupCnic(formatCnicInput(t));
+                setProblem(null);
+              }}
+              error={lookupTried ? lookupError ?? undefined : undefined}
+              keyboardType="number-pad"
+              placeholder="35202-1234567-1"
+              returnKeyType="search"
+              onSubmitEditing={findByCnic}
+              disabled={lookupBusy}
+            />
+            {problem ? (
+              problem.manual ? (
+                <Banner tone="warning" message={problem.text} actionLabel="Add manually" onAction={addManually} />
+              ) : (
+                <Banner tone="danger" message={problem.text} />
+              )
+            ) : null}
+            {!cnicFirst ? <Button title="Use the full form instead" variant="ghost" size="sm" leftIcon="create-outline" onPress={addManually} style={styles.alignStart} /> : null}
+          </>
+        )}
+      </BottomSheet>
+    );
+  }
+
   return (
     <BottomSheet
       error={error}
@@ -475,7 +798,7 @@ function AddPersonSheet({
       onClose={onClose}
       dismissible={!saving}
       title={requestOnly ? "Request to add a person" : "Add a person"}
-      subtitle={requestOnly ? "The room is full, so an admin is asked to approve." : undefined}
+      subtitle={requestOnly ? "The room is full, so an admin is asked to approve." : context || undefined}
       footer={
         <>
           <Button title="Cancel" variant="outline" onPress={onClose} disabled={saving} style={styles.flex} />
@@ -483,6 +806,16 @@ function AddPersonSheet({
         </>
       }
     >
+      <Button
+        title={cnicFirst ? "Back to the CNIC check" : "Find by CNIC"}
+        variant="ghost"
+        size="sm"
+        leftIcon={cnicFirst ? "arrow-back" : "search"}
+        onPress={findByCnicInstead}
+        disabled={saving}
+        style={styles.alignStartTight}
+        accessibilityHint="Add an employee the customer added online, by their CNIC"
+      />
       <SegmentedControl
         accessibilityLabel="Who to add"
         options={[
@@ -622,6 +955,10 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   gapTop: { marginTop: spacing.xs },
   alignStart: { alignSelf: "flex-start", marginTop: spacing.sm },
+  alignStartTight: { alignSelf: "flex-start" },
+  enrolActions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingBottom: spacing.md },
+  notice: { gap: spacing.sm },
+  machine: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
   person: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
   personActions: { alignItems: "flex-end", gap: 2 },
   requestActions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingBottom: spacing.md },

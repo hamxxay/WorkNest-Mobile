@@ -60,7 +60,11 @@ export type StaffStackParamList = {
   KycCustomer: { customerId: number | string; customerName?: string };
 
   BookingList: undefined;
-  BookingDetail: { bookingId: number };
+  /**
+   * `offerInitialInvoice`: open "Send initial invoice" straight away (after the booking was created, or an agreement
+   * was signed: then `issuedOn` is the signed date, yyyy-MM-dd, which the first invoice is dated on).
+   */
+  BookingDetail: { bookingId: number; offerInitialInvoice?: { issuedOn?: string | null } };
   BookingForm: { customerId?: number } | undefined;
 
   TourInquiries: { filter?: InquiryFilter } | undefined;
