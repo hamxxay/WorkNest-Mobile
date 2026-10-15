@@ -162,6 +162,18 @@ export const NAV_BADGE_ROUTES: Record<string, StaffRouteName> = {
   "/admin/access-dashboard": "AccessActivity",
 };
 
+/**
+ * For admins the API adds the pending capacity requests to "/admin/attendants" (the CMS has no Approvals page). The
+ * app shows them once, on the Approvals tab (`pendingApprovals`), so they are taken out of the Attendants count here;
+ * what is left is what "Mark all as read" can clear (door access suspended).
+ */
+export function withoutCapacityRequests(badges: Record<string, number>, pendingApprovals: number): Record<string, number> {
+  const pending = Number.isFinite(pendingApprovals) && pendingApprovals > 0 ? pendingApprovals : 0;
+  const attendants = badges["/admin/attendants"];
+  if (!pending || attendants == null) return badges;
+  return { ...badges, "/admin/attendants": Math.max(0, attendants - pending) };
+}
+
 /** Badge count per app screen the role may open (counts of CMS routes without an app screen are dropped). */
 export function badgesByRoute(role: StaffRole, badges: Record<string, number>): Partial<Record<StaffRouteName, number>> {
   const out: Partial<Record<StaffRouteName, number>> = {};

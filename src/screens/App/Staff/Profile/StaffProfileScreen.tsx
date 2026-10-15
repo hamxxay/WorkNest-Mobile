@@ -20,7 +20,7 @@ import { useAuth } from "../../../../context/AuthContext";
 import { userRoleLabel } from "../../../../context/userDisplay";
 import { errorMessage } from "../../../../services/apiClient";
 import { logoutUser } from "../../../../services/authService";
-import { updateStaffProfile } from "../../../../services/staff";
+import { assignedLocationsLabel, updateStaffProfile } from "../../../../services/staff";
 import { formatPhoneInput, phoneError } from "../../../../utils/phone";
 import { spacing } from "../../../../theme";
 import { StaffScreen } from "../shared/StaffScreen";
@@ -54,11 +54,7 @@ export default function StaffProfileScreen() {
   const email = profile?.email || user?.email || "";
   const dirty = !!profile && (name.trim() !== profile.name || (phone.trim() || "") !== (profile.phone ?? ""));
 
-  const assigned = useMemo(() => {
-    if (!profile || profile.locationIds.length === 0) return role === "super_admin" ? "All locations" : "Not assigned";
-    const names = profile.locationIds.map((id) => locations.find((l) => l.id === id)?.name ?? `Location ${id}`);
-    return names.join(", ");
-  }, [profile, locations, role]);
+  const assigned = useMemo(() => assignedLocationsLabel(role, profile?.locationIds, locations), [profile, locations, role]);
 
   // Reachable from the button and the phone field's "done" key: one save at a time, and only with changes.
   const save = useSingleFlight(async () => {

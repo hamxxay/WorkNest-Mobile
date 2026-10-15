@@ -16,7 +16,9 @@ import {
   branchChoice,
   branchDisplayName,
   branchFilterOptions,
+  branchFilterParam,
   canMoveBranch,
+  NO_BRANCH_FILTER,
   chosenBranchId,
   complaintSavePlan,
   locationIdByName,
@@ -114,9 +116,16 @@ describe("branch helpers", () => {
       { label: "All my locations", value: 0 },
       { label: "F-7", value: 1 },
       { label: "I-8", value: 2 },
+      { label: "No branch", value: NO_BRANCH_FILTER },
     ]);
     expect(branchFilterOptions("super_admin", ALL)[0]).toEqual({ label: "All locations", value: 0 });
-    expect(branchFilterOptions("super_admin", ALL)).toHaveLength(4);
+    // Every location + "No branch" (the items without one; ?locationId=0 for the API).
+    expect(branchFilterOptions("super_admin", ALL)).toHaveLength(5);
+    expect(branchFilterOptions("super_admin", ALL).at(-1)).toEqual({ label: "No branch", value: NO_BRANCH_FILTER });
+    expect(branchFilterParam(0)).toBeUndefined();
+    expect(branchFilterParam(NO_BRANCH_FILTER)).toBe(0);
+    expect(branchFilterParam(2)).toBe(2);
+    expect(branchFilterParam(null)).toBeUndefined();
   });
 
   it("saving a complaint: moves the branch only when another one is picked", () => {
@@ -144,9 +153,16 @@ describe("parsing the new fields", () => {
 });
 
 describe("branch calls", () => {
-  it("inquiries list sends ?locationId= only for a real location", async () => {
+  it("inquiries list sends ?locationId= for a location, 0 for no branch, nothing for all", async () => {
     expect(API_ENDPOINTS.contact.list(1, 50, undefined, 2)).toBe("/contact?page=1&limit=50&locationId=2");
-    expect(API_ENDPOINTS.contact.list(1, 50, "ali", 0)).toBe("/contact?page=1&limit=50&search=ali");
+    expect(API_ENDPOINTS.contact.list(1, 50, "ali", 0)).toBe("/contact?page=1&limit=50&search=ali&locationId=0");
+    expect(API_ENDPOINTS.contact.list(1, 50, "ali")).toBe("/contact?page=1&limit=50&search=ali");
+    api.mockResolvedValueOnce({ data: [], total: 0 });
+    await getTourInquiries(1, 50, undefined, 0);
+    expect(lastCall().path).toBe("/contact?page=1&limit=50&locationId=0");
+    api.mockResolvedValueOnce({ data: [], total: 0 });
+    await listComplaints({ locationId: 0 });
+    expect(lastCall().path).toContain("locationId=0");
     api.mockResolvedValueOnce({ data: [{ id: 4, publicId: "abc", LocationId: 2, LocationName: "I-8" }], total: 1 });
     const page = await getTourInquiries(1, 50, undefined, 2);
     expect(lastCall()).toMatchObject({ path: "/contact?page=1&limit=50&locationId=2", method: "GET", requiresAuth: true });

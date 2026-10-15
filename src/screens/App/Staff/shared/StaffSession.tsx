@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AppState } from "react-native";
 import type { StaffRole } from "../../../../context/roles";
-import { badgesByRoute } from "../../../../navigation/staff/access";
+import { badgesByRoute, withoutCapacityRequests } from "../../../../navigation/staff/access";
 import { errorMessage } from "../../../../services/apiClient";
 import type { StaffRouteName } from "../../../../navigation/staffTypes";
 import {
@@ -32,13 +32,13 @@ export type StaffSession = {
   locationsError: string | null;
   /** Reloads profile and locations (after editing the profile, or to retry). */
   reloadProfile: () => void;
-  /** Raw nav badges keyed by CMS route. */
+  /** Nav badges keyed by CMS route (admins: without the capacity requests, which are in pendingApprovals). */
   navBadges: NavBadges;
   /** Badge per app screen the role may open. */
   badges: Partial<Record<StaffRouteName, number>>;
-  /** Admins: capacity requests waiting for a decision (Approvals tab). */
+  /** Admins: capacity requests waiting for a decision (Approvals tab); counted only here. */
   pendingApprovals: number;
-  /** Total of everything waiting (notifications bell). */
+  /** Total of everything waiting (notifications bell): the screen badges plus the capacity requests, each once. */
   badgeTotal: number;
   refreshBadges: () => void;
   /** POST admin/nav-badges/read: clears the badges of these CMS routes (all when omitted). */
@@ -106,8 +106,11 @@ export function StaffSessionProvider({ role, children }: { role: StaffRole; chil
   );
 
   const value = useMemo<StaffSession>(() => {
-    const badges = badgesByRoute(role, navBadges);
-    const badgeTotal = Object.values(badges).reduce((sum: number, n) => sum + (n ?? 0), 0);
+    // The API counts admins' pending capacity requests under "/admin/attendants" too: shown once, on Approvals.
+    const own = isAdmin ? withoutCapacityRequests(navBadges, pendingApprovals) : navBadges;
+    const badges = badgesByRoute(role, own);
+    const approvals = isAdmin ? pendingApprovals : 0;
+    const badgeTotal = Object.values(badges).reduce((sum: number, n) => sum + (n ?? 0), 0) + approvals;
     return {
       role,
       profile,
@@ -115,14 +118,14 @@ export function StaffSessionProvider({ role, children }: { role: StaffRole; chil
       locationsLoading,
       locationsError,
       reloadProfile,
-      navBadges,
+      navBadges: own,
       badges,
-      pendingApprovals,
+      pendingApprovals: approvals,
       badgeTotal,
       refreshBadges,
       markBadgesRead,
     };
-  }, [role, profile, locations, locationsLoading, locationsError, reloadProfile, navBadges, pendingApprovals, refreshBadges, markBadgesRead]);
+  }, [role, isAdmin, profile, locations, locationsLoading, locationsError, reloadProfile, navBadges, pendingApprovals, refreshBadges, markBadgesRead]);
 
   return <StaffSessionContext.Provider value={value}>{children}</StaffSessionContext.Provider>;
 }

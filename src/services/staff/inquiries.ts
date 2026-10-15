@@ -1,4 +1,5 @@
 import { isWhatsAppUrl } from "../../utils/inquiry";
+import { inquiryPath, type InquirySource, type TourInquiry } from "../contactService";
 import { toBranchId } from "./branches";
 import { STAFF_ENDPOINTS } from "./endpoints";
 import { actionResult, staffGet, staffPatch, type ActionResult } from "./http";
@@ -11,10 +12,14 @@ import { optStr, str, unwrapEnvelope } from "./normalize";
 export {
   createTourInquiry,
   getTourInquiries,
+  inquiryPath,
+  inquirySource,
   normalizeInquiry,
   saveInquiryFeedback,
   type InquiryFeedbackRequest,
   type InquiryOutcome,
+  type InquirySource,
+  type StaffInquiryType,
   type TourInquiry,
   type TourInquiryPage,
 } from "../contactService";
@@ -29,10 +34,18 @@ export const INQUIRY_STATUS_LABELS: Record<number, string> = {
   4: "Closed",
 };
 
-/** PATCH contact/{id}/status { statusId } (feedback already moves the status; this is the manual change). */
-export async function updateInquiryStatus(id: number | string, statusId: number): Promise<ActionResult> {
+/**
+ * PATCH contact/{publicId}/status { statusId } (feedback already moves the status; this is the manual change). An old
+ * row without a public id: contact/{id}/status?source= (the id alone can mean two inquiries).
+ */
+export async function updateInquiryStatus(
+  inquiry: Pick<TourInquiry, "id" | "publicId"> & { source?: InquirySource | null },
+  statusId: number,
+): Promise<ActionResult> {
   if (!INQUIRY_STATUS_LABELS[statusId]) throw new Error("Choose a valid status.");
-  const raw = await staffPatch(STAFF_ENDPOINTS.inquiries.status(id), { statusId });
+  const path = inquiryPath(inquiry, "status");
+  if (!path) throw new Error("This inquiry could not be identified. Refresh the list and try again.");
+  const raw = await staffPatch(path, { statusId });
   return actionResult(raw, "Inquiry status updated.");
 }
 

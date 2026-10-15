@@ -12,6 +12,8 @@ export type InquiryFilter = "all" | "new" | "due";
 export type InquiryPrefill = {
   inquiryId: number | null;
   publicId: string | null;
+  /** Which table the inquiry is in (an old website booking and a newer inquiry can have the same id). */
+  source?: "contact" | "booktour" | null;
   name: string;
   email: string;
   phone: string;

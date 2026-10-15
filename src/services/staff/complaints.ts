@@ -110,7 +110,7 @@ export function normalizeComplaint(raw: any): StaffComplaint {
 
 /**
  * GET complaints?page=&limit=&search=&status=&locationId= — open first, then in progress, resolved, closed; newest
- * first. locationId narrows the list to one of the user's locations.
+ * first. locationId narrows the list to one of the user's locations (0 = only those with no branch).
  */
 export async function listComplaints(
   query: { page?: number; limit?: number; search?: string; status?: ComplaintStatus | null; locationId?: number | null } = {},
@@ -123,7 +123,8 @@ export async function listComplaints(
       limit,
       search: query.search?.trim(),
       status: query.status ?? undefined,
-      locationId: toBranchId(query.locationId) ?? undefined,
+      // 0 = only the complaints with no branch (the "No branch" filter).
+      locationId: query.locationId === 0 ? 0 : toBranchId(query.locationId) ?? undefined,
     }),
   );
   return toPage(raw, normalizeComplaint, { page, limit });

@@ -145,7 +145,10 @@ export const STAFF_ENDPOINTS = {
     branch: (id: Id) => `/complaints/${seg(id)}/branch`,
   },
   inquiries: {
-    /** PATCH { statusId } (1 New, 2 In progress, 3 Resolved, 4 Closed). List / feedback: services/contactService.ts. */
+    /**
+     * PATCH { statusId } (1 New, 2 In progress, 3 Resolved, 4 Closed) by public id. List / feedback and the path for a
+     * row without a public id (id + ?source=): services/contactService.ts inquiryPath.
+     */
     status: (id: Id) => `/contact/${seg(id)}/status`,
     /** PATCH { locationId } by the inquiry's public id — set / change its branch (location-bound: one of theirs). */
     location: (publicId: Id) => `/contact/${seg(publicId)}/location`,

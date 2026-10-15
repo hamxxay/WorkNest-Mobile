@@ -121,7 +121,8 @@ export const API_ENDPOINTS = {
       params.set("page", String(page));
       params.set("limit", String(limit));
       if (search) params.set("search", search);
-      if (locationId != null && Number.isInteger(locationId) && locationId > 0) params.set("locationId", String(locationId));
+      // 0 = only the inquiries with no branch.
+      if (locationId != null && Number.isInteger(locationId) && locationId >= 0) params.set("locationId", String(locationId));
       return `/contact?${params.toString()}`;
     },
     feedback: (id: number | string) => `/contact/${encodeURIComponent(String(id))}/feedback`,

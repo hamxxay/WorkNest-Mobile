@@ -30,9 +30,27 @@ function ensureSuccess<T>(response: ApiResponse<T>, fallbackMessage: string): T 
 
 export type InquiryOutcome = "not_interested" | "future_prospect" | "converted";
 
+/**
+ * Which table a list row comes from: the old website bookings still kept in WN_BookTour ("booktour") or the
+ * inquiries table WN_Contacts ("contact"). The two number their rows separately, so the same id can be on two rows:
+ * rows are told apart by `key`, and every write is sent by public id (or id + source, see inquiryPath).
+ */
+export type InquirySource = "contact" | "booktour";
+
 export type TourInquiry = {
   id: number | null;
   publicId: string | null;
+  source: InquirySource;
+  /** Unique in the list ("contact-12" / "booktour-12"), from the API; built from source + id when it sends none. */
+  key: string;
+  /** Branch (and Type) can be changed: only inquiries in WN_Contacts (the API's canChangeBranch). */
+  canChangeBranch: boolean;
+  /** Status New: the same rule as the dashboard "New inquiries" figure and the badge (the API's isNew). */
+  isNew: boolean;
+  /** Website | WhatsApp | WalkIn | Reference (null = not set). */
+  inquiryType: string | null;
+  /** Type Reference: who referred the visitor. */
+  referenceName: string | null;
   fullName: string;
   email: string;
   phone: string;
@@ -72,6 +90,18 @@ const positiveId = (value: unknown): number | null => {
   return Number.isInteger(n) && n > 0 ? n : null;
 };
 
+/** "contact" / "booktour" from the API's source; an older API: the "Book Tour" type it gives the WN_BookTour rows. */
+export function inquirySource(raw: any): InquirySource {
+  const c = raw ?? {};
+  const source = text(c.source ?? c.Source).toLowerCase().replace(/[^a-z]/g, "");
+  if (source === "booktour") return "booktour";
+  if (source === "contact") return "contact";
+  return text(c.contactType ?? c.ContactType).toLowerCase() === "book tour" ? "booktour" : "contact";
+}
+
+const flag = (value: unknown): boolean | null =>
+  value === true || value === "true" || value === 1 ? true : value === false || value === "false" || value === 0 ? false : null;
+
 // The list rows come from a stored procedure, so the column names are read the same tolerant way as the website.
 // LocationId / LocationName come with branch routing; when the API does not send them yet the inquiry has no branch.
 export function normalizeInquiry(raw: any): TourInquiry {
@@ -81,20 +111,29 @@ export function normalizeInquiry(raw: any): TourInquiry {
   const outcome = text(c.feedbackOutcome ?? c.FeedbackOutcome);
   const quotationId = Number(c.quotationId ?? c.QuotationId);
   const id = Number(c.id ?? c.Id ?? c.contactId ?? c.ContactId);
+  const source = inquirySource(c);
+  const publicId = text(c.publicId ?? c.PublicId) || null;
+  const feedbackOutcome: InquiryOutcome | null =
+    outcome === "not_interested" || outcome === "future_prospect" || outcome === "converted" ? outcome : null;
+  const normalizedStatus = Number.isFinite(statusId) && statusId > 0 ? statusId : 1;
   return {
     id: id > 0 ? id : null,
-    publicId: text(c.publicId ?? c.PublicId) || null,
+    publicId,
+    source,
+    key: text(c.key ?? c.Key) || `${source}-${id > 0 ? id : publicId ?? ""}`,
+    canChangeBranch: flag(c.canChangeBranch ?? c.CanChangeBranch) ?? source === "contact",
+    // An older API sends no isNew: New = status New and no feedback yet (as before).
+    isNew: flag(c.isNew ?? c.IsNew) ?? (!feedbackOutcome && normalizedStatus === 1),
+    inquiryType: text(c.inquiryType ?? c.InquiryType) || null,
+    referenceName: text(c.referenceName ?? c.ReferenceName) || null,
     fullName: text(c.fullName ?? c.FullName ?? c.name ?? c.Name ?? c.customerName),
     email: text(c.email ?? c.Email ?? c.customerEmail),
     phone: text(c.phone ?? c.Phone ?? c.phoneNumber ?? c.PhoneNumber ?? c.customerPhone),
     message: text(c.message ?? c.Message ?? c.notes ?? c.Notes),
     contactType: text(c.contactType ?? c.ContactType),
     createdAt: text(c.createdAt ?? c.CreatedAt ?? c.createdOn ?? c.CreatedOn ?? c.createdDate ?? c.CreatedDate),
-    statusId: Number.isFinite(statusId) && statusId > 0 ? statusId : 1,
-    feedbackOutcome:
-      outcome === "not_interested" || outcome === "future_prospect" || outcome === "converted"
-        ? outcome
-        : null,
+    statusId: normalizedStatus,
+    feedbackOutcome,
     feedbackReason: text(c.feedbackReason ?? c.FeedbackReason) || null,
     followUpOn: text(c.followUpOn ?? c.FollowUpOn) || null,
     followUpDue: !!(c.followUpDue ?? c.FollowUpDue),
@@ -115,7 +154,9 @@ export async function getTourInquiries(
   locationId?: number | null,
 ): Promise<TourInquiryPage> {
   const query = search ? sanitizeSearchInput(search) : "";
-  const path = API_ENDPOINTS.contact.list(page, limit, query || undefined, positiveId(locationId) ?? undefined);
+  // 0 = only the inquiries with no branch (the "No branch" filter); a positive id = that branch; otherwise all.
+  const branch = locationId === 0 ? 0 : positiveId(locationId) ?? undefined;
+  const path = API_ENDPOINTS.contact.list(page, limit, query || undefined, branch);
   const response = await apiRequest<any>(path, {
     method: "GET",
     requiresAuth: true,
@@ -136,9 +177,13 @@ export async function getTourInquiries(
   return { items, total: Number.isFinite(total) ? total : items.length };
 }
 
+/** Where a staff-entered inquiry came from (the API stores Walk-In unless Reference is chosen). */
+export type StaffInquiryType = "WalkIn" | "Reference";
+
 /**
  * POST /api/book-tour — an inquiry entered by staff (phone call / walk-in), saved like the website's form, with
- * its branch (locationId; the API keeps a location-bound user to their own locations).
+ * its branch (locationId; the API keeps a location-bound user to their own locations) and its Type: Walk-In or
+ * Reference (+ who referred the visitor; empty = the signed-in staff member, as the CMS does).
  */
 export async function createTourInquiry(payload: {
   fullName: string;
@@ -146,19 +191,31 @@ export async function createTourInquiry(payload: {
   phone: string;
   message?: string;
   locationId?: number | null;
+  inquiryType?: StaffInquiryType;
+  referenceName?: string | null;
 }) {
   const fullName = sanitizeNameInput(payload.fullName, "Full name");
   const email = payload.email?.trim() ? sanitizeEmailInput(payload.email) : "";
   const phone = sanitizePhoneInput(payload.phone);
   const message = payload.message?.trim() ? sanitizeMessageInput(payload.message) : "";
   const locationId = positiveId(payload.locationId);
+  const inquiryType: StaffInquiryType = payload.inquiryType === "Reference" ? "Reference" : "WalkIn";
+  const referenceName = inquiryType === "Reference" ? payload.referenceName?.trim().slice(0, 200) || null : null;
   const response = await apiRequest<ApiResponse<{ id?: number; publicId?: string }>>(
     API_ENDPOINTS.contact.bookTour,
     {
       method: "POST",
       requiresAuth: true,
       unwrapData: false,
-      body: locationId ? { fullName, email, phone, message, locationId } : { fullName, email, phone, message },
+      body: {
+        fullName,
+        email,
+        phone,
+        message,
+        inquiryType,
+        referenceName,
+        ...(locationId ? { locationId } : {}),
+      },
     },
   );
   ensureSuccess(response, "Unable to add the inquiry right now.");
@@ -166,19 +223,33 @@ export async function createTourInquiry(payload: {
 }
 
 /**
- * POST /api/contact/{id}/feedback (number id, or the public id when the list returns only that).
+ * The API path of an inquiry action ("feedback", "status"): by its public id, which is unique across both tables;
+ * an old row without one (before the database update QA_05) by its id plus ?source=, so the API changes the right
+ * row. Null when the inquiry can't be identified.
+ */
+export function inquiryPath(
+  inquiry: Pick<TourInquiry, "id" | "publicId"> & { source?: InquirySource | null },
+  action: "feedback" | "status",
+): string | null {
+  if (inquiry.publicId) return `/contact/${encodeURIComponent(inquiry.publicId)}/${action}`;
+  if (inquiry.id && inquiry.id > 0) return `/contact/${inquiry.id}/${action}?source=${inquiry.source ?? "contact"}`;
+  return null;
+}
+
+/**
+ * POST /api/contact/{publicId}/feedback (or {id}/feedback?source= for a row without a public id).
  * not_interested needs a reason and closes the inquiry; future_prospect needs a follow-up date;
  * converted links the quotation. A refusal comes back as HTTP 400 with the API's message.
  */
 export async function saveInquiryFeedback(
-  inquiry: Pick<TourInquiry, "id" | "publicId">,
+  inquiry: Pick<TourInquiry, "id" | "publicId"> & { source?: InquirySource | null },
   payload: InquiryFeedbackRequest,
 ): Promise<string> {
-  const key = inquiry.id ?? inquiry.publicId;
-  if (!key) {
+  const path = inquiryPath(inquiry, "feedback");
+  if (!path) {
     throw new Error("This inquiry could not be identified. Refresh the list and try again.");
   }
-  const response = await apiRequest<ApiResponse<unknown>>(API_ENDPOINTS.contact.feedback(key), {
+  const response = await apiRequest<ApiResponse<unknown>>(path, {
     method: "POST",
     requiresAuth: true,
     unwrapData: false,

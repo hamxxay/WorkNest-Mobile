@@ -40,14 +40,18 @@ export default function UserListScreen() {
 
 function UserRow({ user }: { user: StaffUser }) {
   const role = normalizeRoleName(user.role) ?? "general";
+  // Name and role as stored in the database (WN_Users.Name, WN_Roles.DisplayName); the app's own role label only
+  // when an older API sends no display name.
+  const title = user.name || user.email;
+  const label = user.roleDisplayName || roleLabel(role);
   return (
     <Card padding={0}>
       <ListRow
-        avatar={{ name: user.name }}
-        title={user.name}
-        subtitle={[user.email, user.phone].filter(Boolean).join(" · ")}
+        avatar={{ name: title }}
+        title={title}
+        subtitle={[user.name ? user.email : null, user.phone].filter(Boolean).join(" · ")}
         meta={user.locationName ?? undefined}
-        right={user.isActive ? <StatusPill tone={role === "general" ? "neutral" : "primary"} label={roleLabel(role)} /> : <StatusPill status="Inactive" />}
+        right={user.isActive ? <StatusPill tone={role === "general" ? "neutral" : "primary"} label={label} /> : <StatusPill status="Inactive" />}
       />
     </Card>
   );
