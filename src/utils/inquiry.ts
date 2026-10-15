@@ -105,3 +105,27 @@ export function whatsappChatUrl(phone: string, message?: string): string {
   const url = `https://wa.me/${whatsappNumber(phone)}`;
   return message ? `${url}?text=${encodeURIComponent(message)}` : url;
 }
+
+/** A link that opens a WhatsApp chat (wa.me, api.whatsapp.com or the whatsapp:// scheme) and nothing else. */
+export function isWhatsAppUrl(url: string | null | undefined): boolean {
+  return /^(?:https:\/\/(?:wa\.me|api\.whatsapp\.com)\/|whatsapp:\/\/)\S*$/i.test((url ?? "").trim());
+}
+
+/**
+ * The link the WhatsApp button opens: the API's message for that inquiry (the CMS template, filled in on the server)
+ * when it answers with a WhatsApp link, otherwise `fallbackUrl` (the app's own greeting), so the button always opens
+ * a chat. `fetchServer` is null when the inquiry has no public id. A failed call (offline, an older API without the
+ * endpoint: 404 / 405) or an answer without a usable url falls back too. Never throws.
+ */
+export async function resolveWhatsAppUrl(
+  fetchServer: (() => Promise<{ url?: string | null } | null | undefined>) | null,
+  fallbackUrl: string,
+): Promise<string> {
+  if (!fetchServer) return fallbackUrl;
+  try {
+    const url = (await fetchServer())?.url?.trim();
+    return url && isWhatsAppUrl(url) ? url : fallbackUrl;
+  } catch {
+    return fallbackUrl;
+  }
+}

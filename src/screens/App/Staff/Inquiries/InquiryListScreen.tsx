@@ -28,6 +28,7 @@ import {
   canMoveBranch,
   chosenBranchId,
   createTourInquiry,
+  getInquiryWhatsAppMessage,
   getTourInquiries,
   saveInquiryFeedback,
   toApiDate,
@@ -39,7 +40,13 @@ import {
 } from "../../../../services/staff";
 import { spacing } from "../../../../theme";
 import { formatDate, formatRelative } from "../../../../utils/format";
-import { inquiryFeedbackText, inquiryWhatsAppMessage, isNewInquiry, whatsappChatUrl } from "../../../../utils/inquiry";
+import {
+  inquiryFeedbackText,
+  inquiryWhatsAppMessage,
+  isNewInquiry,
+  resolveWhatsAppUrl,
+  whatsappChatUrl,
+} from "../../../../utils/inquiry";
 import { phoneError, formatPhoneInput } from "../../../../utils/phone";
 import { BranchField, BranchLine, BranchPicker, useBranchChoice } from "../shared/Branch";
 import { SearchField } from "../shared/SearchField";
@@ -224,7 +231,7 @@ function InquiryCard({
   onConvert,
 }: {
   item: TourInquiry;
-  /** The signed-in staff member's first name, for the WhatsApp greeting. */
+  /** The signed-in staff member's first name, for the app's own WhatsApp greeting (used when the API can't answer). */
   staffName: string;
   /** Branch name; null = no branch. */
   branch: string | null;
@@ -236,6 +243,24 @@ function InquiryCard({
   const feedback = inquiryFeedbackText(item);
   const status = item.followUpDue ? "Follow-up due" : INQUIRY_STATUS_LABELS[item.statusId] ?? "New";
   const tone = item.followUpDue ? "warning" : undefined;
+
+  // WhatsApp: the message the API fills in from the CMS template (GET contact/{publicId}/whatsapp-message). Without
+  // a public id, or when the call fails (offline, an older API) or sends no link, the app's own greeting opens instead,
+  // so the button always works and shows no error. Only this button is busy meanwhile; a second tap is ignored.
+  const [openingWhatsApp, setOpeningWhatsApp] = useState(false);
+  const openWhatsApp = useSingleFlight(async () => {
+    setOpeningWhatsApp(true);
+    try {
+      const url = await resolveWhatsAppUrl(
+        item.publicId ? () => getInquiryWhatsAppMessage(item) : null,
+        whatsappChatUrl(item.phone, inquiryWhatsAppMessage(item.fullName, staffName)),
+      );
+      await Linking.openURL(url).catch(() => undefined);
+    } finally {
+      setOpeningWhatsApp(false);
+    }
+  });
+
   return (
     <Card>
       <View style={styles.row}>
@@ -282,9 +307,8 @@ function InquiryCard({
               icon="logo-whatsapp"
               accessibilityLabel={`WhatsApp ${item.fullName}`}
               variant="tonal"
-              onPress={() =>
-                Linking.openURL(whatsappChatUrl(item.phone, inquiryWhatsAppMessage(item.fullName, staffName))).catch(() => undefined)
-              }
+              loading={openingWhatsApp}
+              onPress={openWhatsApp}
             />
           </>
         ) : null}

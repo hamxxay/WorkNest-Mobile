@@ -159,6 +159,8 @@ export type IconButtonProps = Omit<PressableProps, "children" | "style"> & {
   /** Small dot badge instead of a count. */
   dot?: boolean;
   disabled?: boolean;
+  /** Busy: a spinner replaces the icon and presses are ignored (not dimmed like disabled). */
+  loading?: boolean;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -173,6 +175,7 @@ export function IconButton({
   badge,
   dot,
   disabled = false,
+  loading = false,
   style,
   hitSlop,
   ...rest
@@ -195,8 +198,8 @@ export function IconButton({
       pressScale={ICON_PRESS_SCALE}
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ disabled }}
-      disabled={disabled}
+      accessibilityState={{ disabled: disabled || loading, busy: loading }}
+      disabled={disabled || loading}
       hitSlop={hitSlop ?? (slop ? slop : undefined)}
       android_ripple={{ color: p.ripple, borderless: variant === "plain", radius: size / 2 + 2 }}
       style={({ pressed }) => [
@@ -213,7 +216,11 @@ export function IconButton({
         style,
       ]}
     >
-      <Ionicons name={icon} size={iconSize} color={color ?? p.fg} />
+      {loading ? (
+        <ActivityIndicator size="small" color={color ?? p.fg} />
+      ) : (
+        <Ionicons name={icon} size={iconSize} color={color ?? p.fg} />
+      )}
       {badge || dot ? (
         <View style={styles.badgeSlot} pointerEvents="none">
           <Badge count={badge} dot={dot && !badge} ring={variant === "onDark" ? colors.headerBg : colors.surface} />

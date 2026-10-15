@@ -149,6 +149,11 @@ export const STAFF_ENDPOINTS = {
     status: (id: Id) => `/contact/${seg(id)}/status`,
     /** PATCH { locationId } by the inquiry's public id — set / change its branch (location-bound: one of theirs). */
     location: (publicId: Id) => `/contact/${seg(publicId)}/location`,
+    /**
+     * GET by the inquiry's public id: { phone, text, url } — the first WhatsApp message to that inquiry, rendered by
+     * the API from the CMS template ("Message templates") for the signed-in staff member; 404 when they can't see it.
+     */
+    whatsappMessage: (publicId: Id) => `/contact/${seg(publicId)}/whatsapp-message`,
   },
   access: {
     dashboard: "/hik/access/dashboard",
