@@ -141,10 +141,14 @@ export const STAFF_ENDPOINTS = {
     list: "/complaints",
     create: "/complaints",
     status: (id: Id) => `/complaints/${seg(id)}/status`,
+    /** PATCH { locationId } — set / change the complaint's branch (location-bound staff: one of their locations). */
+    branch: (id: Id) => `/complaints/${seg(id)}/branch`,
   },
   inquiries: {
     /** PATCH { statusId } (1 New, 2 In progress, 3 Resolved, 4 Closed). List / feedback: services/contactService.ts. */
     status: (id: Id) => `/contact/${seg(id)}/status`,
+    /** PATCH { locationId } by the inquiry's public id — set / change its branch (location-bound: one of theirs). */
+    location: (publicId: Id) => `/contact/${seg(publicId)}/location`,
   },
   access: {
     dashboard: "/hik/access/dashboard",

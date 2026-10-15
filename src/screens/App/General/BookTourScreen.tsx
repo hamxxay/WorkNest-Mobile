@@ -56,6 +56,8 @@ export default function BookTourScreen() {
   const [notes, setNotes] = useState("");
   const [errors, setErrors] = useState<Errors>({});
   const [locations, setLocations] = useState<string[]>([]);
+  // Location name -> id, so the request is sent to that branch's staff (locationId).
+  const [locationIds, setLocationIds] = useState<Record<string, number>>({});
   const [locationsLoading, setLocationsLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
@@ -67,14 +69,11 @@ export default function BookTourScreen() {
   // Locations from the API (dbo.WN_Locations), not hard-coded. Without any, the field is optional.
   useEffect(() => {
     getLocations()
-      .then((rows) =>
-        setLocations(
-          rows
-            .filter((l) => (l as { isActive?: boolean }).isActive !== false && l.name)
-            .map((l) => l.name)
-            .sort((a, b) => a.localeCompare(b)),
-        ),
-      )
+      .then((rows) => {
+        const active = rows.filter((l) => (l as { isActive?: boolean }).isActive !== false && l.name);
+        setLocations(active.map((l) => l.name).sort((a, b) => a.localeCompare(b)));
+        setLocationIds(Object.fromEntries(active.filter((l) => Number(l.id) > 0).map((l) => [l.name, Number(l.id)])));
+      })
       .catch(() => setLocations([]))
       .finally(() => setLocationsLoading(false));
   }, []);
@@ -101,6 +100,7 @@ export default function BookTourScreen() {
       email: email.trim(),
       phone: phone.trim(),
       location: location ?? undefined,
+      locationId: location ? locationIds[location] : undefined,
       preferredDate: date ? toYmdLocal(date) : undefined,
       timeSlot: slot ?? undefined,
       notes: notes.trim() || undefined,

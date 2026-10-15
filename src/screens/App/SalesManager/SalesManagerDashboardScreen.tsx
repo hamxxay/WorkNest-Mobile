@@ -1,6 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, View } from "react-native";
-import Ionicons from "react-native-vector-icons/Ionicons";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { AppHeader, AppText, Screen, SegmentedControl, SelectField, StatusPill, greeting } from "../../../components/ui";
@@ -18,7 +17,7 @@ import {
   type SmRecordsQuery,
   type SmScope,
 } from "../../../services/salesManager";
-import { spacing, useThemeColors } from "../../../theme";
+import { spacing } from "../../../theme";
 import { formatTime } from "../../../utils/format";
 import { CeoErrorState, CeoSection, StaleBanner, useCeoQuery } from "../Ceo/parts";
 import { useRefreshColors } from "../Staff/shared/refresh";
@@ -36,20 +35,22 @@ import {
 type Nav = NativeStackNavigationProp<SalesManagerStackParamList, "SalesManagerDashboard">;
 
 const ALL_MY_LOCATIONS = "All my locations";
+/** Tour inquiries follow the dashboard's scope; those without a branch count only under "All my locations". */
+const INQUIRIES_SCOPE_NOTE = `Inquiries without a branch show under ${ALL_MY_LOCATIONS}`;
 
 /**
  * The Sales Manager dashboard (GET api/sales-manager/dashboard): Sales funnel, Team performance, Tour inquiries and
  * Renewals & desks for this month / quarter / year against the previous period, for all the manager's locations
- * or one of them (tour inquiries always cover every branch). Desks, never money ("91 desks booked"). Last comes
- * Complaints, loaded on its own (GET api/sales-manager/complaints, same period and location), so the rest keeps
- * working when only that call fails. View only: tapping a chart element or row drills down (a breakdown screen,
- * then a records list; some open their records directly). Pull to refresh reloads both.
+ * or one of them (tour inquiries too: those without a branch count under "All my locations", as complaints do).
+ * Desks, never money ("91 desks booked"). Last comes Complaints, loaded on its own (GET api/sales-manager/complaints,
+ * same period and location), so the rest keeps working when only that call fails. View only: tapping a chart element
+ * or row drills down (a breakdown screen, then a records list; some open their records directly). Pull to refresh
+ * reloads both.
  */
 export default function SalesManagerDashboardScreen() {
   const navigation = useNavigation<Nav>();
   const refreshColors = useRefreshColors();
   const reduceMotion = useReduceMotion();
-  const colors = useThemeColors();
   const { greetingName, roleDisplayLabel } = useAuth();
   const [period, setPeriod] = useState<CeoPeriod>("month");
   const [locationId, setLocationId] = useState(0);
@@ -112,25 +113,18 @@ export default function SalesManagerDashboardScreen() {
       scope,
       breakdown: (t: SmBreakdownTarget, trail: string[]) => {
         const query = { ...t, period, locationId: scope.locationId ?? null };
-        // Inquiries cover every branch: say so instead of naming the location filter.
-        const label = t.metric === "inquiries-type" ? [periodText, "All branches"].filter(Boolean).join(" · ") : scopeLabel;
-        if (isCompleteSmBreakdown(query)) navigation.navigate("SalesManagerBreakdown", { query, trail, scopeLabel: label });
+        if (isCompleteSmBreakdown(query)) navigation.navigate("SalesManagerBreakdown", { query, trail, scopeLabel });
       },
       records: (query: SmRecordsQuery | null, trail: string[], title?: string) => {
         if (!query) return;
         // Complaints as they are now (open, in progress...) are not bound to the period: name only the location.
-        const label =
-          query.kind === "inquiries"
-            ? [periodText, "All branches"].filter(Boolean).join(" · ")
-            : isCurrentComplaintsList(query)
-              ? locationText
-              : scopeLabel;
+        const label = isCurrentComplaintsList(query) ? locationText : scopeLabel;
         navigation.navigate("SalesManagerRecords", { query, trail, title, scopeLabel: label });
       },
       focus,
       target,
     }),
-    [scope, period, navigation, scopeLabel, periodText, locationText, focus, target],
+    [scope, period, navigation, scopeLabel, locationText, focus, target],
   );
 
   const words = periodWords(period);
@@ -159,12 +153,6 @@ export default function SalesManagerDashboardScreen() {
           <View style={styles.controls}>
             <View style={styles.badgeRow}>
               <StatusPill label="View only" tone="neutral" icon="eye-outline" />
-              <View style={styles.note} accessible accessibilityLabel="Note: tour inquiries include all branches.">
-                <Ionicons name="information-circle-outline" size={14} color={colors.textMuted} />
-                <AppText variant="caption" color="textMuted" style={styles.flexShrink}>
-                  Tour inquiries include all branches
-                </AppText>
-              </View>
             </View>
             <SegmentedControl accessibilityLabel="Period" options={PERIOD_OPTIONS} value={period} onChange={setPeriod} />
             {showLocationPicker ? (
@@ -215,7 +203,8 @@ export default function SalesManagerDashboardScreen() {
 
               <CeoSection
                 title="Tour inquiries"
-                subtitle={`Every branch, ${words}`}
+                subtitle={["Tour inquiries at your locations", periodText].filter(Boolean).join(" · ")}
+                note={INQUIRIES_SCOPE_NOTE}
                 loading={loading}
                 empty={!d?.inquiries}
                 emptyMessage="No tour inquiry figures were sent for this period."
@@ -248,6 +237,4 @@ const styles = StyleSheet.create({
   stack: { gap: spacing.xl },
   controls: { gap: spacing.md },
   badgeRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: spacing.sm },
-  note: { flexDirection: "row", alignItems: "center", gap: 4, flexShrink: 1 },
-  flexShrink: { flexShrink: 1 },
 });

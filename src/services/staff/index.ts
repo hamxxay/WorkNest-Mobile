@@ -14,6 +14,7 @@ export * from "./agreements";
 export * from "./invoices";
 export * from "./attendants";
 export * from "./complaints";
+export * from "./branches";
 export * from "./inquiries";
 export * from "./accessActivity";
 export * from "./users";

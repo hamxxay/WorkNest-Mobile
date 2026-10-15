@@ -283,7 +283,7 @@ export function InquiriesSection({ inquiries: q, drill }: { inquiries: SmInquiri
       sub: "due today or earlier",
       icon: "time-outline",
       tone: q.followUpsDue ? "warning" : "success",
-      onPress: () => drill.records(smFollowUpsDueRecords(), ["Tour inquiries", "Follow-ups due"], "Follow-ups due"),
+      onPress: () => drill.records(smFollowUpsDueRecords(drill.scope), ["Tour inquiries", "Follow-ups due"], "Follow-ups due"),
     },
     {
       label: "Converted",
@@ -381,7 +381,7 @@ export function InquiriesSection({ inquiries: q, drill }: { inquiries: SmInquiri
             emptyText="No tour inquiries in these months."
             itemAccessibilityHint="Opens this month's inquiries"
             onPressItem={(i) =>
-              drill.records(smInquiryMonthRecords(recent[i].month), ["Tour inquiries", monthLabel(recent[i].month)], `Tour inquiries, ${monthLabel(recent[i].month)}`)
+              drill.records(smInquiryMonthRecords(recent[i].month, drill.scope), ["Tour inquiries", monthLabel(recent[i].month)], `Tour inquiries, ${monthLabel(recent[i].month)}`)
             }
           />
         ) : (
