@@ -1,5 +1,5 @@
 // Sales Manager drill-down routing: each chart element / row opens the breakdown or records the contract names,
-// with the right keys; tour inquiries never carry a location (they cover every branch).
+// with the right keys; tour inquiries carry the dashboard's location filter like every other list.
 
 import {
   SM_BREAKDOWN_ROOTS,
@@ -48,8 +48,14 @@ describe("smBreakdownParams", () => {
     });
   });
 
-  it("never narrows inquiries to a location", () => {
+  it("narrows inquiries to the chosen location (none = all the manager's locations)", () => {
     expect(smBreakdownParams({ metric: "inquiries-type", type: "WalkIn", period: "month", locationId: 4 })).toEqual({
+      metric: "inquiries-type",
+      type: "WalkIn",
+      period: "month",
+      locationId: 4,
+    });
+    expect(smBreakdownParams({ metric: "inquiries-type", type: "WalkIn", period: "month", locationId: null })).toEqual({
       metric: "inquiries-type",
       type: "WalkIn",
       period: "month",
@@ -137,8 +143,12 @@ describe("smRecordsForBreakdownRow (level 2 -> 3)", () => {
     });
   });
 
-  it("inquiries-type: a month row opens that type's inquiries that month, never with a location", () => {
+  it("inquiries-type: a month row opens that type's inquiries that month, with the location filter", () => {
     expect(smRecordsForBreakdownRow({ metric: "inquiries-type", type: "WhatsApp", period: "month", locationId: 4 }, row("2026-08"))).toEqual({
+      kind: "inquiries",
+      params: { type: "WhatsApp", month: "2026-08", locationId: 4 },
+    });
+    expect(smRecordsForBreakdownRow({ metric: "inquiries-type", type: "WhatsApp", period: "month", locationId: null }, row("2026-08"))).toEqual({
       kind: "inquiries",
       params: { type: "WhatsApp", month: "2026-08" },
     });
@@ -157,6 +167,10 @@ describe("direct-to-records clicks", () => {
   it("funnel stages open the period's records", () => {
     expect(smRecordsForFunnelStage("inquiries", { period: "month", locationId: 2 }, TODAY)).toEqual({
       kind: "inquiries",
+      params: { period: "month", from: "2026-10-01", to: "2026-10-14", locationId: 2 },
+    });
+    expect(smRecordsForFunnelStage("inquiries", { period: "month", locationId: null }, TODAY)).toEqual({
+      kind: "inquiries",
       params: { period: "month", from: "2026-10-01", to: "2026-10-14" },
     });
     expect(smRecordsForFunnelStage("quotations", { period: "quarter", locationId: 2 }, TODAY)).toEqual({
@@ -174,14 +188,19 @@ describe("direct-to-records clicks", () => {
     expect(smRecordsForFunnelStage("lost", { period: "month" }, TODAY)).toBeNull();
   });
 
-  it("follow-ups due: open prospects due now (no period, no location)", () => {
+  it("follow-ups due: open prospects due now (no period), with the location filter", () => {
     expect(smFollowUpsDueRecords()).toEqual({ kind: "inquiries", params: { outcome: "followup_due" } });
+    expect(smFollowUpsDueRecords({ locationId: null })).toEqual({ kind: "inquiries", params: { outcome: "followup_due" } });
+    expect(smFollowUpsDueRecords({ locationId: 3 })).toEqual({
+      kind: "inquiries",
+      params: { outcome: "followup_due", locationId: 3 },
+    });
   });
 
   it("a not-interested reason: the period's not-interested inquiries, with the reason", () => {
     expect(smNotInterestedRecords("Budget", { period: "month", locationId: 2 }, TODAY)).toEqual({
       kind: "inquiries",
-      params: { outcome: "not_interested", period: "month", from: "2026-10-01", to: "2026-10-14", reason: "Budget" },
+      params: { outcome: "not_interested", period: "month", from: "2026-10-01", to: "2026-10-14", locationId: 2, reason: "Budget" },
     });
     expect(smNotInterestedRecords("  ", { period: "month" }, TODAY).params).not.toHaveProperty("reason");
   });
@@ -189,9 +208,15 @@ describe("direct-to-records clicks", () => {
   it("inquiry outcomes and months", () => {
     expect(smInquiryOutcomeRecords("converted", { period: "quarter", locationId: 9 }, TODAY)).toEqual({
       kind: "inquiries",
-      params: { outcome: "converted", period: "quarter", from: "2026-10-01", to: "2026-10-14" },
+      params: { outcome: "converted", period: "quarter", from: "2026-10-01", to: "2026-10-14", locationId: 9 },
+    });
+    expect(smInquiryOutcomeRecords("open", { period: "month", locationId: null }, TODAY)).toEqual({
+      kind: "inquiries",
+      params: { outcome: "open", period: "month", from: "2026-10-01", to: "2026-10-14" },
     });
     expect(smInquiryMonthRecords("2026-07")).toEqual({ kind: "inquiries", params: { month: "2026-07" } });
+    expect(smInquiryMonthRecords("2026-07", { locationId: 5 })).toEqual({ kind: "inquiries", params: { month: "2026-07", locationId: 5 } });
+    expect(smInquiryMonthRecords("July", { locationId: 5 })).toBeNull();
     expect(smInquiryMonthRecords("July")).toBeNull();
     expect(smInquiryMonthRecords(undefined)).toBeNull();
   });

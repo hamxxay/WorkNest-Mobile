@@ -19,7 +19,7 @@ import type {
 //   metric           key      breakdown rows        records for a row
 //   funnel-month     month    the manager's locs    bookings   month + locationId = row
 //   staff            userId   last 6 months         quotations userId + month = row (+ the location filter)
-//   inquiries-type   type     last 6 months         inquiries  type + month = row
+//   inquiries-type   type     last 6 months         inquiries  type + month = row (+ the location filter)
 //   renewals-month   month    the manager's locs    leases     month + locationId = row
 //   desks-month      month    the manager's locs    bookings   month + locationId = row
 //
@@ -30,7 +30,8 @@ import type {
 //   Complaints (own section, no breakdown level): a card or a part of the status bar -> complaints?status=, a
 //   category -> complaints?category=, a month of the chart -> complaints?month= (created that month).
 //
-// Tour inquiries have no location in the database: inquiry lists never carry a locationId.
+// Tour inquiries have a branch (WN_Contacts.LocationId): their lists carry the dashboard's location filter like the
+// rest; with no location chosen ("All my locations") the API adds the inquiries without a branch.
 
 /** The dashboard's location filter as a query value (null = all the manager's locations). */
 const scopeLocation = (scope: { locationId?: number | null }) => positiveId(scope.locationId);
@@ -104,8 +105,7 @@ export function smBreakdownParams(query: SmBreakdownQuery): Record<string, Query
       break;
   }
   params.period = query.period;
-  // Inquiries cover every branch: no location filter.
-  params.locationId = query.metric === "inquiries-type" ? null : positiveId(query.locationId);
+  params.locationId = positiveId(query.locationId);
   return params;
 }
 
@@ -143,22 +143,25 @@ export function smRecordsForBreakdownRow(query: SmBreakdownQuery, row: SmBreakdo
         : null;
     }
     case "inquiries-type":
-      return rowMonth && query.type ? { kind: "inquiries", params: cleanParams({ type: query.type, month: rowMonth }) } : null;
+      return rowMonth && query.type
+        ? { kind: "inquiries", params: cleanParams({ type: query.type, month: rowMonth, locationId: scopeLocation(query) }) }
+        : null;
     default:
       return null;
   }
 }
 
 /**
- * Funnel stage -> its records for the period (no breakdown level): inquiries -> tour inquiries (every branch),
- * quotations / accepted -> quotations?stage=, bookings -> bookings. null for an unknown stage.
+ * Funnel stage -> its records for the period (no breakdown level): inquiries -> tour inquiries,
+ * quotations / accepted -> quotations?stage=, bookings -> bookings; all with the location filter. null for an
+ * unknown stage.
  */
 export function smRecordsForFunnelStage(stage: string, scope: SmScope, today: Date = new Date()): SmRecordsQuery | null {
   const { from, to } = periodRange(scope.period, today);
   const locationId = scopeLocation(scope);
   switch (stage) {
     case "inquiries":
-      return { kind: "inquiries", params: cleanParams({ period: scope.period, from, to }) };
+      return { kind: "inquiries", params: cleanParams({ period: scope.period, from, to, locationId }) };
     case "quotations":
     case "accepted":
       return { kind: "quotations", params: cleanParams({ stage, period: scope.period, from, to, locationId }) };
@@ -172,15 +175,15 @@ export function smRecordsForFunnelStage(stage: string, scope: SmScope, today: Da
 /** Outcomes the inquiries list filters by. */
 export type SmInquiryOutcome = "followup_due" | "not_interested" | "converted" | "open";
 
-/** "Follow-ups due" -> open future prospects whose follow-up date has come (now, not the period). */
-export function smFollowUpsDueRecords(): SmRecordsQuery {
-  return { kind: "inquiries", params: { outcome: "followup_due" } };
+/** "Follow-ups due" -> open future prospects whose follow-up date has come (now, not the period); location filter. */
+export function smFollowUpsDueRecords(scope: { locationId?: number | null } = {}): SmRecordsQuery {
+  return { kind: "inquiries", params: cleanParams({ outcome: "followup_due", locationId: scopeLocation(scope) }) };
 }
 
-/** Inquiries of the period with an outcome (not interested, converted, open); every branch. */
+/** Inquiries of the period with an outcome (not interested, converted, open), with the location filter. */
 export function smInquiryOutcomeRecords(outcome: Exclude<SmInquiryOutcome, "followup_due">, scope: SmScope, today: Date = new Date()): SmRecordsQuery {
   const { from, to } = periodRange(scope.period, today);
-  return { kind: "inquiries", params: cleanParams({ outcome, period: scope.period, from, to }) };
+  return { kind: "inquiries", params: cleanParams({ outcome, period: scope.period, from, to, locationId: scopeLocation(scope) }) };
 }
 
 /** A not-interested reason -> the not-interested inquiries of the period (with that reason, when the API filters by it). */
@@ -189,9 +192,9 @@ export function smNotInterestedRecords(reason: string | null | undefined, scope:
   return { kind: "inquiries", params: cleanParams({ ...query.params, reason: reason?.trim() || null }) };
 }
 
-/** A month of the 12-month inquiries chart -> that month's inquiries (every branch); null without a month. */
-export function smInquiryMonthRecords(month: string | null | undefined): SmRecordsQuery | null {
-  return isMonthKey(month) ? { kind: "inquiries", params: { month } } : null;
+/** A month of the 12-month inquiries chart -> that month's inquiries (location filter); null without a month. */
+export function smInquiryMonthRecords(month: string | null | undefined, scope: { locationId?: number | null } = {}): SmRecordsQuery | null {
+  return isMonthKey(month) ? { kind: "inquiries", params: cleanParams({ month, locationId: scopeLocation(scope) }) } : null;
 }
 
 // ─── Complaints ───────────────────────────────────────────────────────────────────────────────────────────

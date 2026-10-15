@@ -20,7 +20,8 @@ import type { InquiryType } from "../../theme/inquiryTypes";
 // bookings and quotations still count in the funnel. Every desk figure is a whole number.
 //
 // Scope: the manager's locations (JWT location_ids), or one of them (?locationId=, anything else is 403). Tour
-// inquiries have no location in the database, so their figures always cover every branch.
+// inquiries follow it by their branch (WN_Contacts.LocationId); inquiries without a branch count only when no
+// location is chosen ("All my locations"), the same rule as complaints.
 //
 // The normalisers (./normalize.ts) fill these from whatever the server sends: a missing number is 0, a missing list
 // is [], a missing section is null (the screen shows its empty state) and a missing previous-period figure or rate

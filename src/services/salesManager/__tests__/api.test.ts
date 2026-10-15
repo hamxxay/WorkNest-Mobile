@@ -89,7 +89,7 @@ describe("requests", () => {
 
     api.mockResolvedValueOnce({ isSuccessful: true, data: {} });
     await getSalesManagerBreakdown({ metric: "inquiries-type", type: "WalkIn", period: "quarter", locationId: 1 });
-    expect(lastCall().path).toBe("/sales-manager/breakdown?metric=inquiries-type&type=WalkIn&period=quarter");
+    expect(lastCall().path).toBe("/sales-manager/breakdown?metric=inquiries-type&type=WalkIn&period=quarter&locationId=1");
   });
 
   it("GET sales-manager/records/{kind} with its filters", async () => {

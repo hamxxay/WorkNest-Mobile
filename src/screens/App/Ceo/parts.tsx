@@ -145,10 +145,24 @@ export function StaleBanner({ error, describe = ceoErrorView, what = "The figure
   return <Banner tone="warning" title={view.title} message={`${view.message} ${what} from the last update.`} />;
 }
 
-/** A dashboard section: heading, then skeletons while loading, the content, or the empty state. */
+/** A small muted line with an info icon under a section heading (e.g. what the section's scope includes). */
+export function SectionNote({ text }: { text: string }) {
+  const colors = useThemeColors();
+  return (
+    <View style={styles.note} accessible accessibilityLabel={`Note: ${text}.`}>
+      <Ionicons name="information-circle-outline" size={14} color={colors.textMuted} />
+      <AppText variant="caption" color="textMuted" style={styles.flexShrink}>
+        {text}
+      </AppText>
+    </View>
+  );
+}
+
+/** A dashboard section: heading (and note), then skeletons while loading, the content, or the empty state. */
 export function CeoSection({
   title,
   subtitle,
+  note,
   loading,
   empty,
   emptyMessage,
@@ -157,6 +171,8 @@ export function CeoSection({
 }: {
   title: string;
   subtitle?: string;
+  /** A short scope note under the heading (shown while loading too). */
+  note?: string;
   loading: boolean;
   /** True when the server sent nothing for this section. */
   empty: boolean;
@@ -167,6 +183,7 @@ export function CeoSection({
   return (
     <View style={[styles.section, style]}>
       <SectionHeader title={title} subtitle={subtitle} />
+      {note ? <SectionNote text={note} /> : null}
       {loading ? (
         <>
           <KpiSkeleton count={4} />
@@ -263,4 +280,6 @@ const styles = StyleSheet.create({
   crumbs: { gap: 2 },
   crumbRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", columnGap: 4, rowGap: 2 },
   crumb: { flexShrink: 1 },
+  note: { flexDirection: "row", alignItems: "center", gap: 4 },
+  flexShrink: { flexShrink: 1 },
 });
