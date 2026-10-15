@@ -85,3 +85,23 @@ export function whatsappNumber(phone: string): string {
   if (digits.length === 10 && digits.startsWith("3")) return `92${digits}`;
   return digits;
 }
+
+const firstWord = (value: string | null | undefined): string => (value ?? "").trim().split(/\s+/)[0] ?? "";
+
+/**
+ * The first WhatsApp message a sales executive sends to an inquiry from their own phone: "Hi Ali, this is Sana from
+ * WorkNest." Without the staff name: "Hi Ali, greetings from WorkNest."; without the customer's name: "Hi, this is ...".
+ * WhatsApp opens it ready to send, so it can still be edited first.
+ */
+export function inquiryWhatsAppMessage(customerName: string | null | undefined, staffName: string | null | undefined): string {
+  const customer = firstWord(customerName);
+  const staff = firstWord(staffName);
+  const hi = customer ? `Hi ${customer}` : "Hi";
+  return staff ? `${hi}, this is ${staff} from WorkNest.` : `${hi}, greetings from WorkNest.`;
+}
+
+/** https://wa.me/<number>?text=<message>: a chat with that number in the phone's WhatsApp, the message filled in. */
+export function whatsappChatUrl(phone: string, message?: string): string {
+  const url = `https://wa.me/${whatsappNumber(phone)}`;
+  return message ? `${url}?text=${encodeURIComponent(message)}` : url;
+}

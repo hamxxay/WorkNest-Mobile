@@ -18,6 +18,8 @@ import {
   useToast,
 } from "../../../../components/ui";
 import type { InquiryFilter, StaffStackParamList } from "../../../../navigation/staffTypes";
+import { useAuth } from "../../../../context/AuthContext";
+import { greetingName } from "../../../../context/userDisplay";
 import { errorMessage } from "../../../../services/apiClient";
 import {
   INQUIRY_STATUS_LABELS,
@@ -37,7 +39,7 @@ import {
 } from "../../../../services/staff";
 import { spacing } from "../../../../theme";
 import { formatDate, formatRelative } from "../../../../utils/format";
-import { inquiryFeedbackText, isNewInquiry, whatsappNumber } from "../../../../utils/inquiry";
+import { inquiryFeedbackText, inquiryWhatsAppMessage, isNewInquiry, whatsappChatUrl } from "../../../../utils/inquiry";
 import { phoneError, formatPhoneInput } from "../../../../utils/phone";
 import { BranchField, BranchLine, BranchPicker, useBranchChoice } from "../shared/Branch";
 import { SearchField } from "../shared/SearchField";
@@ -63,6 +65,8 @@ export default function InquiryListScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
   const { role, refreshBadges } = useStaffSession();
+  const { user } = useAuth();
+  const staffName = greetingName(user);
   const { choice: branches, locations } = useBranchChoice();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<InquiryFilter>(route.params?.filter ?? "all");
@@ -164,6 +168,7 @@ export default function InquiryListScreen() {
           <InquiryCard
             item={item}
             branch={branchDisplayName({ locationId: item.locationId, name: item.locationName }, locations)}
+            staffName={staffName}
             onSetBranch={item.publicId && canMoveBranch(item.locationId, branches.options) ? () => setBranchFor(item) : undefined}
             onFeedback={() => setFeedbackFor(item)}
             onConvert={() => convert(item)}
@@ -213,11 +218,14 @@ export default function InquiryListScreen() {
 function InquiryCard({
   item,
   branch,
+  staffName,
   onSetBranch,
   onFeedback,
   onConvert,
 }: {
   item: TourInquiry;
+  /** The signed-in staff member's first name, for the WhatsApp greeting. */
+  staffName: string;
   /** Branch name; null = no branch. */
   branch: string | null;
   /** Set when the user may set / change the branch. */
@@ -274,7 +282,9 @@ function InquiryCard({
               icon="logo-whatsapp"
               accessibilityLabel={`WhatsApp ${item.fullName}`}
               variant="tonal"
-              onPress={() => Linking.openURL(`https://wa.me/${whatsappNumber(item.phone)}`).catch(() => undefined)}
+              onPress={() =>
+                Linking.openURL(whatsappChatUrl(item.phone, inquiryWhatsAppMessage(item.fullName, staffName))).catch(() => undefined)
+              }
             />
           </>
         ) : null}
