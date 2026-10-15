@@ -1,4 +1,6 @@
 import type { TourInquiry } from "../services/contactService";
+import { INQUIRY_TYPE_LABELS, normalizeInquiryType } from "../theme/inquiryTypes";
+import { isValidPhone } from "./phone";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -69,9 +71,33 @@ export function inquiryFeedbackText(item: TourInquiry): string {
   }
 }
 
-/** New = no feedback yet and still at status 1 (New). */
-export function isNewInquiry(item: TourInquiry): boolean {
-  return !item.feedbackOutcome && item.statusId === 1;
+/**
+ * New = status New: the API's isNew, the same rule as the dashboard "New inquiries" figure and the Tour Inquiries
+ * badge (an older API without it: normalizeInquiry falls back to "no feedback yet and status 1").
+ */
+export function isNewInquiry(item: Pick<TourInquiry, "isNew">): boolean {
+  return item.isNew;
+}
+
+/** List key of an inquiry: unique even when an old website booking and a newer inquiry have the same id. */
+export function inquiryRowKey(item: Pick<TourInquiry, "key" | "source" | "id" | "publicId">, index: number): string {
+  return item.key || `${item.source}-${item.id ?? item.publicId ?? `row${index}`}`;
+}
+
+/** "Walk-In", "Reference: Ali", "Website"...; "" when the inquiry has no Type. */
+export function inquiryTypeText(item: Pick<TourInquiry, "inquiryType" | "referenceName">): string {
+  const type = normalizeInquiryType(item.inquiryType);
+  if (!type || type === "NotSet") return item.inquiryType && !type ? item.inquiryType : "";
+  const label = INQUIRY_TYPE_LABELS[type];
+  return type === "Reference" && item.referenceName ? `${label}: ${item.referenceName}` : label;
+}
+
+/**
+ * Call / WhatsApp are offered only for a real phone number: the API's phone rule (11-15 digits; digits, spaces,
+ * dashes, brackets and a leading +). Old website bookings can hold other text there ("Tour: 2026-06-26 02:").
+ */
+export function canContactByPhone(phone: string | null | undefined): boolean {
+  return isValidPhone(phone ?? "");
 }
 
 /**

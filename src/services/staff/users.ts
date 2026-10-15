@@ -14,6 +14,8 @@ export type StaffUser = {
   isActive: boolean;
   /** super_admin | admin | sales_executive | general */
   role: string;
+  /** The role's name from the database (WN_Roles.DisplayName, e.g. "General User"); null from an older API. */
+  roleDisplayName: string | null;
   locationId: number | null;
   locationIds: number[];
   /** Comma-joined location names. */
@@ -26,10 +28,12 @@ export function normalizeUser(raw: any): StaffUser {
   return {
     id: str(raw, "publicId", "id"),
     email: str(raw, "email"),
-    name: str(raw, "name") || str(raw, "email").split("@")[0],
+    // WN_Users.Name as stored; empty when the account has none (the screen then shows the email, never a part of it).
+    name: str(raw, "name"),
     phone: optStr(raw, "phone"),
     isActive: raw?.isActive == null && raw?.IsActive == null ? true : bool(raw, "isActive"),
     role: str(raw, "role") || "general",
+    roleDisplayName: optStr(raw, "roleDisplayName"),
     locationId: optNum(raw, "locationId"),
     locationIds: Array.isArray(ids) ? idList(ids.map(Number)) : [],
     locationName: optStr(raw, "locationName"),

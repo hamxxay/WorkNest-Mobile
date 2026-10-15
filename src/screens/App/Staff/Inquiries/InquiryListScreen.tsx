@@ -25,23 +25,29 @@ import {
   INQUIRY_STATUS_LABELS,
   branchDisplayName,
   branchFilterOptions,
+  branchFilterParam,
   canMoveBranch,
   chosenBranchId,
   createTourInquiry,
   getInquiryWhatsAppMessage,
   getTourInquiries,
+  inquiryPath,
   saveInquiryFeedback,
   toApiDate,
   updateInquiryLocation,
   updateInquiryStatus,
   type InquiryOutcome,
+  type StaffInquiryType,
   type StaffLocation,
   type TourInquiry,
 } from "../../../../services/staff";
 import { spacing } from "../../../../theme";
 import { formatDate, formatRelative } from "../../../../utils/format";
 import {
+  canContactByPhone,
   inquiryFeedbackText,
+  inquiryRowKey,
+  inquiryTypeText,
   inquiryWhatsAppMessage,
   isNewInquiry,
   resolveWhatsAppUrl,
@@ -53,7 +59,7 @@ import { SearchField } from "../shared/SearchField";
 import { StaffScreen, useInTabs } from "../shared/StaffScreen";
 import { useStaffSession } from "../shared/StaffSession";
 import { useDebounced, usePagedList, useSingleFlight } from "../shared/hooks";
-import { rowKey, uniqueBy } from "../shared/guards";
+import { uniqueBy } from "../shared/guards";
 
 type Nav = NativeStackNavigationProp<StaffStackParamList>;
 type Route = RouteProp<StaffStackParamList, "TourInquiries">;
@@ -64,16 +70,20 @@ const PAGE_SIZE = 50;
  * that are due come first; feedback (POST contact/{id}/feedback) = not interested (reason), future prospect
  * (follow-up date) or converted (create the quotation); staff can add a phone / walk-in inquiry (POST book-tour).
  * Branch routing: the API lists the user's locations plus inquiries with no branch; each row shows its branch, a
- * location filter appears for users who see more than one location, and staff can set or change the branch
- * (PATCH contact/{publicId}/location).
+ * location filter appears for users who see more than one location ("No branch" = only those without one), and
+ * staff can set or change the branch (PATCH contact/{publicId}/location) of the inquiries the API allows
+ * (canChangeBranch: not the old website bookings). Old website bookings and newer inquiries can share an id, so rows
+ * are keyed by the API's key and every write goes by public id (or id + source).
  */
 export default function InquiryListScreen() {
   const inTabs = useInTabs();
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
-  const { role, refreshBadges } = useStaffSession();
+  const { role, profile, refreshBadges } = useStaffSession();
   const { user } = useAuth();
   const staffName = greetingName(user);
+  // Reference inquiries: referred by the signed-in staff member unless another name is typed (as the CMS).
+  const staffFullName = (profile?.name || (typeof user?.name === "string" ? user.name : "") || user?.email || "").trim();
   const { choice: branches, locations } = useBranchChoice();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<InquiryFilter>(route.params?.filter ?? "all");
@@ -88,7 +98,7 @@ export default function InquiryListScreen() {
 
   const fetchPage = useCallback(
     async (page: number) => {
-      const res = await getTourInquiries(page, PAGE_SIZE, search || undefined, locationId || undefined);
+      const res = await getTourInquiries(page, PAGE_SIZE, search || undefined, branchFilterParam(locationId));
       return { items: res.items, total: res.total, page, limit: PAGE_SIZE, hasMore: page * PAGE_SIZE < res.total };
     },
     [search, locationId],
@@ -96,7 +106,7 @@ export default function InquiryListScreen() {
   const list = usePagedList(fetchPage);
 
   // Pages can overlap when inquiries arrive between loads: each inquiry once (and unique list keys).
-  const items = useMemo(() => uniqueBy(list.items, rowKey), [list.items]);
+  const items = useMemo(() => uniqueBy(list.items, inquiryRowKey), [list.items]);
   const due = useMemo(() => items.filter((i) => i.followUpDue), [items]);
   const fresh = useMemo(() => items.filter(isNewInquiry), [items]);
   const rows = useMemo(() => {
@@ -118,9 +128,18 @@ export default function InquiryListScreen() {
     refreshBadges();
   };
 
+  const openQuotation = (quotationId: number) => navigation.navigate("QuotationDetail", { quotationId });
+
   const convert = (item: TourInquiry) =>
     navigation.navigate("QuotationForm", {
-      fromInquiry: { inquiryId: item.id, publicId: item.publicId, name: item.fullName, email: item.email, phone: item.phone },
+      fromInquiry: {
+        inquiryId: item.id,
+        publicId: item.publicId,
+        source: item.source,
+        name: item.fullName,
+        email: item.email,
+        phone: item.phone,
+      },
     });
 
   return (
@@ -156,7 +175,7 @@ export default function InquiryListScreen() {
       ) : null}
       <AsyncList
         data={rows}
-        keyExtractor={(i, index) => rowKey(i, index)}
+        keyExtractor={(i, index) => inquiryRowKey(i, index)}
         loading={list.loading}
         refreshing={list.refreshing}
         onRefresh={list.refresh}
@@ -176,7 +195,9 @@ export default function InquiryListScreen() {
             item={item}
             branch={branchDisplayName({ locationId: item.locationId, name: item.locationName }, locations)}
             staffName={staffName}
-            onSetBranch={item.publicId && canMoveBranch(item.locationId, branches.options) ? () => setBranchFor(item) : undefined}
+            onSetBranch={
+              item.canChangeBranch && item.publicId && canMoveBranch(item.locationId, branches.options) ? () => setBranchFor(item) : undefined
+            }
             onFeedback={() => setFeedbackFor(item)}
             onConvert={() => convert(item)}
           />
@@ -191,6 +212,10 @@ export default function InquiryListScreen() {
             const item = feedbackFor;
             setFeedbackFor(null);
             convert(item);
+          }}
+          onOpenQuotation={(quotationId) => {
+            setFeedbackFor(null);
+            openQuotation(quotationId);
           }}
           onSaved={(message) => {
             setFeedbackFor(null);
@@ -211,6 +236,7 @@ export default function InquiryListScreen() {
       ) : null}
       {adding ? (
         <AddInquirySheet
+          staffName={staffFullName}
           onClose={() => setAdding(false)}
           onSaved={(message) => {
             setAdding(false);
@@ -241,6 +267,8 @@ function InquiryCard({
   onConvert: () => void;
 }) {
   const feedback = inquiryFeedbackText(item);
+  const type = inquiryTypeText(item);
+  const phoneOk = canContactByPhone(item.phone);
   const status = item.followUpDue ? "Follow-up due" : INQUIRY_STATUS_LABELS[item.statusId] ?? "New";
   const tone = item.followUpDue ? "warning" : undefined;
 
@@ -274,6 +302,11 @@ function InquiryCard({
         </View>
         <StatusPill status={status} tone={tone} />
       </View>
+      {type ? (
+        <AppText variant="caption" color="textSecondary" numberOfLines={1} style={styles.gapTop}>
+          {`Type: ${type}`}
+        </AppText>
+      ) : null}
       <View style={[styles.row, styles.gapTop]}>
         <BranchLine name={branch} style={styles.flex} />
         {onSetBranch ? (
@@ -300,7 +333,7 @@ function InquiryCard({
         <AppText variant="caption" color="textMuted" style={styles.flex}>
           {formatRelative(item.createdAt)}
         </AppText>
-        {item.phone ? (
+        {phoneOk ? (
           <>
             <IconButton icon="call-outline" accessibilityLabel={`Call ${item.fullName}`} variant="tonal" onPress={() => Linking.openURL(`tel:${item.phone}`).catch(() => undefined)} />
             <IconButton
@@ -332,12 +365,18 @@ function FeedbackSheet({
   onClose,
   onSaved,
   onConvert,
+  onOpenQuotation,
 }: {
   item: TourInquiry;
   onClose: () => void;
   onSaved: (m: string) => void;
   onConvert: () => void;
+  /** Opens the quotation an inquiry was converted into. */
+  onOpenQuotation: (quotationId: number) => void;
 }) {
+  // Already converted: no second quotation from here; the linked one can be opened instead.
+  const converted = item.feedbackOutcome === "converted";
+  const canSetStatus = !!inquiryPath(item, "status");
   const [outcome, setOutcome] = useState<InquiryOutcome>(item.feedbackOutcome === "converted" ? "converted" : item.feedbackOutcome ?? "future_prospect");
   const [reason, setReason] = useState(item.feedbackReason ?? "");
   const [followUp, setFollowUp] = useState<Date | null>(null);
@@ -365,11 +404,11 @@ function FeedbackSheet({
   });
 
   const setStatus = useSingleFlight(async (statusId: number) => {
-    if (!item.id || saving) return;
+    if (!canSetStatus || saving) return;
     setSaving(true);
     setError(null);
     try {
-      onSaved((await updateInquiryStatus(item.id, statusId)).message);
+      onSaved((await updateInquiryStatus(item, statusId)).message);
     } catch (err) {
       setError(errorMessage(err, "Could not change the status."));
     } finally {
@@ -387,7 +426,20 @@ function FeedbackSheet({
       subtitle={item.fullName || item.email}
       footer={
         outcome === "converted" ? (
-          <Button title="Create the quotation" leftIcon="document-text-outline" onPress={onConvert} style={styles.flex} />
+          converted ? (
+            item.quotationId ? (
+              <Button
+                title={`Open quotation #${item.quotationId}`}
+                leftIcon="document-text-outline"
+                onPress={() => item.quotationId && onOpenQuotation(item.quotationId)}
+                style={styles.flex}
+              />
+            ) : (
+              <Button title="Close" variant="outline" onPress={onClose} style={styles.flex} />
+            )
+          ) : (
+            <Button title="Create the quotation" leftIcon="document-text-outline" onPress={onConvert} style={styles.flex} />
+          )
         ) : (
           <>
             <Button title="Cancel" variant="outline" onPress={onClose} disabled={saving} style={styles.flex} />
@@ -411,12 +463,18 @@ function FeedbackSheet({
           minimumDate={new Date()}
           helperText={item.followUpOn ? `Current follow-up: ${formatDate(item.followUpOn)}` : undefined}
         />
+      ) : converted ? (
+        <AppText variant="bodySmall" color="textSecondary">
+          {item.quotationId
+            ? `This inquiry was converted to quotation #${item.quotationId}.`
+            : "This inquiry was already converted to a quotation."}
+        </AppText>
       ) : (
         <AppText variant="bodySmall" color="textSecondary">
           Create the quotation for this visitor. The inquiry is marked converted when the quotation is saved.
         </AppText>
       )}
-      {item.id ? (
+      {canSetStatus ? (
         <View style={styles.statusBlock}>
           <AppText variant="label" color="textSecondary">
             Or set the status
@@ -494,14 +552,30 @@ function InquiryBranchSheet({
   );
 }
 
-function AddInquirySheet({ onClose, onSaved }: { onClose: () => void; onSaved: (m: string) => void }) {
+const ADD_TYPES: { label: string; value: StaffInquiryType }[] = [
+  { label: "Walk-In", value: "WalkIn" },
+  { label: "Reference", value: "Reference" },
+];
+
+function AddInquirySheet({
+  staffName,
+  onClose,
+  onSaved,
+}: {
+  /** The signed-in staff member's full name: the default "Referred by" of a Reference inquiry. */
+  staffName: string;
+  onClose: () => void;
+  onSaved: (m: string) => void;
+}) {
   const { choice, loading: branchesLoading, error: branchesError } = useBranchChoice();
+  const [type, setType] = useState<StaffInquiryType>("WalkIn");
+  const [referenceName, setReferenceName] = useState(staffName);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [branch, setBranch] = useState<number | null>(null);
-  const [errors, setErrors] = useState<{ name?: string; phone?: string; email?: string; branch?: string; form?: string }>({});
+  const [errors, setErrors] = useState<{ name?: string; phone?: string; email?: string; branch?: string; reference?: string; form?: string }>({});
   const [saving, setSaving] = useState(false);
   const phoneRef = useRef<TextInput>(null);
   const emailRef = useRef<TextInput>(null);
@@ -515,11 +589,22 @@ function AddInquirySheet({ onClose, onSaved }: { onClose: () => void; onSaved: (
     if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) next.email = "Enter a valid email address.";
     const locationId = chosenBranchId(choice, branch);
     if (locationId == null) next.branch = "Choose the branch.";
+    if (type === "Reference" && !referenceName.trim()) next.reference = "Enter who referred the visitor.";
     setErrors(next);
-    if (next.name || next.phone || next.email || next.branch) return;
+    if (next.name || next.phone || next.email || next.branch || next.reference) return;
     setSaving(true);
     try {
-      onSaved(await createTourInquiry({ fullName: name, phone, email, message, locationId }));
+      onSaved(
+        await createTourInquiry({
+          fullName: name,
+          phone,
+          email,
+          message,
+          locationId,
+          inquiryType: type,
+          referenceName: type === "Reference" ? referenceName : null,
+        }),
+      );
     } catch (err) {
       setErrors({ form: errorMessage(err, "Could not add the inquiry.") });
     } finally {
@@ -534,7 +619,7 @@ function AddInquirySheet({ onClose, onSaved }: { onClose: () => void; onSaved: (
       onClose={onClose}
       dismissible={!saving}
       title="Add tour inquiry"
-      subtitle="A phone call or walk-in visitor."
+      subtitle="A visitor who walked in, called or was referred."
       footer={
         <>
           <Button title="Cancel" variant="outline" onPress={onClose} disabled={saving} style={styles.flex} />
@@ -542,6 +627,30 @@ function AddInquirySheet({ onClose, onSaved }: { onClose: () => void; onSaved: (
         </>
       }
     >
+      <SegmentedControl
+        accessibilityLabel="Where the visitor came from"
+        options={ADD_TYPES}
+        value={type}
+        onChange={(v) => {
+          setType(v);
+          setErrors((e) => ({ ...e, reference: undefined }));
+        }}
+      />
+      {type === "Reference" ? (
+        <TextField
+          label="Referred by"
+          required
+          value={referenceName}
+          onChangeText={(t) => {
+            setReferenceName(t);
+            setErrors((e) => ({ ...e, reference: undefined }));
+          }}
+          error={errors.reference}
+          autoCapitalize="words"
+          maxLength={200}
+          helperText="You, unless someone else referred the visitor."
+        />
+      ) : null}
       <TextField label="Full name" required value={name} onChangeText={setName} error={errors.name} autoCapitalize="words" returnKeyType="next" onSubmitEditing={() => phoneRef.current?.focus()} />
       <TextField ref={phoneRef} label="Phone" required value={phone} onChangeText={(t) => setPhone(formatPhoneInput(t))} error={errors.phone} keyboardType="phone-pad" returnKeyType="next" onSubmitEditing={() => emailRef.current?.focus()} />
       <TextField ref={emailRef} label="Email" value={email} onChangeText={(t) => setEmail(t.trim())} error={errors.email} keyboardType="email-address" autoCapitalize="none" returnKeyType="next" onSubmitEditing={() => messageRef.current?.focus()} />

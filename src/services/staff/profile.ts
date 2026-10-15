@@ -1,3 +1,4 @@
+import { isLocationBound, normalizeRoleName, type UserRole } from "../../context/roles";
 import { phoneError } from "../../utils/phone";
 import { STAFF_ENDPOINTS } from "./endpoints";
 import { actionResult, staffGet, staffPut, type ActionResult } from "./http";
@@ -32,6 +33,23 @@ export function normalizeProfile(raw: any): StaffProfile {
     locationId,
     locationIds: list.length ? list : locationId && locationId > 0 ? [locationId] : [],
   };
+}
+
+/**
+ * The "Locations" line of a staff profile. Super admins (and the CEO) are not tied to locations: "All locations",
+ * even when the account still has a main location stored (WN_Users.LocationId). Location-bound staff: their
+ * locations by name (from the API's location list), "Not assigned" when they have none.
+ */
+export function assignedLocationsLabel(
+  role: UserRole | string | null | undefined,
+  locationIds: readonly number[] | null | undefined,
+  locations: readonly { id: number; name: string }[],
+): string {
+  const r = typeof role === "string" ? normalizeRoleName(role) ?? null : null;
+  if (!isLocationBound(r)) return "All locations";
+  const ids = locationIds ?? [];
+  if (!ids.length) return "Not assigned";
+  return ids.map((id) => locations.find((l) => l.id === id)?.name ?? `Location ${id}`).join(", ");
 }
 
 /** GET auth/me */
