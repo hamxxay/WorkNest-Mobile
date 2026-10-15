@@ -69,8 +69,14 @@ export type CeoOccupancy = {
   months: CeoOccupancyMonth[];
   byType: CeoSpaceTypeOccupancy[];
   byLocation: CeoLocationOccupancy[];
-  /** Leases ending in the next 90 days, soonest first. */
+  /** Leases ending in the next 90 days, soonest first (the server sends the first 50). */
   leasesExpiring: CeoLeaseExpiring[];
+  /**
+   * How many leases end in the next 90 days in all, and their monthly rent; null when the server did not send it
+   * (before its database update QA_07: then only the list is known and the full list cannot be opened).
+   */
+  leasesExpiringCount: number | null;
+  leasesExpiringMonthly: number | null;
 };
 
 /** Funnel stages, in this order (created in the period). */
@@ -93,6 +99,12 @@ export type CeoSales = {
   inquiriesByType: CeoInquiryTypeCount[];
   quotationValue: number;
   bookingValue: number;
+  /**
+   * Tour inquiries follow the location filter by their branch (one location = only its inquiries). True when a
+   * location is chosen but the figures still count every location's inquiries (the server's database update QA_07
+   * has not run, or an older API that never narrowed them): the screen then says "all locations".
+   */
+  inquiriesAllLocations: boolean;
 };
 
 export type CeoTeamLocation = {
@@ -178,7 +190,7 @@ export type CeoBreakdown = {
 
 // ─── GET api/ceo/records/* (drill level 3) ───────────────────────────────────────────────────────────────
 
-export type CeoRecordKind = "invoices" | "spaces" | "bookings" | "inquiries" | "quotations";
+export type CeoRecordKind = "invoices" | "spaces" | "bookings" | "inquiries" | "quotations" | "leases";
 
 export type CeoRecordParams = Record<string, string | number | boolean | null | undefined>;
 
@@ -233,6 +245,12 @@ export type CeoInquiryRecord = {
   feedback: string | null;
 };
 
+/** records/leases: a confirmed lease ending in the window, soonest first. */
+export type CeoLeaseRecord = CeoLeaseExpiring & {
+  /** Days from today to the end date (negative = already ended); null when not sent. */
+  daysLeft: number | null;
+};
+
 export type CeoQuotationRecord = {
   quotationId: number | null;
   quotationNumber: string | null;
@@ -257,4 +275,5 @@ export type CeoRecords =
   | RecordsOf<"spaces", CeoSpaceRecord>
   | RecordsOf<"bookings", CeoBookingRecord>
   | RecordsOf<"inquiries", CeoInquiryRecord>
-  | RecordsOf<"quotations", CeoQuotationRecord>;
+  | RecordsOf<"quotations", CeoQuotationRecord>
+  | RecordsOf<"leases", CeoLeaseRecord>;

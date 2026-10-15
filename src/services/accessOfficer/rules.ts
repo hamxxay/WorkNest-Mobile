@@ -112,3 +112,32 @@ export function withUpdatedMatch(lookup: AoLookup, bookingDetailId: number, upda
   const person = lookup.person && lookup.person.personId == null && newId != null ? { ...lookup.person, personId: newId } : lookup.person;
   return { ...lookup, person, matches };
 }
+
+/** One write or enrolment at a time on the Access screen. */
+export type AoActionLock = {
+  /** Takes the lock: true when it was free (go ahead), false while another action still runs (ignore the tap). */
+  take: () => boolean;
+  release: () => void;
+  readonly held: boolean;
+};
+
+/**
+ * A lock kept for the screen's lifetime (not React state): a quick second tap runs before a re-render, so a state
+ * flag still reads "free" and would start a second enrolment or add; this one is taken at once.
+ */
+export function createActionLock(): AoActionLock {
+  let held = false;
+  return {
+    take: () => {
+      if (held) return false;
+      held = true;
+      return true;
+    },
+    release: () => {
+      held = false;
+    },
+    get held() {
+      return held;
+    },
+  };
+}

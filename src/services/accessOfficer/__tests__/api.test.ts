@@ -277,7 +277,10 @@ describe("503: the database update AO_01 has not been run", () => {
     expect(aoDatabaseUpdateOf(new ApiError("Unavailable", 503, { message: "Please run AO_01" }))).toBe("AO_01");
     expect(aoDatabaseUpdateOf(new ApiError("Unavailable", 503))).toBe("AO_01");
     expect(aoDatabaseUpdateOf(null)).toBe("AO_01");
-    expect(aoDatabaseUpdateOf(new ApiError("SM_01 CEO_01", 503))).toBe("AO_01");
+    // Whatever update the server names is kept (not only AO_xx).
+    expect(aoDatabaseUpdateOf(new ApiError("Unavailable", 503, { message: "The Access page needs the database update EMP_01." }))).toBe("EMP_01");
+    expect(aoDatabaseUpdateMessage(aoDatabaseUpdateOf(new ApiError("needs QA_07", 503)))).toMatch(/database update QA_07/);
+    expect(aoDatabaseUpdateOf(new ApiError("Unavailable", 503, { message: "Something went wrong." }))).toBe("AO_01");
     expect(AO_DB_UPDATE_MESSAGE).toBe(aoDatabaseUpdateMessage("AO_01"));
     expect(AO_DB_UPDATE_MESSAGE).toMatch(/^The Access page needs the database update AO_01/);
   });

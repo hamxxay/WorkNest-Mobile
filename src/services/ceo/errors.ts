@@ -1,4 +1,4 @@
-import { ApiError, errorMessage } from "../apiClient";
+import { ApiError, errorMessage, serverMessage } from "../apiClient";
 
 // Errors of the CEO API, in words a CEO can act on.
 //
@@ -14,6 +14,42 @@ export const CEO_DB_UPDATE_MESSAGE =
   "Please ask your WorkNest administrator to run it, then pull down to refresh.";
 
 const CEO_FORBIDDEN_MESSAGE = "Only the CEO can see these figures. If this is wrong, please ask a super admin to check your role.";
+
+/** The CEO dashboard's own update: its 503 keeps the general wording above. */
+const CEO_BASE_UPDATE = "CEO_01";
+
+/** A database update's name: 2 to 4 letters, "_", 2 digits (CEO_01, QA_07, AO_01, EMP_01); returned in capitals. */
+const UPDATE_NAME = /\b([A-Z]{2,4}_\d{2})\b/i;
+
+/**
+ * The database update a 503 names ("...needs the database update EMP_01."), read from the error's message or the
+ * server's answer kept with it (ApiError details); `fallback` when it names none. Any update name the server sends is
+ * kept as it is, whatever its prefix.
+ */
+export function databaseUpdateNameOf<F extends string | null>(error: unknown, fallback: F): string | F {
+  const texts: unknown[] = [];
+  if (error && typeof error === "object") {
+    const e = error as { message?: unknown; details?: unknown };
+    texts.push(e.message, serverMessage(e.details));
+  }
+  for (const text of texts) {
+    const m = typeof text === "string" ? UPDATE_NAME.exec(text) : null;
+    if (m) return m[1].toUpperCase();
+  }
+  return fallback;
+}
+
+/**
+ * The CEO's 503 message: the general one for the dashboard's own update (CEO_01, or none named); a later update the
+ * server names (e.g. QA_07 for the full list of leases expiring) is named.
+ */
+export function ceoDatabaseUpdateMessage(update: string | null): string {
+  if (!update || update === CEO_BASE_UPDATE) return CEO_DB_UPDATE_MESSAGE;
+  return (
+    `This part of the CEO dashboard needs the database update ${update} on the server before it can show it. ` +
+    "Please ask your WorkNest administrator to run it, then pull down to refresh."
+  );
+}
 
 /** The HTTP status of an error (ApiError or anything with a numeric `status`), or null. */
 export const statusOf = (error: unknown): number | null => {
@@ -37,7 +73,7 @@ export function withDatabaseUpdateMessage(error: unknown, message: string): unkn
 
 /** The error to throw from a CEO call: a 503 becomes the "database update needed" message, anything else is kept. */
 export function toCeoError(error: unknown): unknown {
-  return withDatabaseUpdateMessage(error, CEO_DB_UPDATE_MESSAGE);
+  return withDatabaseUpdateMessage(error, ceoDatabaseUpdateMessage(databaseUpdateNameOf(error, null)));
 }
 
 export type CeoErrorView = {
@@ -74,5 +110,6 @@ export function dashboardErrorView(error: unknown, texts: DashboardErrorTexts, f
 
 /** Title, message and icon for an error state on a CEO screen. */
 export function ceoErrorView(error: unknown, fallback = "Could not load the figures. Please try again."): CeoErrorView {
-  return dashboardErrorView(error, { databaseUpdate: CEO_DB_UPDATE_MESSAGE, forbidden: CEO_FORBIDDEN_MESSAGE }, fallback);
+  const databaseUpdate = ceoDatabaseUpdateMessage(databaseUpdateNameOf(error, null));
+  return dashboardErrorView(error, { databaseUpdate, forbidden: CEO_FORBIDDEN_MESSAGE }, fallback);
 }

@@ -236,11 +236,18 @@ describe("normalizeSalesManagerDashboard", () => {
       periodLabel: "",
       generatedAt: null,
       locations: [],
+      inquiriesAllBranches: false,
       funnel: null,
       team: null,
       inquiries: null,
       renewals: null,
     });
+  });
+
+  it("reads inquiriesAllBranches (the server's BR_02 not run: every branch's inquiries count)", () => {
+    expect(normalizeSalesManagerDashboard({ inquiriesAllBranches: true }).inquiriesAllBranches).toBe(true);
+    expect(normalizeSalesManagerDashboard({ isSuccessful: true, data: { InquiriesAllBranches: true } }).inquiriesAllBranches).toBe(true);
+    expect(normalizeSalesManagerDashboard({ inquiriesAllBranches: false }).inquiriesAllBranches).toBe(false);
   });
 
   it("fills partial rows: missing stages as zero, a missing rate from quotations, a person without a name", () => {

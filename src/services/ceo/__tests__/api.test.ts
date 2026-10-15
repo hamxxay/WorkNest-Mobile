@@ -107,6 +107,16 @@ describe("503: the CEO database update has not been run", () => {
     }
   });
 
+  it("a later update the server names (QA_07: the full list of leases expiring) is named", async () => {
+    api.mockRejectedValueOnce(new ApiError("Unavailable", 503, { message: "The full list of leases expiring needs the database update QA_07." }));
+    const error = await getCeoRecords({ kind: "leases", params: {} }).catch((e) => e);
+    expect(lastCall().path).toBe("/ceo/records/leases");
+    expect(error.status).toBe(503);
+    expect(error.message).toMatch(/^This part of the CEO dashboard needs the database update QA_07 on the server/);
+    expect(ceoErrorView(error).message).toBe(error.message);
+    expect(ceoErrorView(new ApiError("x", 503, { message: "needs CEO_01" })).message).toBe(CEO_DB_UPDATE_MESSAGE);
+  });
+
   it("other errors pass through unchanged", async () => {
     const forbidden = new ApiError("You don't have permission to do this.", 403);
     api.mockRejectedValueOnce(forbidden);

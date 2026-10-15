@@ -93,7 +93,12 @@ describe("normalizeCeoDashboard", () => {
     expect(d.occupancy).toMatchObject({ occupancyPct: 75, occupancyPctPrev: 70, newBookingsPrev: 2 });
     expect(d.occupancy?.byType[0]).toEqual({ spaceTypeId: 3, name: "Private Office", total: 10, occupied: 8 });
     expect(d.occupancy?.leasesExpiring[0]).toMatchObject({ bookingId: 77, endOn: "2026-11-30", monthlyAmount: 90000 });
+    // An API from before QA_07 sends no full count: only the list is known.
+    expect(d.occupancy?.leasesExpiringCount).toBeNull();
+    expect(d.occupancy?.leasesExpiringMonthly).toBeNull();
     expect(d.sales?.funnel.map((f) => f.count)).toEqual([20, 10, 4, 3]);
+    // No inquiriesAllLocations sent (an older API): its inquiry figures never followed the location.
+    expect(d.sales?.inquiriesAllLocations).toBe(true);
     expect(d.sales?.conversionRate).toBe(30);
     expect(d.team?.people[0]).toMatchObject({ userId: 5, name: "Sara", convertedValue: 300000 });
   });
@@ -148,6 +153,19 @@ describe("normalizeCeoDashboard", () => {
     expect(d.occupancy?.byLocation[0]).toMatchObject({ locationId: null, name: "Location" });
     expect(d.occupancy?.leasesExpiring[0]).toEqual({ bookingId: null, customer: "Customer", space: null, location: null, endOn: null, monthlyAmount: null });
     expect(d.team?.people[0]).toMatchObject({ userId: null, name: "Team member" });
+  });
+
+  it("reads the full number of leases expiring (QA_07), never below the list it came with", () => {
+    const lease = { bookingId: 1, customer: "Acme", endOn: "2026-11-02" };
+    const d = normalizeCeoDashboard({ occupancy: { leasesExpiring: [lease], leasesExpiringCount: 64, leasesExpiringMonthly: 3200000 } });
+    expect(d.occupancy).toMatchObject({ leasesExpiringCount: 64, leasesExpiringMonthly: 3200000 });
+    expect(normalizeCeoDashboard({ occupancy: { leasesExpiring: [lease, lease], leasesExpiringCount: 1 } }).occupancy?.leasesExpiringCount).toBe(2);
+    expect(normalizeCeoDashboard({ occupancy: { leasesExpiringCount: 0 } }).occupancy?.leasesExpiringCount).toBe(0);
+  });
+
+  it("reads whether the inquiry figures count every location (a location chosen before QA_07)", () => {
+    expect(normalizeCeoDashboard({ sales: { inquiriesAllLocations: false } }).sales?.inquiriesAllLocations).toBe(false);
+    expect(normalizeCeoDashboard({ sales: { InquiriesAllLocations: true } }).sales?.inquiriesAllLocations).toBe(true);
   });
 
   it("reads PascalCase fields too", () => {
@@ -304,5 +322,21 @@ describe("normalizeCeoRecords", () => {
     if (r.kind !== "inquiries") throw new Error("kind");
     expect(r.rows[0]).toMatchObject({ inquiryId: 3, type: "WalkIn", typeText: "walk_in" });
     expect(r.rows[1]).toMatchObject({ type: null, typeText: "Billboard" });
+  });
+
+  it("reads leases (records/leases) with their days left", () => {
+    const r = normalizeCeoRecords("leases", {
+      isSuccessful: true,
+      data: {
+        title: "Leases: ending in the next 90 days",
+        total: 64,
+        rows: [{ bookingId: 7, customer: "Acme", space: "Office 4", location: "I-8", endOn: "2026-11-02", monthlyAmount: 50000, daysLeft: 18 }, {}],
+      },
+    });
+    expect(r).toMatchObject({ kind: "leases", title: "Leases: ending in the next 90 days", total: 64 });
+    if (r.kind !== "leases") throw new Error("kind");
+    expect(r.rows[0]).toEqual({ bookingId: 7, customer: "Acme", space: "Office 4", location: "I-8", endOn: "2026-11-02", monthlyAmount: 50000, daysLeft: 18 });
+    expect(r.rows[1]).toEqual({ bookingId: null, customer: "Customer", space: null, location: null, endOn: null, monthlyAmount: null, daysLeft: null });
+    expect(normalizeCeoRecords("leases", null)).toEqual({ kind: "leases", title: "Leases expiring", total: 0, rows: [] });
   });
 });

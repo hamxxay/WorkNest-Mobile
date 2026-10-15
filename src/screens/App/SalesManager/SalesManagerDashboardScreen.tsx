@@ -8,11 +8,14 @@ import { useReduceMotion } from "../../../hooks/useReduceMotion";
 import type { SalesManagerStackParamList } from "../../../navigation/salesManagerTypes";
 import { PERIOD_OPTIONS, periodWords, type CeoPeriod } from "../../../services/ceo";
 import {
+  SM_ALL_MY_LOCATIONS,
   getSalesManagerComplaints,
   getSalesManagerDashboard,
   isCompleteSmBreakdown,
-  isCurrentComplaintsList,
+  isPeriodFreeList,
   salesManagerErrorView,
+  smLocationText,
+  smScopeNotes,
   type SmLocation,
   type SmRecordsQuery,
   type SmScope,
@@ -34,14 +37,12 @@ import {
 
 type Nav = NativeStackNavigationProp<SalesManagerStackParamList, "SalesManagerDashboard">;
 
-const ALL_MY_LOCATIONS = "All my locations";
-/** Tour inquiries follow the dashboard's scope; those without a branch count only under "All my locations". */
-const INQUIRIES_SCOPE_NOTE = `Inquiries without a branch show under ${ALL_MY_LOCATIONS}`;
-
 /**
  * The Sales Manager dashboard (GET api/sales-manager/dashboard): Sales funnel, Team performance, Tour inquiries and
  * Renewals & desks for this month / quarter / year against the previous period, for all the manager's locations
- * or one of them (tour inquiries too: those without a branch count under "All my locations", as complaints do).
+ * or one of them (tour inquiries too: those without a branch count under "All my locations", as complaints do; a
+ * manager with one location has no picker, and the notes and drill screens say the items without a branch are
+ * included instead).
  * Desks, never money ("91 desks booked"). Last comes Complaints, loaded on its own (GET api/sales-manager/complaints,
  * same period and location), so the rest keeps working when only that call fails. View only: tapping a chart element
  * or row drills down (a breakdown screen, then a records list; some open their records directly). Pull to refresh
@@ -103,28 +104,40 @@ export default function SalesManagerDashboardScreen() {
   );
 
   // ─── Drill-down ──────────────────────────────────────────────────────────────────────────────────────────
-  const locationName = knownLocations.find((l) => l.locationId === locationId)?.name;
   const periodText = d?.periodLabel || PERIOD_OPTIONS.find((p) => p.value === period)?.label;
-  const locationText = locationId ? locationName ?? "One location" : ALL_MY_LOCATIONS;
-  const scopeLabel = [periodText, locationText].filter(Boolean).join(" · ");
+  // "I-8", "All my locations"; tour inquiry and complaint lists add "(plus items without a branch)" when no single
+  // location is chosen (the API includes those then).
+  const locationTextFor = useCallback(
+    (kind?: SmRecordsQuery["kind"] | "inquiries-type" | null, narrowedToBranch = false) =>
+      smLocationText({ locations: knownLocations, locationId, kind, narrowedToBranch }),
+    [knownLocations, locationId],
+  );
+  const scopeLabelFor = useCallback(
+    (kind?: SmRecordsQuery["kind"] | "inquiries-type" | null, narrowedToBranch = false, withPeriod = true) =>
+      [withPeriod ? periodText : null, locationTextFor(kind, narrowedToBranch)].filter(Boolean).join(" · "),
+    [periodText, locationTextFor],
+  );
+  const scopeLabel = scopeLabelFor();
 
   const drill = useMemo<SmDrill>(
     () => ({
       scope,
       breakdown: (t: SmBreakdownTarget, trail: string[]) => {
         const query = { ...t, period, locationId: scope.locationId ?? null };
-        if (isCompleteSmBreakdown(query)) navigation.navigate("SalesManagerBreakdown", { query, trail, scopeLabel });
+        const label = scopeLabelFor(query.metric === "inquiries-type" ? "inquiries-type" : null);
+        if (isCompleteSmBreakdown(query)) navigation.navigate("SalesManagerBreakdown", { query, trail, scopeLabel: label });
       },
       records: (query: SmRecordsQuery | null, trail: string[], title?: string) => {
         if (!query) return;
-        // Complaints as they are now (open, in progress...) are not bound to the period: name only the location.
-        const label = isCurrentComplaintsList(query) ? locationText : scopeLabel;
+        // Complaints as they are now (open, in progress...), a branch's complaints and the leases ending soon are not
+        // bound to the period: name only the location.
+        const label = scopeLabelFor(query.kind, query.params.branch != null, !isPeriodFreeList(query));
         navigation.navigate("SalesManagerRecords", { query, trail, title, scopeLabel: label });
       },
       focus,
       target,
     }),
-    [scope, period, navigation, scopeLabel, locationText, focus, target],
+    [scope, period, navigation, scopeLabelFor, focus, target],
   );
 
   const words = periodWords(period);
@@ -133,6 +146,7 @@ export default function SalesManagerDashboardScreen() {
   const staleError = !!d && !!dashboard.error && !dashboard.refreshing;
   // One location: nothing to pick (the scope line names it).
   const showLocationPicker = knownLocations.length !== 1;
+  const notes = smScopeNotes({ singleLocation: !showLocationPicker, inquiriesAllBranches: !!d?.inquiriesAllBranches });
   const openProfile = () => navigation.navigate("SalesManagerProfile", { locations: knownLocations.map((l) => l.name) });
 
   return (
@@ -158,7 +172,7 @@ export default function SalesManagerDashboardScreen() {
             {showLocationPicker ? (
               <SelectField
                 value={locationId}
-                options={[{ label: ALL_MY_LOCATIONS, value: 0 }, ...knownLocations.map((l) => ({ label: l.name, value: l.locationId }))]}
+                options={[{ label: SM_ALL_MY_LOCATIONS, value: 0 }, ...knownLocations.map((l) => ({ label: l.name, value: l.locationId }))]}
                 onChange={setLocationId}
                 loading={loading && !knownLocations.length}
                 leftIcon="location-outline"
@@ -168,7 +182,7 @@ export default function SalesManagerDashboardScreen() {
             ) : null}
             {d ? (
               <AppText variant="caption" color="textMuted">
-                {[showLocationPicker ? scopeLabel : [periodText, knownLocations[0]?.name].filter(Boolean).join(" · "), d.generatedAt ? `updated ${formatTime(d.generatedAt)}` : null]
+                {[scopeLabel, d.generatedAt ? `updated ${formatTime(d.generatedAt)}` : null]
                   .filter(Boolean)
                   .join(" · ")}
               </AppText>
@@ -203,8 +217,10 @@ export default function SalesManagerDashboardScreen() {
 
               <CeoSection
                 title="Tour inquiries"
-                subtitle={["Tour inquiries at your locations", periodText].filter(Boolean).join(" · ")}
-                note={INQUIRIES_SCOPE_NOTE}
+                subtitle={[d?.inquiriesAllBranches ? "Tour inquiries at every branch" : "Tour inquiries at your locations", periodText]
+                  .filter(Boolean)
+                  .join(" · ")}
+                note={notes.inquiries}
                 loading={loading}
                 empty={!d?.inquiries}
                 emptyMessage="No tour inquiry figures were sent for this period."
@@ -225,7 +241,13 @@ export default function SalesManagerDashboardScreen() {
           )}
 
           {/* Own call: shown (with its own error state) whether or not the rest of the dashboard loaded. */}
-          <ComplaintsBlock query={complaints} drill={drill} periodLabel={periodText} oneLocation={!!locationId || knownLocations.length === 1} />
+          <ComplaintsBlock
+            query={complaints}
+            drill={drill}
+            periodLabel={periodText}
+            oneLocation={!!locationId || knownLocations.length === 1}
+            scopeNote={notes.complaints}
+          />
         </View>
       </ScrollView>
     </Screen>

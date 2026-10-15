@@ -175,6 +175,11 @@ describe("salesManagerErrorView", () => {
       message: SM_FORBIDDEN_MESSAGE,
       databaseUpdate: false,
     });
+    // The server's own reason wins (as on the Access page): no locations yet, a location that is not theirs...
+    const noLocation = new ApiError("Forbidden", 403, { message: "Your account has no location yet. Ask a Super Admin to assign your locations." });
+    expect(salesManagerErrorView(noLocation).message).toBe("Your account has no location yet. Ask a Super Admin to assign your locations.");
+    expect(salesManagerComplaintsErrorView(noLocation).message).toBe("Your account has no location yet. Ask a Super Admin to assign your locations.");
+    expect(salesManagerErrorView(new ApiError("Forbidden", 403, {})).message).toBe(SM_FORBIDDEN_MESSAGE);
     expect(salesManagerErrorView(new ApiError("Can't reach the server.", 0))).toMatchObject({ title: "Could not reach WorkNest" });
     expect(salesManagerErrorView(new ApiError("Something went wrong on our side.", 500)).message).toBe("Something went wrong on our side.");
     expect(salesManagerErrorView(new TypeError("boom")).message).toBe("Could not load the figures. Please try again.");

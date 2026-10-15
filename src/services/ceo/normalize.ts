@@ -15,6 +15,8 @@ import type {
   CeoInquiryRecord,
   CeoInquiryTypeCount,
   CeoInvoiceRecord,
+  CeoLeaseExpiring,
+  CeoLeaseRecord,
   CeoLocation,
   CeoMoney,
   CeoOccupancy,
@@ -117,8 +119,21 @@ function normalizeMoney(raw: Row | null): CeoMoney | null {
   };
 }
 
+const toLeaseExpiring = (b: Row): CeoLeaseExpiring => ({
+  bookingId: optId(b, "bookingId", "id"),
+  customer: optStr(b, "customer", "customerName") ?? "Customer",
+  space: optStr(b, "space", "spaceName"),
+  location: optStr(b, "location", "locationName"),
+  endOn: optStr(b, "endOn", "endDate"),
+  monthlyAmount: optNum(b, "monthlyAmount"),
+});
+
+const toLeaseRecord = (b: Row): CeoLeaseRecord => ({ ...toLeaseExpiring(b), daysLeft: optNum(b, "daysLeft") });
+
 function normalizeOccupancy(raw: Row | null): CeoOccupancy | null {
   if (!raw) return null;
+  const leasesExpiring = list(raw, "leasesExpiring", toLeaseExpiring);
+  const count = optNum(raw, "leasesExpiringCount");
   return {
     totalSpaces: num(raw, "totalSpaces"),
     occupiedSpaces: num(raw, "occupiedSpaces"),
@@ -142,14 +157,10 @@ function normalizeOccupancy(raw: Row | null): CeoOccupancy | null {
       total: num(l, "total"),
       occupied: num(l, "occupied"),
     })),
-    leasesExpiring: list(raw, "leasesExpiring", (b) => ({
-      bookingId: optId(b, "bookingId"),
-      customer: optStr(b, "customer") ?? "Customer",
-      space: optStr(b, "space"),
-      location: optStr(b, "location"),
-      endOn: optStr(b, "endOn"),
-      monthlyAmount: optNum(b, "monthlyAmount"),
-    })),
+    leasesExpiring,
+    // The full count when sent (never below the list it came with); null = unknown (only the list).
+    leasesExpiringCount: count == null ? null : Math.max(leasesExpiring.length, Math.floor(count)),
+    leasesExpiringMonthly: optNum(raw, "leasesExpiringMonthly"),
   };
 }
 
@@ -206,6 +217,8 @@ function normalizeSales(raw: Row | null): CeoSales | null {
     inquiriesByType: normalizeInquiryTypes(pick(raw, "inquiriesByType")),
     quotationValue: num(raw, "quotationValue"),
     bookingValue: num(raw, "bookingValue"),
+    // Not sent (an older API): its inquiry figures never followed the location.
+    inquiriesAllLocations: typeof pick(raw, "inquiriesAllLocations") === "boolean" ? pick(raw, "inquiriesAllLocations") : true,
   };
 }
 
@@ -323,6 +336,7 @@ const RECORD_TITLES: Record<CeoRecordKind, string> = {
   bookings: "Bookings",
   inquiries: "Tour inquiries",
   quotations: "Quotations",
+  leases: "Leases expiring",
 };
 
 const toInvoice = (r: Row): CeoInvoiceRecord => ({
@@ -417,6 +431,10 @@ export function normalizeCeoRecords(kind: CeoRecordKind, raw: unknown): CeoRecor
     }
     case "inquiries": {
       const rows = list(d, "rows", toInquiryRecord);
+      return { kind, title, total: totalOf(rows.length), rows };
+    }
+    case "leases": {
+      const rows = list(d, "rows", toLeaseRecord);
       return { kind, title, total: totalOf(rows.length), rows };
     }
     case "quotations":

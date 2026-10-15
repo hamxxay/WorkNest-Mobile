@@ -1,5 +1,5 @@
 import { cleanParams, periodRange, positiveId } from "../ceo/drill";
-import { count, isMonthKey } from "../ceo/format";
+import { count, isMonthKey, monthLabel } from "../ceo/format";
 import type { QueryValue } from "../staff/normalize";
 import { desks } from "./format";
 import type {
@@ -7,7 +7,10 @@ import type {
   SmBreakdownMetric,
   SmBreakdownQuery,
   SmBreakdownRow,
+  SmComplaintBranch,
   SmComplaintFilterStatus,
+  SmLocation,
+  SmRecordKind,
   SmRecordsQuery,
   SmScope,
 } from "./types";
@@ -21,7 +24,11 @@ import type {
 //   staff            userId   last 6 months         quotations userId + month = row (+ the location filter)
 //   inquiries-type   type     last 6 months         inquiries  type + month = row (+ the location filter)
 //   renewals-month   month    the manager's locs    leases     month + locationId = row
-//   desks-month      month    the manager's locs    bookings   month + locationId = row
+//   desks-month      month    the manager's locs    bookings   month + locationId = row (desks booked); leases ending
+//                                                   that month when nothing was booked but desks end, and always for
+//                                                   a future month; a row with both offers the other list too
+//
+//   Leases expiring (the KPIs and "and N more"): leases, no month = the next 90 days (or the next 30).
 //
 //   Direct: a funnel stage -> its records for the period; "Follow-ups due" -> inquiries?outcome=followup_due;
 //   a not-interested reason -> inquiries?outcome=not_interested; a month of the inquiries chart -> that month's
@@ -125,15 +132,47 @@ export function isCompleteSmBreakdown(query: SmBreakdownQuery): boolean {
   }
 }
 
+const pad2 = (n: number) => String(n).padStart(2, "0");
+/** yyyy-MM of a date (local time). */
+const monthOf = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
+/** yyyy-MM-dd of a date (local time). */
+const dayOf = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+
+/** The two lists behind a "Desks booked & desks ending" month: bookings made in it, leases ending in it. */
+export type SmDesksMonthList = "bookings" | "leases";
+
+/**
+ * Which list a desks-month row opens, and the other one it offers (null = none): a future month has no bookings
+ * made in it, so it opens the leases ending then; a month with no desks booked but desks ending opens those leases
+ * (and offers its bookings, e.g. meeting rooms, which hold 0 desks); otherwise the bookings, offering the leases
+ * when desks end that month.
+ */
+export function smDesksMonthLists(
+  month: string,
+  row: Pick<SmBreakdownRow, "value" | "value2">,
+  today: Date = new Date(),
+): { primary: SmDesksMonthList; secondary: SmDesksMonthList | null } {
+  const ending = row.value2 ?? 0;
+  if (month > monthOf(today)) return { primary: "leases", secondary: null };
+  if (row.value <= 0 && ending > 0) return { primary: "leases", secondary: "bookings" };
+  return { primary: "bookings", secondary: ending > 0 ? "leases" : null };
+}
+
+const desksMonthRecords = (list: SmDesksMonthList, month: string, locationId: number): SmRecordsQuery => ({
+  kind: list,
+  params: cleanParams({ month, locationId }),
+});
+
 /** The records list a breakdown row opens (level 3), or null when the row has no usable key (e.g. "Other"). */
-export function smRecordsForBreakdownRow(query: SmBreakdownQuery, row: SmBreakdownRow): SmRecordsQuery | null {
+export function smRecordsForBreakdownRow(query: SmBreakdownQuery, row: SmBreakdownRow, today: Date = new Date()): SmRecordsQuery | null {
   const rowId = positiveId(row.key);
   const rowMonth = isMonthKey(row.key) ? row.key : null;
   const month = isMonthKey(query.month) ? query.month : null;
   switch (query.metric) {
     case "funnel-month":
-    case "desks-month":
       return rowId && month ? { kind: "bookings", params: cleanParams({ month, locationId: rowId }) } : null;
+    case "desks-month":
+      return rowId && month ? desksMonthRecords(smDesksMonthLists(month, row, today).primary, month, rowId) : null;
     case "renewals-month":
       return rowId && month ? { kind: "leases", params: cleanParams({ month, locationId: rowId }) } : null;
     case "staff": {
@@ -149,6 +188,36 @@ export function smRecordsForBreakdownRow(query: SmBreakdownQuery, row: SmBreakdo
     default:
       return null;
   }
+}
+
+/**
+ * The other list a breakdown row offers next to the one it opens (desks-month: bookings and leases ending that
+ * month), with its wording; null when there is none.
+ */
+export function smSecondaryRecordsForBreakdownRow(
+  query: SmBreakdownQuery,
+  row: SmBreakdownRow,
+  today: Date = new Date(),
+): { title: string; subtitle: string; records: SmRecordsQuery } | null {
+  const rowId = positiveId(row.key);
+  const month = isMonthKey(query.month) ? query.month : null;
+  if (query.metric !== "desks-month" || !rowId || !month) return null;
+  const { secondary } = smDesksMonthLists(month, row, today);
+  if (!secondary) return null;
+  return secondary === "leases"
+    ? { title: `Leases ending in ${monthLabel(month)}`, subtitle: `${desks(row.value2 ?? 0)} ending`, records: desksMonthRecords("leases", month, rowId) }
+    : { title: `Bookings made in ${monthLabel(month)}`, subtitle: `${desks(row.value)} booked`, records: desksMonthRecords("bookings", month, rowId) };
+}
+
+/**
+ * "Leases expiring" (the renewals KPIs, "and N more"): every confirmed lease ending in the next 90 days (no window:
+ * the API's default), or in the next `withinDays` days (from today to today + withinDays); location filter.
+ */
+export function smExpiringLeasesRecords(scope: { locationId?: number | null } = {}, withinDays?: number, today: Date = new Date()): SmRecordsQuery {
+  const locationId = scopeLocation(scope);
+  if (!withinDays || withinDays <= 0) return { kind: "leases", params: cleanParams({ locationId }) };
+  const to = new Date(today.getFullYear(), today.getMonth(), today.getDate() + withinDays);
+  return { kind: "leases", params: cleanParams({ from: dayOf(today), to: dayOf(to), locationId }) };
 }
 
 /**
@@ -239,4 +308,66 @@ export function isCurrentComplaintsList(query: SmRecordsQuery): boolean {
   if (query.kind !== "complaints") return false;
   const status = query.params.status;
   return typeof status === "string" && CURRENT_COMPLAINT_STATUSES.has(status) && !query.params.month;
+}
+
+/**
+ * True for a list not bound to the period, whose scope line names only the location: complaints as they are now,
+ * every complaint of a branch, and the leases ending in the next 90 / 30 days.
+ */
+export function isPeriodFreeList(query: SmRecordsQuery): boolean {
+  if (query.kind === "leases") return !query.params.month;
+  if (query.kind !== "complaints") return false;
+  return isCurrentComplaintsList(query) || (query.params.branch != null && !query.params.status && !query.params.month);
+}
+
+/**
+ * Complaints by branch is worth showing when the complaints span more than one branch or include some without a
+ * branch (with one location chosen it holds that branch only).
+ */
+export function smShowsComplaintBranches(byBranch: readonly SmComplaintBranch[]): boolean {
+  const named = byBranch.filter((b) => b.branch.trim()).length;
+  return named > 1 || byBranch.some((b) => !b.branch.trim());
+}
+
+// ─── Scope wording ────────────────────────────────────────────────────────────────────────────────────────
+
+export const SM_ALL_MY_LOCATIONS = "All my locations";
+
+/** Lists matched by branch: with no single location chosen they also hold the items without a branch. */
+const BRANCH_LISTS: ReadonlySet<SmRecordKind> = new Set<SmRecordKind>(["inquiries", "complaints"]);
+
+/**
+ * The location part of a scope line: the chosen location's name; with none chosen the manager's only location (no
+ * picker then) or "All my locations". `kind` (a records list or the inquiries-type breakdown): tour inquiry and
+ * complaint lists then say they include the items without a branch ("I-8 (plus items without a branch)"), unless the
+ * list is narrowed to one branch already (`narrowedToBranch`).
+ */
+export function smLocationText(opts: {
+  locations: readonly SmLocation[];
+  locationId?: number | null;
+  kind?: SmRecordKind | "inquiries-type" | null;
+  narrowedToBranch?: boolean;
+}): string {
+  const id = positiveId(opts.locationId);
+  if (id) return opts.locations.find((l) => l.locationId === id)?.name ?? "One location";
+  const base = opts.locations.length === 1 ? opts.locations[0].name : SM_ALL_MY_LOCATIONS;
+  const branchList = opts.kind === "inquiries-type" || (!!opts.kind && BRANCH_LISTS.has(opts.kind));
+  return branchList && !opts.narrowedToBranch ? `${base} (plus items without a branch)` : base;
+}
+
+/**
+ * The notes under the Tour inquiries and Complaints headings. A manager with one location has no picker, so the
+ * notes say what the figures include instead of pointing at an option they cannot see. Before the server's
+ * database update BR_02 the tour inquiries count every branch: the inquiries note says so.
+ */
+export function smScopeNotes(opts: { singleLocation: boolean; inquiriesAllBranches: boolean }): { inquiries: string; complaints: string } {
+  const inquiries = opts.inquiriesAllBranches
+    ? "Counts inquiries from every branch until database update BR_02 is run"
+    : opts.singleLocation
+      ? "Includes inquiries without a branch"
+      : `Inquiries without a branch show under ${SM_ALL_MY_LOCATIONS}`;
+  const complaints = opts.singleLocation
+    ? "Includes complaints without a branch (WhatsApp)"
+    : `Complaints without a branch (WhatsApp) show under ${SM_ALL_MY_LOCATIONS}`;
+  return { inquiries, complaints };
 }
