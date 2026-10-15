@@ -37,6 +37,8 @@ describe("userRoleLabel", () => {
     expect(userRoleLabel({ roleDisplayName: "Chief Executive" }, "ceo")).toBe("Chief Executive");
     expect(userRoleLabel({ roleDisplayName: "Head of Sales" }, "sales_manager")).toBe("Head of Sales");
     expect(userRoleLabel({ roleDisplayName: " Super Admin " }, "super_admin")).toBe("Super Admin");
+    expect(userRoleLabel({ roleDisplayName: "Access Officer" }, "access_officer")).toBe("Access Officer");
+    expect(userRoleLabel({ roleDisplayName: "Door Desk" }, "access_officer")).toBe("Door Desk");
   });
 
   it("falls back to the app's label when the field is missing or names another role", () => {
@@ -45,5 +47,7 @@ describe("userRoleLabel", () => {
     expect(userRoleLabel({ roleDisplayName: "" }, "admin")).toBe("Admin");
     // Stale: the role changed since auth/me last answered.
     expect(userRoleLabel({ roleDisplayName: "Admin" }, "sales_manager")).toBe("Sales Manager");
+    expect(userRoleLabel({}, "access_officer")).toBe("Access Officer");
+    expect(userRoleLabel({ roleDisplayName: "Sales Manager" }, "access_officer")).toBe("Access Officer");
   });
 });

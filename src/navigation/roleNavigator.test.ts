@@ -1,8 +1,8 @@
-// Role -> navigator routing (RootNavigator): a CEO gets the CEO navigator and a Sales Manager the Sales Manager
-// navigator, never the customer, staff (or each other's) ones.
+// Role -> navigator routing (RootNavigator): a CEO gets the CEO navigator, a Sales Manager the Sales Manager
+// navigator and an Access Officer the Access Officer navigator, never the customer, staff (or each other's) ones.
 
 import { STAFF_ROLES, isStaffRole, resolveRole, type UserRole } from "../context/roles";
-import { navigatorForRole } from "./roleNavigator";
+import { loadsAnnouncements, navigatorForRole } from "./roleNavigator";
 import { STAFF_ROUTE_ROLES, moreMenuFor, routesFor, tabsFor, canOpenRoute } from "./staff/access";
 import { staffLinkTarget } from "./staff/links";
 import type { StaffRouteName } from "./staffTypes";
@@ -11,6 +11,7 @@ describe("navigatorForRole", () => {
   it("sends each role to its own navigator", () => {
     expect(navigatorForRole("ceo")).toBe("ceo");
     expect(navigatorForRole("sales_manager")).toBe("sales_manager");
+    expect(navigatorForRole("access_officer")).toBe("access_officer");
     expect(navigatorForRole("super_admin")).toBe("super_admin");
     expect(navigatorForRole("admin")).toBe("admin");
     expect(navigatorForRole("sales_executive")).toBe("sales_executive");
@@ -39,18 +40,24 @@ describe("navigatorForRole", () => {
   });
 
   it("only the staff roles reach a staff navigator, and the customer app is everyone else's", () => {
-    const roles: UserRole[] = ["general", "sales_executive", "admin", "super_admin", "sales_manager", "ceo"];
+    const roles: UserRole[] = ["general", "sales_executive", "admin", "super_admin", "access_officer", "sales_manager", "ceo"];
     for (const role of roles) {
       const nav = navigatorForRole(role);
       expect(nav === "sales_executive" || nav === "admin" || nav === "super_admin").toBe(isStaffRole(role));
     }
     expect(isStaffRole("ceo")).toBe(false);
     expect(isStaffRole("sales_manager")).toBe(false);
+    expect(isStaffRole("access_officer")).toBe(false);
   });
 
   it("each role reaches exactly one navigator, and only sales_manager reaches the Sales Manager one", () => {
-    const roles: UserRole[] = ["general", "sales_executive", "admin", "super_admin", "sales_manager", "ceo"];
+    const roles: UserRole[] = ["general", "sales_executive", "admin", "super_admin", "access_officer", "sales_manager", "ceo"];
     for (const role of roles) expect(navigatorForRole(role) === "sales_manager").toBe(role === "sales_manager");
+  });
+
+  it("only access_officer reaches the Access Officer navigator", () => {
+    const roles: UserRole[] = ["general", "sales_executive", "admin", "super_admin", "access_officer", "sales_manager", "ceo"];
+    for (const role of roles) expect(navigatorForRole(role) === "access_officer").toBe(role === "access_officer");
   });
 });
 
@@ -78,6 +85,63 @@ describe("the Sales Manager navigator", () => {
 
   it("an account that is also the CEO gets the CEO app", () => {
     expect(navigatorForRole(resolveRole({ roles: ["sales_manager", "ceo"] }))).toBe("ceo");
+  });
+});
+
+describe("the Access Officer navigator", () => {
+  it("an Access Officer never gets the customer, a staff, the CEO or the Sales Manager navigator", () => {
+    const nav = navigatorForRole("access_officer");
+    expect(nav).not.toBe("customer");
+    expect(nav).not.toBe("ceo");
+    expect(nav).not.toBe("sales_manager");
+    for (const staff of STAFF_ROLES) expect(nav).not.toBe(staff);
+  });
+
+  it.each([
+    [{ role: "access_officer" }],
+    [{ role: "Access Officer" }],
+    [{ role: "19" }],
+    [{ roles: ["access_officer"] }],
+    [{ roles: "general, Access Officer" }],
+    [{ role: "general", roles: ["access_officer"] }],
+    [{ roles: ["super_admin", "access_officer"] }],
+    [{ roles: ["admin", "sales_executive", "19"] }],
+    [{ role: "admin", isAdmin: true, userType: "AccessOfficer" }],
+  ])("a signed-in Access Officer (%p) lands in the Access Officer navigator", (user) => {
+    expect(navigatorForRole(resolveRole(user))).toBe("access_officer");
+  });
+
+  it("an account that is also the Sales Manager or the CEO gets that app", () => {
+    expect(navigatorForRole(resolveRole({ roles: ["access_officer", "sales_manager"] }))).toBe("sales_manager");
+    expect(navigatorForRole(resolveRole({ roles: ["access_officer", "ceo"] }))).toBe("ceo");
+  });
+});
+
+describe("background calls for every signed-in app", () => {
+  it("the Access Officer never loads announcements (the API answers 403); every other role is unchanged", () => {
+    expect(loadsAnnouncements("access_officer")).toBe(false);
+    for (const role of ["general", "sales_executive", "admin", "super_admin", "sales_manager", "ceo"] as UserRole[]) {
+      expect(loadsAnnouncements(role)).toBe(true);
+    }
+    expect(loadsAnnouncements(null)).toBe(true);
+  });
+});
+
+describe("the staff navigators' access rules give an Access Officer nothing", () => {
+  // StaffRole excludes "access_officer" at compile time; this checks the runtime tables as well.
+  const accessOfficer = "access_officer" as unknown as (typeof STAFF_ROLES)[number];
+
+  it("no tab, pushed screen or More menu", () => {
+    expect(tabsFor(accessOfficer)).toEqual([]);
+    expect(routesFor(accessOfficer)).toEqual([]);
+    expect(moreMenuFor(accessOfficer)).toEqual([]);
+    for (const route of Object.keys(STAFF_ROUTE_ROLES) as StaffRouteName[]) expect(canOpenRoute(accessOfficer, route)).toBe(false);
+  });
+
+  it("no staff screen from a link", () => {
+    for (const path of ["dashboard", "admin/access", "quotation/12", "bookings", "customers", "invoice/3", "admin/kyc", "profile", ""]) {
+      expect(staffLinkTarget(path, accessOfficer)).toBeNull();
+    }
   });
 });
 

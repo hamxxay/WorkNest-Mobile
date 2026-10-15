@@ -1,5 +1,6 @@
 import {
   hasRole,
+  isAccessOfficer,
   isAdminOrAbove,
   isCeo,
   isLocationBound,
@@ -45,6 +46,12 @@ describe("normalizeRoleName", () => {
     ["sales-manager", "sales_manager"],
     ["SALES_MANAGER", "sales_manager"],
     ["18", "sales_manager"],
+    ["access_officer", "access_officer"],
+    ["Access Officer", "access_officer"],
+    ["AccessOfficer", "access_officer"],
+    ["access-officer", "access_officer"],
+    ["ACCESS_OFFICER", "access_officer"],
+    ["19", "access_officer"],
   ])("maps %p to %p", (input, expected) => {
     expect(normalizeRoleName(input)).toBe(expected);
   });
@@ -210,6 +217,60 @@ describe("Sales Manager role", () => {
   it("hasRole matches it exactly", () => {
     expect(hasRole({ role: "Sales Manager" }, "sales_manager")).toBe(true);
     expect(hasRole({ role: "Sales Manager" }, "sales_executive")).toBe(false);
+  });
+});
+
+describe("Access Officer role", () => {
+  it.each([
+    [{ role: "access_officer" }],
+    [{ role: "Access Officer" }],
+    [{ role: "19" }],
+    [{ roles: ["access_officer"] }],
+    [{ roles: "general, Access Officer" }],
+    [{ role: "general", roles: ["19"] }],
+    [{ userType: "AccessOfficer" }],
+  ])("resolves %p to access_officer", (user) => {
+    expect(resolveRole(user)).toBe("access_officer");
+  });
+
+  it("outranks every staff role and the customer role, and is outranked by the Sales Manager and the CEO", () => {
+    expect(resolveRole({ roles: ["super_admin", "access_officer"] })).toBe("access_officer");
+    expect(resolveRole({ roles: ["admin", "access_officer", "sales_executive"] })).toBe("access_officer");
+    expect(resolveRole({ isAdmin: true, role: "Access Officer" })).toBe("access_officer");
+    expect(resolveRole({ roles: ["access_officer", "sales_manager"] })).toBe("sales_manager");
+    expect(resolveRole({ roles: ["access_officer", "ceo"] })).toBe("ceo");
+    expect(rolesOf({ roles: ["general", "access_officer", "super_admin", "sales_manager", "ceo"] })).toEqual([
+      "ceo",
+      "sales_manager",
+      "access_officer",
+      "super_admin",
+      "general",
+    ]);
+  });
+
+  it("is not staff, not an admin, not the CEO or the Sales Manager; location bound like admins", () => {
+    expect(isAccessOfficer("access_officer")).toBe(true);
+    expect(isAccessOfficer("admin")).toBe(false);
+    expect(isAccessOfficer("sales_manager")).toBe(false);
+    expect(isAccessOfficer(null)).toBe(false);
+    expect(isStaffRole("access_officer")).toBe(false);
+    expect(isAdminOrAbove("access_officer")).toBe(false);
+    expect(isSuperAdmin("access_officer")).toBe(false);
+    expect(isCeo("access_officer")).toBe(false);
+    expect(isSalesManager("access_officer")).toBe(false);
+    expect(isLocationBound("access_officer")).toBe(true);
+    expect(roleLabel("access_officer")).toBe("Access Officer");
+  });
+
+  it("hasRole matches it exactly", () => {
+    expect(hasRole({ role: "Access Officer" }, "access_officer")).toBe(true);
+    expect(hasRole({ role: "Access Officer" }, "admin")).toBe(false);
+  });
+
+  it("is stored as the API spelled it when it is the highest role of a sign-in", () => {
+    expect(primaryRoleName(["general", "access_officer"])).toBe("access_officer");
+    expect(primaryRoleName(["super_admin", "Access Officer"])).toBe("Access Officer");
+    expect(primaryRoleName(["access_officer", "sales_manager"])).toBe("sales_manager");
   });
 });
 
