@@ -20,6 +20,7 @@ import { errorMessage } from "../../../services/apiClient";
 import { SALES_EMAIL, SALES_WHATSAPP_NUMBER, submitContactMessage } from "../../../services/tourService";
 import { isValidEmail } from "../../../utils/validation";
 import { formatPhoneInput, phoneError, PHONE_MAX_LENGTH } from "../../../utils/phone";
+import { nameError } from "../../../utils/inputSanitizer";
 
 type Errors = Partial<Record<"fullName" | "email" | "phone" | "message", string>>;
 
@@ -47,7 +48,8 @@ export default function ContactUsScreen() {
   const submit = async () => {
     if (sending) return;
     const next: Errors = {};
-    if (fullName.trim().length < 2) next.fullName = "Enter your full name.";
+    const nameProblem = nameError(fullName, "Full name");
+    if (nameProblem) next.fullName = nameProblem;
     if (!isValidEmail(email.trim())) next.email = "Enter a valid email address.";
     if (phone.trim() && phoneError(phone)) next.phone = phoneError(phone) ?? undefined;
     if (message.trim().length < 5) next.message = "Write a short message.";
@@ -57,7 +59,7 @@ export default function ContactUsScreen() {
     setFormError("");
     try {
       const result = await submitContactMessage({ fullName, email, phone, message });
-      toast.success(`${result} We will get back to you soon.`, { title: "Message sent" });
+      toast.success(result, { title: "Message sent" });
       setMessage("");
     } catch (err) {
       setFormError(errorMessage(err, "Your message could not be sent. Please try again."));
@@ -103,8 +105,10 @@ export default function ContactUsScreen() {
                 value={fullName}
                 onChangeText={(v) => {
                   setFullName(v);
-                  clear("fullName");
+                  // Characters a name can't have are pointed out while typing; the rest when leaving the field.
+                  setErrors((e) => ({ ...e, fullName: nameError(v, "Full name", { typing: true }) ?? undefined }));
                 }}
+                onBlur={() => setErrors((e) => ({ ...e, fullName: nameError(fullName, "Full name") ?? undefined }))}
                 autoCapitalize="words"
                 autoComplete="name"
                 returnKeyType="next"

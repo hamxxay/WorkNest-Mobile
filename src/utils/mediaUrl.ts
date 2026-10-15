@@ -34,24 +34,20 @@ export function resolveMediaUrl(value?: string | null): string | null {
   }
 
   if (input.startsWith("//")) {
-    return `https:${input}`;
+    return encodeLoose(`https:${input}`);
   }
 
-  if (/^https?:\/\//i.test(input)) {
-    try {
-      const direct = new URL(input);
-      const finalUrl =
-        direct.protocol === "http:"
-          ? direct.toString().replace(/^http:\/\//i, "https://")
-          : direct.toString();
-      return encodeURI(finalUrl);
-    } catch {
-      return null;
-    }
+  // A full URL from the API is used as it is (already encoded: %2F must stay %2F, and http stays http); only raw
+  // spaces are encoded.
+  if (/^https?:\/\/[^/\s]/i.test(input)) {
+    return input.replace(/ /g, "%20");
+  }
+  if (/^https?:/i.test(input)) {
+    return null; // "http://" without a host
   }
 
   if (/^www\./i.test(input)) {
-    return encodeURI(`https://${input}`);
+    return encodeLoose(`https://${input}`);
   }
 
   const { origin, appBasePath } = getApiBaseParts();
@@ -70,5 +66,17 @@ export function resolveMediaUrl(value?: string | null): string | null {
     ? `${appBasePath}${normalizedPath}`
     : normalizedPath;
 
-  return encodeURI(`${origin}${finalPath}`);
+  return encodeLoose(`${origin}${finalPath}`);
+}
+
+/**
+ * encodeURI for a path the API sent raw (spaces, non-ASCII file names) that keeps escapes already in it: "a%2Fb"
+ * stays "a%2Fb" (encodeURI alone would turn it into "a%252Fb").
+ */
+function encodeLoose(url: string): string {
+  try {
+    return encodeURI(url).replace(/%25([0-9A-Fa-f]{2})/g, "%$1");
+  } catch {
+    return url.replace(/ /g, "%20");
+  }
 }

@@ -16,7 +16,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme, useThemeColors, useThemedStyles, type AppColors, type Theme } from "../theme";
 import { IconButton } from "./ui";
 import { useTabBarSpace } from "./ui/TabBar";
-import { CHAT_QUICK_QUESTIONS, getBotReply } from "./chatBotReplies";
+import { CHAT_QUICK_QUESTIONS, getBotReply, type BotContext } from "./chatBotReplies";
+import { getLocations } from "../services/workspaceService";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Message = { id: string; text: string; from: "user" | "bot" };
@@ -41,6 +42,21 @@ export function ChatBot({ visible = true }: { visible?: boolean }) {
   const listRef = useRef<FlatList>(null);
   // Message ids from a counter: two messages in the same millisecond never share a React key.
   const nextId = useRef(1);
+  // What the answers can use from the API (the locations by name), loaded once when the chat is first opened.
+  const context = useRef<BotContext>({});
+  const contextRequested = useRef(false);
+  useEffect(() => {
+    if (!open || contextRequested.current) return;
+    contextRequested.current = true;
+    getLocations()
+      .then((rows) => {
+        const active = rows.filter((l) => (l as { isActive?: boolean }).isActive !== false && l.name);
+        context.current = { ...context.current, locations: active.map((l) => ({ name: l.name, address: l.address })) };
+      })
+      .catch(() => {
+        contextRequested.current = false; // try again the next time the chat opens
+      });
+  }, [open]);
 
   function send(text: string) {
     const trimmed = text.trim();
@@ -50,7 +66,7 @@ export function ChatBot({ visible = true }: { visible?: boolean }) {
     setInput("");
     setTyping(true);
     setTimeout(() => {
-      const reply = getBotReply(trimmed);
+      const reply = getBotReply(trimmed, context.current);
       setMessages((prev) => [...prev, { id: `m${nextId.current++}`, from: "bot", text: reply }]);
       setTyping(false);
     }, 650);

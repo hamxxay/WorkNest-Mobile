@@ -65,9 +65,14 @@ export function buildTourWhatsAppText(request: TourRequest): string {
   return parts.join("\n");
 }
 
+/** What the app says when a tour request was saved (the API's own text, e.g. "Contact recorded.", is for staff). */
+export const TOUR_SENT_MESSAGE = "Your tour request has been sent. Our team will contact you to confirm the visit.";
+/** What the app says when a contact message was saved. */
+export const CONTACT_SENT_MESSAGE = "Your message has been sent. We will get back to you soon.";
+
 /**
  * POST /book-tour — saves the tour request (no sign-in needed; when signed in the API records who sent it).
- * Throws a readable error for invalid details or a refused request.
+ * Resolves with the app's confirmation text. Throws a readable error for invalid details or a refused request.
  */
 export async function submitTourRequest(request: TourRequest): Promise<string> {
   const phone = (request.phone ?? "").trim();
@@ -83,7 +88,7 @@ export async function submitTourRequest(request: TourRequest): Promise<string> {
   };
   const locationId =
     request.locationId != null && Number.isInteger(request.locationId) && request.locationId > 0 ? request.locationId : undefined;
-  const payload = await apiRequest<{ message?: string }>(API_ENDPOINTS.contact.bookTour, {
+  await apiRequest<{ message?: string }>(API_ENDPOINTS.contact.bookTour, {
     method: "POST",
     requiresAuth: true,
     unwrapData: false,
@@ -95,7 +100,7 @@ export async function submitTourRequest(request: TourRequest): Promise<string> {
       ...(locationId ? { locationId } : {}),
     },
   });
-  return (typeof payload?.message === "string" && payload.message.trim()) || "Your tour request has been sent.";
+  return TOUR_SENT_MESSAGE;
 }
 
 // ─── Contact us ───────────────────────────────────────────────────────────────
@@ -107,14 +112,14 @@ export const SALES_EMAIL = "sales@worknestpk.com";
 
 /**
  * POST /contact — the public contact form (works signed out; when signed in the API records who sent it).
- * Throws a readable error for invalid details or a refused request.
+ * Resolves with the app's confirmation text. Throws a readable error for invalid details or a refused request.
  */
 export async function submitContactMessage(input: ContactMessage): Promise<string> {
   const phone = (input.phone ?? "").trim();
   if (phone && !isValidPhone(phone)) throw new ApiError(PHONE_ERROR, 400);
   const message = sanitizeTextForState(input.message ?? "", { maxLength: 1000 }).trim();
   if (message.length < 5) throw new ApiError("Please write a short message.", 400);
-  const payload = await apiRequest<{ message?: string }>(API_ENDPOINTS.contact.create, {
+  await apiRequest<{ message?: string }>(API_ENDPOINTS.contact.create, {
     method: "POST",
     requiresAuth: true,
     unwrapData: false,
@@ -125,5 +130,5 @@ export async function submitContactMessage(input: ContactMessage): Promise<strin
       message,
     },
   });
-  return (typeof payload?.message === "string" && payload.message.trim()) || "Your message has been sent.";
+  return CONTACT_SENT_MESSAGE;
 }

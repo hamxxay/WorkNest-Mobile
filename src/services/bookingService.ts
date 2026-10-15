@@ -6,6 +6,7 @@ import { isValidCnic, CNIC_ERROR } from "../utils/cnic";
 import { isValidPhone, PHONE_ERROR } from "../utils/phone";
 import { parseDate } from "../utils/format";
 import { normalizeBreakdownFields, type BreakdownField } from "./amountBreakdown";
+import { periodPrice } from "./workspaceService";
 
 // ─── Staff (admin / sales executive) ──────────────────────────────────────────
 
@@ -547,17 +548,32 @@ export function categoryCodeForMode(mode: "shared" | "meeting" | "office"): Smar
 
 /** Spaces still free for a period (GET /booking/smart/available), with the API's listed prices. */
 export type SmartAvailability = {
-  /** How many spaces of the category are free for the whole period. */
+  /** How many spaces of the category (at the location) are free for the whole period and can be booked (priced). */
   count: number;
-  /** Lowest listed seat price among them (per billingPeriodCode), null when the API sent none. */
+  /** Free spaces without a listed price for the period: they can't be booked in the app. */
+  unpricedCount: number;
+  /**
+   * Listed price per billing period of the space a booking for this period gets (the first bookable one, smallest
+   * first, as the API assigns it): a private office's whole-office price, otherwise the seat price. Null when none.
+   */
+  price: number | null;
+  /** Seats of that space (private offices are priced per office). */
+  seats: number | null;
+  /** Lowest listed price per billing period among the bookable spaces (same rule as `price`). */
   fromPrice: number | null;
   billingPeriodCode: string | null;
   securityDeposit: number | null;
 };
 
+/** The booking period a category is charged by: offices and shared desks monthly, meeting rooms hourly. */
+function bookingPeriodOf(categoryCode: string): string {
+  return /^(privateoffice|sharedspace)$/i.test(categoryCode) ? "monthly" : "hourly";
+}
+
 /**
- * GET /booking/smart/available — is a space of this category free for the period? Public endpoint (works for
- * guests). Throws a readable ApiError on failure.
+ * GET /booking/smart/available — is a space of this category free for the period at this location? Public endpoint
+ * (works for guests). Only spaces with a price for the booking period count (the API's Bookable flag; older APIs:
+ * a price of the category's period). Throws a readable ApiError on failure.
  */
 export async function getSmartAvailability(input: {
   categoryCode: string;
@@ -565,6 +581,8 @@ export async function getSmartAvailability(input: {
   endOn: string;
   capacity?: number;
   shiftType?: string;
+  /** The card's location (WN_Locations.Id): only its spaces are counted. */
+  locationId?: number;
 }): Promise<SmartAvailability> {
   const params = new URLSearchParams();
   params.set("categoryCode", input.categoryCode);
@@ -572,16 +590,41 @@ export async function getSmartAvailability(input: {
   params.set("endOn", input.endOn);
   if (input.capacity && input.capacity > 0) params.set("capacity", String(input.capacity));
   if (input.shiftType) params.set("shiftType", input.shiftType);
+  if (input.locationId && input.locationId > 0) params.set("locationId", String(input.locationId));
   const payload = await apiRequest<unknown>(`${API_ENDPOINTS.workspaces.smartAvailable}?${params.toString()}`, {
     requiresAuth: true,
   });
-  const rows = listFrom(payload) as Array<Record<string, unknown>>;
-  const prices = rows
-    .map((r) => amountOrNull(pick(r, "seatPrice", "SeatPrice")))
-    .filter((n): n is number => n !== null && n > 0);
-  const first = rows[0] ?? {};
+  let rows = listFrom(payload) as Array<Record<string, unknown>>;
+  // An API without the location filter answers for every location: keep the card's location only.
+  if (input.locationId && input.locationId > 0) {
+    rows = rows.filter((r) => {
+      const loc = idOrNull(pick(r, "locationId", "LocationId"));
+      return loc === null || loc === input.locationId;
+    });
+  }
+  const period = bookingPeriodOf(input.categoryCode);
+  const priceOf = (r: Record<string, unknown>) =>
+    periodPrice({
+      categoryCode: textOrNull(pick(r, "categoryCode", "CategoryCode")) ?? input.categoryCode,
+      seatPrice: amountOrNull(pick(r, "seatPrice", "SeatPrice")),
+      roomPrice: amountOrNull(pick(r, "roomPrice", "RoomPrice")),
+      capacity: amountOrNull(pick(r, "capacity", "Capacity")),
+    });
+  const bookable = rows.filter((r) => {
+    const flag = pick(r, "bookable", "Bookable");
+    const ok =
+      typeof flag === "boolean"
+        ? flag
+        : text(pick(r, "billingPeriodCode", "BillingPeriodCode")).toLowerCase() === period;
+    return ok && priceOf(r) > 0;
+  });
+  const prices = bookable.map(priceOf);
+  const first = bookable[0] ?? {};
   return {
-    count: rows.length,
+    count: bookable.length,
+    unpricedCount: rows.length - bookable.length,
+    price: bookable.length ? priceOf(first) : null,
+    seats: bookable.length ? amountOrNull(pick(first, "capacity", "Capacity")) : null,
     fromPrice: prices.length ? Math.min(...prices) : null,
     billingPeriodCode: textOrNull(pick(first, "billingPeriodCode", "BillingPeriodCode")),
     securityDeposit: amountOrNull(pick(first, "securityDeposit", "SecurityDeposit")),
@@ -601,6 +644,8 @@ export type BookingCustomerProfile = {
 export type SmartBookingInput = {
   /** The space category code from GET /space/available (preferred), or categoryCodeForMode(...). */
   categoryCode: SmartBookingCategory | (string & {});
+  /** The card's location (WN_Locations.Id): the API books a space of this location only. */
+  locationId?: number;
   /** Local date-time, e.g. 2026-10-14T09:00:00. */
   startDateTime: string;
   endDateTime: string;
@@ -624,6 +669,8 @@ export type CreatedBooking = {
   monthlyRent: number | null;
   billingPeriodMonths: number | null;
   assignedSpaceName: string | null;
+  /** The API returned the same booking made a moment ago (sent again, e.g. after a time-out): nothing new was booked. */
+  duplicate: boolean;
 };
 
 /** The API needs the customer's details (first booking): ask for them and send the booking again with `profile`. */
@@ -649,6 +696,10 @@ export function normalizeCreatedBooking(input: unknown): CreatedBooking {
     monthlyRent: amountOrNull(pick(raw, "monthlyRent", "MonthlyRent")),
     billingPeriodMonths: amountOrNull(pick(raw, "billingPeriodMonths", "BillingPeriodMonths")),
     assignedSpaceName: textOrNull(pick(raw, "assignedSpaceName", "AssignedSpaceName", "spaceName", "SpaceName")),
+    duplicate: (() => {
+      const flag = pick(raw, "isDuplicate", "IsDuplicate");
+      return flag === true || flag === 1 || flag === "true";
+    })(),
   };
 }
 
@@ -683,13 +734,65 @@ function asProfileRequired(error: unknown): unknown {
 }
 
 /**
- * POST /booking/smart — books a space of the chosen category; the API picks the space, prices it and issues
- * the bank challan. Resolves with the API's booking (show its challan next). Throws CustomerProfileRequiredError
- * when the API first needs the customer's details, or a readable ApiError otherwise.
+ * How long the app waits for POST /booking/smart (it creates the booking, its invoice and challan; 20 s was not
+ * always enough, and a time-out tempted customers to book twice).
+ */
+export const SMART_BOOKING_TIMEOUT_MS = 60000;
+
+/**
+ * True when a booking request failed in a way that does not tell whether the booking was made: no answer (time-out,
+ * connection lost) or a gateway error. The customer must check My Bookings before trying again.
+ */
+export function bookingOutcomeUnknown(error: unknown): boolean {
+  if (!(error instanceof ApiError) || error instanceof CustomerProfileRequiredError) return false;
+  return error.status === 0 || error.status === 502 || error.status === 503 || error.status === 504;
+}
+
+export const BOOKING_OUTCOME_UNKNOWN_MESSAGE =
+  "We could not confirm whether your booking was made. Check My Bookings before trying again.";
+
+/** "2026-10-14T09:00:00", "2026-10-14 09:00" ... -> "2026-10-14T09:00" (for comparing booking periods). */
+function minuteKey(value: string | null | undefined): string {
+  const m = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})/.exec(String(value ?? "").trim());
+  if (m) return `${m[1]}T${m[2]}:${m[3]}`;
+  const dateOnly = /^(\d{4}-\d{2}-\d{2})$/.exec(String(value ?? "").trim());
+  return dateOnly ? `${dateOnly[1]}T00:00` : "";
+}
+
+/**
+ * After a booking request with no answer: the customer's own booking for exactly this period, if the API made it
+ * (newest first; never a cancelled or rejected one). Null when there is none. Throws when My Bookings can't be read.
+ */
+export async function findBookingForPeriod(input: {
+  startDateTime: string;
+  endDateTime: string;
+  locationName?: string | null;
+}): Promise<MyBooking | null> {
+  const start = minuteKey(input.startDateTime);
+  const end = minuteKey(input.endDateTime);
+  if (!start || !end) return null;
+  const location = (input.locationName ?? "").trim().toLowerCase();
+  const bookings = await getMyBookings();
+  return (
+    bookings.find((b) => {
+      const status = `${b.status} ${b.statusCode ?? ""}`.toLowerCase();
+      if (/cancel|reject|no.?show/.test(status)) return false;
+      if (minuteKey(b.startOn) !== start || minuteKey(b.endOn) !== end) return false;
+      return !location || !b.locationName || b.locationName.trim().toLowerCase() === location;
+    }) ?? null
+  );
+}
+
+/**
+ * POST /booking/smart — books a space of the chosen category at the chosen location; the API picks the space,
+ * prices it and issues the bank challan. Resolves with the API's booking (show its challan next; `duplicate` when
+ * the API returned the same booking made a moment ago). Throws CustomerProfileRequiredError when the API first needs
+ * the customer's details, or a readable ApiError otherwise (see bookingOutcomeUnknown for a time-out).
  */
 export async function createSmartBooking(input: SmartBookingInput): Promise<CreatedBooking> {
   const body = {
     categoryCode: input.categoryCode,
+    locationId: input.locationId && input.locationId > 0 ? input.locationId : undefined,
     startDateTime: input.startDateTime,
     endDateTime: input.endDateTime,
     capacity: input.capacity && input.capacity > 0 ? input.capacity : undefined,
@@ -702,6 +805,7 @@ export async function createSmartBooking(input: SmartBookingInput): Promise<Crea
       method: "POST",
       requiresAuth: true,
       body,
+      timeoutMs: SMART_BOOKING_TIMEOUT_MS,
     });
     const created = normalizeCreatedBooking(payload);
     if (!created.bookingId) {

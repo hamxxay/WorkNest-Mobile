@@ -35,7 +35,10 @@ function matchesType(ws: Workspace, type: SpaceTypeFilter): boolean {
   return ws.type === "Private Office" || ws.type === "Event Space";
 }
 
-/** All spaces open for booking (GET /space/available) with search, type and location filters. */
+/**
+ * Every space type open for booking at each location (GET /space/available), including types fully booked right
+ * now (the booking checks the dates chosen), with search, type and location filters.
+ */
 export default function SpacesScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<RouteProp<AppStackParamList, "Spaces">>();
@@ -85,7 +88,7 @@ export default function SpacesScreen() {
 
   return (
     <Screen>
-      <AppHeader title="Book a space" subtitle="Spaces open for booking now" />
+      <AppHeader title="Book a space" subtitle="Choose a space type and location" />
       <AsyncList
         data={filtered}
         keyExtractor={(ws) => `${ws.id}-${ws.location}-${ws.type}`}
@@ -140,7 +143,7 @@ export default function SpacesScreen() {
               }
             : {
                 illustration: "building",
-                title: "No spaces open right now",
+                title: "No spaces listed yet",
                 message: "Book a tour and our team will show you what fits.",
                 actionLabel: "Book a tour",
                 onAction: () => navigation.navigate("BookTour"),

@@ -25,8 +25,9 @@ type Nav = NativeStackNavigationProp<AppStackParamList>;
 
 /**
  * One space category (type) at one location, summarising its spaces from GET /space/available: seats from the
- * smallest to the largest space and the lowest listed rate. "Book this space" starts the booking; WorkNest then
- * assigns a space of this type.
+ * smallest to the largest space and the lowest listed rate. "Book this space" starts the booking even when every
+ * space is taken right now (a later period may be free: the next step checks the dates chosen); WorkNest then
+ * assigns a space of this type at this location.
  */
 export default function SpaceDetailScreen() {
   const navigation = useNavigation<Nav>();
@@ -35,7 +36,8 @@ export default function SpaceDetailScreen() {
   const styles = useThemedStyles(createStyles);
   const { user } = useAuth();
   const availability = availabilityOf(workspace);
-  const bookable = workspace.available && workspace.availableCount > 0;
+  const bookable = workspace.bookable !== false && workspace.price > 0;
+  const fullNow = bookable && (!workspace.available || workspace.availableCount <= 0);
   const seats = capacityLabel(workspace);
 
   const book = () => {
@@ -78,6 +80,22 @@ export default function SpaceDetailScreen() {
           </>
         ) : null}
 
+        {fullNow ? (
+          <Banner
+            tone="warning"
+            title="Fully booked right now"
+            message="Every space of this type here is taken at the moment. Choose your dates on the next step to see whether a later period is free."
+          />
+        ) : null}
+
+        {!bookable ? (
+          <Banner
+            tone="info"
+            title="Price on request"
+            message="This space type has no listed price yet, so it can't be booked in the app. Book a tour and our team will help you."
+          />
+        ) : null}
+
         <Banner
           tone="info"
           title="Paid by bank challan"
@@ -86,7 +104,7 @@ export default function SpaceDetailScreen() {
 
         <View style={styles.actions}>
           <Button
-            title={bookable ? "Book this space" : "Fully booked"}
+            title={bookable ? "Book this space" : "Not bookable in the app"}
             leftIcon="calendar-outline"
             size="lg"
             fullWidth
