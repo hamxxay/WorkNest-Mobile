@@ -26,6 +26,7 @@ import { spacing } from "../../../../theme";
 import { StaffScreen } from "../shared/StaffScreen";
 import { useStaffSession } from "../shared/StaffSession";
 import { useSingleFlight } from "../shared/hooks";
+import { AccountSecurityCard } from "../../../../components/account/AccountSecurityCard";
 
 /**
  * Staff profile: name and phone (PUT auth/me, as the CMS profile page), role and assigned locations, appearance
@@ -146,6 +147,9 @@ export default function StaffProfileScreen() {
               <Button title="Save changes" onPress={save} loading={saving} disabled={!dirty || saving} leftIcon="checkmark" />
             </View>
           </Card>
+
+          <SectionHeader title="Account" variant="overline" />
+          <AccountSecurityCard />
 
           <SectionHeader title="Appearance" variant="overline" />
           <Card>
