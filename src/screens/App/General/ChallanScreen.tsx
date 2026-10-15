@@ -189,7 +189,7 @@ export default function ChallanScreen() {
           ) : state.isVoid && refund ? (
             <Banner
               tone="warning"
-              title={`Booking ${statusLabel(challan.bookingStatus).toLowerCase()}`}
+              title="Refund"
               message={refund}
               actionLabel="Contact us"
               onAction={() => navigation.navigate("ContactUs")}
