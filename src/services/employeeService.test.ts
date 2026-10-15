@@ -329,11 +329,19 @@ describe("validateEmployeeForm", () => {
     expect(validateEmployeeForm({ ...valid, idNumber: "6110112345671" })).toEqual({});
   });
 
-  it("checks the full name length (2-200)", () => {
+  it("checks the full name length (2-150, the API's limit)", () => {
     expect(validateEmployeeForm({ ...valid, fullName: "  " }).fullName).toBe("Enter the employee's full name.");
     expect(validateEmployeeForm({ ...valid, fullName: "A" }).fullName).toMatch(/at least 2/);
-    expect(validateEmployeeForm({ ...valid, fullName: "A".repeat(201) }).fullName).toMatch(/200 characters or fewer/);
+    expect(validateEmployeeForm({ ...valid, fullName: "A".repeat(151) }).fullName).toBe("Full name must be 150 characters or fewer.");
+    expect(validateEmployeeForm({ ...valid, fullName: "A".repeat(150) }).fullName).toBeUndefined();
     expect(validateEmployeeForm({ ...valid, fullName: "Al" }).fullName).toBeUndefined();
+  });
+
+  it("limits the email to 150 characters like the API", () => {
+    const at150 = `${"a".repeat(140)}@email.com`;
+    expect(at150).toHaveLength(150);
+    expect(validateEmployeeForm({ ...valid, email: at150 }).email).toBeUndefined();
+    expect(validateEmployeeForm({ ...valid, email: `a${at150}` }).email).toBe("Email must be 150 characters or fewer.");
   });
 
   it("checks email and phone only when given", () => {

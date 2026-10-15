@@ -43,14 +43,22 @@ const alertConfirm: ConfirmFn = options =>
 /** Mounted once in App.tsx. Renders the single ConfirmDialog that useConfirm() drives. */
 export function ConfirmProvider({ children }: { children: ReactNode }) {
   const pendingRef = useRef<Pending | null>(null);
+  // In-flight guard read synchronously: `busy` state only changes on the next render, so a fast double tap could
+  // run onConfirm (e.g. "Cancel booking") twice before the spinner showed.
+  const busyRef = useRef(false);
   const [options, setOptions] = useState<ConfirmOptions | null>(null);
   const [visible, setVisible] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  const setInFlight = (value: boolean) => {
+    busyRef.current = value;
+    setBusy(value);
+  };
+
   const close = () => {
     pendingRef.current = null;
     setVisible(false);
-    setBusy(false);
+    setInFlight(false);
   };
 
   const confirm = useCallback<ConfirmFn>(
@@ -60,6 +68,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
         pendingRef.current?.resolve(false);
         pendingRef.current = { options: next, resolve, reject };
         setOptions(next);
+        busyRef.current = false;
         setBusy(false);
         setVisible(true);
       }),
@@ -68,13 +77,13 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
 
   const handleConfirm = async () => {
     const pending = pendingRef.current;
-    if (!pending || busy) return;
+    if (!pending || busyRef.current) return;
     if (!pending.options.onConfirm) {
       close();
       pending.resolve(true);
       return;
     }
-    setBusy(true);
+    setInFlight(true);
     try {
       await pending.options.onConfirm();
       if (pendingRef.current === pending) close();
@@ -87,7 +96,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
 
   const handleCancel = () => {
     const pending = pendingRef.current;
-    if (!pending || busy) return;
+    if (!pending || busyRef.current) return;
     close();
     pending.resolve(false);
   };
