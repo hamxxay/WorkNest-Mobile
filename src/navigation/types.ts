@@ -19,6 +19,13 @@ export type MainTabParamList = {
 export type AuthStackParamList = {
   Login: { redirectAfterLogin?: { screen: keyof AppStackParamList; params?: any } } | undefined;
   Signup: { redirectAfterLogin?: { screen: keyof AppStackParamList; params?: any } } | undefined;
+  /** A new email account (or one the API says is not verified yet) waits here for the email link. */
+  VerifyEmail: VerifyEmailParams;
+};
+
+export type VerifyEmailParams = {
+  email: string;
+  redirectAfterLogin?: { screen: keyof AppStackParamList; params?: any };
 };
 
 /** A space card from GET /space/available (one per location + space type). */
@@ -72,6 +79,7 @@ export type AppStackParamList = {
   UnlockDoor: undefined;
   Login: { redirectAfterLogin?: { screen: keyof AppStackParamList; params?: any } } | undefined;
   Signup: { redirectAfterLogin?: { screen: keyof AppStackParamList; params?: any } } | undefined;
+  VerifyEmail: VerifyEmailParams;
 };
 
 export type RootStackParamList = {

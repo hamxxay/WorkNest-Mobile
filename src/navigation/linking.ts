@@ -1,6 +1,7 @@
 import { Linking } from "react-native";
 import type { LinkingOptions } from "@react-navigation/native";
 import type { RootStackParamList } from "./types";
+import { APP_LINK_PREFIXES } from "./appLinks";
 import {
   getInitialNotificationLink,
   subscribeToNotificationOpens,
@@ -13,7 +14,8 @@ export const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com
 
 // ─── Deep link scheme ─────────────────────────────────────────────────────────
 // Supported deep links:
-//   myapp://quotation/QUO-1001                         → custom scheme (always works if app installed)
+//   worknest://quotation/QUO-1001                      → the app's own scheme (always works if app installed)
+//   myapp://quotation/QUO-1001                         → the old scheme, still accepted for links already sent
 //   https://work-nest-3936a.web.app/quotation/QUO-1001 → Firebase Hosting universal link
 //   https://worknestpk.com/quotation/QUO-1001          → custom domain universal link
 //
@@ -25,7 +27,7 @@ export const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com
 //          └── QuotationList, Quotation, Spaces, Gallery, BookTour, Notifications, ... (pushed screens)
 //
 // Test with adb:
-//   adb shell am start -W -a android.intent.action.VIEW -d "myapp://quotation/QUO-1001" com.worknestmobile
+//   adb shell am start -W -a android.intent.action.VIEW -d "worknest://quotation/QUO-1001" com.worknestmobile
 //   adb shell am start -W -a android.intent.action.VIEW -d "https://work-nest-3936a.web.app/quotation/QUO-1001" com.worknestmobile
 //
 // For Firebase Hosting App Links, host assetlinks.json at:
@@ -38,13 +40,9 @@ export const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com
 // Old /invoice links open the Payments tab: customers have challans and payments, not an invoice list.
 
 export const linking: LinkingOptions<RootStackParamList> = {
-  // https and the custom scheme only: plain http links are not accepted (the Android intent filters are https
+  // https and the app's schemes only: plain http links are not accepted (the Android intent filters are https
   // only too), so a link can't be intercepted or rewritten on the way.
-  prefixes: [
-    "myapp://",
-    "https://work-nest-3936a.web.app",
-    "https://worknestpk.com",
-  ],
+  prefixes: APP_LINK_PREFIXES,
   async getInitialURL() {
     const url = await Linking.getInitialURL();
     if (url) return url;

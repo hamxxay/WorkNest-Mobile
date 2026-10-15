@@ -26,6 +26,7 @@ import { useThemeColors, useThemedStyles, type AppColors, type Theme } from "../
 import { Button } from "../../components/ui";
 import { MAX_CONTENT_WIDTH } from "../../utils/responsive";
 import { setOnboardingCompleted } from "../../utils/onboardingStorage";
+import { useAuth } from "../../context/AuthContext";
 import type { ImageSourcePropType } from "react-native";
 
 type Slide = {
@@ -150,12 +151,19 @@ export default function OnboardingScreen() {
   // Screen centres a MAX_CONTENT_WIDTH column on tablets; the carousel pages must match that column.
   const cardWidth = Math.min(screenWidth, MAX_CONTENT_WIDTH) - 40;
   const scrollX = useSharedValue(0);
+  const { user } = useAuth();
 
   const isLast = currentIndex === slides.length - 1;
 
+  // First launch: the introduction is shown before Login, so it continues to Login (or the app when signed in).
+  const leave = () => {
+    if (user) navigation.replace("AppStack", { screen: "MainTabs" });
+    else navigation.replace("AuthStack", { screen: "Login" });
+  };
+
   const finishOnboarding = async () => {
     await setOnboardingCompleted();
-    navigation.replace("AppStack", { screen: "MainTabs" });
+    leave();
   };
 
   const goToIndex = (index: number) => {
@@ -169,9 +177,7 @@ export default function OnboardingScreen() {
 
   const handleNext = () => {
     if (isLast) {
-      finishOnboarding().catch(() => {
-        navigation.replace("AppStack", { screen: "MainTabs" });
-      });
+      finishOnboarding().catch(leave);
       return;
     }
 
@@ -179,9 +185,7 @@ export default function OnboardingScreen() {
   };
 
   const handleSkip = () => {
-    finishOnboarding().catch(() => {
-      navigation.replace("AppStack", { screen: "MainTabs" });
-    });
+    finishOnboarding().catch(leave);
   };
 
   const handleMomentumEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {

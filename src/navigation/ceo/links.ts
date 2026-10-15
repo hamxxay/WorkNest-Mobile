@@ -8,9 +8,10 @@
 
 import type { NavigationState, PartialState } from "@react-navigation/native";
 import type { CeoStackParamList } from "../ceoTypes";
+import { APP_LINK_PREFIXES } from "../appLinks";
 
 /** Link prefixes (the same as the other apps': only one navigator is mounted at a time). */
-export const CEO_LINK_PREFIXES = ["myapp://", "https://work-nest-3936a.web.app", "https://worknestpk.com"];
+export const CEO_LINK_PREFIXES = APP_LINK_PREFIXES;
 
 /** Navigation state for any link path: the CEO dashboard alone. */
 export function ceoStateFromPath(_path?: string): PartialState<NavigationState<CeoStackParamList>> {

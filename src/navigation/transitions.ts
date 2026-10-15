@@ -51,6 +51,7 @@ export const CUSTOMER_FADE_ROUTES: ReadonlySet<keyof AppStackParamList> = new Se
   "MainTabs",
   "Login",
   "Signup",
+  "VerifyEmail",
 ]);
 
 /** Staff screens that open as a modal form over the current page. */

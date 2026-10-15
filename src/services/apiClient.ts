@@ -79,12 +79,15 @@ export function resetSessionExpiredState(): void {
 }
 
 /**
- * Sign-in endpoints (/auth/login, /auth/google-login, /auth/me, ...) answer 401 as part of their own flow
- * (wrong account, not verified yet): the screens show that message, so they never end the session here.
- * Same rule as the website's auth interceptor.
+ * Sign-in endpoints (/auth/login, /auth/google-login, /auth/register, /auth/sync, /auth/logout...) answer 401 as part
+ * of their own flow (wrong password, not verified yet): the screens show that message, so they never renew or end the
+ * session here. /auth/me (the signed-in user's profile) is an ordinary signed-in request: a 401 there renews the
+ * token once like any other call.
  */
 export function isAuthEndpoint(path: string): boolean {
-  return /^\/?auth(?:\/|\?|$)/i.test(path.trim());
+  const trimmed = path.trim();
+  if (/^\/?auth\/me(?:\/|\?|$)/i.test(trimmed)) return false;
+  return /^\/?auth(?:\/|\?|$)/i.test(trimmed);
 }
 
 /** A 401 on a request that carried our token, outside the sign-in endpoints, means the session is over. */

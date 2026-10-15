@@ -384,12 +384,15 @@ describe("notifications", () => {
   });
 
   it("turns a tapped notification into an app link", () => {
-    expect(notificationLink(undefined)).toBe("myapp://notifications");
-    expect(notificationLink({ screen: "bookings" })).toBe("myapp://bookings");
-    expect(notificationLink({ type: "challan" })).toBe("myapp://payments");
-    expect(notificationLink({ quotationId: "12" })).toBe("myapp://quotation/12");
+    expect(notificationLink(undefined)).toBe("worknest://notifications");
+    expect(notificationLink({ screen: "bookings" })).toBe("worknest://bookings");
+    expect(notificationLink({ type: "challan" })).toBe("worknest://payments");
+    expect(notificationLink({ quotationId: "12" })).toBe("worknest://quotation/12");
     expect(notificationLink({ link: "https://worknestpk.com/my-agreements" })).toBe("https://worknestpk.com/my-agreements");
-    expect(notificationLink({ link: "https://evil.example.com" })).toBe("myapp://notifications");
+    expect(notificationLink({ link: "https://evil.example.com" })).toBe("worknest://notifications");
+    // Links sent with the old scheme still open the app.
+    expect(notificationLink({ link: "myapp://bookings" })).toBe("myapp://bookings");
+    expect(notificationLink({ link: "worknest://payments" })).toBe("worknest://payments");
   });
 });
 

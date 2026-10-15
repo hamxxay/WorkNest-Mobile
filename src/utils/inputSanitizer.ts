@@ -103,6 +103,24 @@ export function sanitizePasswordInput(value: string): string {
   return normalized;
 }
 
+/**
+ * Sign-in password: used exactly as typed (spaces, commas, any symbol), only checked for being present. The
+ * strength rule above (sanitizePasswordInput) is for new passwords only: accounts made on the website or in the
+ * CMS can have any password Firebase accepts.
+ */
+export function sanitizeLoginPasswordInput(value: string): string {
+  const password = typeof value === "string" ? value : "";
+  if (!password) {
+    throw new Error("Enter your password.");
+  }
+  return password;
+}
+
+/** Password field state: kept as typed (no whitespace folding), only capped at the field limit. */
+export function passwordForState(value: string): string {
+  return trimToMax(typeof value === "string" ? value : "", INPUT_LIMITS.password);
+}
+
 export function sanitizeNameInput(value: string, fieldLabel = "Name"): string {
   const normalized = collapseWhitespace(removeControls(value));
   ensurePresent(normalized, fieldLabel);

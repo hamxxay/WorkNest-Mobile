@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { StyleSheet, Text, View, type TextInput } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -6,17 +6,20 @@ import type { RouteProp } from "@react-navigation/native";
 import type { AuthStackParamList, RootStackParamList, AppStackParamList } from "../../navigation/types";
 import { Banner, Button, ConfirmDialog, GoogleSignInButton, TextField } from "../../components/ui";
 import { useTheme } from "../../theme";
-import { ApiError } from "../../services/apiClient";
+import { errorMessage } from "../../services/apiClient";
 import {
   beginGoogleAuth,
   cancelGoogleAuth,
   confirmGoogleLogin,
   loginUser,
   requestPasswordReset,
+  takeSignOutNotice,
   type PendingGoogleAuth,
 } from "../../services/authService";
+import { isEmailNotVerified, isSignInCancelled } from "../../services/authErrors";
 import {
   INPUT_LIMITS,
+  passwordForState,
   sanitizeEmailInput,
   sanitizeTextForState,
 } from "../../utils/inputSanitizer";
@@ -43,6 +46,12 @@ export default function LoginScreen() {
   const [pendingGoogleAuth, setPendingGoogleAuth] = useState<PendingGoogleAuth | null>(null);
   const rootNavigation =
     navigation.getParent<NativeStackNavigationProp<RootStackParamList>>();
+
+  // Opened after the API ended the session (e.g. account turned off): its reason, shown once.
+  useEffect(() => {
+    const notice = takeSignOutNotice();
+    if (notice) setError(notice);
+  }, []);
   const busy = loading || googleLoading;
 
   // Signed in: the tabs, plus the screen the customer was opening (a quotation link, Book this space...) on top,
@@ -77,17 +86,20 @@ export default function LoginScreen() {
     try {
       setLoading(true);
       setError(null);
-      await loginUser({
-        email: sanitizeEmailInput(email),
-        password: sanitizeTextForState(password, { maxLength: INPUT_LIMITS.password }),
-      });
+      const address = sanitizeEmailInput(email);
+      // The password exactly as typed: spaces and any symbol are part of it.
+      await loginUser({ email: address, password });
       routeToApp();
     } catch (err) {
-      const message =
-        err instanceof ApiError
-          ? err.message
-          : "Unable to login right now. Please try again.";
-      setError(message);
+      if (isEmailNotVerified(err)) {
+        // A new account that hasn't opened the email link yet: the Verify screen can send it again.
+        navigation.navigate("VerifyEmail", {
+          email: email.trim().toLowerCase(),
+          ...(redirectAfterLogin ? { redirectAfterLogin } : {}),
+        });
+        return;
+      }
+      setError(errorMessage(err, "Unable to sign in right now. Please try again."));
     } finally {
       setLoading(false);
     }
@@ -101,11 +113,9 @@ export default function LoginScreen() {
       const pending = await beginGoogleAuth();
       setPendingGoogleAuth(pending);
     } catch (err) {
-      const message =
-        err instanceof ApiError || err instanceof Error
-          ? err.message
-          : "Unable to login with Google right now. Please try again.";
-      setError(message);
+      // Closing the Google account picker is not an error.
+      if (isSignInCancelled(err)) return;
+      setError(errorMessage(err, "Unable to sign in with Google right now. Please try again."));
     } finally {
       setGoogleLoading(false);
     }
@@ -123,11 +133,7 @@ export default function LoginScreen() {
       setPendingGoogleAuth(null);
       routeToApp();
     } catch (err) {
-      const message =
-        err instanceof ApiError || err instanceof Error
-          ? err.message
-          : "Unable to login with Google right now. Please try again.";
-      setError(message);
+      setError(errorMessage(err, "Unable to sign in with Google right now. Please try again."));
       setPendingGoogleAuth(null);
     } finally {
       setGoogleLoading(false);
@@ -150,11 +156,7 @@ export default function LoginScreen() {
       await requestPasswordReset(address);
       setResetSentTo(address);
     } catch (err) {
-      const message =
-        err instanceof ApiError || err instanceof Error
-          ? err.message
-          : "Unable to send a password reset email right now.";
-      setError(message);
+      setError(errorMessage(err, "Unable to send a password reset email right now."));
     } finally {
       setResetting(false);
     }
@@ -218,7 +220,7 @@ export default function LoginScreen() {
           placeholder="Enter your password"
           value={password}
           onChangeText={(value) => {
-            setPassword(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.password }));
+            setPassword(passwordForState(value));
             if (fieldErrors.password) setFieldErrors((prev) => ({ ...prev, password: undefined }));
           }}
           error={fieldErrors.password}
