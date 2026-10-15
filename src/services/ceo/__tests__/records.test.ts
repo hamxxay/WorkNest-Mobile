@@ -1,6 +1,6 @@
 // Records (drill level 3) as read-only cards, and the "Showing x of total" line.
 
-import { recordCards, showingText } from "../records";
+import { daysLeftText, recordCards, showingText } from "../records";
 
 describe("recordCards", () => {
   it("builds an invoice card with its figures, leaving out missing fields", () => {
@@ -79,6 +79,31 @@ describe("recordCards", () => {
         rows: [{ quotationId: 3, quotationNumber: null, customer: "Acme", location: "I-8", createdBy: "Sara", status: "Accepted", total: 5000, createdOn: "2026-10-02" }],
       })[0],
     ).toMatchObject({ title: "Quotation 3", amount: "PKR 5,000", fields: [{ label: "Created", value: "2 Oct 2026" }, { label: "Created by", value: "Sara" }] });
+  });
+});
+
+describe("lease cards (records/leases)", () => {
+  it("customer, space and location, monthly rent, end date and days left", () => {
+    const [card] = recordCards({
+      kind: "leases",
+      title: "Leases",
+      total: 1,
+      rows: [{ bookingId: 7, customer: "Acme", space: "Office 4", location: "I-8", endOn: "2026-11-02", monthlyAmount: 50000, daysLeft: 18 }],
+    });
+    expect(card).toMatchObject({
+      title: "Acme",
+      subtitle: "Office 4 · I-8",
+      status: null,
+      amount: "PKR 50,000/mo",
+      fields: [
+        { label: "Ends", value: "2 Nov 2026" },
+        { label: "Days left", value: "18 days" },
+        { label: "Booking", value: "#7" },
+      ],
+    });
+    expect(daysLeftText(0)).toBe("Today");
+    expect(daysLeftText(-1)).toBe("Ended 1 day ago");
+    expect(daysLeftText(null)).toBeNull();
   });
 });
 

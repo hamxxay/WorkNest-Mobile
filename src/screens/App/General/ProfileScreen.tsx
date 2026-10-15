@@ -30,14 +30,16 @@ import { errorMessage } from "../../../services/apiClient";
 import { getMyBookings, summarizeBookings, type BookingSummary } from "../../../services/bookingService";
 import { formatPhoneInput, phoneError, PHONE_MAX_LENGTH } from "../../../utils/phone";
 import { rootNavRef } from "../../../navigation/AppNavigator";
+import { AccountSecurityCard } from "../../../components/account/AccountSecurityCard";
 import type { AppStackParamList } from "../../../navigation/types";
 import { version as appVersion } from "../../../../package.json";
 
 type Nav = NativeStackNavigationProp<AppStackParamList>;
 
 /**
- * Profile (tab): account details (edit name and phone via PUT /auth/me), booking counts, appearance
- * (System / Light / Dark), shortcuts and sign out. Guests get sign in / sign up and the public pages.
+ * Profile (tab): account details (edit name and phone via PUT /auth/me), booking counts, account and security
+ * (change password, delete account), appearance (System / Light / Dark), shortcuts and sign out. Guests get sign in /
+ * sign up and the public pages.
  */
 export default function ProfileScreen() {
   const navigation = useNavigation<Nav>();
@@ -125,6 +127,17 @@ export default function ProfileScreen() {
     rootNavRef.current?.reset({ index: 0, routes: [{ name: "AppStack", params: { screen: "MainTabs" } }] });
   };
 
+  // Delete account finished: the account is gone on the server and this device is signed out.
+  const accountDeleted = (signInRemoved: boolean) => {
+    toast.success(
+      signInRemoved
+        ? "Your account and personal details have been removed. Thank you for using WorkNest."
+        : "Your account and personal details have been removed. Your Google / Firebase sign-in could not be removed right now: signing in again would start a new, empty account.",
+      { title: "Account deleted", duration: 6000 },
+    );
+    rootNavRef.current?.reset({ index: 0, routes: [{ name: "AppStack", params: { screen: "MainTabs" } }] });
+  };
+
   const exploreRows = (
     <Card padding={0}>
       <ListRow leftIcon="images-outline" title="Gallery" chevron onPress={() => navigation.navigate("Gallery")} />
@@ -201,6 +214,9 @@ export default function ProfileScreen() {
                 />
               )}
             </Card>
+
+            <SectionHeader title="Account and security" />
+            <AccountSecurityCard onDeleted={accountDeleted} />
           </>
         ) : (
           <Card>

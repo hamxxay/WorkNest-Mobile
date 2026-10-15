@@ -22,6 +22,7 @@ import {
   NO_BRANCH_LABEL,
   branchDisplayName,
   branchFilterOptions,
+  branchFilterParam,
   canMoveBranch,
   chosenBranchId,
   complaintSavePlan,
@@ -67,7 +68,7 @@ export default function ComplaintListScreen() {
   const locationId = locationFilters.some((o) => o.value === locationFilter) ? locationFilter : 0;
   const fetchPage = useCallback(
     (page: number) =>
-      listComplaints({ page, limit: PAGE_SIZE, search, status: status === "all" ? null : status, locationId: locationId || null }),
+      listComplaints({ page, limit: PAGE_SIZE, search, status: status === "all" ? null : status, locationId: branchFilterParam(locationId) ?? null }),
     [search, status, locationId],
   );
   const list = usePagedList(fetchPage);

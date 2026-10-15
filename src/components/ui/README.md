@@ -192,7 +192,7 @@ background, with matching light / dark icons, applied only while the screen is f
 ```
 
 Variants `primary | secondary | outline | ghost | danger`; sizes `sm 36 | md 48 | lg 54` (sm gets hitSlop to 44).
-IconButton variants `plain | tonal | outline | onDark | primary`; props `badge`, `dot`, `size`, `color`.
+IconButton variants `plain | tonal | outline | onDark | primary`; props `badge`, `dot`, `size`, `color`, `loading` (spinner in place of the icon, presses ignored).
 
 ### TextField
 

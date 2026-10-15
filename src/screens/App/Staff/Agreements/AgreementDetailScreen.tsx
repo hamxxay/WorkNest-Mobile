@@ -152,10 +152,13 @@ export default function AgreementDetailScreen() {
         <ConfirmSignedSheet
           agreement={a}
           onClose={() => setSignOpen(false)}
-          onDone={(message, updated) => {
+          onDone={(message, updated, signedOn) => {
             setSignOpen(false);
-            setAgreement(updated.id ? updated : { ...a, bookingId: updated.bookingId });
+            const next = updated.id ? updated : { ...a, bookingId: updated.bookingId };
+            setAgreement(next);
             toast.success(message);
+            // Next step, as in the CMS: the first invoice, dated on the signed agreement.
+            if (next.bookingId) navigation.navigate("BookingDetail", { bookingId: next.bookingId, offerInitialInvoice: { issuedOn: signedOn } });
           }}
         />
       ) : null}
@@ -171,7 +174,7 @@ function ConfirmSignedSheet({
 }: {
   agreement: StaffAgreement;
   onClose: () => void;
-  onDone: (message: string, updated: StaffAgreement) => void;
+  onDone: (message: string, updated: StaffAgreement, signedOn: string) => void;
 }) {
   const sent = parseDate(agreement.sentDate);
   const [signedDate, setSignedDate] = useState<Date | null>(null);
@@ -184,8 +187,9 @@ function ConfirmSignedSheet({
     setSaving(true);
     setError(null);
     try {
-      const result = await signAgreement(agreement.id, { signedDate: toApiDate(signedDate), note });
-      onDone(result.message, result.data);
+      const signedOn = toApiDate(signedDate);
+      const result = await signAgreement(agreement.id, { signedDate: signedOn, note });
+      onDone(result.message, result.data, signedOn);
     } catch (err) {
       setError(errorMessage(err, "Could not confirm the agreement."));
     } finally {

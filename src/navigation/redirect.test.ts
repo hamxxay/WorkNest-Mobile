@@ -21,5 +21,8 @@ describe("after sign-in / sign-up", () => {
       { name: "MainTabs", params: { screen: "Bookings" } },
     ]);
     expect(signedInState({ screen: "Login" }).routes[0].state.routes).toEqual([{ name: "MainTabs", params: undefined }]);
+    expect(signedInState({ screen: "VerifyEmail", params: { email: "a@b.co" } }).routes[0].state.routes).toEqual([
+      { name: "MainTabs", params: undefined },
+    ]);
   });
 });

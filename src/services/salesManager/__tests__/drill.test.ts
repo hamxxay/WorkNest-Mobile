@@ -4,6 +4,14 @@
 import {
   SM_BREAKDOWN_ROOTS,
   isCompleteSmBreakdown,
+  isPeriodFreeList,
+  smComplaintRecords,
+  smDesksMonthLists,
+  smExpiringLeasesRecords,
+  smLocationText,
+  smScopeNotes,
+  smSecondaryRecordsForBreakdownRow,
+  smShowsComplaintBranches,
   smBreakdownParams,
   smBreakdownRowDetail,
   smBreakdownRowFigure,
@@ -219,5 +227,121 @@ describe("direct-to-records clicks", () => {
     expect(smInquiryMonthRecords("July", { locationId: 5 })).toBeNull();
     expect(smInquiryMonthRecords("July")).toBeNull();
     expect(smInquiryMonthRecords(undefined)).toBeNull();
+  });
+});
+
+describe("desks-month: bookings made and leases ending that month", () => {
+  const q = (month: string) => ({ metric: "desks-month" as const, month, period: "month" as const, locationId: null });
+  const desksRow = (value: number, value2: number | null): SmBreakdownRow => ({ key: "1", label: "I-8", value, value2, count: null });
+
+  it("a future month opens the leases ending then (nothing can be booked in it yet), with no second list", () => {
+    // Nov 2026 seen on 14 Oct 2026: 0 desks booked, 3 ending (the QA case: the bookings list was empty).
+    expect(smDesksMonthLists("2026-11", desksRow(0, 3), TODAY)).toEqual({ primary: "leases", secondary: null });
+    expect(smRecordsForBreakdownRow(q("2026-11"), desksRow(0, 3), TODAY)).toEqual({ kind: "leases", params: { month: "2026-11", locationId: 1 } });
+    expect(smRecordsForBreakdownRow(q("2027-01"), desksRow(0, 0), TODAY)?.kind).toBe("leases");
+    expect(smSecondaryRecordsForBreakdownRow(q("2026-11"), desksRow(0, 3), TODAY)).toBeNull();
+  });
+
+  it("no desks booked but desks ending: the leases, offering the month's bookings too", () => {
+    expect(smRecordsForBreakdownRow(q("2026-09"), desksRow(0, 4), TODAY)?.kind).toBe("leases");
+    expect(smSecondaryRecordsForBreakdownRow(q("2026-09"), desksRow(0, 4), TODAY)).toEqual({
+      title: "Bookings made in Sep 2026",
+      subtitle: "0 desks booked",
+      records: { kind: "bookings", params: { month: "2026-09", locationId: 1 } },
+    });
+  });
+
+  it("desks booked: the bookings, offering the leases ending that month when there are any", () => {
+    expect(smRecordsForBreakdownRow(q("2026-10"), desksRow(82, 3), TODAY)).toEqual({ kind: "bookings", params: { month: "2026-10", locationId: 1 } });
+    expect(smSecondaryRecordsForBreakdownRow(q("2026-10"), desksRow(82, 3), TODAY)).toEqual({
+      title: "Leases ending in Oct 2026",
+      subtitle: "3 desks ending",
+      records: { kind: "leases", params: { month: "2026-10", locationId: 1 } },
+    });
+    expect(smSecondaryRecordsForBreakdownRow(q("2026-10"), desksRow(82, 0), TODAY)).toBeNull();
+    // A past month with nothing at all: its bookings (meeting rooms hold 0 desks).
+    expect(smRecordsForBreakdownRow(q("2026-08"), desksRow(0, 0), TODAY)?.kind).toBe("bookings");
+  });
+
+  it("other metrics and rows without a location offer no second list", () => {
+    expect(smSecondaryRecordsForBreakdownRow({ metric: "funnel-month", month: "2026-10", period: "month" }, desksRow(5, 3), TODAY)).toBeNull();
+    expect(smSecondaryRecordsForBreakdownRow(q("2026-10"), { ...desksRow(5, 3), key: "none" }, TODAY)).toBeNull();
+  });
+});
+
+describe("leases expiring: the full list", () => {
+  it("the next 90 days (the API's default window), or the next 30 as from / to; with the location filter", () => {
+    expect(smExpiringLeasesRecords({ locationId: 2 })).toEqual({ kind: "leases", params: { locationId: 2 } });
+    expect(smExpiringLeasesRecords({})).toEqual({ kind: "leases", params: {} });
+    expect(smExpiringLeasesRecords({ locationId: null }, 30, TODAY)).toEqual({ kind: "leases", params: { from: "2026-10-14", to: "2026-11-13" } });
+    expect(smExpiringLeasesRecords({ locationId: 1 }, 30, new Date(2026, 11, 20))).toEqual({
+      kind: "leases",
+      params: { from: "2026-12-20", to: "2027-01-19", locationId: 1 },
+    });
+  });
+
+  it("lists not bound to the period name only the location", () => {
+    expect(isPeriodFreeList(smExpiringLeasesRecords({}))).toBe(true);
+    expect(isPeriodFreeList({ kind: "leases", params: { month: "2026-11" } })).toBe(false);
+    expect(isPeriodFreeList(smComplaintRecords({ status: "open" }, { period: "month" })!)).toBe(true);
+    expect(isPeriodFreeList(smComplaintRecords({ branch: "" }, { period: "month" })!)).toBe(true);
+    expect(isPeriodFreeList(smComplaintRecords({ category: "Cleaning" }, { period: "month" })!)).toBe(false);
+    expect(isPeriodFreeList(smComplaintRecords({ status: "new_period" }, { period: "month" })!)).toBe(false);
+    expect(isPeriodFreeList({ kind: "bookings", params: {} })).toBe(false);
+  });
+});
+
+describe("complaints by branch", () => {
+  const b = (branch: string) => ({ branch, label: branch || "No branch", open: 1, inProgress: 0, total: 2 });
+  it("shown for more than one branch or complaints without a branch; a branch opens its complaints (none = no branch)", () => {
+    expect(smShowsComplaintBranches([b("I-8"), b("F-7")])).toBe(true);
+    expect(smShowsComplaintBranches([b("")])).toBe(true);
+    expect(smShowsComplaintBranches([b("I-8"), b("")])).toBe(true);
+    expect(smShowsComplaintBranches([b("I-8")])).toBe(false);
+    expect(smShowsComplaintBranches([])).toBe(false);
+    expect(smComplaintRecords({ branch: "" }, { period: "month" })).toEqual({ kind: "complaints", params: { branch: "none", period: "month" } });
+    expect(smComplaintRecords({ branch: "I-8" }, { period: "month", locationId: 1 })).toEqual({
+      kind: "complaints",
+      params: { branch: "I-8", locationId: 1, period: "month" },
+    });
+  });
+});
+
+describe("scope wording", () => {
+  const one = [{ locationId: 1, name: "I-8" }];
+  const two = [...one, { locationId: 2, name: "F-7" }];
+
+  it("a manager with one location: its name, and inquiry / complaint lists include the items without a branch", () => {
+    expect(smLocationText({ locations: one })).toBe("I-8");
+    expect(smLocationText({ locations: one, kind: "bookings" })).toBe("I-8");
+    expect(smLocationText({ locations: one, kind: "inquiries" })).toBe("I-8 (plus items without a branch)");
+    expect(smLocationText({ locations: one, kind: "inquiries-type" })).toBe("I-8 (plus items without a branch)");
+    expect(smLocationText({ locations: one, kind: "complaints" })).toBe("I-8 (plus items without a branch)");
+    // A list of one branch already is that branch's only.
+    expect(smLocationText({ locations: one, kind: "complaints", narrowedToBranch: true })).toBe("I-8");
+  });
+
+  it("several locations: All my locations, or the chosen one (then only its branch's items)", () => {
+    expect(smLocationText({ locations: two })).toBe("All my locations");
+    expect(smLocationText({ locations: two, kind: "complaints" })).toBe("All my locations (plus items without a branch)");
+    expect(smLocationText({ locations: two, locationId: 2, kind: "inquiries" })).toBe("F-7");
+    expect(smLocationText({ locations: two, locationId: 9 })).toBe("One location");
+  });
+
+  it("notes: no reference to a picker a one-location manager cannot see; BR_02 not run says every branch", () => {
+    expect(smScopeNotes({ singleLocation: true, inquiriesAllBranches: false })).toEqual({
+      inquiries: "Includes inquiries without a branch",
+      complaints: "Includes complaints without a branch (WhatsApp)",
+    });
+    expect(smScopeNotes({ singleLocation: false, inquiriesAllBranches: false })).toEqual({
+      inquiries: "Inquiries without a branch show under All my locations",
+      complaints: "Complaints without a branch (WhatsApp) show under All my locations",
+    });
+    expect(smScopeNotes({ singleLocation: true, inquiriesAllBranches: true }).inquiries).toBe(
+      "Counts inquiries from every branch until database update BR_02 is run",
+    );
+    expect(smScopeNotes({ singleLocation: false, inquiriesAllBranches: true }).inquiries).toBe(
+      "Counts inquiries from every branch until database update BR_02 is run",
+    );
   });
 });

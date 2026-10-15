@@ -89,9 +89,13 @@ export function canMoveBranch(currentId: number | null | undefined, options: rea
   return options.some((o) => o.id !== current);
 }
 
+/** Chip value of the "No branch" filter (sent to the API as ?locationId=0). */
+export const NO_BRANCH_FILTER = -1;
+
 /**
  * Location filter chips of the Inquiries / Complaints lists: only when the user sees more than one location.
- * Value 0 = every location the user may see (no ?locationId=).
+ * Value 0 = every location the user may see (no ?locationId=); NO_BRANCH_FILTER = only the items with no branch
+ * (every user sees those, so the chip is offered with the others).
  */
 export function branchFilterOptions(
   role: UserRole | null | undefined,
@@ -101,7 +105,14 @@ export function branchFilterOptions(
   return [
     { label: isLocationBound(role) ? "All my locations" : "All locations", value: 0 },
     ...locations.map((l) => ({ label: l.name, value: l.id })),
+    { label: NO_BRANCH_LABEL, value: NO_BRANCH_FILTER },
   ];
+}
+
+/** The ?locationId= a filter chip sends: undefined = all, 0 = no branch (API rule), else that location. */
+export function branchFilterParam(value: number | null | undefined): number | undefined {
+  if (value === NO_BRANCH_FILTER) return 0;
+  return toBranchId(value) ?? undefined;
 }
 
 /**

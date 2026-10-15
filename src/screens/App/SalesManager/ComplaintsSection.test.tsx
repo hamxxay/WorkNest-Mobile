@@ -247,6 +247,43 @@ describe("ComplaintsContent", () => {
     expect(drill.records.mock.calls.at(-1)?.[0].params).toEqual({ status: "active", locationId: 2, period: "month" });
   });
 
+  test("by branch: hidden for one branch; shown with complaints without a branch, each row opening its branch", () => {
+    expect(render(<ComplaintsBlock query={query({ data: DATA })} drill={makeDrill()} oneLocation={false} />).findAll(
+      (n) => n.type === ("ChartCard" as unknown) && n.props.title === "By branch",
+    )).toHaveLength(0);
+    const data = {
+      ...DATA,
+      byBranch: [
+        { branch: "I-8", label: "I-8", open: 2, inProgress: 1, total: 5 },
+        { branch: "", label: "No branch", open: 1, inProgress: 0, total: 2 },
+      ],
+    };
+    const drill = makeDrill();
+    const root = render(<ComplaintsBlock query={query({ data })} drill={drill} oneLocation={false} />);
+    const card = root.findAll((n) => n.type === ("ChartCard" as unknown) && n.props.title === "By branch")[0];
+    const rows = byType(card, "ListRow");
+    expect(rows.map((r) => [r.props.title, r.props.meta, r.props.subtitle])).toEqual([
+      ["I-8", "3 active", "2 open · 1 in progress · 5 new this month"],
+      ["No branch", "1 active", "1 open · 0 in progress · 2 new this month"],
+    ]);
+    act(() => rows[1].props.onPress());
+    expect(drill.records).toHaveBeenLastCalledWith(
+      { kind: "complaints", params: { branch: "none", locationId: 2, period: "month" } },
+      ["Complaints", "No branch"],
+      "Complaints: No branch",
+    );
+    act(() => rows[0].props.onPress());
+    expect(drill.records.mock.calls.at(-1)?.[0].params).toEqual({ branch: "I-8", locationId: 2, period: "month" });
+  });
+
+  test("the scope note the dashboard gives (one location: no reference to a hidden option)", () => {
+    const root = render(
+      <ComplaintsBlock query={query({ loading: true })} drill={makeDrill()} oneLocation scopeNote="Includes complaints without a branch (WhatsApp)" />,
+    );
+    expect(textOf(root)).toContain("Includes complaints without a branch (WhatsApp)");
+    expect(JSON.stringify(textOf(root))).not.toMatch(/All my locations/);
+  });
+
   test("no open complaints: says so", () => {
     const data = { ...DATA, oldestActive: [] };
     const root = render(<ComplaintsBlock query={query({ data })} drill={makeDrill()} oneLocation={false} />);

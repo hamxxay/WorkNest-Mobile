@@ -64,6 +64,7 @@
 			<string>com.worknestmobile</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
+				<string>worknest</string>
 				<string>myapp</string>
 			</array>
 		</dict>

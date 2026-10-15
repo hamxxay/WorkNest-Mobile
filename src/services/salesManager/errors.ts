@@ -1,4 +1,4 @@
-import { serverMessage } from "../apiClient";
+import { ApiError, serverMessage } from "../apiClient";
 import { dashboardErrorView, needsDatabaseUpdate, withDatabaseUpdateMessage, type CeoErrorView } from "../ceo/errors";
 
 // Errors of the Sales Manager API, in words a sales manager can act on (the CEO dashboard's error handling with this
@@ -60,10 +60,18 @@ export function toSalesManagerError(error: unknown): unknown {
   return needsDatabaseUpdate(error) ? withDatabaseUpdateMessage(error, smDatabaseUpdateMessage(smDatabaseUpdateOf(error))) : error;
 }
 
+/**
+ * A 403's wording: the server's own message when it sent one (e.g. "Your account has no location yet. Ask a Super
+ * Admin to assign your locations."), else the general one.
+ */
+export function smForbiddenMessage(error: unknown): string {
+  return (error instanceof ApiError ? serverMessage(error.details) : null) ?? SM_FORBIDDEN_MESSAGE;
+}
+
 /** Title, message and icon for an error state on a Sales Manager screen. */
 export function salesManagerErrorView(error: unknown, fallback?: string): CeoErrorView {
   const databaseUpdate = smDatabaseUpdateMessage(smDatabaseUpdateOf(error));
-  return dashboardErrorView(error, { databaseUpdate, forbidden: SM_FORBIDDEN_MESSAGE }, fallback);
+  return dashboardErrorView(error, { databaseUpdate, forbidden: smForbiddenMessage(error) }, fallback);
 }
 
 /** The error to throw from a complaints call: a 503 becomes the complaints section's database update message. */
@@ -76,5 +84,5 @@ export function toSalesManagerComplaintsError(error: unknown): unknown {
 /** Title, message and icon for an error state of the complaints section or a complaints list (503: SM_03). */
 export function salesManagerComplaintsErrorView(error: unknown, fallback = "Could not load the complaints. Please try again."): CeoErrorView {
   const databaseUpdate = smComplaintsDatabaseUpdateMessage(smDatabaseUpdateOf(error, SM_COMPLAINTS_DB_UPDATE));
-  return dashboardErrorView(error, { databaseUpdate, forbidden: SM_FORBIDDEN_MESSAGE }, fallback);
+  return dashboardErrorView(error, { databaseUpdate, forbidden: smForbiddenMessage(error) }, fallback);
 }

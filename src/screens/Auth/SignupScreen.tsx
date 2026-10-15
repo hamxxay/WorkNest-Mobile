@@ -6,7 +6,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { AuthStackParamList, RootStackParamList } from "../../navigation/types";
 import { Banner, Button, ConfirmDialog, GoogleSignInButton, TextField } from "../../components/ui";
 import { useTheme } from "../../theme";
-import { ApiError } from "../../services/apiClient";
+import { errorMessage } from "../../services/apiClient";
 import {
   beginGoogleAuth,
   cancelGoogleAuth,
@@ -14,8 +14,10 @@ import {
   registerUser,
   type PendingGoogleAuth,
 } from "../../services/authService";
+import { isSignInCancelled } from "../../services/authErrors";
 import {
   INPUT_LIMITS,
+  passwordForState,
   sanitizeEmailInput,
   sanitizeTextForState,
 } from "../../utils/inputSanitizer";
@@ -79,7 +81,9 @@ export default function SignupScreen() {
     if (!trimmed) next.email = "Enter your email.";
     else if (!isValidEmail(trimmed)) next.email = "Enter a valid email address, like name@example.com.";
     if (!password) next.password = "Create a password.";
-    else if (!isValidPassword(password.trim())) next.password = PASSWORD_HINT;
+    // Signing in uses the password exactly as typed, so a space at either end would be a different password.
+    else if (password !== password.trim()) next.password = "Your password can't start or end with a space.";
+    else if (!isValidPassword(password)) next.password = PASSWORD_HINT;
     if (!confirmPassword) next.confirmPassword = "Re-enter your password.";
     else if (password !== confirmPassword) next.confirmPassword = "Passwords do not match.";
     setFieldErrors(next);
@@ -94,20 +98,20 @@ export default function SignupScreen() {
       setLoading(true);
       setError(null);
       const { firstName, lastName } = parseName(name);
-      await registerUser({
+      const result = await registerUser({
         email: sanitizeEmailInput(email),
-        password: sanitizeTextForState(password, { maxLength: INPUT_LIMITS.password }),
+        password,
         firstName,
         lastName,
       });
 
-      routeToApp();
+      // The account exists; WorkNest opens once the email address is verified.
+      navigation.replace("VerifyEmail", {
+        email: result.email,
+        ...(redirectAfterLogin ? { redirectAfterLogin } : {}),
+      });
     } catch (err) {
-      const message =
-        err instanceof ApiError
-          ? err.message
-          : "Unable to create account right now. Please try again.";
-      setError(message);
+      setError(errorMessage(err, "Unable to create account right now. Please try again."));
     } finally {
       setLoading(false);
     }
@@ -120,11 +124,9 @@ export default function SignupScreen() {
       const pending = await beginGoogleAuth();
       setPendingGoogleAuth(pending);
     } catch (err) {
-      const message =
-        err instanceof ApiError || err instanceof Error
-          ? err.message
-          : "Unable to create account with Google right now. Please try again.";
-      setError(message);
+      // Closing the Google account picker is not an error.
+      if (isSignInCancelled(err)) return;
+      setError(errorMessage(err, "Unable to create account with Google right now. Please try again."));
     } finally {
       setGoogleLoading(false);
     }
@@ -142,11 +144,7 @@ export default function SignupScreen() {
       setPendingGoogleAuth(null);
       routeToApp();
     } catch (err) {
-      const message =
-        err instanceof ApiError || err instanceof Error
-          ? err.message
-          : "Unable to create account with Google right now. Please try again.";
-      setError(message);
+      setError(errorMessage(err, "Unable to create account with Google right now. Please try again."));
       setPendingGoogleAuth(null);
     } finally {
       setGoogleLoading(false);
@@ -222,7 +220,7 @@ export default function SignupScreen() {
         placeholder="Create a password"
         value={password}
         onChangeText={(value) => {
-          setPassword(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.password }));
+          setPassword(passwordForState(value));
           clearFieldError("password");
         }}
         helperText={PASSWORD_HINT}
@@ -246,7 +244,7 @@ export default function SignupScreen() {
         placeholder="Re-enter your password"
         value={confirmPassword}
         onChangeText={(value) => {
-          setConfirmPassword(sanitizeTextForState(value, { maxLength: INPUT_LIMITS.password }));
+          setConfirmPassword(passwordForState(value));
           clearFieldError("confirmPassword");
         }}
         error={fieldErrors.confirmPassword}

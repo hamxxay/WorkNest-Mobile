@@ -14,6 +14,7 @@ import {
   countOf,
   salesManagerComplaintsErrorView,
   smComplaintRecords,
+  smShowsComplaintBranches,
   type SmActiveComplaint,
   type SmComplaintFilter,
   type SmComplaintStatus,
@@ -28,9 +29,10 @@ import type { SmDrill } from "./sections";
 
 // The Complaints section of the Sales Manager dashboard (GET api/sales-manager/complaints), last on the screen and
 // loaded on its own: when it fails, only this section shows the error (503: "needs the database update SM_03") and
-// the rest of the dashboard keeps working. Read-only: cards, the status bar, categories and months open the
+// the rest of the dashboard keeps working. Read-only: cards, the status bar, categories, branches and months open the
 // complaints behind them (records/complaints). No money, no emojis; colours follow the light / dark theme.
 
+/** The scope note when the dashboard sends none (a manager who can pick a location). */
 const SCOPE_NOTE = "Complaints without a branch (WhatsApp) show under All my locations";
 
 /** "Resolved" waits for the customer's reply: the status bar says so. */
@@ -67,6 +69,7 @@ export function ComplaintsBlock({
   drill,
   periodLabel,
   oneLocation,
+  scopeNote = SCOPE_NOTE,
 }: {
   query: CeoQuery<SmComplaints>;
   drill: SmDrill;
@@ -74,6 +77,8 @@ export function ComplaintsBlock({
   periodLabel?: string;
   /** True when the dashboard shows one location (empty-state wording). */
   oneLocation: boolean;
+  /** The note under the heading: what the complaints include (smScopeNotes). */
+  scopeNote?: string;
 }) {
   const { colors } = useTheme();
   const c = query.data;
@@ -100,10 +105,10 @@ export function ComplaintsBlock({
   return (
     <View style={styles.section}>
       <SectionHeader title="Complaints" subtitle={["Customer complaints at your locations", label].filter(Boolean).join(" · ")} />
-      <View style={styles.note} accessible accessibilityLabel={`Note: ${SCOPE_NOTE}.`}>
+      <View style={styles.note} accessible accessibilityLabel={`Note: ${scopeNote}.`}>
         <Ionicons name="information-circle-outline" size={14} color={colors.textMuted} />
         <AppText variant="caption" color="textMuted" style={styles.flexShrink}>
-          {SCOPE_NOTE}
+          {scopeNote}
         </AppText>
       </View>
       {c && query.error && !query.refreshing ? (
@@ -168,6 +173,9 @@ export function ComplaintsContent({ complaints: c, drill }: { complaints: SmComp
       <KpiGrid tiles={tiles} />
       <StatusCard complaints={c} onOpen={openStatus} />
       <CategoryCard complaints={c} words={words} onOpen={(category) => open({ category }, [category], `Complaints: ${category}`)} />
+      {smShowsComplaintBranches(c.byBranch) ? (
+        <BranchCard complaints={c} words={words} onOpen={(branch, label) => open({ branch }, [label], `Complaints: ${label}`)} />
+      ) : null}
       <ChartCard title="Complaints by month" caption="Created and resolved, last 12 months. Tap a month for the complaints created then.">
         {recent.length ? (
           <BarChart
@@ -335,6 +343,46 @@ function CategoryCard({ complaints: c, words, onOpen }: { complaints: SmComplain
       ) : (
         <InlineEmpty text={`No complaints by category ${words}.`} />
       )}
+    </ChartCard>
+  );
+}
+
+// ─── By branch ────────────────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * A compact row per branch ("No branch" = WhatsApp complaints): open and in progress now, new in the period. Only
+ * shown when the complaints span more than one branch or include some without one. A row opens every complaint of
+ * that branch.
+ */
+function BranchCard({
+  complaints: c,
+  words,
+  onOpen,
+}: {
+  complaints: SmComplaints;
+  words: string;
+  onOpen: (branch: string, label: string) => void;
+}) {
+  return (
+    <ChartCard title="By branch" caption={`Open and in progress now, and new ${words}. Tap a branch for its complaints.`} padding={0}>
+      {c.byBranch.map((b, i) => {
+        const active = b.open + b.inProgress;
+        const detail = `${count(b.open)} open · ${count(b.inProgress)} in progress · ${count(b.total)} new ${words}`;
+        return (
+          <Fragment key={`${b.branch || "none"}-${i}`}>
+            {i > 0 ? <Divider inset={16} /> : null}
+            <ListRow
+              leftIcon={b.branch ? "location-outline" : "chatbubbles-outline"}
+              title={b.label}
+              subtitle={detail}
+              meta={`${count(active)} active`}
+              accessibilityLabel={[b.label, `${count(active)} open or in progress`, detail].join(", ")}
+              accessibilityHint="Opens this branch's complaints"
+              onPress={() => onOpen(b.branch, b.label)}
+            />
+          </Fragment>
+        );
+      })}
     </ChartCard>
   );
 }

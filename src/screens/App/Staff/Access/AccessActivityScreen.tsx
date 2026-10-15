@@ -12,6 +12,8 @@ import {
   StatusPill,
 } from "../../../../components/ui";
 import {
+  ACCESS_EVENTS_LIMIT,
+  accessEventsCapNote,
   accessPeriodRange,
   getAccessDevices,
   getAccessEvents,
@@ -82,7 +84,7 @@ function DoorEvents() {
 
   const fetchPage = useCallback(async () => {
     const range = accessPeriodRange(period);
-    const items = await getAccessEvents({ ...range, deviceId: deviceId || null, limit: 2000 });
+    const items = await getAccessEvents({ ...range, deviceId: deviceId || null, limit: ACCESS_EVENTS_LIMIT });
     return { items, total: items.length, page: 1, limit: items.length, hasMore: false };
   }, [period, deviceId]);
   const list = usePagedList(fetchPage, { reloadOnFocus: false });
@@ -97,6 +99,8 @@ function DoorEvents() {
     [list.items, result, search],
   );
   const denied = list.items.filter((e) => e.isDenied).length;
+  // The API returns at most the newest 2000 events: say so instead of silently leaving older ones out.
+  const capNote = list.loading ? null : accessEventsCapNote(list.items.length);
 
   return (
     <>
@@ -134,6 +138,13 @@ function DoorEvents() {
         />
       </View>
       <SearchField value={query} onChangeText={setQuery} placeholder="Search name, employee no. or card" />
+      {capNote ? (
+        <View style={styles.capNote}>
+          <AppText variant="caption" color="textMuted" accessibilityRole="text">
+            {capNote}
+          </AppText>
+        </View>
+      ) : null}
       <AsyncList
         data={rows}
         keyExtractor={(e) => String(e.id)}
@@ -219,6 +230,7 @@ function SystemLog() {
 const styles = StyleSheet.create({
   segment: { paddingHorizontal: spacing.screen, paddingTop: spacing.md },
   filters: { paddingHorizontal: spacing.screen, paddingTop: spacing.md, gap: spacing.sm },
+  capNote: { paddingHorizontal: spacing.screen, paddingBottom: spacing.xs },
   chipBar: { flexGrow: 0, flexShrink: 0 },
   row: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   flex: { flex: 1 },

@@ -11,6 +11,7 @@ import type { NavigationState, PartialState } from "@react-navigation/native";
 import type { StaffRole } from "../../context/roles";
 import type { StaffRouteName, StaffStackParamList, StaffTabName } from "../staffTypes";
 import { canOpenRoute, tabsFor } from "./access";
+import { APP_LINK_PREFIXES } from "../appLinks";
 
 export type StaffLinkTarget =
   | { kind: "tab"; tab: StaffTabName }
@@ -125,4 +126,4 @@ export function staffStateFromPath(path: string, role: StaffRole): PartialState<
 }
 
 /** Link prefixes (the same as the customer app's: only one of the two navigators is mounted at a time). */
-export const STAFF_LINK_PREFIXES = ["myapp://", "https://work-nest-3936a.web.app", "https://worknestpk.com"];
+export const STAFF_LINK_PREFIXES = APP_LINK_PREFIXES;

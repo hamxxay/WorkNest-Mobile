@@ -32,6 +32,7 @@ import SignupScreen from "../screens/Auth/SignupScreen";
 import SplashScreen from "../screens/Auth/SplashScreen";
 import LoginScreen from "../screens/Auth/LoginScreen";
 import OnboardingScreen from "../screens/Auth/OnboardingScreen";
+import VerifyEmailScreen from "../screens/Auth/VerifyEmailScreen";
 
 import { onSessionExpired } from "../services/apiClient";
 import { useNavigationTheme, useThemeColors } from "../theme";
@@ -141,6 +142,7 @@ function AppStackNavigator() {
       <AppStack.Screen name="UnlockDoor" component={UnlockDoorScreen} />
       <AppStack.Screen name="Login" component={LoginScreen} />
       <AppStack.Screen name="Signup" component={SignupScreen} />
+      <AppStack.Screen name="VerifyEmail" component={VerifyEmailScreen} />
     </AppStack.Navigator>
   );
 }
@@ -161,6 +163,7 @@ function AuthStackNavigator() {
     >
       <Auth.Screen name="Login" component={LoginScreen} />
       <Auth.Screen name="Signup" component={SignupScreen} />
+      <Auth.Screen name="VerifyEmail" component={VerifyEmailScreen} />
     </Auth.Navigator>
   );
 }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, View } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { AppHeader, SegmentedControl, SelectField, greeting } from "../../../../components/ui";
 import { useTabBarSpace } from "../../../../components/ui/TabBar";
@@ -20,6 +20,7 @@ import {
 } from "../../../../services/staff";
 import { spacing } from "../../../../theme";
 import { StaffScreen } from "../shared/StaffScreen";
+import { shouldReloadOnFocus } from "../shared/guards";
 import { isAdminRole, useStaffSession } from "../shared/StaffSession";
 import { Section } from "./parts";
 import {
@@ -33,6 +34,9 @@ import {
   TeamSection,
 } from "./sections";
 import { useRefreshColors } from "../shared/refresh";
+
+/** Coming back to the dashboard reloads it when the figures are older than this. */
+const FOCUS_RELOAD_AFTER_MS = 15_000;
 
 type Nav = NativeStackNavigationProp<StaffStackParamList>;
 
@@ -98,13 +102,40 @@ export default function StaffDashboardScreen() {
   const loadForecast = useCallback(() => loadSlot("forecast", setForecast, () => getDashboardForecast({ locationIds, months: 3 })), [loadSlot, locationIds]);
   const loadDoor = useCallback(() => loadSlot("door", setDoor, getAccessOverview), [loadSlot]);
 
+  const loadedAt = useRef<number | null>(null);
   useEffect(() => {
     let alive = true;
-    Promise.all([loadRole(), loadOverview(), loadForecast(), loadDoor()]).finally(() => alive && setRefreshing(false));
+    Promise.all([loadRole(), loadOverview(), loadForecast(), loadDoor()]).finally(() => {
+      loadedAt.current = Date.now();
+      if (alive) setRefreshing(false);
+    });
     return () => {
       alive = false;
     };
   }, [loadRole, loadOverview, loadForecast, loadDoor, tick]);
+
+  // Back on the dashboard (another tab, or a screen opened from it): reload quietly, the figures stay on screen
+  // meanwhile. Not on the first focus (the effect above loads) and not again within FOCUS_RELOAD_AFTER_MS.
+  const firstFocus = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      if (firstFocus.current) {
+        firstFocus.current = false;
+        return;
+      }
+      const reload = shouldReloadOnFocus({
+        reloadOnFocus: true,
+        loadedAt: loadedAt.current,
+        stale: false,
+        staleAfterMs: FOCUS_RELOAD_AFTER_MS,
+        now: Date.now(),
+      });
+      if (reload) {
+        refreshBadges();
+        setTick((n) => n + 1);
+      }
+    }, [refreshBadges]),
+  );
 
   const refresh = () => {
     setRefreshing(true);

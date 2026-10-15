@@ -5,7 +5,8 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/types";
 import { Screen } from "../../components/Screen";
 import { useThemeColors, useThemedStyles } from "../../theme";
-import { hasCompletedOnboarding } from "../../utils/onboardingStorage";
+import { hasCompletedOnboarding, setOnboardingCompleted } from "../../utils/onboardingStorage";
+import { getPendingEmailVerification } from "../../services/authService";
 import { SplashContent } from "./splash/SplashContent";
 import { createSplashStyles } from "./splash/styles";
 import { useSplashAnimation } from "./splash/useSplashAnimation";
@@ -41,15 +42,24 @@ export default function SplashScreen() {
           if (!active) return;
 
           if (!user) {
+            // Signed up but the email link was not opened yet: back to "Verify your email".
+            const pending = getPendingEmailVerification();
+            if (pending) {
+              navigation.replace("AuthStack", { screen: "VerifyEmail", params: { email: pending.email } });
+              return;
+            }
+            // First launch: the short introduction comes before Login (it then opens Login).
+            if (!onboardingDone) {
+              navigation.replace("Onboarding");
+              return;
+            }
             navigation.replace("AuthStack", { screen: "Login" });
             return;
           }
 
-          if (!onboardingDone) {
-            navigation.replace("Onboarding");
-            return;
-          }
-
+          // Someone who is signed in already knows the app: no introduction (also for installs from before the
+          // introduction was remembered at sign-in).
+          if (!onboardingDone) setOnboardingCompleted().catch(() => undefined);
           navigation.replace("AppStack", { screen: "MainTabs" });
         });
       }, remaining);

@@ -15,7 +15,8 @@ import { phoneError } from "../../utils/phone";
 
 // Lease agreements (CMS agreement.service.ts + manage.ts agreements; API AgreementController, reachable as
 // api/agreement/... and api/agreements/...). Roles: admin, super admin, sales executive (not receptionist).
-// The list is NOT location-filtered by the API.
+// The list is location-filtered by the API: admins / sales executives get their locations' agreements (plus any
+// without a location); super admins get all.
 //
 // Flow: send (from an accepted quotation) -> customer e-signs or uploads the signed copy (SignedUploaded), or
 // staff upload it -> staff "sign" (scan + signed date) or "mark signed" -> the API creates the booking
@@ -197,6 +198,49 @@ export function validateSendAgreement(input: SendAgreementInput): string | null 
   return null;
 }
 
+/** An amount field as typed: "" -> 0 (fee / deposit are required numbers on the API), else the number (NaN if not one). */
+export function agreementAmount(text: string | null | undefined): number {
+  const t = (text ?? "").trim().replace(/,/g, "");
+  return t ? Number(t) : 0;
+}
+
+export type AgreementFormProblems = Partial<Record<"fullName" | "cnic" | "address" | "companyName" | "start" | "end" | "fee" | "deposit", string>>;
+
+/**
+ * The details the API needs before it can build the agreement (AgreementService.ValidateAgreementData), as field
+ * errors: name (or company), a CNIC (or for a company its NTN / SECP number), the address, both contract dates, a fee
+ * above 0, and a security deposit of 0 or more. Format rules (CNIC / phone / dates) stay in validateSendAgreement.
+ */
+export function agreementFormProblems(form: {
+  entityType: SendAgreementInput["entityType"];
+  fullName: string;
+  cnic: string;
+  ntn?: string;
+  secpRegistrationNo?: string;
+  address: string;
+  companyName?: string;
+  contractStartDate: string | null;
+  contractEndDate: string | null;
+  fee: string;
+  deposit: string;
+}): AgreementFormProblems {
+  const p: AgreementFormProblems = {};
+  const company = form.entityType !== "Individual";
+  if (!form.fullName.trim() && !(company && form.companyName?.trim())) p.fullName = "Enter the customer's full name.";
+  if (company && !form.companyName?.trim()) p.companyName = "Enter the company name.";
+  const hasTaxId = company && !!(form.ntn?.trim() || form.secpRegistrationNo?.trim());
+  if (!form.cnic.trim() && !hasTaxId) p.cnic = company ? "Enter the CNIC, NTN or SECP number." : "Enter the customer's CNIC.";
+  if (!form.address.trim()) p.address = "Enter the customer's address.";
+  if (!form.contractStartDate) p.start = "Choose the contract start date.";
+  if (!form.contractEndDate) p.end = "Choose the contract end date.";
+  else if (form.contractStartDate && form.contractEndDate <= form.contractStartDate) p.end = "The end date must be after the start date.";
+  const fee = agreementAmount(form.fee);
+  if (!Number.isFinite(fee) || fee <= 0) p.fee = "Enter the fee per billing cycle (more than 0).";
+  const deposit = agreementAmount(form.deposit);
+  if (!Number.isFinite(deposit) || deposit < 0) p.deposit = "Enter the security deposit (0 if there is none).";
+  return p;
+}
+
 /** POST agreement/send — generates the lease PDF and emails it to the customer. */
 export async function sendAgreement(input: SendAgreementInput): Promise<ActionResult<StaffAgreement>> {
   const invalid = validateSendAgreement(input);
@@ -213,8 +257,9 @@ export async function sendAgreement(input: SendAgreementInput): Promise<ActionRe
     ntn: text(input.ntn),
     secpRegistrationNo: text(input.secpRegistrationNo),
     refundDays: input.refundDays ?? 30,
-    feeAmount: input.feeAmount ?? null,
-    securityDeposit: input.securityDeposit ?? null,
+    // Required numbers on the API (null is refused with a 400 validation error): blank means 0.
+    feeAmount: Number.isFinite(input.feeAmount) ? input.feeAmount : 0,
+    securityDeposit: Number.isFinite(input.securityDeposit) ? input.securityDeposit : 0,
     contractStartDate: input.contractStartDate || null,
     contractEndDate: input.contractEndDate || null,
     operatingHours: input.operatingHours ?? "24/7",

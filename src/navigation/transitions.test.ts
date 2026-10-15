@@ -34,6 +34,7 @@ describe("which customer screens use which transition", () => {
     expect(customerTransition("MainTabs")).toBe("fade");
     expect(customerTransition("Login")).toBe("fade");
     expect(customerTransition("Signup")).toBe("fade");
+    expect(customerTransition("VerifyEmail")).toBe("fade");
   });
 
   it("everything else is a push", () => {

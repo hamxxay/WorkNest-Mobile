@@ -6,6 +6,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import {
   AppHeader,
   AppText,
+  Banner,
   Button,
   Card,
   Divider,
@@ -32,8 +33,12 @@ import {
   type BookingChallan,
 } from "../../../services/bookingService";
 import { monthsLabel } from "../../../services/amountBreakdown";
+import { refundNote } from "../../../services/billService";
 import { employeesButtonLabel, seatsUsedLabel, showsEmployees } from "../../../services/employeeService";
+import { returnToBookingScreen } from "../../../navigation/stackReturn";
+import { DoorSuspendedBanner } from "./shared/DoorSuspendedBanner";
 import { useEmployeeSummaries } from "./shared/useEmployeeSummaries";
+import { useInvoicePdf } from "./shared/useInvoicePdf";
 import type { AppStackParamList } from "../../../navigation/types";
 
 type Nav = NativeStackNavigationProp<AppStackParamList>;
@@ -41,6 +46,8 @@ type Nav = NativeStackNavigationProp<AppStackParamList>;
 /**
  * One booking (GET /booking/{id}): space, period, billing and the challan; Cancel while it is still Pending and
  * nothing has been paid on it. A Confirmed booking also links to its employees ("Employees 2/4").
+ * Next bill / balance left are shown only when the API marks them reliable; a suspended door access shows a banner
+ * with the bill to pay.
  */
 export default function BookingDetailScreen() {
   const navigation = useNavigation<Nav>();
@@ -50,6 +57,7 @@ export default function BookingDetailScreen() {
   const styles = useThemedStyles(createStyles);
   const confirm = useConfirm();
   const toast = useToast();
+  const invoicePdf = useInvoicePdf();
 
   const [booking, setBooking] = useState<BookingChallan | null>(null);
   const [loading, setLoading] = useState(true);
@@ -97,6 +105,20 @@ export default function BookingDetailScreen() {
           ? "Confirmed bookings can't be cancelled in the app. Contact us for changes."
           : null;
   const billingPeriod = monthsLabel(booking?.billingPeriodMonths) ?? booking?.billingPeriodLabel ?? null;
+  // Next bill / balance left only when the API says they can be trusted (and never for a booking that won't go ahead).
+  const showBillingFigures = !!booking && booking.billingFiguresReliable && !isVoid;
+  // The challan's advance rent when it differs from one billing period (a booking from the 15th also pays the rest
+  // of its first month), so it matches "Advance rent" on the challan.
+  const advanceRent =
+    booking?.firstCycleRent && booking.firstCycleRent !== booking.currentCycleAmount ? booking.firstCycleRent : null;
+  const refund = booking && isVoid ? refundNote(booking.totalPaidAmount, booking.bookingStatus) : null;
+
+  // Challan and Booking details link to each other: go back when the challan is already open below this screen.
+  const openChallan = () => {
+    if (!booking) return;
+    if (returnToBookingScreen(navigation, "Challan", [booking.bookingId])) return;
+    navigation.navigate("Challan", { bookingId: booking.bookingId, challanNumber: booking.challanNumber ?? undefined });
+  };
 
   // Employees: Confirmed bookings only; the entry appears once its count is known (hidden on a 404 / 503 answer).
   const employeesBookingId = booking && booking.bookingId > 0 && showsEmployees(statusFields) ? booking.bookingId : 0;
@@ -155,6 +177,20 @@ export default function BookingDetailScreen() {
             />
           }
         >
+          <DoorSuspendedBanner
+            notice={booking}
+            onOpenInvoice={(id, number) => invoicePdf.open(id, number)}
+            onOpenChallan={showChallan ? openChallan : undefined}
+          />
+          {refund ? (
+            <Banner
+              tone="info"
+              title="Refund"
+              message={refund}
+              actionLabel="Contact us"
+              onAction={() => navigation.navigate("ContactUs")}
+            />
+          ) : null}
           <Card>
             <View style={styles.titleRow}>
               <AppText variant="heading" style={styles.flex}>
@@ -178,15 +214,32 @@ export default function BookingDetailScreen() {
           <Card>
             {billingPeriod ? <InfoRow label="Billing period" value={billingPeriod} /> : null}
             {booking.monthlyRent ? <InfoRow label="Monthly rent" value={formatMoney(booking.monthlyRent)} /> : null}
-            {booking.currentCycleAmount ? <InfoRow label="Current cycle" value={formatMoney(booking.currentCycleAmount)} /> : null}
+            {booking.currentCycleAmount ? (
+              <InfoRow label="Rent per billing period" value={formatMoney(booking.currentCycleAmount)} />
+            ) : null}
+            {advanceRent ? <InfoRow label="Advance rent on the challan" value={formatMoney(advanceRent)} /> : null}
             {booking.securityDeposit ? (
               <InfoRow label="Security deposit (refundable)" value={formatMoney(booking.securityDeposit)} />
             ) : null}
-            {booking.nextBillDueDate ? <InfoRow label="Next bill due" value={formatDate(booking.nextBillDueDate)} /> : null}
+            {showBillingFigures && booking.nextBillDueDate ? (
+              <InfoRow label="Next bill due" value={formatDate(booking.nextBillDueDate)} />
+            ) : null}
             {booking.totalPaidAmount !== null ? <InfoRow label="Paid so far" value={formatMoney(booking.totalPaidAmount)} /> : null}
-            {booking.balanceLeft !== null ? <InfoRow label="Balance left" value={formatMoney(booking.balanceLeft)} /> : null}
+            {showBillingFigures && booking.balanceLeft !== null ? (
+              <InfoRow label="Balance left" value={formatMoney(booking.balanceLeft)} />
+            ) : null}
             <Divider spacing={8} />
-            <InfoRow label={isVoid ? "Challan total" : "Total payable"} value={formatMoney(booking.totalPayable)} emphasize />
+            {/* "Total payable" only while the challan is still to be paid; afterwards it is the challan's total. */}
+            {pending ? (
+              <InfoRow label="Total payable" value={formatMoney(booking.totalPayable)} emphasize />
+            ) : (
+              <InfoRow label="Challan total" value={formatMoney(booking.totalPayable)} />
+            )}
+            {!pending && !isVoid ? (
+              <AppText variant="caption" color="textMuted" style={styles.top}>
+                Your invoices and what is due are on the Payments tab.
+              </AppText>
+            ) : null}
           </Card>
 
           {showChallan ? (
@@ -206,12 +259,7 @@ export default function BookingDetailScreen() {
                   variant="secondary"
                   fullWidth
                   style={styles.top}
-                  onPress={() =>
-                    navigation.navigate("Challan", {
-                      bookingId: booking.bookingId,
-                      challanNumber: booking.challanNumber ?? undefined,
-                    })
-                  }
+                  onPress={openChallan}
                 />
               </Card>
             </>

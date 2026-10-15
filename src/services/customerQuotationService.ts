@@ -2,6 +2,7 @@ import { API_ENDPOINTS } from "../config/api";
 import { ApiError, apiRequest } from "./apiClient";
 import { openApiPdf } from "./pdfService";
 import { normalizeBreakdownFields, type BreakdownField } from "./amountBreakdown";
+import { isPastPakistanDate } from "../utils/pakistanDate";
 
 // Quotations for customers (QuotationController): list my quotations, view one (and its versions), download
 // its PDF, accept, or decline with a reason. Everything else (create, versions, send, share, convert,
@@ -45,6 +46,11 @@ export type Quotation = {
    * Undefined when an older API did not send it.
    */
   canRespond?: boolean;
+  /**
+   * Waiting for the customer's answer (Sent / Active) but its last valid day (validUntil, Pakistan date) has passed:
+   * it can't be accepted or declined any more (the API's isExpired; worked out here for older APIs).
+   */
+  expired: boolean;
   /**
    * The API's amount breakdown (same as the quotation PDF): advance rent, security deposit, tax... adding up to
    * the total payable. Empty when the API sent none.
@@ -104,6 +110,14 @@ export function normalizeQuotation(q: any): Quotation {
     q?.totalPayable ?? q?.TotalPayable ?? q?.totalAmount ?? q?.TotalAmount ?? q?.total ?? q?.Total ?? totalFromItems(items) ?? 0,
   );
 
+  const status = String(q?.status ?? q?.Status ?? q?.quotationStatus ?? q?.state ?? "active").toLowerCase();
+  const validUntil = q?.validUntil ?? q?.ValidUntil ?? q?.validityDate ?? "";
+  const apiExpired = q?.isExpired ?? q?.IsExpired;
+  const expired =
+    typeof apiExpired === "boolean"
+      ? apiExpired
+      : (status === "sent" || status === "active") && isPastPakistanDate(validUntil);
+
   return {
     id: String(q?.id ?? q?.Id ?? q?.quotationId ?? q?.QuotationId ?? q?.quotationNumber ?? q?.QuotationNumber ?? ""),
     guid: q?.guid ?? q?.Guid ?? q?.publicId ?? q?.PublicId ?? "",
@@ -117,18 +131,19 @@ export function normalizeQuotation(q: any): Quotation {
     startDateTime: q?.startDateTime ?? q?.StartDateTime ?? q?.startDate ?? "",
     endDateTime: q?.endDateTime ?? q?.EndDateTime ?? q?.endDate ?? "",
     quotationDate: q?.quotationDate ?? q?.QuotationDate ?? q?.date ?? q?.createdAt ?? q?.CreatedAt ?? "",
-    validUntil: q?.validUntil ?? q?.ValidUntil ?? q?.validityDate ?? "",
+    validUntil,
     items,
     subtotal: subtotal || 0,
     tax: Number(q?.taxAmount ?? q?.TaxAmount ?? q?.tax ?? 0),
     total: total || 0,
     discountAmount: Number(q?.discountAmount ?? q?.DiscountAmount ?? 0),
     securityDeposit: Number(q?.securityDeposit ?? q?.SecurityDeposit ?? 0),
-    status: String(q?.status ?? q?.Status ?? q?.quotationStatus ?? q?.state ?? "active").toLowerCase(),
+    status,
     notes: q?.remarks ?? q?.Remarks ?? q?.notes ?? q?.Notes ?? undefined,
     version: Number(q?.version ?? q?.Version ?? 1),
     isActive: q?.isActive ?? q?.IsActive ?? true,
     canRespond: typeof (q?.canRespond ?? q?.CanRespond) === "boolean" ? (q?.canRespond ?? q?.CanRespond) : undefined,
+    expired,
     fields: normalizeBreakdownFields(q),
   };
 }
@@ -148,14 +163,31 @@ export function isDraftQuotation(quotation: Pick<Quotation, "status">): boolean 
 }
 
 /**
- * GET /quotation/my — the signed-in customer's quotations (drafts left out, like the API does now). Throws a
- * readable ApiError on failure.
+ * An older version of a quotation, replaced by a newer one: status Inactive, or not active while it was still
+ * waiting for an answer. The newest version is the quotation the customer deals with (it shows every version).
+ * A converted / accepted / signed quotation stays listed even when it is no longer active (the deal it records).
+ */
+export function isReplacedVersion(quotation: Pick<Quotation, "status" | "isActive">): boolean {
+  const status = (quotation.status ?? "").toLowerCase();
+  if (status === "inactive") return true;
+  return quotation.isActive === false && ["sent", "active", "pending", "draft"].includes(status);
+}
+
+/** The status to show: "expired" for a quotation whose answer time has passed, otherwise the API's status. */
+export function quotationDisplayStatus(quotation: Pick<Quotation, "status" | "expired">): string {
+  return quotation.expired ? "expired" : quotation.status;
+}
+
+/**
+ * GET /quotation/my — the signed-in customer's quotations: drafts left out (like the API does now) and older
+ * versions replaced by a newer one left out (they were listed as separate quotations). Throws a readable ApiError
+ * on failure.
  */
 export async function getMyQuotations(): Promise<Quotation[]> {
   const payload = await apiRequest<unknown>(API_ENDPOINTS.quotation.my, { requiresAuth: true });
   return listFrom(payload)
     .map(normalizeQuotation)
-    .filter((q) => !isDraftQuotation(q));
+    .filter((q) => !isDraftQuotation(q) && !isReplacedVersion(q));
 }
 
 /** GET /quotation/{id} — staff: any; customer: their own (404 otherwise). */
@@ -220,12 +252,13 @@ export async function openQuotationPdf(id: string, quotationNumber?: string): Pr
 }
 
 /**
- * Whether the customer can accept or decline: the API's `canRespond` when it sent one, otherwise only a Sent
- * quotation that is still active (the API's own rule).
+ * Whether the customer can accept or decline: never once it has expired; otherwise the API's `canRespond` when it
+ * sent one, else only a Sent quotation that is still active (the API's own rule).
  */
 export function canRespondToQuotation(
-  quotation: Pick<Quotation, "status" | "isActive"> & { canRespond?: boolean },
+  quotation: Pick<Quotation, "status" | "isActive"> & { canRespond?: boolean; expired?: boolean },
 ): boolean {
+  if (quotation.expired) return false;
   if (typeof quotation.canRespond === "boolean") return quotation.canRespond;
   if (quotation.isActive === false) return false;
   return (quotation.status ?? "").toLowerCase() === "sent";

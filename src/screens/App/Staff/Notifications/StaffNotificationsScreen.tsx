@@ -21,7 +21,7 @@ const MEANING: Partial<Record<StaffRouteName, string>> = {
   AgreementList: "Signed copies to verify or emails that failed",
   KycList: "Customers with KYC documents to review",
   InvoiceList: "Invoices past their due date",
-  Attendants: "Door access suspended (and capacity requests for admins)",
+  Attendants: "Door access suspended",
   Complaints: "Open complaints",
   AccessActivity: "Door machines offline",
 };
@@ -41,6 +41,8 @@ export default function StaffNotificationsScreen() {
 
 
   const rows = (Object.entries(badges) as [StaffRouteName, number][]).filter(([, n]) => n > 0);
+  // Capacity requests are counted once, here (StaffSession takes them out of the Attendants count). They stay until
+  // an admin decides, so "Mark all as read" does not clear them.
   const approvals = role === "admin" || role === "super_admin" ? pendingApprovals : 0;
   const markable = Object.entries(navBadges)
     .filter(([cms, n]) => n > 0 && NAV_BADGE_ROUTES[cms])

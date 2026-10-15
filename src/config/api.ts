@@ -121,7 +121,8 @@ export const API_ENDPOINTS = {
       params.set("page", String(page));
       params.set("limit", String(limit));
       if (search) params.set("search", search);
-      if (locationId != null && Number.isInteger(locationId) && locationId > 0) params.set("locationId", String(locationId));
+      // 0 = only the inquiries with no branch.
+      if (locationId != null && Number.isInteger(locationId) && locationId >= 0) params.set("locationId", String(locationId));
       return `/contact?${params.toString()}`;
     },
     feedback: (id: number | string) => `/contact/${encodeURIComponent(String(id))}/feedback`,
@@ -202,8 +203,12 @@ export const API_ENDPOINTS = {
       `/quotation/${id}/versions/${version}/decline`,
     versionCreate: (id: string) => `/quotation/${id}/versions`,
   },
-  // There is no "my invoices" list for customers yet: the customer area uses /payment/my + booking challans.
   invoices: {
+    /**
+     * GET /api/invoice/my — the signed-in customer's own bills (Payments tab): invoices plus booking challans that
+     * have no invoice, with status (paid / unpaid / overdue), balance and totals.
+     */
+    my: "/invoice/my",
     /** GET /api/invoice — staff only. */
     list: "/invoice",
     /** GET /api/invoice/{id} — staff only. */

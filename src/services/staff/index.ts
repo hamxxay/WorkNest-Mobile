@@ -13,6 +13,8 @@ export * from "./bookings";
 export * from "./agreements";
 export * from "./invoices";
 export * from "./attendants";
+export * from "./doorMachines";
+export * from "./initialInvoice";
 export * from "./complaints";
 export * from "./branches";
 export * from "./inquiries";

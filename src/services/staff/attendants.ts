@@ -1,4 +1,5 @@
 import type { StaffRole } from "../../context/roles";
+import { ApiError, errorMessage, serverMessage } from "../apiClient";
 import { cnicError } from "../../utils/cnic";
 import { phoneError } from "../../utils/phone";
 import { STAFF_ENDPOINTS } from "./endpoints";
@@ -11,7 +12,9 @@ import {
   staffPut,
   type ActionResult,
 } from "./http";
+import { normalizeMachineSync, type MachineSync } from "./doorMachines";
 import { bool, isApiDate, num, optNum, optStr, pick, str, toList, unwrapEnvelope, utcIso, withQuery } from "./normalize";
+import { isObject } from "../ceo/readers";
 
 // Attendants & Access (CMS admin.service.ts attendants / capacity requests / access suspension and
 // pages/admin/attendant-management; API AttendantController). Roles: every staff role; admins / sales
@@ -296,7 +299,10 @@ export async function assignAttendant(
     customerId: person.customerId,
   });
   const result = actionResult<any>(raw, "Person added to the room.");
-  const d = result.data ?? {};
+  // The answer is { message, data } without isSuccessful, so actionResult keeps the whole answer as data: the
+  // assignment (isOverCapacity, surchargeInvoiceError...) is inside its `data`.
+  const inner = isObject(raw) ? pick(raw, "data") : null;
+  const d = isObject(inner) ? inner : result.data ?? {};
   return {
     message: result.message,
     data: {
@@ -307,10 +313,79 @@ export async function assignAttendant(
   };
 }
 
-/** DELETE bookings/{bookingDetailId}/attendants/{personId} — ends the assignment and turns door access off. */
-export async function removeAttendant(bookingDetailId: number, personId: number): Promise<ActionResult> {
+/**
+ * DELETE bookings/{bookingDetailId}/attendants/{personId} — ends the assignment and blocks the person on the room and
+ * Entrance machines (queued for offline ones). `machines`: what the machines did (machineSyncNotice words it).
+ */
+export async function removeAttendant(bookingDetailId: number, personId: number): Promise<ActionResult<{ machines: MachineSync | null }>> {
   const raw = await staffDelete(STAFF_ENDPOINTS.attendants.remove(bookingDetailId, personId));
-  return actionResult(raw, "Person removed from the room.");
+  const result = actionResult(raw, "Person removed from the room.");
+  return { message: result.message, data: { machines: normalizeMachineSync(raw) } };
+}
+
+// ─── Add by CNIC (customer-added employees) ───────────────────────────────────────────────────────────────
+
+/** The person the CNIC check added to the room. */
+export type ByCnicPerson = { personId: number | null; name: string; email: string; phone: string; idType: string; idNumber: string };
+
+/**
+ * Outcome of the CNIC check (CMS findByCnic):
+ *   added       the customer added this employee: verified and now on the room
+ *   not-found   404 / data.canAddManually: nobody with this CNIC was added by the customer -> offer "Add manually"
+ *   already     409: already on this booking (or just verified by someone else)
+ *   unavailable 503: the server still needs the database update for customer employees -> offer "Add manually"
+ * Anything else (e.g. 400 room full for a sales executive) throws with the API's message.
+ */
+export type ByCnicOutcome =
+  | { kind: "added"; message: string; person: ByCnicPerson }
+  | { kind: "not-found" | "already" | "unavailable"; message: string; canAddManually: boolean };
+
+export const BY_CNIC_NOT_FOUND = "No employee with this CNIC was added by the customer for this booking.";
+export const BY_CNIC_UNAVAILABLE =
+  "Finding employees by CNIC needs a database update on the server, which is not done yet. Add the person manually for now.";
+
+/** The outcome an error of the CNIC check stands for, or null when it is a real error (pure; unit-tested). */
+export function byCnicProblem(error: unknown): Exclude<ByCnicOutcome, { kind: "added" }> | null {
+  if (!(error instanceof ApiError)) return null;
+  const details = error.details;
+  const data = isObject(details) ? pick(details, "data") : null;
+  const manual = isObject(data) && bool(data, "canAddManually");
+  const own = serverMessage(details);
+  if (error.status === 404 || manual) return { kind: "not-found", message: own ?? BY_CNIC_NOT_FOUND, canAddManually: true };
+  if (error.status === 409) return { kind: "already", message: own ?? "This person is already on this booking.", canAddManually: false };
+  if (error.status === 503) return { kind: "unavailable", message: BY_CNIC_UNAVAILABLE, canAddManually: true };
+  return null;
+}
+
+/**
+ * POST bookings/{bookingDetailId}/attendants/by-cnic { idNumber } (admin, super admin, sales executive): finds the
+ * employee the customer added to this booking by CNIC, marks the request verified and puts them on the room.
+ */
+export async function addAttendantByCnic(bookingDetailId: number, idNumber: string): Promise<ByCnicOutcome> {
+  if (!(idNumber ?? "").trim()) throw new Error("Enter the CNIC.");
+  const invalid = cnicError(idNumber);
+  if (invalid) throw new Error(invalid);
+  try {
+    const raw = await staffPost<any>(STAFF_ENDPOINTS.attendants.byCnic(bookingDetailId), { idNumber: idNumber.trim() });
+    const result = actionResult<any>(raw, "Employee verified and added. Now add their fingerprint or face.");
+    const d = isObject(result.data) ? result.data : {};
+    return {
+      kind: "added",
+      message: result.message,
+      person: {
+        personId: optNum(d, "personId"),
+        name: str(d, "name"),
+        email: str(d, "email"),
+        phone: str(d, "phone"),
+        idType: str(d, "idType") || "CNIC",
+        idNumber: str(d, "idNumber") || idNumber.trim(),
+      },
+    };
+  } catch (error) {
+    const problem = byCnicProblem(error);
+    if (problem) return problem;
+    throw error instanceof Error ? error : new Error(errorMessage(error, "The CNIC could not be checked."));
+  }
 }
 
 // ─── Capacity requests ────────────────────────────────────────────────────────────────────────────────────
@@ -437,19 +512,21 @@ export function canWithdrawCapacityRequest(
 
 // ─── Door access ──────────────────────────────────────────────────────────────────────────────────────────
 
-/** PATCH access-status — door access on / off for one person (personId) or the whole booked space (null). */
+/**
+ * PATCH access-status — door access on / off for one person (personId) or the whole booked space (null). `machines`:
+ * what the room and Entrance machines did (blocked / unblocked / queued / failed; suspended keeps doors blocked).
+ */
 export async function setDoorAccess(input: {
   bookingDetailId: number;
   customerId: number;
   personId: number | null;
   isEnabled: boolean;
-}): Promise<ActionResult<{ rowsUpdated: number; machines: Record<string, any> | null }>> {
+}): Promise<ActionResult<{ rowsUpdated: number; machines: MachineSync | null }>> {
   const raw = await staffPatch<any>(STAFF_ENDPOINTS.attendants.accessStatus, input);
   const result = actionResult(raw, input.isEnabled ? "Access turned on." : "Access turned off.");
-  const machines = pick(raw, "machines");
   return {
     message: result.message,
-    data: { rowsUpdated: num(raw, "rowsUpdated"), machines: machines && typeof machines === "object" ? machines : null },
+    data: { rowsUpdated: num(raw, "rowsUpdated"), machines: normalizeMachineSync(raw) },
   };
 }
 

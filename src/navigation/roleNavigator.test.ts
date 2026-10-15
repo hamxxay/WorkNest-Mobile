@@ -118,9 +118,11 @@ describe("the Access Officer navigator", () => {
 });
 
 describe("background calls for every signed-in app", () => {
-  it("the Access Officer never loads announcements (the API answers 403); every other role is unchanged", () => {
-    expect(loadsAnnouncements("access_officer")).toBe(false);
-    for (const role of ["general", "sales_executive", "admin", "super_admin", "sales_manager", "ceo"] as UserRole[]) {
+  it("the CEO, Sales Manager and Access Officer never load announcements (the API answers 403); every other role does", () => {
+    for (const role of ["access_officer", "sales_manager", "ceo"] as UserRole[]) {
+      expect(loadsAnnouncements(role)).toBe(false);
+    }
+    for (const role of ["general", "sales_executive", "admin", "super_admin"] as UserRole[]) {
       expect(loadsAnnouncements(role)).toBe(true);
     }
     expect(loadsAnnouncements(null)).toBe(true);

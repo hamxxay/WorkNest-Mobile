@@ -4,7 +4,7 @@ import type { AppStackParamList } from "./types";
 export type RedirectAfterLogin = { screen: keyof AppStackParamList; params?: any };
 
 /** Screens that make no sense as a destination after signing in. */
-const NOT_A_DESTINATION: Array<keyof AppStackParamList> = ["Login", "Signup"];
+const NOT_A_DESTINATION: Array<keyof AppStackParamList> = ["Login", "Signup", "VerifyEmail"];
 
 type AppRoute = { name: keyof AppStackParamList; params?: any };
 

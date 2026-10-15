@@ -21,8 +21,12 @@ import type {
 //   occupancy-type       spaceTypeId    locations        spaces    spaceTypeId + locationId = row
 //   occupancy-location   locationId     space types      spaces    locationId + spaceTypeId = row
 //   bookings-month       month          locations        bookings  month + locationId = row
-//   inquiries-type       type           months (6)       inquiries type + month = row
+//   inquiries-type       type           months (6)       inquiries type + month = row (+ the location filter)
 //   staff                userId         months (6)       quotations userId + month = row
+//
+// The "No location" row of a location breakdown (key "none": invoices, spaces or bookings not tied to a location)
+// opens its records with locationId=none. Tour inquiries follow the location filter by their branch (one location =
+// only its inquiries); the full list of leases expiring is records/leases.
 
 /** A positive int, or null (location / space type / user ids, also when they arrive as text). */
 export function positiveId(value: unknown): number | null {
@@ -33,6 +37,18 @@ export function positiveId(value: unknown): number | null {
 
 /** The dashboard's location filter as a query value (null = all locations). */
 const scopeLocation = (scope: { locationId?: number | null }) => positiveId(scope.locationId);
+
+/** Key of the breakdown row for the part not tied to a location ("No location"). */
+export const NO_LOCATION_KEY = "none";
+
+/**
+ * The location a breakdown row stands for: its id, "none" for the "No location" row (records not tied to a
+ * location, which the records endpoints take as locationId=none), or null for anything else.
+ */
+export function rowLocation(key: unknown): number | "none" | null {
+  if (typeof key === "string" && key.trim().toLowerCase() === NO_LOCATION_KEY) return NO_LOCATION_KEY;
+  return positiveId(key);
+}
 
 /** First word of each breadcrumb trail, per breakdown metric. */
 export const BREAKDOWN_ROOTS: Record<CeoBreakdownMetric, string> = {
@@ -114,24 +130,28 @@ export function cleanParams(params: CeoRecordParams): CeoRecordParams {
  */
 export function recordsForBreakdownRow(query: CeoBreakdownQuery, row: CeoBreakdownRow): CeoRecordsQuery | null {
   const rowId = positiveId(row.key);
+  // Location rows: a location id or the "No location" row.
+  const rowLoc = rowLocation(row.key);
   const rowMonth = isMonthKey(row.key) ? row.key : null;
   switch (query.metric) {
     case "revenue":
-      return rowId && isMonthKey(query.month) ? { kind: "invoices", params: cleanParams({ month: query.month, locationId: rowId }) } : null;
+      return rowLoc && isMonthKey(query.month) ? { kind: "invoices", params: cleanParams({ month: query.month, locationId: rowLoc }) } : null;
     case "aging":
-      return rowId && query.bucket ? { kind: "invoices", params: cleanParams({ bucket: query.bucket, locationId: rowId }) } : null;
+      return rowLoc && query.bucket ? { kind: "invoices", params: cleanParams({ bucket: query.bucket, locationId: rowLoc }) } : null;
     case "occupancy-type": {
       const typeId = positiveId(query.spaceTypeId);
-      return rowId && typeId ? { kind: "spaces", params: cleanParams({ spaceTypeId: typeId, locationId: rowId }) } : null;
+      return rowLoc && typeId ? { kind: "spaces", params: cleanParams({ spaceTypeId: typeId, locationId: rowLoc }) } : null;
     }
     case "occupancy-location": {
       const locationId = positiveId(query.locationId);
       return rowId && locationId ? { kind: "spaces", params: cleanParams({ locationId, spaceTypeId: rowId }) } : null;
     }
     case "bookings-month":
-      return rowId && isMonthKey(query.month) ? { kind: "bookings", params: cleanParams({ month: query.month, locationId: rowId }) } : null;
+      return rowLoc && isMonthKey(query.month) ? { kind: "bookings", params: cleanParams({ month: query.month, locationId: rowLoc }) } : null;
     case "inquiries-type":
-      return rowMonth && query.type ? { kind: "inquiries", params: cleanParams({ type: query.type, month: rowMonth }) } : null;
+      return rowMonth && query.type
+        ? { kind: "inquiries", params: cleanParams({ type: query.type, month: rowMonth, locationId: scopeLocation(query) }) }
+        : null;
     case "staff": {
       const userId = positiveId(query.userId);
       return rowMonth && userId
@@ -159,14 +179,14 @@ export function periodRange(period: CeoPeriod, today: Date = new Date()): { from
 
 /**
  * Funnel stage -> records of the period (no breakdown level): inquiries -> tour inquiries, quotations / accepted
- * -> quotations?stage=, bookings -> bookings. null for an unknown stage.
+ * -> quotations?stage=, bookings -> bookings; all with the location filter. null for an unknown stage.
  */
 export function recordsForFunnelStage(stage: string, scope: CeoScope, today: Date = new Date()): CeoRecordsQuery | null {
   const { from, to } = periodRange(scope.period, today);
   const locationId = scopeLocation(scope);
   switch (stage) {
     case "inquiries":
-      return { kind: "inquiries", params: cleanParams({ period: scope.period, from, to }) };
+      return { kind: "inquiries", params: cleanParams({ period: scope.period, from, to, locationId }) };
     case "quotations":
     case "accepted":
       return { kind: "quotations", params: cleanParams({ stage, period: scope.period, from, to, locationId }) };
@@ -191,6 +211,11 @@ export function overdueInvoicesRecords(scope: CeoScope): CeoRecordsQuery {
 /** The New bookings card -> bookings created in the period. */
 export function newBookingsRecords(scope: CeoScope): CeoRecordsQuery {
   return { kind: "bookings", params: cleanParams({ period: scope.period, locationId: scopeLocation(scope) }) };
+}
+
+/** "Leases expiring" -> every confirmed lease ending in the next 90 days (records/leases, soonest first). */
+export function leasesExpiringRecords(scope: { locationId?: number | null }): CeoRecordsQuery {
+  return { kind: "leases", params: cleanParams({ locationId: scopeLocation(scope) }) };
 }
 
 /** "Revenue > Oct 2026 > I-8" as pieces; empty pieces dropped. */

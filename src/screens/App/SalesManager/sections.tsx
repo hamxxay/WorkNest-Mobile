@@ -8,6 +8,7 @@ import {
   deskTrend,
   desks,
   signedCount,
+  smExpiringLeasesRecords,
   smFollowUpsDueRecords,
   smInquiryMonthRecords,
   smInquiryOutcomeRecords,
@@ -417,7 +418,15 @@ export function RenewalsSection({ renewals: r, drill }: { renewals: SmRenewals; 
   }, []);
   const pastMonths = useMemo(() => r.months.filter((m) => !m.month || m.month <= thisMonth).slice(-12), [r.months, thisMonth]);
   const months = r.months.slice(-15);
-  const showLeases = () => drill.focus("expiring");
+  // The KPIs and "and N more" open the full list (records/leases); the card below shows the first few.
+  const openLeases = (withinDays?: number) =>
+    drill.records(
+      smExpiringLeasesRecords(drill.scope, withinDays),
+      ["Renewals", withinDays ? `Ending within ${withinDays} days` : "Leases expiring"],
+      withinDays ? `Leases ending within ${withinDays} days` : "Leases expiring",
+    );
+  const shownLeases = r.expiring.slice(0, LEASES_SHOWN);
+  const moreLeases = r.expiringCount - shownLeases.length;
 
   // Two per row: the third (net desks) takes the whole last row.
   const tiles: StatCardProps[] = [
@@ -427,7 +436,7 @@ export function RenewalsSection({ renewals: r, drill }: { renewals: SmRenewals; 
       sub: plural(r.expiringCount, "lease", "leases"),
       icon: "hourglass-outline",
       tone: r.expiringDesks || r.expiringCount ? "warning" : "success",
-      onPress: showLeases,
+      onPress: () => openLeases(),
     },
     {
       label: "Desks ending within 30 days",
@@ -435,7 +444,7 @@ export function RenewalsSection({ renewals: r, drill }: { renewals: SmRenewals; 
       sub: plural(r.expiring30Count, "lease", "leases"),
       icon: "alarm-outline",
       tone: r.expiring30Desks || r.expiring30Count ? "danger" : "success",
-      onPress: showLeases,
+      onPress: () => openLeases(30),
     },
     {
       label: `Net desks ${words}`,
@@ -517,7 +526,7 @@ export function RenewalsSection({ renewals: r, drill }: { renewals: SmRenewals; 
                   { label: "Desks", value: count(r.expiringDesks) },
                 ]}
               />
-              {r.expiring.slice(0, LEASES_SHOWN).map((l, i) => (
+              {shownLeases.map((l, i) => (
                 <Fragment key={`${l.bookingId ?? l.customer}-${i}`}>
                   <Divider inset={16} />
                   <ListRow
@@ -529,12 +538,17 @@ export function RenewalsSection({ renewals: r, drill }: { renewals: SmRenewals; 
                   />
                 </Fragment>
               ))}
-              {r.expiringCount > LEASES_SHOWN ? (
-                <View style={styles.padded}>
-                  <AppText variant="caption" color="textMuted">
-                    and {count(r.expiringCount - Math.min(LEASES_SHOWN, r.expiring.length))} more
-                  </AppText>
-                </View>
+              {moreLeases > 0 ? (
+                <>
+                  <Divider inset={16} />
+                  <ListRow
+                    leftIcon="list-outline"
+                    title={`All ${count(r.expiringCount)} leases expiring`}
+                    subtitle={`and ${count(moreLeases)} more not shown here`}
+                    accessibilityHint="Opens every lease ending in the next 90 days"
+                    onPress={() => openLeases()}
+                  />
+                </>
               ) : null}
             </>
           ) : (

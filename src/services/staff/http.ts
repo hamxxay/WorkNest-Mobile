@@ -10,11 +10,20 @@ import { isEnvelope } from "./normalize";
 
 type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
-export function staffRequest<T = unknown>(path: string, method: Method = "GET", body?: unknown): Promise<T> {
-  return apiRequest<T>(path, { method, body, requiresAuth: true, unwrapData: false });
+/** `timeoutMs`: a shorter time limit for a call the user is waiting on (default apiClient's REQUEST_TIMEOUT_MS). */
+type StaffRequestOptions = { timeoutMs?: number };
+
+export function staffRequest<T = unknown>(
+  path: string,
+  method: Method = "GET",
+  body?: unknown,
+  options?: StaffRequestOptions,
+): Promise<T> {
+  return apiRequest<T>(path, { method, body, requiresAuth: true, unwrapData: false, ...options });
 }
 
-export const staffGet = <T = unknown>(path: string) => staffRequest<T>(path, "GET");
+export const staffGet = <T = unknown>(path: string, options?: StaffRequestOptions) =>
+  staffRequest<T>(path, "GET", undefined, options);
 /** POST; `body` defaults to {} like the CMS (ASP.NET [FromBody] parameters reject an empty body). */
 export const staffPost = <T = unknown>(path: string, body: unknown = {}) => staffRequest<T>(path, "POST", body);
 export const staffPut = <T = unknown>(path: string, body: unknown = {}) => staffRequest<T>(path, "PUT", body);

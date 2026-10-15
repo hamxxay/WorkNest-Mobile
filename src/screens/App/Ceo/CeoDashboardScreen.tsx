@@ -20,7 +20,9 @@ import {
   ceoErrorView,
   getCeoDashboard,
   getCeoForecast,
+  inquiriesCountAllLocations,
   isCompleteBreakdown,
+  leasesExpiringRecords,
   newBookingsRecords,
   overdueInvoicesRecords,
   PERIOD_OPTIONS,
@@ -46,6 +48,9 @@ import {
   type Drill,
   type FocusTarget,
 } from "./sections";
+
+/** Shown on the Sales section while one location is chosen and the server still counts every location's inquiries. */
+const INQUIRIES_ALL_LOCATIONS_NOTE = "Tour inquiries count every location until database update QA_07 is run";
 
 type Nav = NativeStackNavigationProp<CeoStackParamList, "CeoDashboard">;
 
@@ -106,13 +111,13 @@ export default function CeoDashboardScreen() {
 
   // ─── Drill-down ──────────────────────────────────────────────────────────────────────────────────────────
   const locationName = knownLocations.find((l) => l.locationId === locationId)?.name;
-  const scopeLabel = [d?.periodLabel || PERIOD_OPTIONS.find((p) => p.value === period)?.label, locationId ? locationName ?? "One location" : "All locations"]
-    .filter(Boolean)
-    .join(" · ");
+  const locationLabel = locationId ? locationName ?? "One location" : "All locations";
+  const scopeLabel = [d?.periodLabel || PERIOD_OPTIONS.find((p) => p.value === period)?.label, locationLabel].filter(Boolean).join(" · ");
 
   const drill = useMemo<Drill>(
     () => ({
       period,
+      locationId: scope.locationId ?? null,
       breakdown: (t: BreakdownTarget, trail: string[]) => {
         const query = {
           ...t,
@@ -123,7 +128,8 @@ export default function CeoDashboardScreen() {
         if (isCompleteBreakdown(query)) navigation.navigate("CeoBreakdown", { query, trail, scopeLabel });
       },
       records: (query: CeoRecordsQuery | null, trail: string[], title?: string) => {
-        if (query) navigation.navigate("CeoRecords", { query, trail, title, scopeLabel });
+        // Leases ending in the next 90 days are not bound to the period: name only the location.
+        if (query) navigation.navigate("CeoRecords", { query, trail, title, scopeLabel: query.kind === "leases" ? locationLabel : scopeLabel });
       },
       focus,
       target,
@@ -131,8 +137,9 @@ export default function CeoDashboardScreen() {
       newBookingsRecords: () => newBookingsRecords(scope),
       funnelRecords: (stage: string) => recordsForFunnelStage(stage, scope),
       customerRecords: (customerId: number | null) => recordsForCustomer(customerId, scope),
+      leasesRecords: () => leasesExpiringRecords(scope),
     }),
-    [period, scope, navigation, scopeLabel, focus, target],
+    [period, scope, navigation, scopeLabel, locationLabel, focus, target],
   );
 
   const refresh = () => {
@@ -208,6 +215,7 @@ export default function CeoDashboardScreen() {
               <CeoSection
                 title="Sales"
                 subtitle={`Inquiries, quotations and bookings ${words}`}
+                note={d?.sales && inquiriesCountAllLocations(d.sales, scope.locationId) ? INQUIRIES_ALL_LOCATIONS_NOTE : undefined}
                 loading={loading}
                 empty={!d?.sales}
                 emptyMessage="No sales figures were sent for this period."

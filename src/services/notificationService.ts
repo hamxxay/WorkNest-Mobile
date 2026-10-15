@@ -1,6 +1,7 @@
 import { PermissionsAndroid, Platform } from "react-native";
 import { API_ENDPOINTS } from "../config/api";
 import { apiRequest } from "./apiClient";
+import { APP_LINK_PREFIXES, APP_SCHEME } from "../navigation/appLinks";
 
 // Push notifications and announcements for signed-in app users (MobileAnnouncementController):
 //   POST /mobile/device-token            the device's FCM token (after sign-in, never for guests)
@@ -191,8 +192,8 @@ export function subscribeToForegroundMessages(
 
 // ─── Notification tap -> deep link ───────────────────────────────────────────
 
-const APP_LINK = "myapp://";
-const LINK_PREFIXES = ["myapp://", "https://worknestpk.com", "https://work-nest-3936a.web.app"];
+const APP_LINK = APP_SCHEME;
+const LINK_PREFIXES = APP_LINK_PREFIXES;
 
 /** Screen keywords a push may carry in data.screen, mapped to the app's deep-link paths. */
 const SCREEN_PATHS: Record<string, string> = {

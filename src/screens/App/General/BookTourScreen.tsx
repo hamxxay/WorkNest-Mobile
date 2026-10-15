@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { KeyboardAvoidingView, Linking, Platform, ScrollView, StyleSheet, View, type TextInput } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import {
@@ -28,6 +28,7 @@ import {
 } from "../../../services/tourService";
 import { isValidEmail } from "../../../utils/validation";
 import { formatPhoneInput, phoneError, PHONE_MAX_LENGTH } from "../../../utils/phone";
+import { nameError } from "../../../utils/inputSanitizer";
 
 type Errors = Partial<Record<"fullName" | "email" | "phone" | "location" | "date" | "slot", string>>;
 
@@ -59,6 +60,9 @@ export default function BookTourScreen() {
   // Location name -> id, so the request is sent to that branch's staff (locationId).
   const [locationIds, setLocationIds] = useState<Record<string, number>>({});
   const [locationsLoading, setLocationsLoading] = useState(true);
+  // GET /location/all failed: the branch stays required (the request goes to that branch's staff), so the form
+  // shows the error with Retry instead of quietly sending it without a branch.
+  const [locationsError, setLocationsError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
   const [sent, setSent] = useState<TourRequest | null>(null);
@@ -66,27 +70,38 @@ export default function BookTourScreen() {
   const emailRef = useRef<TextInput>(null);
   const phoneRef = useRef<TextInput>(null);
 
-  // Locations from the API (dbo.WN_Locations), not hard-coded. Without any, the field is optional.
-  useEffect(() => {
+  // Locations from the API (dbo.WN_Locations), not hard-coded. Only when the API has none is the field optional.
+  const loadLocations = useCallback(() => {
+    setLocationsLoading(true);
+    setLocationsError("");
     getLocations()
       .then((rows) => {
         const active = rows.filter((l) => (l as { isActive?: boolean }).isActive !== false && l.name);
         setLocations(active.map((l) => l.name).sort((a, b) => a.localeCompare(b)));
         setLocationIds(Object.fromEntries(active.filter((l) => Number(l.id) > 0).map((l) => [l.name, Number(l.id)])));
       })
-      .catch(() => setLocations([]))
+      .catch((err) => {
+        setLocations([]);
+        setLocationsError(errorMessage(err, "Our locations could not be loaded."));
+      })
       .finally(() => setLocationsLoading(false));
   }, []);
+
+  useEffect(() => {
+    loadLocations();
+  }, [loadLocations]);
 
   const clear = (key: keyof Errors) => setErrors((e) => ({ ...e, [key]: undefined }));
 
   const validate = (): boolean => {
     const next: Errors = {};
-    if (fullName.trim().length < 2) next.fullName = "Enter your full name.";
+    const nameProblem = nameError(fullName, "Full name");
+    if (nameProblem) next.fullName = nameProblem;
     if (!isValidEmail(email.trim())) next.email = "Enter a valid email address.";
     if (!phone.trim()) next.phone = "Enter your phone number.";
     else if (phoneError(phone)) next.phone = phoneError(phone) ?? undefined;
-    if (locations.length > 0 && !location) next.location = "Choose a location.";
+    if (locationsError || locationsLoading) next.location = "Choose a location (tap Retry to load the list).";
+    else if (locations.length > 0 && !location) next.location = "Choose a location.";
     if (!date) next.date = "Choose a date.";
     if (!slot) next.slot = "Choose a time slot.";
     setErrors(next);
@@ -160,8 +175,10 @@ export default function BookTourScreen() {
                 value={fullName}
                 onChangeText={(v) => {
                   setFullName(v);
-                  clear("fullName");
+                  // Characters a name can't have are pointed out while typing; the rest when leaving the field.
+                  setErrors((e) => ({ ...e, fullName: nameError(v, "Full name", { typing: true }) ?? undefined }));
                 }}
+                onBlur={() => setErrors((e) => ({ ...e, fullName: nameError(fullName, "Full name") ?? undefined }))}
                 autoCapitalize="words"
                 autoComplete="name"
                 returnKeyType="next"
@@ -204,7 +221,7 @@ export default function BookTourScreen() {
               />
               <SelectField
                 label="Location"
-                required={locations.length > 0}
+                required={locations.length > 0 || !!locationsError}
                 value={location}
                 onChange={(v) => {
                   setLocation(v);
@@ -212,11 +229,20 @@ export default function BookTourScreen() {
                 }}
                 options={locations.map((l) => ({ label: l, value: l }))}
                 loading={locationsLoading}
-                placeholder={locationsLoading ? "Loading locations" : "Choose a location"}
-                emptyText="No locations available. Leave it empty and we will suggest one."
+                placeholder={locationsLoading ? "Loading locations" : locationsError ? "Locations not loaded" : "Choose a location"}
+                emptyText={locationsError ? "Locations could not be loaded. Tap Retry below." : "No locations available. Leave it empty and we will suggest one."}
                 error={errors.location}
                 leftIcon="location-outline"
               />
+              {locationsError ? (
+                <Banner
+                  tone="danger"
+                  title="Locations not loaded"
+                  message={`${locationsError} Choose the branch you want to visit once they load.`}
+                  actionLabel="Retry"
+                  onAction={loadLocations}
+                />
+              ) : null}
               <DateField
                 label="Preferred date"
                 required

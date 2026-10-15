@@ -214,10 +214,26 @@ describe("apiRequest", () => {
   });
 
   it("does not end the session for a 401 from a sign-in endpoint", async () => {
-    const fetchMock = installFetch(jsonResponse(401, { message: "Sign in required." }));
+    const fetchMock = installFetch(jsonResponse(401, { message: "Invalid email or password." }));
 
-    await expect(apiRequest("/auth/me", { requiresAuth: true })).rejects.toBeInstanceOf(ApiError);
+    await expect(
+      apiRequest("/auth/login", { method: "POST", requiresAuth: true, body: {} }),
+    ).rejects.toBeInstanceOf(ApiError);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(expired).not.toHaveBeenCalled();
+  });
+
+  it("renews the token on a 401 from /auth/me (the profile is an ordinary signed-in request)", async () => {
+    const refresher = jest.fn().mockResolvedValue("fresh-jwt");
+    setSessionRefresher(refresher);
+    const fetchMock = installFetch(
+      jsonResponse(401, { message: "Sign in required." }),
+      jsonResponse(200, { isSuccessful: true, data: { email: "customer@example.com" } }),
+    );
+
+    await expect(apiRequest("/auth/me", { requiresAuth: true })).resolves.toEqual({ email: "customer@example.com" });
+    expect(refresher).toHaveBeenCalledTimes(1);
+    expect((fetchMock.mock.calls[1][1].headers as Record<string, string>).Authorization).toBe("Bearer fresh-jwt");
     expect(expired).not.toHaveBeenCalled();
   });
 
@@ -307,11 +323,20 @@ describe("apiRequest session refresh", () => {
 });
 
 describe("isAuthEndpoint", () => {
-  it("matches only the /auth endpoints", () => {
+  it("matches only the sign-in endpoints", () => {
     expect(isAuthEndpoint("/auth/google-login")).toBe(true);
-    expect(isAuthEndpoint("/auth/me")).toBe(true);
+    expect(isAuthEndpoint("/auth/login")).toBe(true);
+    expect(isAuthEndpoint("/auth/logout")).toBe(true);
+    expect(isAuthEndpoint("auth/register")).toBe(true);
     expect(isAuthEndpoint("/Agreement/my")).toBe(false);
     expect(isAuthEndpoint("/booking/12/challan")).toBe(false);
+  });
+
+  it("treats /auth/me as an ordinary signed-in request (a 401 there renews the session)", () => {
+    expect(isAuthEndpoint("/auth/me")).toBe(false);
+    expect(isAuthEndpoint("auth/me")).toBe(false);
+    expect(isAuthEndpoint("/auth/me?x=1")).toBe(false);
+    expect(isAuthEndpoint("/auth/media")).toBe(true);
   });
 });
 

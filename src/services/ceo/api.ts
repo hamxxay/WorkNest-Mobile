@@ -17,7 +17,7 @@ export const CEO_ENDPOINTS = {
   records: (kind: CeoRecordKind) => `/ceo/records/${kind}`,
 } as const;
 
-const RECORD_KINDS: readonly CeoRecordKind[] = ["invoices", "spaces", "bookings", "inquiries", "quotations"];
+const RECORD_KINDS: readonly CeoRecordKind[] = ["invoices", "spaces", "bookings", "inquiries", "quotations", "leases"];
 
 async function ceoGet(path: string): Promise<unknown> {
   try {
@@ -39,7 +39,10 @@ export async function getCeoBreakdown(query: CeoBreakdownQuery): Promise<CeoBrea
   return normalizeCeoBreakdown(raw, query.metric);
 }
 
-/** GET api/ceo/records/{kind}?... — drill level 3: read-only list, newest first, at most 200 rows. CEO / super admin. */
+/**
+ * GET api/ceo/records/{kind}?... — drill level 3: read-only list, newest first (leases: soonest first), at most 200
+ * rows. CEO / super admin. records/leases needs the server's database update QA_07 (503 before it).
+ */
 export async function getCeoRecords(query: CeoRecordsQuery): Promise<CeoRecords> {
   if (!RECORD_KINDS.includes(query.kind)) throw new Error("Unknown list.");
   const raw = await ceoGet(withQuery(CEO_ENDPOINTS.records(query.kind), query.params));

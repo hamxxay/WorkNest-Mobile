@@ -15,6 +15,7 @@ import { errorMessage } from "../../../../services/apiClient";
 import {
   addBookingEmployee,
   BRANCH_ACCESS_NOTE,
+  EMAIL_MAX,
   formatPassportInput,
   NAME_MAX,
   PASSPORT_MAX,
@@ -28,7 +29,6 @@ import {
 } from "../../../../services/employeeService";
 import { formatCnicInput } from "../../../../utils/cnic";
 import { formatPhoneInput, PHONE_MAX_LENGTH } from "../../../../utils/phone";
-import { INPUT_LIMITS } from "../../../../utils/inputSanitizer";
 
 export type AddEmployeeSheetProps = {
   bookingId: number;
@@ -200,7 +200,7 @@ export function AddEmployeeSheet({ bookingId, savedEmployees, seatsLeft, onClose
             autoCapitalize="none"
             autoCorrect={false}
             autoComplete="email"
-            maxLength={INPUT_LIMITS.email}
+            maxLength={EMAIL_MAX}
             leftIcon="mail-outline"
             returnKeyType="next"
             onSubmitEditing={() => phoneRef.current?.focus()}

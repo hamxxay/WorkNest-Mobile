@@ -20,8 +20,9 @@ import { formatDate, formatMoney, formatTime, toYmdLocal } from "../../../utils/
 import { useAuth } from "../../../context/AuthContext";
 import { errorMessage } from "../../../services/apiClient";
 import { categoryCodeForMode, getSmartAvailability, type SmartAvailability } from "../../../services/bookingService";
-import { priceUnitLabel } from "../../../services/workspaceService";
+import { isPrivateOfficeCategory, priceUnitLabel } from "../../../services/workspaceService";
 import { formatPhoneInput, phoneError, PHONE_MAX_LENGTH } from "../../../utils/phone";
+import { nameError } from "../../../utils/inputSanitizer";
 import type { AppStackParamList, BookingDraft } from "../../../navigation/types";
 
 type Nav = NativeStackNavigationProp<AppStackParamList>;
@@ -62,8 +63,10 @@ function startOfToday(): Date {
 
 /**
  * Booking step 1: when (meeting room: date, start time and hours; office / shared desk: start date and months,
- * like the staff portal's booking form) and the customer's details. Checks availability as the period changes
- * (GET /booking/smart/available). The amount payable is calculated by the API and shown on the challan.
+ * like the staff portal's booking form) and the customer's details. Checks availability at the card's location as
+ * the period changes (GET /booking/smart/available) and shows the listed price of the space the booking would get.
+ * The amount payable is calculated by the API and shown on the challan. An existing customer's name and phone come
+ * from their account (read-only here, edited in Profile); a first booking asks for them.
  */
 export default function BookingInfoScreen() {
   const navigation = useNavigation<Nav>();
@@ -73,6 +76,9 @@ export default function BookingInfoScreen() {
   const { user } = useAuth();
   const mode = modeOf(workspace.type);
   const categoryCode = workspace.categoryCode || categoryCodeForMode(mode);
+  const locationId = workspace.locationId && workspace.locationId > 0 ? workspace.locationId : undefined;
+  // A customer account exists (GET /auth/me customerId): the booking uses its details, not this form's.
+  const existingCustomer = !!(user?.customerCode || user?.customerId);
 
   const [date, setDate] = useState<Date | null>(null);
   const [startHour, setStartHour] = useState<number>(10);
@@ -138,6 +144,7 @@ export default function BookingInfoScreen() {
         startOn: localDateTime(period.start),
         endOn: localDateTime(period.end),
         capacity,
+        locationId,
       })
         .then((result) => active && setAvailability(result))
         .catch((err) => {
@@ -151,7 +158,7 @@ export default function BookingInfoScreen() {
       active = false;
       clearTimeout(timer);
     };
-  }, [period, meetingInPast, categoryCode, capacity]);
+  }, [period, meetingInPast, categoryCode, capacity, locationId]);
 
   const noSpace = !!availability && availability.count === 0;
 
@@ -160,11 +167,15 @@ export default function BookingInfoScreen() {
     if (!date) next.date = "Choose a date.";
     else if (meetingInPast) next.startHour = "Choose a time later than now.";
     if (people && !(Number(people) > 0)) next.people = "Enter the number of people, or leave it empty.";
-    if (name.trim().length < 2) next.name = "Enter your full name.";
-    if (!phone.trim()) next.phone = "Enter your phone number.";
-    else {
-      const p = phoneError(phone);
-      if (p) next.phone = p;
+    // An existing customer's details come from their account; only a first booking sends this form's.
+    if (!existingCustomer) {
+      const n = nameError(name, "Full name");
+      if (n) next.name = n;
+      if (!phone.trim()) next.phone = "Enter your phone number.";
+      else {
+        const p = phoneError(phone);
+        if (p) next.phone = p;
+      }
     }
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -184,11 +195,21 @@ export default function BookingInfoScreen() {
         capacity,
         notes: notes.trim() || undefined,
         guest: { name: name.trim(), email, phone: phone.trim() },
+        listedPrice: availability?.price ?? undefined,
+        priceUnit: availability?.price ? availability.billingPeriodCode ?? undefined : undefined,
+        seats: availability?.price ? availability.seats ?? undefined : undefined,
+        existingCustomer,
       },
     });
   };
 
   const unit = availability?.billingPeriodCode ? priceUnitLabel({ priceUnit: availability.billingPeriodCode }) : "";
+  // "PKR 175,000 per month for a 5-seat office": the space the booking would get (offices are priced whole).
+  const priceText = (a: SmartAvailability): string => {
+    if (a.price === null) return "The exact amount is on your challan.";
+    const office = isPrivateOfficeCategory(categoryCode) && a.seats ? ` for a ${a.seats}-seat office` : "";
+    return `Listed rate ${formatMoney(a.price)}${unit ? ` per ${unit}` : ""}${office}. The exact amount is on your challan.`;
+  };
 
   return (
     <Screen>
@@ -277,61 +298,90 @@ export default function BookingInfoScreen() {
                 availability.count > 0 ? (
                   <Banner
                     tone="success"
-                    title={`${availability.count} space${availability.count === 1 ? "" : "s"} available`}
-                    message={
-                      availability.fromPrice !== null
-                        ? `Listed rate from ${formatMoney(availability.fromPrice)}${unit ? ` per ${unit}` : ""}. The exact amount is on your challan.`
-                        : "The exact amount is on your challan."
-                    }
+                    title={`${availability.count} space${availability.count === 1 ? "" : "s"} available${workspace.location ? ` at ${workspace.location}` : ""}`}
+                    message={priceText(availability)}
+                  />
+                ) : availability.unpricedCount > 0 ? (
+                  <Banner
+                    tone="warning"
+                    title="Not bookable in the app"
+                    message="The free spaces of this type have no listed price for this period yet. Book a tour or contact us and our team will help you."
                   />
                 ) : (
                   <Banner
                     tone="danger"
                     title="Not available"
-                    message="No space of this type is free for this period. Try other dates or a shorter period."
+                    message={`No space of this type${workspace.location ? ` at ${workspace.location}` : ""} is free for this period. Try other dates or a shorter period.`}
                   />
                 )
               ) : null}
             </View>
           ) : null}
 
-          <SectionHeader title="Your details" subtitle="Used for the booking and the challan." />
+          <SectionHeader
+            title="Your details"
+            subtitle={existingCustomer ? "From your WorkNest account, used for the booking and the challan." : "Used for the booking and the challan."}
+          />
           <Card>
             <View style={styles.fields}>
-              <TextField
-                label="Full name"
-                required
-                value={name}
-                onChangeText={(v) => {
-                  setName(v);
-                  setErrors((e) => ({ ...e, name: "" }));
-                }}
-                autoCapitalize="words"
-                autoComplete="name"
-                returnKeyType="next"
-                onSubmitEditing={() => phoneRef.current?.focus()}
-                error={errors.name || undefined}
-                leftIcon="person-outline"
-              />
-              <TextField label="Email" value={email} disabled leftIcon="mail-outline" helperText="Your account email." />
-              <TextField
-                ref={phoneRef}
-                label="Phone"
-                required
-                value={phone}
-                onChangeText={(v) => {
-                  setPhone(formatPhoneInput(v));
-                  setErrors((e) => ({ ...e, phone: "" }));
-                }}
-                keyboardType="phone-pad"
-                maxLength={PHONE_MAX_LENGTH}
-                autoComplete="tel"
-                returnKeyType="next"
-                onSubmitEditing={() => notesRef.current?.focus()}
-                error={errors.phone || undefined}
-                leftIcon="call-outline"
-                placeholder="03001234567"
-              />
+              {existingCustomer ? (
+                <>
+                  <TextField label="Full name" value={name || "Not set"} disabled leftIcon="person-outline" />
+                  <TextField label="Email" value={email} disabled leftIcon="mail-outline" />
+                  <TextField label="Phone" value={phone || "Not set"} disabled leftIcon="call-outline" />
+                  <View style={styles.profileRow}>
+                    <AppText variant="caption" color="textMuted" style={styles.flex}>
+                      To change these details, edit them in Profile.
+                    </AppText>
+                    <Button
+                      title="Edit in Profile"
+                      variant="ghost"
+                      size="sm"
+                      rightIcon="arrow-forward"
+                      onPress={() => navigation.navigate("MainTabs", { screen: "Profile" })}
+                    />
+                  </View>
+                </>
+              ) : (
+                <>
+                  <TextField
+                    label="Full name"
+                    required
+                    value={name}
+                    onChangeText={(v) => {
+                      setName(v);
+                      // Characters a name can't have are pointed out while typing; the rest when leaving the field.
+                      setErrors((e) => ({ ...e, name: nameError(v, "Full name", { typing: true }) ?? "" }));
+                    }}
+                    onBlur={() => setErrors((e) => ({ ...e, name: nameError(name, "Full name") ?? "" }))}
+                    autoCapitalize="words"
+                    autoComplete="name"
+                    returnKeyType="next"
+                    onSubmitEditing={() => phoneRef.current?.focus()}
+                    error={errors.name || undefined}
+                    leftIcon="person-outline"
+                  />
+                  <TextField label="Email" value={email} disabled leftIcon="mail-outline" helperText="Your account email." />
+                  <TextField
+                    ref={phoneRef}
+                    label="Phone"
+                    required
+                    value={phone}
+                    onChangeText={(v) => {
+                      setPhone(formatPhoneInput(v));
+                      setErrors((e) => ({ ...e, phone: "" }));
+                    }}
+                    keyboardType="phone-pad"
+                    maxLength={PHONE_MAX_LENGTH}
+                    autoComplete="tel"
+                    returnKeyType="next"
+                    onSubmitEditing={() => notesRef.current?.focus()}
+                    error={errors.phone || undefined}
+                    leftIcon="call-outline"
+                    placeholder="03001234567"
+                  />
+                </>
+              )}
               <TextField
                 ref={notesRef}
                 label="Notes"
@@ -367,4 +417,5 @@ const createStyles = (_c: AppColors, t: Theme) =>
     content: { padding: t.spacing.screen, gap: t.spacing.lg, paddingBottom: t.spacing.xxl },
     fields: { gap: t.spacing.md },
     status: { gap: t.spacing.sm },
+    profileRow: { flexDirection: "row", alignItems: "center", gap: t.spacing.sm },
   });

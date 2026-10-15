@@ -35,6 +35,7 @@ import {
 } from "../../../../services/staff";
 import { spacing } from "../../../../theme";
 import { formatDate, formatMoney, formatTime, parseDate } from "../../../../utils/format";
+import { discountError, discountEstimate as estimateDiscount, quotationDiscountLimit } from "../../../../utils/quotationDiscount";
 import { CustomerPickerField } from "../shared/CustomerPickerField";
 import {
   EMPTY_SPACE_SELECTION,
@@ -224,10 +225,20 @@ export default function QuotationFormScreen() {
 
   const priceValue = Number(basePrice.replace(/,/g, ""));
   const discountValue = Number(discount.replace(/,/g, "")) || 0;
-  const seats = space?.capacity || 1;
-  const monthlyEstimate = !isMeeting && priceValue > 0 ? priceValue * (isPrivate ? seats : 1) : 0;
-  const discountEstimate =
-    monthlyEstimate > 0 ? (discountType === "Percentage" ? (monthlyEstimate * discountValue) / 100 : discountValue) : 0;
+  const seats = Math.max(1, space?.capacity || 1);
+  // The API's discount rules (utils/quotationDiscount): the cap widens when the base price is raised, and a PKR
+  // discount is limited too. The API multiplies the price by the space's seats.
+  const discountLimit = quotationDiscountLimit({
+    offeringCapPercent: offering ? offering.discountCap : null,
+    standardPerSeat: minPrice,
+    perSeat: Number.isFinite(priceValue) && priceValue > 0 ? priceValue : minPrice,
+    seats,
+    isMeetingRoom: isMeeting,
+  });
+  const monthlyEstimate = !isMeeting && priceValue > 0 ? discountLimit.monthlyRent : 0;
+  // Only what the API will apply (a larger discount is lowered to the limit there).
+  const discountEstimate = monthlyEstimate > 0 ? estimateDiscount(discountType, discountValue, discountLimit) : 0;
+  const perSeatLabel = isPrivate || seats > 1;
 
   const validate = (): { payload: Parameters<typeof createQuotation>[0] } | null => {
     const next: FieldErrors = {};
@@ -264,11 +275,9 @@ export default function QuotationFormScreen() {
       else if (minPrice && priceValue < minPrice) next.basePrice = `The standard price is ${formatMoney(minPrice)}. It can only be raised.`;
     }
     if (discount.trim()) {
-      if (!Number.isFinite(Number(discount.replace(/,/g, ""))) || discountValue < 0) next.discount = "Enter a valid discount.";
-      else if (discountType === "Percentage" && discountValue > 100) next.discount = "The discount can't be more than 100%.";
-      else if (discountType === "Percentage" && offering?.discountCap && discountValue > offering.discountCap) {
-        next.discount = `${offering.description} allows up to ${offering.discountCap}% discount.`;
-      }
+      const typed = Number(discount.replace(/,/g, ""));
+      const problem = discountError(discountType, Number.isFinite(typed) ? typed : NaN, discountLimit, offering?.description, (n) => formatMoney(n));
+      if (problem) next.discount = problem;
     }
     setErrors(next);
     if (Object.values(next).some(Boolean) || !customer || !selection.spaceId || !offering || !validUntil) return null;
@@ -304,7 +313,7 @@ export default function QuotationFormScreen() {
       toast.success(result.message, { haptic: true });
       if (fromInquiry && result.data.id > 0) {
         saveInquiryFeedback(
-          { id: fromInquiry.inquiryId, publicId: fromInquiry.publicId },
+          { id: fromInquiry.inquiryId, publicId: fromInquiry.publicId, source: fromInquiry.source ?? null },
           { outcome: "converted", quotationId: result.data.id },
         ).catch((err) => toast.error(errorMessage(err, "The quotation was saved, but the inquiry was not marked as converted.")));
       }
@@ -451,7 +460,7 @@ export default function QuotationFormScreen() {
                 {!isMeeting ? (
                   <>
                     <TextField
-                      label={isPrivate ? "Price per seat / month" : "Price per month"}
+                      label={perSeatLabel ? "Price per seat / month" : "Price per month"}
                       value={basePrice}
                       onChangeText={(t) => {
                         setBasePrice(t.replace(/[^\d.]/g, ""));
@@ -490,7 +499,13 @@ export default function QuotationFormScreen() {
                   error={errors.discount}
                   keyboardType="numeric"
                   placeholder="0"
-                  helperText={offering?.discountCap && discountType === "Percentage" ? `Up to ${offering.discountCap}% for ${offering.description}.` : undefined}
+                  helperText={
+                    discountType === "Percentage"
+                      ? `Up to ${discountLimit.capPercent}%${offering ? ` for ${offering.description}` : ""}.`
+                      : discountLimit.maxAmount != null
+                        ? `Up to ${formatMoney(discountLimit.maxAmount)} off the contract.`
+                        : undefined
+                  }
                   returnKeyType="next"
                   onSubmitEditing={() => remarksRef.current?.focus()}
                 />
@@ -501,10 +516,16 @@ export default function QuotationFormScreen() {
             {monthlyEstimate > 0 ? (
               <Card>
                 <InfoRow
-                  label={isPrivate ? `Monthly rent (${seats} ${seats === 1 ? "seat" : "seats"})` : "Monthly rent"}
+                  label={perSeatLabel ? `Monthly rent (${seats} ${seats === 1 ? "seat" : "seats"})` : "Monthly rent"}
                   value={formatMoney(monthlyEstimate)}
                 />
-                {discountEstimate > 0 ? <InfoRow label="Discount per month" value={`- ${formatMoney(discountEstimate)}`} valueColor="success" /> : null}
+                {discountEstimate > 0 ? (
+                  <InfoRow
+                    label={discountType === "Percentage" ? "Discount per month" : "Discount on the contract"}
+                    value={`- ${formatMoney(discountEstimate)}`}
+                    valueColor="success"
+                  />
+                ) : null}
                 <Divider spacing={8} />
                 <AppText variant="caption" color="textMuted">
                   Estimate before tax and support charges. WorkNest calculates the final amounts when you save.

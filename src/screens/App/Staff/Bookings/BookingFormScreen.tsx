@@ -177,7 +177,8 @@ export default function BookingFormScreen() {
         notes,
       });
       toast.success(result.data.challanNumber ? `${result.message} Challan ${result.data.challanNumber}.` : result.message);
-      if (result.data.bookingId > 0) navigation.replace("BookingDetail", { bookingId: result.data.bookingId });
+      // Next step, as in the CMS: the first invoice (rent + deposit), offered on the booking.
+      if (result.data.bookingId > 0) navigation.replace("BookingDetail", { bookingId: result.data.bookingId, offerInitialInvoice: {} });
       else navigation.goBack();
     } catch (err) {
       toast.error(errorMessage(err, "Could not create the booking."));

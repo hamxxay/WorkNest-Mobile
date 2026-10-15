@@ -157,6 +157,11 @@ export type SmDashboard = {
   generatedAt: string | null;
   /** The manager's locations (for the location picker). */
   locations: SmLocation[];
+  /**
+   * True: the server's database update BR_02 has not run, so the tour inquiry figures count every branch (not only
+   * the manager's locations); the Tour inquiries section says so.
+   */
+  inquiriesAllBranches: boolean;
   funnel: SmFunnel | null;
   team: SmTeam | null;
   inquiries: SmInquiries | null;

@@ -10,6 +10,7 @@ import {
   smBreakdownRowDetail,
   smBreakdownRowFigure,
   smRecordsForBreakdownRow,
+  smSecondaryRecordsForBreakdownRow,
 } from "../../../services/salesManager";
 import { BreakdownView } from "../Ceo/BreakdownView";
 
@@ -42,6 +43,8 @@ export default function SalesManagerBreakdownScreen() {
       rowDetail={smBreakdownRowDetail}
       rowMeta={(row) => smBreakdownRowFigure(query.metric, row)}
       recordsFor={(row) => smRecordsForBreakdownRow(query, row)}
+      // Desks booked & ending: a month offers both its bookings and the leases ending in it.
+      secondaryRecordsFor={(row) => smSecondaryRecordsForBreakdownRow(query, row)}
       onOpenRecords={(row, records) => navigation.push("SalesManagerRecords", { query: records, trail: [...trail, row.label], scopeLabel })}
       describeError={salesManagerErrorView}
     />

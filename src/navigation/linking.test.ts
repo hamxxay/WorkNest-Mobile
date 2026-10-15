@@ -15,7 +15,12 @@ describe("deep links", () => {
     );
   });
 
-  it("accepts https and the app scheme only", () => {
-    expect(linking.prefixes.every((p) => p.startsWith("https://") || p === "myapp://")).toBe(true);
+  it("accepts https and the app schemes only", () => {
+    expect(linking.prefixes.every((p) => p.startsWith("https://") || p === "worknest://" || p === "myapp://")).toBe(true);
+  });
+
+  it("opens worknest:// links and keeps old myapp:// links working", () => {
+    expect(linking.prefixes).toEqual(expect.arrayContaining(["worknest://", "myapp://"]));
+    expect(linking.prefixes[0]).toBe("worknest://");
   });
 });
