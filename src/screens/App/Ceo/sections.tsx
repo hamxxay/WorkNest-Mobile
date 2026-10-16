@@ -34,7 +34,7 @@ import { ChartCard, ChartGrid, InlineEmpty } from "./parts";
 export type BreakdownTarget = Omit<CeoBreakdownQuery, "period" | "locationId"> & { locationId?: number | null };
 
 /** Places on the dashboard a KPI card can scroll to. */
-export type FocusTarget = "revenue" | "aging" | "byLocation" | "leases";
+export type FocusTarget = "revenue" | "aging" | "byLocation" | "leases" | "roomList";
 
 /** What the sections may do: open a drill screen or scroll to a chart. */
 export type Drill = {

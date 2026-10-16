@@ -20,6 +20,7 @@ import {
   ceoErrorView,
   getCeoDashboard,
   getCeoForecast,
+  getCeoRooms,
   inquiriesCountAllLocations,
   isCompleteBreakdown,
   leasesExpiringRecords,
@@ -38,6 +39,7 @@ import { spacing } from "../../../theme";
 import { formatTime } from "../../../utils/format";
 import { useRefreshColors } from "../Staff/shared/refresh";
 import { CeoErrorState, CeoSection, ChartSkeleton, useCeoQuery } from "./parts";
+import { RoomsBlock } from "./RoomsSection";
 import {
   MoneySection,
   OccupancySection,
@@ -56,8 +58,9 @@ const INQUIRIES_ALL_LOCATIONS_NOTE = "Tour inquiries count every location until 
 type Nav = NativeStackNavigationProp<CeoStackParamList, "CeoDashboard">;
 
 /**
- * The CEO dashboard (GET api/ceo/dashboard + GET api/dashboard/forecast): Money, Occupancy, Sales and Team for
- * this month / quarter / year against the previous period, for all locations or one, plus the 3-month outlook.
+ * The CEO dashboard (GET api/ceo/dashboard + GET api/dashboard/forecast + GET api/ceo/rooms): Money, Occupancy, Sales
+ * and Team for this month / quarter / year against the previous period, for all locations or one, the 3-month outlook
+ * and the Rooms report (occupancy and the price each room was sold at against its list / shift price).
  * Read-only. Tapping a chart element or row drills down: a breakdown screen (by location / space type / month),
  * then a records list; some elements open their records directly. Pull to refresh reloads everything.
  */
@@ -82,8 +85,10 @@ export default function CeoDashboardScreen() {
     [scope],
   );
   const loadForecast = useCallback(() => getCeoForecast(scope.locationId), [scope.locationId]);
+  const loadRooms = useCallback(() => getCeoRooms(scope.period, scope.locationId), [scope]);
   const dashboard = useCeoQuery(loadDashboard);
   const forecast = useCeoQuery(loadForecast);
+  const rooms = useCeoQuery(loadRooms);
   const d = dashboard.data;
 
   // ─── Scroll targets for the KPI cards ("Outstanding" -> aging chart, "Occupancy" -> by location) ─────────
@@ -146,6 +151,7 @@ export default function CeoDashboardScreen() {
   const refresh = () => {
     dashboard.refresh();
     forecast.refresh();
+    rooms.refresh();
   };
 
   const words = periodWords(period);
@@ -164,7 +170,7 @@ export default function CeoDashboardScreen() {
       <ScrollView
         ref={scrollRef}
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={dashboard.refreshing || forecast.refreshing} onRefresh={refresh} {...refreshColors} />}
+        refreshControl={<RefreshControl refreshing={dashboard.refreshing || forecast.refreshing || rooms.refreshing} onRefresh={refresh} {...refreshColors} />}
       >
         <View ref={contentRef} collapsable={false} style={styles.stack}>
           <View style={styles.controls}>
@@ -248,6 +254,9 @@ export default function CeoDashboardScreen() {
               </Card>
             ) : null}
           </View>
+
+          {/* Last: it ends in the room list. Loaded on its own (GET api/ceo/rooms): an error stays in this section. */}
+          <RoomsBlock query={rooms} drill={drill} />
         </View>
       </ScrollView>
     </Screen>
