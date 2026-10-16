@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
-import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
+import { StyleSheet, Text, View, useWindowDimensions, type StyleProp, type ViewStyle } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { useTheme, type Tone } from "../../theme";
 import { PRESS_SCALE_LARGE, ScalePressable } from "../motion/ScalePressable";
+import { stackLabelValue } from "../../utils/responsive";
 import { Avatar } from "./Avatar";
 
 export type ListRowProps = {
@@ -57,6 +58,10 @@ export function ListRow({
   style,
 }: ListRowProps) {
   const { colors, tones, typography } = useTheme();
+  const { width, fontScale } = useWindowDimensions();
+  // Large text on a phone: the meta (date, amount, "12 quotes · 3 won") goes under the subtitle instead of being
+  // squeezed into a third of the row and cut to a few letters.
+  const metaBelow = !!meta && stackLabelValue(width, fontScale);
   const pressable = !!(onPress || onLongPress);
   const showChevron = chevron ?? !!onPress;
   const tone = destructive ? tones.danger : tones[leftIconTone];
@@ -86,8 +91,13 @@ export function ListRow({
             {subtitle}
           </Text>
         ) : null}
+        {metaBelow ? (
+          <Text numberOfLines={2} style={[typography.caption, { color: colors.textMuted }]}>
+            {meta}
+          </Text>
+        ) : null}
       </View>
-      {meta ? (
+      {meta && !metaBelow ? (
         <Text numberOfLines={1} style={[typography.caption, styles.meta, { color: colors.textMuted }]}>
           {meta}
         </Text>

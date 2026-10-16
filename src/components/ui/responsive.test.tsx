@@ -56,6 +56,8 @@ jest.mock("./FocusAwareStatusBar", () => ({
   barStyleFor: () => "dark-content",
 }));
 jest.mock("../../utils/haptics", () => ({ haptics: { error: jest.fn() } }));
+jest.mock("../motion/ScalePressable", () => ({ ScalePressable: "ScalePressable", PRESS_SCALE_LARGE: 0.98 }));
+jest.mock("./Avatar", () => ({ Avatar: "Avatar" }));
 jest.mock("../../theme", () => {
   const tokens = jest.requireActual("../../theme/tokens");
   const { lightColors, lightTones } = jest.requireActual("../../theme/colors");
@@ -84,6 +86,7 @@ import { AppHeader } from "./AppHeader";
 import { BottomSheet } from "./BottomSheet";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { InfoRow } from "./InfoRow";
+import { ListRow } from "./ListRow";
 import { ResponsiveGrid } from "./ResponsiveGrid";
 
 const g = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
@@ -326,5 +329,28 @@ describe("InfoRow", () => {
   it("value under the label with large text on a phone", () => {
     setWindow(360, 780, 1.3);
     expect(flat(rowOf(render(<InfoRow label="Amount" value="PKR 120,000" />).root)).flexDirection).toBeUndefined();
+  });
+});
+
+describe("ListRow meta", () => {
+  const texts = (root: ReactTestInstance) => byType(root, "Text").map((t) => t.props.children);
+  const row = <ListRow title="Ayesha Khan" subtitle="Sales executive · I-8" meta="12 quotes · 3 won" />;
+
+  it("on the right at the default text size", () => {
+    setWindow(360, 780);
+    const { root } = render(row);
+    const meta = byType(root, "Text").find((t) => t.props.children === "12 quotes · 3 won")!;
+    // A child of the row itself, after the title / subtitle column.
+    expect(flat(meta.parent!).flexDirection).toBe("row");
+  });
+
+  it("under the subtitle with large text on a phone", () => {
+    setWindow(360, 780, 1.6);
+    const { root } = render(row);
+    expect(texts(root)).toEqual(["Ayesha Khan", "Sales executive · I-8", "12 quotes · 3 won"]);
+    const meta = byType(root, "Text").find((t) => t.props.children === "12 quotes · 3 won")!;
+    // Inside the title / subtitle column.
+    expect(flat(meta.parent!).flexDirection).toBeUndefined();
+    expect(meta.props.numberOfLines).toBe(2);
   });
 });

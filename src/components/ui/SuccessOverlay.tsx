@@ -90,7 +90,18 @@ export function SuccessOverlay({ visible, title, message, duration, onHidden }: 
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, alignItems: "center", justifyContent: "center", padding: 32 },
-  card: { width: "100%", maxWidth: 320, alignItems: "center", gap: 10, borderWidth: 1, paddingVertical: 28, paddingHorizontal: 24 },
+  backdrop: { flex: 1, alignItems: "center", justifyContent: "center", padding: 32, paddingVertical: 24 },
+  // Never taller than the window (phone in landscape with large text): clipped rather than off screen.
+  card: {
+    width: "100%",
+    maxWidth: 320,
+    maxHeight: "100%",
+    overflow: "hidden",
+    alignItems: "center",
+    gap: 10,
+    borderWidth: 1,
+    paddingVertical: 28,
+    paddingHorizontal: 24,
+  },
   center: { textAlign: "center" },
 });

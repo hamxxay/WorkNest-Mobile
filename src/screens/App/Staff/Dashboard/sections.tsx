@@ -627,12 +627,14 @@ const styles = StyleSheet.create({
   bars: { gap: spacing.md, marginTop: spacing.md },
   cardTitle: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.sm },
   padded: { paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
-  flex: { flex: 1 },
+  // Name / title next to a pill or amount: shrinks first, and the pill wraps under it when both can't fit (320dp
+  // phone, large text).
+  flex: { flexGrow: 1, flexShrink: 1, flexBasis: 100 },
   monthBlock: { gap: 4 },
   chipBar: { flexGrow: 0, flexShrink: 0 },
   gapTop: { marginTop: spacing.sm },
   block: { padding: spacing.lg, gap: 4 },
-  rowBetween: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  rowBetween: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: spacing.sm },
   chart: { marginTop: spacing.md },
   // Wraps: on a narrow window or with large text the figures go under the donut instead of being cut off.
   donutRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: spacing.lg, marginTop: spacing.md },

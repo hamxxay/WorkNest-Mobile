@@ -274,7 +274,7 @@ function StatusCard({ complaints: c, onOpen }: { complaints: SmComplaints; onOpe
                       </AppText>
                     ) : null}
                   </View>
-                  <AppText variant="captionStrong" style={styles.tabular}>
+                  <AppText variant="captionStrong" numberOfLines={2} style={[styles.tabular, styles.value]}>
                     {value}
                   </AppText>
                   <Ionicons name="chevron-forward" size={14} color={theme.colors.textMuted} />
@@ -324,7 +324,7 @@ function CategoryCard({ complaints: c, words, onOpen }: { complaints: SmComplain
                   <AppText variant="bodySmall" color="textSecondary" numberOfLines={1} style={styles.flex}>
                     {k.category}
                   </AppText>
-                  <AppText variant="captionStrong" numberOfLines={1} style={styles.tabular}>
+                  <AppText variant="captionStrong" numberOfLines={2} style={[styles.tabular, styles.value]}>
                     {value}
                   </AppText>
                   <Ionicons name="chevron-forward" size={14} color={theme.colors.textMuted} />
@@ -451,6 +451,9 @@ const styles = StyleSheet.create({
   flexShrink: { flexShrink: 1 },
   flex: { flex: 1 },
   tabular: { fontVariant: ["tabular-nums"] },
+  // The figure next to a label: never more than about half the row, wrapping (large text) instead of pushing the
+  // label out.
+  value: { flexShrink: 1, maxWidth: "55%", textAlign: "right" },
   pressed: { opacity: 0.7 },
   padded: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md },
   // A segment is at least 4 dp wide so a small count stays visible (and tappable from the rows below).
