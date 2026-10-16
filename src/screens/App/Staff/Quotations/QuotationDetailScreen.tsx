@@ -34,6 +34,7 @@ import {
 } from "../../../../services/staff";
 import { spacing } from "../../../../theme";
 import { formatDate, formatDateRange, formatDateTime, formatMoney } from "../../../../utils/format";
+import { depositMonthsLabel } from "../../../../utils/securityDeposit";
 import { StaffScreen } from "../shared/StaffScreen";
 import { useAsyncData, useSingleFlight } from "../shared/hooks";
 import { ActionRow, useStackedMeta } from "../shared/layout";
@@ -186,7 +187,7 @@ export default function QuotationDetailScreen() {
             {q.whtAmount ? <InfoRow label="Withholding tax" value={formatMoney(q.whtAmount)} /> : null}
             {q.securityDeposit ? (
               <InfoRow
-                label={q.securityDepositMonths ? `Security deposit (${q.securityDepositMonths} months)` : "Security deposit"}
+                label={q.securityDepositMonths ? `Security deposit (${depositMonthsLabel(q.securityDepositMonths)})` : "Security deposit"}
                 value={formatMoney(q.securityDeposit)}
               />
             ) : null}

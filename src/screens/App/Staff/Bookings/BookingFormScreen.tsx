@@ -27,6 +27,16 @@ import {
 } from "../../../../services/staff";
 import { spacing } from "../../../../theme";
 import { formatDate, formatMoney, formatTime } from "../../../../utils/format";
+import {
+  DEPOSIT_MONTH_OPTIONS,
+  SECURITY_DEPOSIT_FIELD_LABEL,
+  defaultDepositMonths,
+  depositFieldState,
+  depositHelperText,
+  depositMonthsToSend,
+  rentDiscountPercent,
+  securityDepositAmount,
+} from "../../../../utils/securityDeposit";
 import { CustomerPickerField } from "../shared/CustomerPickerField";
 import {
   EMPTY_SPACE_SELECTION,
@@ -45,7 +55,6 @@ type FieldErrors = SpaceSelectionErrors & Partial<Record<"customer" | "start" | 
 
 const MONTH_OPTIONS = [1, 2, 3, 6, 12, 18, 24, 36].map((m) => ({ label: `${m} ${m === 1 ? "month" : "months"}`, value: m }));
 const BILLING = [1, 3, 6, 12];
-const DEPOSIT_OPTIONS = [0, 1, 2, 3].map((m) => ({ label: m === 0 ? "No deposit" : `${m} ${m === 1 ? "month" : "months"}`, value: m }));
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
 const timeOf = (d: Date) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}:00`;
@@ -70,7 +79,7 @@ export default function BookingFormScreen() {
   const [startTime, setStartTime] = useState<Date | null>(null);
   const [endTime, setEndTime] = useState<Date | null>(null);
   const [billingMonths, setBillingMonths] = useState(3);
-  const [depositMonths, setDepositMonths] = useState(2);
+  const [depositMonths, setDepositMonths] = useState(defaultDepositMonths("private"));
   const [basePrice, setBasePrice] = useState("");
   const [discountType, setDiscountType] = useState<"Percentage" | "Amount">("Percentage");
   const [discount, setDiscount] = useState("");
@@ -85,6 +94,18 @@ export default function BookingFormScreen() {
   const offering = useMemo(() => lookups.offeringTypes.find((o) => o.id === selection.offeringTypeId) ?? null, [lookups.offeringTypes, selection.offeringTypeId]);
   const minPrice = space ? spaceMonthlyPrice(space) : 0;
   const endDate = !isMeeting && startDate ? addMonthsToApiDate(toApiDate(startDate), months) : null;
+  // Security deposit: private offices choose 0-3 months (default 2); shared spaces 0, locked; meeting rooms none.
+  // The amount shown = months x monthly rent x (1 - the rent's discount %), as the API works it out.
+  const depositField = depositFieldState(selection.group);
+  const depositMonthsSent = depositMonthsToSend(selection.group, depositMonths);
+  const typedPrice = Number(basePrice);
+  const perSeatPrice = Number.isFinite(typedPrice) && typedPrice > 0 ? typedPrice : minPrice;
+  const monthlyRentEstimate = isPrivate ? perSeatPrice * Math.max(1, space?.capacity || 1) : 0;
+  const depositEstimate = securityDepositAmount(
+    depositMonthsSent,
+    monthlyRentEstimate,
+    rentDiscountPercent(discountType, Number(discount) || 0, monthlyRentEstimate),
+  );
 
   useEffect(() => {
     if (selection.locationId || !locations.length) return;
@@ -109,7 +130,7 @@ export default function BookingFormScreen() {
   const onSelectionChange = (next: SpaceSelection) => {
     if (next.group !== selection.group) {
       setBillingMonths(next.group === "meeting" ? 1 : 3);
-      setDepositMonths(next.group === "private" ? 2 : 0);
+      setDepositMonths(defaultDepositMonths(next.group));
     }
     if (next.spaceId !== selection.spaceId) {
       const s = lookups.spaces.find((x) => x.id === next.spaceId);
@@ -174,7 +195,7 @@ export default function BookingFormScreen() {
         discountValue,
         perSeatBasePrice: !isMeeting && price > 0 ? price : null,
         billingPeriodMonths: isMeeting ? 1 : billingMonths,
-        securityDepositMonths: isPrivate ? depositMonths : 0,
+        securityDepositMonths: depositMonthsSent,
         notes,
       });
       toast.success(result.data.challanNumber ? `${result.message} Challan ${result.data.challanNumber}.` : result.message);
@@ -273,7 +294,17 @@ export default function BookingFormScreen() {
                     onChange={setBillingMonths}
                     leftIcon="repeat-outline"
                   />
-                  {isPrivate ? <SelectField label="Security deposit" value={depositMonths} options={DEPOSIT_OPTIONS} onChange={setDepositMonths} leftIcon="shield-outline" /> : null}
+                  {depositField.visible ? (
+                    <SelectField
+                      label={SECURITY_DEPOSIT_FIELD_LABEL}
+                      value={depositMonthsSent}
+                      options={DEPOSIT_MONTH_OPTIONS}
+                      onChange={setDepositMonths}
+                      disabled={!depositField.editable}
+                      helperText={depositHelperText(selection.group, depositMonthsSent, depositEstimate, (n) => formatMoney(n))}
+                      leftIcon="shield-outline"
+                    />
+                  ) : null}
                 </>
               ) : null}
               <SegmentedControl
