@@ -36,6 +36,7 @@ import { spacing } from "../../../../theme";
 import { formatDate, formatDateRange, formatDateTime, formatMoney } from "../../../../utils/format";
 import { StaffScreen } from "../shared/StaffScreen";
 import { useAsyncData, useSingleFlight } from "../shared/hooks";
+import { ActionRow, useStackedMeta } from "../shared/layout";
 import { useOpenFile } from "../shared/useOpenFile";
 import { useRefreshColors } from "../shared/refresh";
 
@@ -55,6 +56,8 @@ export default function QuotationDetailScreen() {
   const toast = useToast();
   const refreshColors = useRefreshColors();
   const { opening, open } = useOpenFile();
+  // Large text on a narrow phone: the status pill goes under the customer's name.
+  const stacked = useStackedMeta();
 
   const fetcher = useCallback(async () => {
     const quotation = await getQuotation(params.quotationId);
@@ -142,9 +145,9 @@ export default function QuotationDetailScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} {...refreshColors} />}
         >
           <Card>
-            <View style={styles.row}>
-              <View style={styles.flex}>
-                <AppText variant="heading" numberOfLines={2}>
+            <View style={stacked ? styles.stack : styles.row}>
+              <View style={stacked ? undefined : styles.flex}>
+                <AppText variant="heading" numberOfLines={stacked ? 3 : 2}>
                   {q.customerName || "Customer"}
                 </AppText>
                 {q.customerCompany ? (
@@ -220,8 +223,8 @@ export default function QuotationDetailScreen() {
             {actions.canSend ? (
               <Button title="Send to customer" leftIcon="paper-plane-outline" onPress={() => setConfirmSend(true)} fullWidth haptic />
             ) : null}
-            <View style={styles.row}>
-              <Button title="Email PDF" variant="outline" leftIcon="mail-outline" onPress={() => setEmailOpen(true)} style={styles.flex} />
+            <ActionRow>
+              <Button title="Email PDF" variant="outline" leftIcon="mail-outline" onPress={() => setEmailOpen(true)} />
               <Button
                 title="Open PDF"
                 variant="outline"
@@ -230,20 +233,18 @@ export default function QuotationDetailScreen() {
                 onPress={() =>
                   open("pdf", () => downloadQuotationPdf(q.id, { versionNumber: q.version, quotationNumber: q.quotationNumber }), q.quotationNumber)
                 }
-                style={styles.flex}
               />
-            </View>
+            </ActionRow>
             {actions.canRevise ? (
-              <View style={styles.row}>
-                <Button title="New version" variant="secondary" leftIcon="copy-outline" onPress={() => setConfirmVersion(true)} style={styles.flex} />
+              <ActionRow>
+                <Button title="New version" variant="secondary" leftIcon="copy-outline" onPress={() => setConfirmVersion(true)} />
                 <Button
                   title="Edit as new"
                   variant="secondary"
                   leftIcon="create-outline"
                   onPress={() => navigation.navigate("QuotationForm", { editFromId: q.id })}
-                  style={styles.flex}
                 />
-              </View>
+              </ActionRow>
             ) : null}
           </View>
 
@@ -387,5 +388,6 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { padding: spacing.screen, gap: spacing.md, paddingBottom: spacing.xxl },
   row: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  stack: { alignItems: "flex-start", gap: spacing.xs },
   actions: { gap: spacing.sm },
 });

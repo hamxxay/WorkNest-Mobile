@@ -10,6 +10,7 @@ import { formatDate, formatMoney } from "../../../../utils/format";
 import { SearchField } from "../shared/SearchField";
 import { StaffScreen, useInTabs } from "../shared/StaffScreen";
 import { useDebounced, usePagedList } from "../shared/hooks";
+import { useStackedMeta } from "../shared/layout";
 
 type Nav = NativeStackNavigationProp<StaffStackParamList>;
 const PAGE_SIZE = 15;
@@ -63,11 +64,13 @@ export default function QuotationListScreen() {
 }
 
 export function QuotationCard({ quotation: q, onPress }: { quotation: StaffQuotation; onPress: () => void }) {
+  // Large text on a narrow phone: the status and the amount go under the text beside them.
+  const stacked = useStackedMeta();
   return (
     <Card onPress={onPress} accessibilityLabel={`Quotation ${q.quotationNumber}, ${q.customerName}, ${q.status}`}>
-      <View style={styles.row}>
-        <View style={styles.flex}>
-          <AppText variant="bodyStrong" numberOfLines={1}>
+      <View style={stacked ? styles.stack : styles.row}>
+        <View style={stacked ? undefined : styles.flex}>
+          <AppText variant="bodyStrong" numberOfLines={stacked ? 2 : 1}>
             {q.customerName || "Customer"}
           </AppText>
           <AppText variant="caption" color="textMuted" numberOfLines={1}>
@@ -76,11 +79,13 @@ export function QuotationCard({ quotation: q, onPress }: { quotation: StaffQuota
         </View>
         <StatusPill status={q.status} />
       </View>
-      <View style={[styles.row, styles.gapTop]}>
-        <AppText variant="bodySmall" color="textSecondary" style={styles.flex} numberOfLines={1}>
+      <View style={[stacked ? styles.stack : styles.row, styles.gapTop]}>
+        <AppText variant="bodySmall" color="textSecondary" style={stacked ? undefined : styles.flex} numberOfLines={1}>
           {[q.spaceName, q.locationName].filter(Boolean).join(" · ") || "Space"}
         </AppText>
-        <AppText variant="amount">{formatMoney(q.totalPayable || q.totalAmount)}</AppText>
+        <AppText variant="amount" numberOfLines={1} style={styles.shrink}>
+          {formatMoney(q.totalPayable || q.totalAmount)}
+        </AppText>
       </View>
       {q.validUntil ? (
         <AppText variant="caption" color="textMuted" style={styles.gapTop}>
@@ -93,6 +98,8 @@ export function QuotationCard({ quotation: q, onPress }: { quotation: StaffQuota
 
 const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  stack: { alignItems: "flex-start", gap: spacing.xs },
   flex: { flex: 1 },
+  shrink: { flexShrink: 1 },
   gapTop: { marginTop: spacing.xs },
 });

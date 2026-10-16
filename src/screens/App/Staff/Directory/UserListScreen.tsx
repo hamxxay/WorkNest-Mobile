@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { AppHeader, AsyncList, Card, ListRow, StatusPill } from "../../../../components/ui";
 import { normalizeRoleName, roleLabel } from "../../../../context/roles";
 import { listUsers, type StaffUser } from "../../../../services/staff";
+import { useResponsive } from "../../../../utils/responsive";
 import { SearchField } from "../shared/SearchField";
 import { StaffScreen } from "../shared/StaffScreen";
 import { useDebounced, usePagedList } from "../shared/hooks";
@@ -44,13 +45,19 @@ function UserRow({ user }: { user: StaffUser }) {
   // when an older API sends no display name.
   const title = user.name || user.email;
   const label = user.roleDisplayName || roleLabel(role);
+  const contact = [user.name ? user.email : null, user.phone].filter(Boolean).join(" · ");
+  // Phones: the location goes on its own line under the contact details. Beside the role pill it would leave the
+  // name a few letters wide; tablets have room for it on the right.
+  const { isTablet } = useResponsive();
+  const locationBeside = isTablet || !user.locationName;
   return (
     <Card padding={0}>
       <ListRow
         avatar={{ name: title }}
         title={title}
-        subtitle={[user.name ? user.email : null, user.phone].filter(Boolean).join(" · ")}
-        meta={user.locationName ?? undefined}
+        subtitle={locationBeside ? contact : [contact, user.locationName].filter(Boolean).join("\n")}
+        subtitleLines={locationBeside ? 2 : 3}
+        meta={locationBeside ? user.locationName ?? undefined : undefined}
         right={user.isActive ? <StatusPill tone={role === "general" ? "neutral" : "primary"} label={label} /> : <StatusPill status="Inactive" />}
       />
     </Card>

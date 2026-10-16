@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Image, ScrollView, StyleSheet, View } from "react-native";
+import { Image, ScrollView, StyleSheet, View, useWindowDimensions } from "react-native";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import {
@@ -16,6 +16,7 @@ import {
   SectionHeader,
   StatusPill,
   TextField,
+  useScreenColumnWidth,
   useToast,
 } from "../../../../components/ui";
 import type { StaffStackParamList } from "../../../../navigation/staffTypes";
@@ -31,11 +32,17 @@ import {
 } from "../../../../services/staff";
 import { spacing, statusTone, useThemeColors } from "../../../../theme";
 import { formatDate, formatDateTime, formatMoney, parseDate } from "../../../../utils/format";
+import { estimateButtonWidth, useMeasuredWidth } from "../../../../utils/responsive";
 import { StaffScreen } from "../shared/StaffScreen";
+import { ActionRow } from "../shared/layout";
 import { useOpenFile } from "../shared/useOpenFile";
 
 type Nav = NativeStackNavigationProp<StaffStackParamList>;
 type Route = RouteProp<StaffStackParamList, "AgreementDetail">;
+
+const CONFIRM_LABEL = "Confirm signed and create booking";
+/** The same action when the full label would be cut off (small phones, large text): the sheet it opens explains it. */
+const CONFIRM_LABEL_SHORT = "Confirm and book";
 
 /**
  * One lease agreement (from the list; the API has no single-agreement GET): terms and customer, the agreement
@@ -52,6 +59,11 @@ export default function AgreementDetailScreen() {
   const [esignOpen, setEsignOpen] = useState(false);
   const a = agreement;
   const canConfirm = !a.bookingId && a.hasSignedPdf;
+  // Buttons show one line: the long confirm label only where it fits.
+  const { fontScale } = useWindowDimensions();
+  const columnWidth = useScreenColumnWidth();
+  const [actionsWidth, onActionsLayout] = useMeasuredWidth(columnWidth - 2 * spacing.screen);
+  const confirmLabel = estimateButtonWidth(CONFIRM_LABEL, fontScale, true) <= actionsWidth ? CONFIRM_LABEL : CONFIRM_LABEL_SHORT;
 
   return (
     <StaffScreen>
@@ -93,7 +105,7 @@ export default function AgreementDetailScreen() {
           {a.reminderCount ? <InfoRow label="Reminders sent" value={String(a.reminderCount)} /> : null}
         </Card>
 
-        <View style={styles.actions}>
+        <View style={styles.actions} onLayout={onActionsLayout}>
           {a.bookingId ? (
             <Button
               title={`Open booking #${a.bookingId}`}
@@ -103,16 +115,21 @@ export default function AgreementDetailScreen() {
             />
           ) : null}
           {canConfirm ? (
-            <Button title="Confirm signed and create booking" leftIcon="checkmark-done-outline" onPress={() => setSignOpen(true)} fullWidth />
+            <Button
+              title={confirmLabel}
+              accessibilityLabel={CONFIRM_LABEL}
+              leftIcon="checkmark-done-outline"
+              onPress={() => setSignOpen(true)}
+              fullWidth
+            />
           ) : null}
-          <View style={styles.row}>
+          <ActionRow>
             <Button
               title="Agreement PDF"
               variant="outline"
               leftIcon="document-outline"
               loading={opening === "pdf"}
               onPress={() => open("pdf", () => downloadAgreementPdf(a.id), "Lease agreement")}
-              style={styles.flex}
             />
             {a.hasSignedPdf ? (
               <Button
@@ -121,10 +138,9 @@ export default function AgreementDetailScreen() {
                 leftIcon="document-text-outline"
                 loading={opening === "signed"}
                 onPress={() => open("signed", () => downloadSignedAgreementPdf(a.id), "Signed agreement")}
-                style={styles.flex}
               />
             ) : null}
-          </View>
+          </ActionRow>
           {a.eSignedAt ? (
             <Button title="E-signature details" variant="ghost" leftIcon="finger-print-outline" onPress={() => setEsignOpen(true)} fullWidth />
           ) : null}
@@ -286,5 +302,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   gapTop: { marginTop: spacing.sm, alignSelf: "flex-start" },
   actions: { gap: spacing.sm },
-  signature: { width: "100%", height: 120, borderRadius: 8, borderWidth: 1 },
+  // Follows the sheet's width (about 120dp tall on a phone) instead of a fixed height that looks like a thin strip
+  // on a tablet or an unfolded foldable; capped so it never fills a landscape phone.
+  signature: { width: "100%", aspectRatio: 2.5, minHeight: 96, maxHeight: 200, borderRadius: 8, borderWidth: 1 },
 });

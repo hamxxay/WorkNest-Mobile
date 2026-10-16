@@ -15,6 +15,7 @@ import { errorMessage } from "../../../../services/apiClient";
 import { listCustomers, searchCustomers, type StaffCustomer } from "../../../../services/staff";
 import { useTheme } from "../../../../theme";
 import { useDebounced } from "./hooks";
+import { useStackedMeta } from "./layout";
 
 type Props = {
   label?: string;
@@ -53,6 +54,8 @@ export function CustomerPickerField({
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  // Large text on a narrow phone: "Not in the list?" above the button instead of squeezed beside it.
+  const stackFooter = useStackedMeta();
 
   useEffect(() => setQuery(initialQuery), [initialQuery]);
 
@@ -134,8 +137,8 @@ export function CustomerPickerField({
           />
         )}
         {onCreateNew ? (
-          <View style={styles.footer}>
-            <AppText variant="caption" color="textMuted" style={[typography.caption, styles.flex]}>
+          <View style={[styles.footer, stackFooter && styles.footerStacked]}>
+            <AppText variant="caption" color="textMuted" style={[typography.caption, !stackFooter && styles.flex]}>
               Not in the list?
             </AppText>
             <Button
@@ -161,4 +164,5 @@ const styles = StyleSheet.create({
   list: { paddingHorizontal: 8, paddingBottom: 8, flexGrow: 1 },
   center: { paddingVertical: 32, alignItems: "center" },
   footer: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20, paddingVertical: 12 },
+  footerStacked: { flexDirection: "column", alignItems: "stretch", gap: 8 },
 });

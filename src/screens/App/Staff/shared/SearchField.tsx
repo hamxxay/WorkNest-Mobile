@@ -1,19 +1,25 @@
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 import { TextField } from "../../../../components/ui";
 import { spacing } from "../../../../theme";
 
-/** Search box above a list (search icon, clear button). Debounce the value with useDebounced. */
+/**
+ * Search box above a list (search icon, clear button). Debounce the value with useDebounced. Pinned above a list it
+ * pads itself like the screen; inside a list header (short windows, see useShortWindow) pass a `style` without
+ * that padding, since the list already pads its content.
+ */
 export function SearchField({
   value,
   onChangeText,
   placeholder = "Search",
+  style,
 }: {
   value: string;
   onChangeText: (text: string) => void;
   placeholder?: string;
+  style?: StyleProp<ViewStyle>;
 }) {
   return (
-    <View style={styles.wrap}>
+    <View style={[styles.wrap, style]}>
       <TextField
         value={value}
         onChangeText={onChangeText}

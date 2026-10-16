@@ -44,6 +44,7 @@ import { CompletenessBar } from "./CompletenessBar";
 import { StaffScreen } from "../shared/StaffScreen";
 import { isAdminRole, useStaffSession } from "../shared/StaffSession";
 import { useAsyncData } from "../shared/hooks";
+import { ActionRow, useStackedMeta } from "../shared/layout";
 import { CAMERA_SETTINGS_CONFIRM, chooseDocumentPhoto, openAppSettings, takeDocumentPhoto } from "../shared/photoPicker";
 import { useOpenFile } from "../shared/useOpenFile";
 import { useRefreshColors } from "../shared/refresh";
@@ -70,6 +71,8 @@ export default function KycCustomerScreen() {
   const refreshColors = useRefreshColors();
   const { role } = useStaffSession();
   const { opening, open } = useOpenFile();
+  // Large text on a narrow phone: status pills go under the name / document they belong to.
+  const stacked = useStackedMeta();
 
   const fetcher = useCallback(() => getCustomerKyc(params.customerId) as Promise<KycData>, [params.customerId]);
   const { data, loading, refreshing, error, reload, refresh } = useAsyncData(fetcher);
@@ -132,8 +135,8 @@ export default function KycCustomerScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} {...refreshColors} />}
         >
           <Card>
-            <View style={styles.row}>
-              <View style={styles.flex}>
+            <View style={stacked ? styles.stack : styles.row}>
+              <View style={stacked ? undefined : styles.flex}>
                 <AppText variant="subheading">{data.fullName}</AppText>
                 <AppText variant="caption" color="textMuted">
                   {[data.customerCode, data.category].filter(Boolean).join(" · ")}
@@ -174,8 +177,8 @@ export default function KycCustomerScreen() {
                     <View key={`${item.documentTypeId}-${item.slotNo}-${item.documentId ?? "new"}`}>
                       {ii > 0 ? <Divider inset={16} /> : null}
                       <View style={styles.item}>
-                        <View style={styles.row}>
-                          <View style={styles.flex}>
+                        <View style={stacked ? styles.stack : styles.row}>
+                          <View style={stacked ? undefined : styles.flex}>
                             <AppText variant="bodyStrong">
                               {item.name}
                               {item.requirementLevel === KYC_REQUIRED ? <AppText color="danger"> *</AppText> : null}
@@ -406,10 +409,10 @@ function UploadSheet({
       {needsExpiry ? (
         <DateField label="Expiry date" required value={expiry} onChange={setExpiry} minimumDate={new Date()} />
       ) : null}
-      <View style={styles.photoRow}>
-        <Button title="Take photo" leftIcon="camera-outline" variant="secondary" onPress={() => pick(true)} disabled={uploading} style={styles.flex} />
-        <Button title="Gallery" leftIcon="images-outline" variant="outline" onPress={() => pick(false)} disabled={uploading} style={styles.flex} />
-      </View>
+      <ActionRow gap={spacing.md}>
+        <Button title="Take photo" leftIcon="camera-outline" variant="secondary" onPress={() => pick(true)} disabled={uploading} />
+        <Button title="Gallery" leftIcon="images-outline" variant="outline" onPress={() => pick(false)} disabled={uploading} />
+      </ActionRow>
       {file ? (
         <View style={styles.preview}>
           <Image source={{ uri: file.uri }} style={styles.thumb} resizeMode="cover" accessibilityLabel="Selected photo" />
@@ -480,6 +483,7 @@ function RejectSheet({
 
 function HistorySheet({ customerId, item, onClose }: { customerId: number; item: KycChecklistItem; onClose: () => void }) {
   const { opening, open, error: openError } = useOpenFile({ toast: false });
+  const stacked = useStackedMeta();
   const fetcher = useCallback(
     () => getKycDocumentHistory(customerId, item.documentTypeId, item.slotNo || 1),
     [customerId, item.documentTypeId, item.slotNo],
@@ -496,8 +500,8 @@ function HistorySheet({ customerId, item, onClose }: { customerId: number; item:
       ) : (
         data.map((v) => (
           <Card key={v.id} variant="outlined">
-            <View style={styles.row}>
-              <View style={styles.flex}>
+            <View style={stacked ? styles.stack : styles.row}>
+              <View style={stacked ? undefined : styles.flex}>
                 <AppText variant="bodyStrong">Version {v.versionNo}</AppText>
                 <AppText variant="caption" color="textMuted">
                   {[v.uploadedByName, v.uploadedOn ? formatDateTime(v.uploadedOn) : null].filter(Boolean).join(" · ")}
@@ -530,6 +534,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { padding: spacing.screen, gap: spacing.md, paddingBottom: spacing.xxl },
   row: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  stack: { alignItems: "flex-start", gap: spacing.xs },
   gapTop: { marginTop: spacing.md },
   groupHeader: {
     flexDirection: "row",
@@ -540,7 +545,6 @@ const styles = StyleSheet.create({
   },
   item: { padding: spacing.lg, gap: spacing.sm },
   actions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  photoRow: { flexDirection: "row", gap: spacing.md },
   preview: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   thumb: { width: 64, height: 64, borderRadius: 8 },
   alignStart: { alignSelf: "flex-start" },
