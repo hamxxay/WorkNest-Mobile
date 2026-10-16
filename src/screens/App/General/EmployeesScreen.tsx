@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { useRoute, type RouteProp } from "@react-navigation/native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import {
@@ -39,6 +39,8 @@ import {
 } from "../../../services/employeeService";
 import type { AppStackParamList } from "../../../navigation/types";
 import { AddEmployeeSheet } from "./employees/AddEmployeeSheet";
+import { ScrollableState } from "./shared/ScrollableState";
+import { stackSideAction, useContentWidth } from "./shared/layout";
 
 type Route = RouteProp<AppStackParamList, "Employees">;
 
@@ -48,6 +50,8 @@ const ACCESS_ICONS: Record<string, string> = {
   Card: "card-outline",
 };
 const ACCESS_PENDING = "Access pending: added at the branch";
+/** Avatar (40) + its gap (12) + the gap before the Remove button (8): the part of a person row without text. */
+const PERSON_ROW_RESERVED = 40 + 12 + 8;
 
 /**
  * The employees of one of the customer's bookings. While the API allows it (Confirmed, not ended, the customer's own
@@ -148,17 +152,19 @@ export default function EmployeesScreen() {
           <ListSkeleton rows={3} />
         </View>
       ) : !data ? (
-        unavailable ? (
-          <ErrorState
-            illustration="people"
-            title="Not available yet"
-            message={error}
-            retryLabel="Check again"
-            onRetry={() => load()}
-          />
-        ) : (
-          <ErrorState message={error} onRetry={() => load()} />
-        )
+        <ScrollableState>
+          {unavailable ? (
+            <ErrorState
+              illustration="people"
+              title="Not available yet"
+              message={error}
+              retryLabel="Check again"
+              onRetry={() => load()}
+            />
+          ) : (
+            <ErrorState message={error} onRetry={() => load()} />
+          )}
+        </ScrollableState>
       ) : (
         <ScrollView
           contentContainerStyle={styles.content}
@@ -282,6 +288,11 @@ function EmployeeRow({
   onRemove: () => void;
 }) {
   const styles = useThemedStyles(createStyles);
+  const { fontScale } = useWindowDimensions();
+  // The row inside the card (16dp padding each side). On a narrow phone, the Fold cover screen or with large text
+  // the Remove button goes under the person's details, which keep the full width for names, CNICs and emails.
+  const rowWidth = useContentWidth() - 2 * 16;
+  const removeBelow = canRemove && stackSideAction(rowWidth, PERSON_ROW_RESERVED, "Remove", fontScale, true);
   const chips = accessChips(employee);
   const id = employee.idNumber ? `${employee.idType} ${employee.idNumber}` : null;
   const contact = [employee.phone, employee.email].filter(Boolean).join(" · ");
@@ -298,6 +309,18 @@ function EmployeeRow({
   ]
     .filter(Boolean)
     .join(", ");
+  const removeButton = (
+    <Button
+      title="Remove"
+      variant="ghost"
+      size="sm"
+      leftIcon="person-remove-outline"
+      loading={removing}
+      disabled={disabled}
+      onPress={onRemove}
+      accessibilityLabel={`Remove ${employee.name}`}
+    />
+  );
 
   return (
     <View style={styles.person}>
@@ -323,20 +346,10 @@ function EmployeeRow({
             ) : null}
           </View>
         </View>
-        {canRemove ? (
-          <Button
-            title="Remove"
-            variant="ghost"
-            size="sm"
-            leftIcon="person-remove-outline"
-            loading={removing}
-            disabled={disabled}
-            onPress={onRemove}
-            accessibilityLabel={`Remove ${employee.name}`}
-          />
-        ) : null}
+        {canRemove && !removeBelow ? removeButton : null}
       </View>
       <AccessChips chips={chips} />
+      {removeBelow ? <View style={styles.removeBelow}>{removeButton}</View> : null}
     </View>
   );
 }
@@ -408,6 +421,8 @@ const createStyles = (c: AppColors, t: Theme) =>
     personTop: { flexDirection: "row", alignItems: "flex-start", gap: t.spacing.sm },
     personInfo: { flex: 1, flexDirection: "row", alignItems: "flex-start", gap: t.spacing.md },
     chips: { flexDirection: "row", flexWrap: "wrap", gap: t.spacing.xs, paddingLeft: 40 + t.spacing.md },
+    // Remove under the details: lined up with the text and chips (after the avatar).
+    removeBelow: { flexDirection: "row", paddingLeft: 40 + t.spacing.md },
     chip: {
       flexDirection: "row",
       alignItems: "center",

@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { ScrollView, StyleSheet, View, useWindowDimensions } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import {
@@ -26,8 +26,13 @@ import {
 } from "../../../services/doorAccessService";
 import { errorMessage } from "../../../services/apiClient";
 import { haptics } from "../../../utils/haptics";
+import { ScrollableState } from "./shared/ScrollableState";
+import { stackSideAction, useContentWidth } from "./shared/layout";
 
 type Status = { kind: "ok" | "error"; text: string } | null;
+
+/** Icon well (44) and the two row gaps (12 + 12): the part of a door row without text. */
+const DOOR_ROW_RESERVED = 44 + 12 + 12;
 
 /**
  * Unlock Door: opens the verified access user's room door only (entrances use card, fingerprint or face).
@@ -40,6 +45,10 @@ export default function UnlockDoorScreen() {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const { user } = useAuth();
+  const { fontScale } = useWindowDimensions();
+  // Inside the card (16dp padding each side). On a narrow phone, the Fold cover screen or with large text the
+  // Unlock button gets its own full-width line under the door name instead of squeezing it.
+  const unlockBelow = stackSideAction(useContentWidth() - 2 * 16, DOOR_ROW_RESERVED, "Unlock", fontScale, true);
   const [access, setAccess] = useState<DoorAccess | null>(null);
   const [doors, setDoors] = useState<DoorInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -117,27 +126,46 @@ export default function UnlockDoorScreen() {
       {loading ? (
         <LoadingState message="Loading your doors" />
       ) : needsVerification ? (
-        <EmptyState
-          illustration="door"
-          title="Verify your access first"
-          message="Confirm your details once (Access Request) and you can unlock your room door from the app."
-          actionLabel="Access request"
-          onAction={() => navigation.navigate("AccessRequest")}
-        />
+        <ScrollableState>
+          <EmptyState
+            illustration="door"
+            title="Verify your access first"
+            message="Confirm your details once (Access Request) and you can unlock your room door from the app."
+            actionLabel="Access request"
+            onAction={() => navigation.navigate("AccessRequest")}
+          />
+        </ScrollableState>
       ) : refusal ? (
-        <EmptyState
-          illustration="door"
-          title="Door can't be unlocked from the app"
-          message={refusal}
-          actionLabel="Contact us"
-          onAction={() => navigation.navigate("ContactUs")}
-        />
+        <ScrollableState>
+          <EmptyState
+            illustration="door"
+            title="Door can't be unlocked from the app"
+            message={refusal}
+            actionLabel="Contact us"
+            onAction={() => navigation.navigate("ContactUs")}
+          />
+        </ScrollableState>
       ) : error ? (
-        <ErrorState message={error} onRetry={load} />
+        <ScrollableState>
+          <ErrorState message={error} onRetry={load} />
+        </ScrollableState>
       ) : (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           {doors.map((door) => {
             const s = status[door.deviceId];
+            const unlockButton = (
+              <Button
+                title="Unlock"
+                size={unlockBelow ? "md" : "sm"}
+                fullWidth={unlockBelow}
+                leftIcon="lock-open-outline"
+                accessibilityLabel={`Unlock ${door.name}`}
+                loading={unlocking === door.deviceId}
+                disabled={unlocking !== null}
+                onPress={() => onUnlock(door)}
+                style={unlockBelow ? styles.unlockBelow : undefined}
+              />
+            );
             return (
               <Card key={door.deviceId}>
                 <View style={styles.doorRow}>
@@ -150,16 +178,9 @@ export default function UnlockDoorScreen() {
                       Your room door{door.online ? "" : ". May be offline"}
                     </AppText>
                   </View>
-                  <Button
-                    title="Unlock"
-                    size="sm"
-                    leftIcon="lock-open-outline"
-                    accessibilityLabel={`Unlock ${door.name}`}
-                    loading={unlocking === door.deviceId}
-                    disabled={unlocking !== null}
-                    onPress={() => onUnlock(door)}
-                  />
+                  {unlockBelow ? null : unlockButton}
                 </View>
+                {unlockBelow ? unlockButton : null}
                 {s?.kind === "ok" ? (
                   <View style={[styles.status, styles.okRow]}>
                     <SuccessCheck size={24} accessibilityLabel={null} />
@@ -192,5 +213,6 @@ const createStyles = (c: AppColors, t: Theme) =>
     iconWell: { width: 44, height: 44, borderRadius: 12, backgroundColor: c.primarySoft, alignItems: "center", justifyContent: "center" },
     flex: { flex: 1 },
     status: { marginTop: t.spacing.sm },
+    unlockBelow: { marginTop: t.spacing.md },
     okRow: { flexDirection: "row", alignItems: "center", gap: t.spacing.sm },
   });

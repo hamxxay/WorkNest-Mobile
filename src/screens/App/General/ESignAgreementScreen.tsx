@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
+import { StyleSheet, Text, View, useWindowDimensions, type LayoutChangeEvent } from "react-native";
 import { Gesture, GestureDetector, ScrollView } from "react-native-gesture-handler";
 import Svg, { Path } from "react-native-svg";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -29,12 +29,18 @@ import {
 import { errorMessage } from "../../../services/apiClient";
 import { haptics } from "../../../utils/haptics";
 import type { AppStackParamList } from "../../../navigation/types";
+import { fittingLabel, useContentWidth } from "./shared/layout";
 
 type Props = NativeStackScreenProps<AppStackParamList, "ESignAgreement">;
 type SignMode = "draw" | "type";
 type Point = { x: number; y: number };
 
 const PAD_HEIGHT = 200;
+/** The sign button while signing, then a shorter label for a narrow phone or large text. */
+const SIGNING_LABELS = ["Signing your agreement", "Signing"] as const;
+/** "Read the agreement" button, before and after it was opened (full wording first, shorter ones after). */
+const READ_LABELS = ["Read agreement (PDF)", "Read agreement", "Read PDF"] as const;
+const READ_AGAIN_LABELS = ["Opened. Read it again", "Read it again", "Read again"] as const;
 const CONSENT_TEXT =
   "I have read the agreement and agree to sign it electronically. My electronic signature has the same effect as a handwritten one.";
 
@@ -58,6 +64,8 @@ export default function ESignAgreementScreen({ navigation, route }: Props) {
   const styles = useThemedStyles(createStyles);
   const { user } = useAuth();
   const toast = useToast();
+  const { fontScale } = useWindowDimensions();
+  const contentWidth = useContentWidth();
 
   const initialName = (typeof user?.name === "string" ? user.name : customerName ?? "").trim();
   const [signerName, setSignerName] = useState(initialName);
@@ -178,7 +186,9 @@ export default function ESignAgreementScreen({ navigation, route }: Props) {
             Open the agreement and read it before you sign. It opens in your phone's PDF viewer.
           </AppText>
           <Button
-            title={viewed ? "Opened. Read it again" : "Read agreement (PDF)"}
+            // Inside the card (16dp padding each side): a shorter label when the full one would be clipped.
+            title={fittingLabel(viewed ? READ_AGAIN_LABELS : READ_LABELS, contentWidth - 32, fontScale, true, 0)}
+            accessibilityLabel={viewed ? READ_AGAIN_LABELS[0] : READ_LABELS[0]}
             variant="secondary"
             leftIcon={viewed ? "checkmark-circle-outline" : "document-text-outline"}
             loading={opening}
@@ -267,7 +277,16 @@ export default function ESignAgreementScreen({ navigation, route }: Props) {
 
         {error ? <Banner tone="danger" title="Not signed" message={error} /> : null}
 
-        <Button title={submitting ? "Signing your agreement" : "Sign agreement"} size="lg" fullWidth loading={submitting} disabled={!canSign} onPress={onSign} haptic />
+        <Button
+          title={submitting ? fittingLabel(SIGNING_LABELS, contentWidth, fontScale, true) : "Sign agreement"}
+          accessibilityLabel={submitting ? SIGNING_LABELS[0] : "Sign agreement"}
+          size="lg"
+          fullWidth
+          loading={submitting}
+          disabled={!canSign}
+          onPress={onSign}
+          haptic
+        />
         <AppText variant="caption" color="textMuted" align="center">
           Your name, email, the time and your device are recorded with your signature and added to the signed agreement.
         </AppText>

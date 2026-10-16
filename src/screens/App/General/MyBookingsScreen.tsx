@@ -36,6 +36,8 @@ import { GuestState } from "./shared/GuestState";
 import { DoorSuspendedBanner } from "./shared/DoorSuspendedBanner";
 import { useEmployeeSummaries } from "./shared/useEmployeeSummaries";
 import { useInvoicePdf } from "./shared/useInvoicePdf";
+import { LIST_CARD_MIN_WIDTH, useCardGrid } from "./shared/layout";
+import { TitleRow } from "./shared/TitleRow";
 import type { AppStackParamList, MainTabParamList } from "../../../navigation/types";
 
 type Nav = NativeStackNavigationProp<AppStackParamList>;
@@ -65,6 +67,8 @@ export default function MyBookingsScreen() {
   const confirm = useConfirm();
   const toast = useToast();
   const invoicePdf = useInvoicePdf();
+  // One card per row on phones, two on tablets and unfolded foldables.
+  const grid = useCardGrid({ minItemWidth: LIST_CARD_MIN_WIDTH });
 
   const [bookings, setBookings] = useState<MyBooking[]>([]);
   const [loading, setLoading] = useState(true);
@@ -160,6 +164,10 @@ export default function MyBookingsScreen() {
         actions={[{ icon: "add", accessibilityLabel: "Book a space", onPress: () => navigation.navigate("Spaces") }, ...bell]}
       />
       <AsyncList
+        // FlatList cannot change numColumns on the fly: a new list when the window gets wider or narrower.
+        key={grid.numColumns}
+        numColumns={grid.numColumns}
+        columnWrapperStyle={grid.columnWrapperStyle}
         data={shown}
         keyExtractor={(b) => String(b.id || b.publicId)}
         loading={loading}
@@ -205,15 +213,11 @@ export default function MyBookingsScreen() {
             employeeIds.includes(item.id) && (employeeEntry?.status === "ready" || employeeEntry?.status === "unknown");
           return (
             <Card
+              style={grid.cellStyle}
               onPress={() => navigation.navigate("BookingDetail", { bookingId: item.id || item.publicId || "" })}
               accessibilityLabel={`${item.spaceName}, ${item.status}`}
             >
-              <View style={styles.titleRow}>
-                <AppText variant="subheading" numberOfLines={1} style={styles.flex}>
-                  {item.spaceName}
-                </AppText>
-                <StatusPill status={item.status} />
-              </View>
+              <TitleRow title={item.spaceName} right={<StatusPill status={item.status} />} />
               <AppText variant="caption" color="textMuted">
                 Booking #{item.id}
                 {item.locationName ? `  ·  ${item.locationName}` : ""}
@@ -278,8 +282,6 @@ export default function MyBookingsScreen() {
 const createStyles = (_c: AppColors, t: Theme) =>
   StyleSheet.create({
     segment: { marginBottom: t.spacing.md },
-    titleRow: { flexDirection: "row", alignItems: "center", gap: t.spacing.sm },
-    flex: { flex: 1 },
     rows: { marginTop: t.spacing.sm },
     notice: { marginTop: t.spacing.sm },
     actions: { flexDirection: "row", gap: t.spacing.sm, marginTop: t.spacing.sm, flexWrap: "wrap" },

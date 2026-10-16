@@ -1,10 +1,10 @@
-import { ScrollView, StyleSheet, View } from "react-native";
+import { useMemo } from "react";
+import { ScrollView, StyleSheet, View, useWindowDimensions } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import {
   AppHeader,
-  AppText,
   Banner,
   Button,
   Card,
@@ -20,6 +20,7 @@ import { useAuth } from "../../../context/AuthContext";
 import { availabilityOf } from "../../Home/WorkspaceCard";
 import { capacityLabel, listedRate } from "../../../services/workspaceService";
 import type { AppStackParamList } from "../../../navigation/types";
+import { TitleRow } from "./shared/TitleRow";
 
 type Nav = NativeStackNavigationProp<AppStackParamList>;
 
@@ -34,6 +35,10 @@ export default function SpaceDetailScreen() {
   const route = useRoute<RouteProp<AppStackParamList, "SpaceDetail">>();
   const { workspace } = route.params;
   const styles = useThemedStyles(createStyles);
+  const { height } = useWindowDimensions();
+  // 16:9 (about 200dp tall on a phone, larger on a tablet), but never more than ~45% of a short window (a phone in
+  // landscape), so the details are not pushed below the fold.
+  const imageMax = useMemo(() => ({ maxHeight: Math.max(160, Math.round(height * 0.45)) }), [height]);
   const { user } = useAuth();
   const availability = availabilityOf(workspace);
   const bookable = workspace.bookable !== false && workspace.price > 0;
@@ -52,15 +57,16 @@ export default function SpaceDetailScreen() {
     <Screen>
       <AppHeader title={workspace.name} subtitle={workspace.location || undefined} />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <SmartImage uri={workspace.image} style={styles.image} resizeMode="cover" />
+        <SmartImage uri={workspace.image} style={[styles.image, imageMax]} resizeMode="cover" />
 
         <Card>
-          <View style={styles.titleRow}>
-            <AppText variant="heading" style={styles.flex}>
-              {workspace.name}
-            </AppText>
-            <StatusPill tone={availability.tone} label={availability.label} size="md" />
-          </View>
+          <TitleRow
+            title={workspace.name}
+            variant="heading"
+            numberOfLines={0}
+            right={<StatusPill tone={availability.tone} label={availability.label} size="md" />}
+            style={styles.titleRow}
+          />
           {workspace.type !== workspace.name ? (
             <InfoRow label="Type" value={workspace.type} icon="business-outline" />
           ) : null}
@@ -127,9 +133,8 @@ export default function SpaceDetailScreen() {
 const createStyles = (c: AppColors, t: Theme) =>
   StyleSheet.create({
     content: { padding: t.spacing.screen, gap: t.spacing.lg, paddingBottom: t.spacing.xxl },
-    image: { width: "100%", height: 200, borderRadius: t.radii.card, backgroundColor: c.surfaceAlt },
-    titleRow: { flexDirection: "row", alignItems: "center", gap: t.spacing.sm, marginBottom: t.spacing.xs },
-    flex: { flex: 1 },
+    image: { width: "100%", aspectRatio: 16 / 9, borderRadius: t.radii.card, backgroundColor: c.surfaceAlt },
+    titleRow: { marginBottom: t.spacing.xs },
     chips: { flexDirection: "row", flexWrap: "wrap", gap: t.spacing.sm },
     actions: { gap: t.spacing.md },
   });

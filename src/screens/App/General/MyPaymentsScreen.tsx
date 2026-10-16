@@ -10,6 +10,8 @@ import {
   Button,
   Card,
   InfoRow,
+  ResponsiveGrid,
+  STAT_CARD_MIN_WIDTH,
   Screen,
   StatCard,
   StatusPill,
@@ -23,6 +25,8 @@ import { getMyBills, isOpenBill, refundNote, type BillsSummary, type MyBill } fr
 import { ChallanPayHelp } from "./shared/ChallanPayHelp";
 import { GuestState } from "./shared/GuestState";
 import { useInvoicePdf } from "./shared/useInvoicePdf";
+import { LIST_CARD_MIN_WIDTH, useCardGrid } from "./shared/layout";
+import { TitleRow } from "./shared/TitleRow";
 import type { AppStackParamList } from "../../../navigation/types";
 
 type Nav = NativeStackNavigationProp<AppStackParamList>;
@@ -48,6 +52,8 @@ export default function MyPaymentsScreen() {
   const { user } = useAuth();
   const bell = useNotificationsAction();
   const invoicePdf = useInvoicePdf();
+  // One bill per row on phones, two on tablets and unfolded foldables.
+  const grid = useCardGrid({ minItemWidth: LIST_CARD_MIN_WIDTH });
 
   const [bills, setBills] = useState<MyBill[]>([]);
   const [summary, setSummary] = useState<BillsSummary>(EMPTY_SUMMARY);
@@ -106,6 +112,10 @@ export default function MyPaymentsScreen() {
     <Screen edges={["top", "left", "right"]}>
       <AppHeader variant="brand" title="Payments" actions={bell} />
       <AsyncList
+        // FlatList cannot change numColumns on the fly: a new list when the window gets wider or narrower.
+        key={grid.numColumns}
+        numColumns={grid.numColumns}
+        columnWrapperStyle={grid.columnWrapperStyle}
         data={bills}
         keyExtractor={(b) => b.key}
         loading={loading}
@@ -114,7 +124,8 @@ export default function MyPaymentsScreen() {
         error={error}
         ListHeaderComponent={
           <View style={styles.header}>
-            <View style={styles.stats}>
+            {/* Side by side, or one above the other on a narrow phone with large text. */}
+            <ResponsiveGrid minItemWidth={STAT_CARD_MIN_WIDTH} maxColumns={2}>
               <StatCard label="Paid" value={formatMoney(summary.paidTotal, { compact: true })} tone="success" icon="checkmark-circle-outline" />
               <StatCard
                 label="To pay"
@@ -122,7 +133,7 @@ export default function MyPaymentsScreen() {
                 tone={summary.overdueCount > 0 ? "danger" : "warning"}
                 icon="time-outline"
               />
-            </View>
+            </ResponsiveGrid>
             {summary.overdueCount > 0 ? (
               <Banner
                 tone="danger"
@@ -145,15 +156,11 @@ export default function MyPaymentsScreen() {
           const refund = item.bookingClosed ? refundNote(item.paid, item.bookingStatus) : null;
           return (
             <Card
+              style={grid.cellStyle}
               onPress={item.bookingId ? () => navigation.navigate("BookingDetail", { bookingId: item.bookingId! }) : undefined}
               accessibilityLabel={`${item.title} ${item.number}, ${item.status}`}
             >
-              <View style={styles.titleRow}>
-                <AppText variant="subheading" numberOfLines={1} style={styles.flex}>
-                  {item.number}
-                </AppText>
-                <StatusPill status={item.status} />
-              </View>
+              <TitleRow title={item.number} right={<StatusPill status={item.status} />} />
               <AppText variant="caption" color="textMuted">
                 {[item.title, item.spaceName, item.locationName].filter(Boolean).join("  ·  ")}
               </AppText>
@@ -225,9 +232,6 @@ export default function MyPaymentsScreen() {
 const createStyles = (_c: AppColors, t: Theme) =>
   StyleSheet.create({
     header: { gap: t.spacing.md, marginBottom: t.spacing.md },
-    stats: { flexDirection: "row", gap: t.spacing.md },
-    titleRow: { flexDirection: "row", alignItems: "center", gap: t.spacing.sm },
-    flex: { flex: 1 },
     rows: { marginTop: t.spacing.sm },
     note: { marginTop: t.spacing.sm },
     actions: { flexDirection: "row", flexWrap: "wrap", gap: t.spacing.sm, marginTop: t.spacing.sm },

@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { ScrollView, StyleSheet } from "react-native";
+import { ScrollView, StyleSheet, useWindowDimensions } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -30,9 +30,13 @@ import {
 } from "../../../services/bookingService";
 import { formatPeriodPrice, isPrivateOfficeCategory, listedRate } from "../../../services/workspaceService";
 import { ChallanPayHelp } from "./shared/ChallanPayHelp";
+import { fittingLabel, useContentWidth } from "./shared/layout";
 import type { AppStackParamList } from "../../../navigation/types";
 
 type Nav = NativeStackNavigationProp<AppStackParamList>;
+
+/** The confirm button's label, then shorter ones with the same meaning for a narrow phone or large text. */
+const CONFIRM_LABELS = ["Confirm booking and get challan", "Confirm and get challan", "Confirm booking"] as const;
 
 function profileFromGuest(guest: { name: string; phone: string }): BookingCustomerProfile {
   const [firstName, ...rest] = guest.name.trim().split(/\s+/);
@@ -51,6 +55,8 @@ export default function BookingConfirmScreen() {
   const route = useRoute<RouteProp<AppStackParamList, "BookingConfirm">>();
   const { workspace, booking } = route.params;
   const styles = useThemedStyles(createStyles);
+  const { fontScale } = useWindowDimensions();
+  const contentWidth = useContentWidth();
 
   const toast = useToast();
   const [termsAccepted, setTermsAccepted] = useState(false);
@@ -187,7 +193,8 @@ export default function BookingConfirmScreen() {
         ) : null}
 
         <Button
-          title={outcomeUnknown ? "Try again" : "Confirm booking and get challan"}
+          title={outcomeUnknown ? "Try again" : fittingLabel(CONFIRM_LABELS, contentWidth, fontScale)}
+          accessibilityLabel={outcomeUnknown ? "Try again" : CONFIRM_LABELS[0]}
           size="lg"
           fullWidth
           haptic

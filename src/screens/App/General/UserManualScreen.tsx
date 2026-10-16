@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { AppHeader, AppText, Button, Card, ListRow, Screen, SectionHeader } from "../../../components/ui";
 import { useThemedStyles, type AppColors, type Theme } from "../../../theme";
+import { useResponsive } from "../../../utils/responsive";
 
 const STEPS = [
   {
@@ -63,6 +64,8 @@ export default function UserManualScreen() {
   const navigation = useNavigation<any>();
   const styles = useThemedStyles(createStyles);
   const [open, setOpen] = useState<number | null>(0);
+  // Step titles and summaries wrap instead of being cut off ("4. Confirm and pay the challan" on a narrow phone).
+  const { isLargeText } = useResponsive();
 
   return (
     <Screen>
@@ -76,7 +79,9 @@ export default function UserManualScreen() {
               <ListRow
                 leftIcon={step.icon}
                 title={`${i + 1}. ${step.title}`}
+                titleLines={isLargeText ? 3 : 2}
                 subtitle={step.summary}
+                subtitleLines={isLargeText ? 4 : 2}
                 right={null}
                 chevron
                 onPress={() => setOpen(expanded ? null : i)}

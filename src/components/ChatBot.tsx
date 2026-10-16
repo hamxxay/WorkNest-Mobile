@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   FlatList,
@@ -6,10 +6,12 @@ import {
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -18,6 +20,12 @@ import { IconButton } from "./ui";
 import { useTabBarSpace } from "./ui/TabBar";
 import { CHAT_QUICK_QUESTIONS, getBotReply, type BotContext } from "./chatBotReplies";
 import { getLocations } from "../services/workspaceService";
+import { MAX_CONTENT_WIDTH } from "../utils/responsive";
+
+/** Below this window height (a phone in landscape, split screen) the chat takes the whole height. */
+const SHORT_WINDOW = 560;
+/** Quick-question chips are 36dp tall: 4dp more above and below make a 44dp touch target (the row gap is 8). */
+const CHIP_HIT_SLOP = { top: 4, bottom: 4 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Message = { id: string; text: string; from: "user" | "bot" };
@@ -29,6 +37,14 @@ export function ChatBot({ visible = true }: { visible?: boolean }) {
   const { shadows } = useTheme();
   const s = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  const { height } = useWindowDimensions();
+  const short = height < SHORT_WINDOW;
+  // The sheet keeps clear of side cutouts / navigation buttons in landscape and, when it takes the whole height,
+  // of the status bar (the modal draws under the system bars).
+  const overlayInsets = useMemo(
+    () => ({ paddingLeft: insets.left, paddingRight: insets.right, paddingTop: short ? insets.top : 0 }),
+    [insets.left, insets.right, insets.top, short],
+  );
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -104,18 +120,23 @@ export function ChatBot({ visible = true }: { visible?: boolean }) {
         statusBarTranslucent
         navigationBarTranslucent
       >
-        <KeyboardAvoidingView style={s.overlay} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+        <KeyboardAvoidingView style={[s.overlay, overlayInsets]} behavior={Platform.OS === "ios" ? "padding" : "height"}>
           <Pressable style={s.backdrop} onPress={() => setOpen(false)} accessibilityRole="button" accessibilityLabel="Close assistant" />
 
-          <View style={s.sheet}>
+          {/* 85% of the height (all of it on a short window), at most the content width on tablets, centred. */}
+          <View style={[s.sheet, short && s.sheetFull]}>
             <View style={s.header}>
               <View style={s.headerLeft}>
                 <View style={s.avatarWell}>
                   <Ionicons name="chatbubble-ellipses" size={18} color={colors.onPrimary} />
                 </View>
-                <View>
-                  <Text style={s.headerTitle}>WorkNest Assistant</Text>
-                  <Text style={s.headerSub}>Quick answers about booking and payments</Text>
+                <View style={s.headerText}>
+                  <Text style={s.headerTitle} numberOfLines={2}>
+                    WorkNest Assistant
+                  </Text>
+                  <Text style={s.headerSub} numberOfLines={2}>
+                    Quick answers about booking and payments
+                  </Text>
                 </View>
               </View>
               <IconButton icon="close" accessibilityLabel="Close assistant" onPress={() => setOpen(false)} />
@@ -144,14 +165,15 @@ export function ChatBot({ visible = true }: { visible?: boolean }) {
               }
             />
 
+            {/* Quick questions scroll when they would take too much of a short sheet (landscape, large text). */}
             {messages.length <= 2 && (
-              <View style={s.quickRow}>
+              <ScrollView style={s.quickScroll} contentContainerStyle={s.quickRow} keyboardShouldPersistTaps="handled">
                 {CHAT_QUICK_QUESTIONS.map((q) => (
-                  <Pressable key={q} style={s.quickChip} onPress={() => send(q)} accessibilityRole="button">
+                  <Pressable key={q} style={s.quickChip} onPress={() => send(q)} accessibilityRole="button" hitSlop={CHIP_HIT_SLOP}>
                     <Text style={s.quickChipText}>{q}</Text>
                   </Pressable>
                 ))}
-              </View>
+              </ScrollView>
             )}
 
             {/* Edge-to-edge: keep the input above the gesture bar / navigation buttons. */}
@@ -201,8 +223,12 @@ const makeStyles = (c: AppColors, t: Theme) =>
       borderTopLeftRadius: t.radii.sheet,
       borderTopRightRadius: t.radii.sheet,
       height: "85%",
+      width: "100%",
+      maxWidth: MAX_CONTENT_WIDTH,
+      alignSelf: "center",
       overflow: "hidden",
     },
+    sheetFull: { height: "100%" },
     header: {
       flexDirection: "row",
       alignItems: "center",
@@ -214,6 +240,7 @@ const makeStyles = (c: AppColors, t: Theme) =>
       borderBottomColor: c.border,
     },
     headerLeft: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
+    headerText: { flex: 1 },
     avatarWell: {
       width: 38,
       height: 38,
@@ -238,6 +265,7 @@ const makeStyles = (c: AppColors, t: Theme) =>
     bubbleTextUser: { color: c.onPrimary },
     bubbleTextBot: { color: c.text },
     typing: { ...t.typography.caption, color: c.textMuted },
+    quickScroll: { flexGrow: 0, flexShrink: 1, maxHeight: "35%" },
     quickRow: {
       flexDirection: "row",
       flexWrap: "wrap",
@@ -272,7 +300,9 @@ const makeStyles = (c: AppColors, t: Theme) =>
       borderColor: c.inputBorder,
       paddingHorizontal: 14,
       minHeight: 44,
-      ...t.typography.bodySmall,
+      // 16sp: typed text stays readable (and Android does not zoom small inputs).
+      ...t.typography.body,
+      fontSize: 16,
       color: c.text,
     },
   });

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
-import { AppState, StyleSheet, Text, View } from "react-native";
+import { AppState, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
@@ -23,7 +23,8 @@ import {
   resendWaitSeconds,
   verificationReducer,
 } from "../../services/emailVerification";
-import { AuthLayout } from "./components/AuthLayout";
+import { AuthLayout, useAuthFormWidth } from "./components/AuthLayout";
+import { fittingLabel } from "../App/General/shared/layout";
 import { signedInState } from "../../navigation/redirect";
 
 /**
@@ -52,6 +53,19 @@ export default function VerifyEmailScreen() {
   }, []);
 
   const waitSeconds = resendWaitSeconds(state, now);
+
+  // Full-width buttons show one line: on a narrow phone or with large text a shorter label with the same meaning
+  // (the full one stays the spoken label).
+  const { fontScale } = useWindowDimensions();
+  const formWidth = useAuthFormWidth();
+  const verifiedLabel = fittingLabel(["I've verified my email", "I've verified it"], formWidth, fontScale);
+  const resendFull = resendLabel(state, now);
+  const resendTitle = fittingLabel(
+    [resendFull, waitSeconds > 0 ? `Send in ${waitSeconds} s` : "Send again"],
+    formWidth,
+    fontScale,
+    true,
+  );
 
   // Counts the resend wait down once a second (only while there is one).
   useEffect(() => {
@@ -182,7 +196,8 @@ export default function VerifyEmailScreen() {
       ) : null}
 
       <Button
-        title="I've verified my email"
+        title={verifiedLabel}
+        accessibilityLabel="I've verified my email"
         size="lg"
         fullWidth
         loading={state.status === "checking"}
@@ -194,7 +209,8 @@ export default function VerifyEmailScreen() {
       />
 
       <Button
-        title={resendLabel(state, now)}
+        title={resendTitle}
+        accessibilityLabel={resendFull}
         variant="outline"
         size="lg"
         fullWidth

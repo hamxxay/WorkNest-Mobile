@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Modal, Pressable, StyleSheet, View, useWindowDimensions } from "react-native";
+import { Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   AppHeader,
@@ -15,15 +15,31 @@ import {
 import { useThemeColors, useThemedStyles, type AppColors, type Theme } from "../../../theme";
 import { errorMessage } from "../../../services/apiClient";
 import { getGalleryImages, type GalleryImage } from "../../../services/galleryService";
+import { useResponsive } from "../../../utils/responsive";
+import { useListColumns } from "./shared/layout";
 
 const ALL = "All";
+/**
+ * Narrowest a photo tile gets (dp): two per row on phones (even 320dp ones), three or four on an unfolded foldable,
+ * four to six on a tablet (where the tiles may be a little larger).
+ */
+const TILE_MIN_WIDTH = 130;
+const TILE_MIN_WIDTH_WIDE = 170;
 
 /** Photos of WorkNest spaces (GET /gallery/all), filterable by category, with a full-screen viewer. */
 export default function GalleryScreen() {
   const styles = useThemedStyles(createStyles);
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  // Photos use the whole window width ("full" screen): more columns as the window gets wider. Photo tiles do not
+  // grow with the font size (their caption is one line).
+  const { isTablet } = useResponsive();
+  const { numColumns, itemWidth: tile } = useListColumns({
+    minItemWidth: isTablet ? TILE_MIN_WIDTH_WIDE : TILE_MIN_WIDTH,
+    maxColumns: 6,
+    mode: "full",
+    fontWeight: 0,
+  });
 
   const [images, setImages] = useState<GalleryImage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,16 +71,19 @@ export default function GalleryScreen() {
   );
   const shown = useMemo(() => (category === ALL ? images : images.filter((i) => i.category === category)), [images, category]);
   const current = viewer !== null ? shown[viewer] : null;
-  const tile = Math.floor((Math.min(width, 720) - 16 * 2 - 12) / 2);
+  const tileSize = useMemo(() => ({ width: tile, height: tile }), [tile]);
+  const tileWidth = useMemo(() => ({ width: tile }), [tile]);
 
   return (
-    <Screen>
+    <Screen width="full">
       <AppHeader title="Gallery" subtitle="Our spaces" />
       <AsyncList
+        // FlatList cannot change numColumns on the fly: a new list when the window gets wider or narrower.
+        key={numColumns}
         data={shown}
         keyExtractor={(img, i) => String(img.id ?? i)}
-        numColumns={2}
-        columnWrapperStyle={styles.column}
+        numColumns={numColumns}
+        columnWrapperStyle={numColumns > 1 ? styles.column : undefined}
         loading={loading}
         refreshing={refreshing}
         onRefresh={() => load(true)}
@@ -86,9 +105,9 @@ export default function GalleryScreen() {
             accessibilityRole="imagebutton"
             accessibilityLabel={`${item.title}. Open photo`}
             onPress={() => setViewer(index)}
-            style={({ pressed }) => [styles.tile, { width: tile }, pressed && styles.pressed]}
+            style={({ pressed }) => [styles.tile, tileWidth, pressed && styles.pressed]}
           >
-            <SmartImage uri={item.src} style={[styles.image, { width: tile, height: tile }]} resizeMode="cover" />
+            <SmartImage uri={item.src} style={[styles.image, tileSize]} resizeMode="cover" />
             <AppText variant="captionStrong" numberOfLines={1} style={styles.caption}>
               {item.title}
             </AppText>
@@ -97,7 +116,18 @@ export default function GalleryScreen() {
       />
 
       <Modal visible={!!current} transparent animationType="fade" onRequestClose={() => setViewer(null)} statusBarTranslucent>
-        <View style={[styles.viewer, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 16 }]}>
+        {/* Clear of the status bar, the navigation bar and (in landscape) side cutouts / navigation buttons. */}
+        <View
+          style={[
+            styles.viewer,
+            {
+              paddingTop: insets.top + 8,
+              paddingBottom: insets.bottom + 16,
+              paddingLeft: insets.left + 16,
+              paddingRight: insets.right + 16,
+            },
+          ]}
+        >
           {/* The lightbox is navy in both themes: light status-bar icons while it is open (RN applies the style to
               the modal's window too); closing it restores the screen's own style. */}
           {current ? <FocusAwareStatusBar barStyle={barStyleFor(colors.headerBg)} /> : null}
@@ -109,9 +139,12 @@ export default function GalleryScreen() {
           </View>
           {current ? <SmartImage uri={current.src} style={styles.full} resizeMode="contain" /> : null}
           {current?.description || current?.locationName ? (
-            <AppText variant="bodySmall" color="onHeaderMuted" style={styles.viewerText}>
-              {[current.description, current.locationName].filter(Boolean).join("  ·  ")}
-            </AppText>
+            // A long description scrolls instead of pushing the photo off a short (landscape) screen.
+            <ScrollView style={styles.viewerTextBox} showsVerticalScrollIndicator={false}>
+              <AppText variant="bodySmall" color="onHeaderMuted" style={styles.viewerText}>
+                {[current.description, current.locationName].filter(Boolean).join("  ·  ")}
+              </AppText>
+            </ScrollView>
           ) : null}
           <View style={styles.viewerNav}>
             <IconButton
@@ -148,9 +181,10 @@ const createStyles = (c: AppColors, t: Theme) =>
     caption: { color: c.text },
     flex: { flex: 1 },
     // The photo viewer is a dark lightbox in both themes.
-    viewer: { flex: 1, backgroundColor: c.headerBg, paddingHorizontal: t.spacing.lg, gap: t.spacing.md },
+    viewer: { flex: 1, backgroundColor: c.headerBg, gap: t.spacing.md },
     viewerBar: { flexDirection: "row", alignItems: "center", gap: t.spacing.sm },
     full: { flex: 1, width: "100%" },
+    viewerTextBox: { flexGrow: 0, maxHeight: "25%" },
     viewerText: { textAlign: "center" },
     viewerNav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   });

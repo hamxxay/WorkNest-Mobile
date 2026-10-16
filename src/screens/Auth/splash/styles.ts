@@ -34,8 +34,9 @@ export const createSplashStyles = (colors: AppColors, theme: Theme) =>
     brandBlock: { alignItems: "center" },
     copyBlock: { alignItems: "center", marginTop: 28, gap: 6 },
     wordmark: { ...theme.typography.display, color: colors.onHeader },
-    tagline: { ...theme.typography.body, color: colors.onHeaderMuted },
     loaderWrap: { position: "absolute", bottom: 72, width: 72 },
+    loaderWrapShort: { bottom: 24 },
+    tagline: { ...theme.typography.body, color: colors.onHeaderMuted, textAlign: "center", paddingHorizontal: 24 },
     loaderTrack: { height: 3, width: "100%", overflow: "hidden", borderRadius: 999, backgroundColor: colors.headerLine },
     loaderFill: { height: "100%", width: "100%", borderRadius: 999, backgroundColor: palette.teal[400], transformOrigin: "left" },
   });

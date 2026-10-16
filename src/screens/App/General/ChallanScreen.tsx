@@ -35,6 +35,8 @@ import { refundNote } from "../../../services/billService";
 import { returnToBookingScreen } from "../../../navigation/stackReturn";
 import { AmountBreakdown } from "./shared/AmountBreakdown";
 import { ChallanPayHelp } from "./shared/ChallanPayHelp";
+import { ScrollableState } from "./shared/ScrollableState";
+import { TitleRow } from "./shared/TitleRow";
 import type { AppStackParamList } from "../../../navigation/types";
 
 type Nav = NativeStackNavigationProp<AppStackParamList>;
@@ -147,12 +149,14 @@ export default function ChallanScreen() {
       {loading ? (
         <LoadingState message="Loading challan" />
       ) : error || !challan || !state ? (
-        <ErrorState
-          illustration={error ? "cloud-off" : "receipt"}
-          title={justBooked ? "Booking created, challan not loaded" : undefined}
-          message={error || "This booking has no challan yet."}
-          onRetry={() => load()}
-        />
+        <ScrollableState>
+          <ErrorState
+            illustration={error ? "cloud-off" : "receipt"}
+            title={justBooked ? "Booking created, challan not loaded" : undefined}
+            message={error || "This booking has no challan yet."}
+            onRetry={() => load()}
+          />
+        </ScrollableState>
       ) : (
         <ScrollView
           contentContainerStyle={styles.content}
@@ -208,13 +212,15 @@ export default function ChallanScreen() {
             />
           ) : null}
           <Card>
-            <View style={styles.rowBetween}>
-              <AppText variant="overline" color="textMuted">
-                Challan / consumer no.
-              </AppText>
-              <StatusPill status={state.expired ? "Expired" : challan.bookingStatus ?? "Pending"} size="md" />
-            </View>
-            <AppText variant="display" selectable style={styles.number}>
+            <TitleRow
+              title="Challan / consumer no."
+              variant="overline"
+              color="textMuted"
+              numberOfLines={0}
+              right={<StatusPill status={state.expired ? "Expired" : challan.bookingStatus ?? "Pending"} size="md" />}
+            />
+            {/* The long consumer number stays readable without taking several lines of 56px digits. */}
+            <AppText variant="display" selectable maxFontSizeMultiplier={1.5} style={styles.number}>
               {challan.challanNumber ?? "Not issued yet"}
             </AppText>
             {state.payable ? (
@@ -298,7 +304,6 @@ export default function ChallanScreen() {
 const createStyles = (_c: AppColors, t: Theme) =>
   StyleSheet.create({
     content: { padding: t.spacing.screen, gap: t.spacing.lg, paddingBottom: t.spacing.xxl },
-    rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: t.spacing.sm },
     number: { marginVertical: t.spacing.sm },
     booked: { flexDirection: "row", alignItems: "center", gap: t.spacing.md },
     flex: { flex: 1 },
