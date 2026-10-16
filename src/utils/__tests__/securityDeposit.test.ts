@@ -12,6 +12,7 @@ import {
   rentDiscountPercent,
   savedDepositMonths,
   savedSecurityDeposit,
+  round2,
   securityDepositAmount,
 } from "../securityDeposit";
 
@@ -59,6 +60,16 @@ describe("security deposit amount", () => {
     expect(securityDepositAmount(2, 0, 0)).toBe(0);
   });
 
+  it("rounds halves away from zero like the API's decimals, float noise and all", () => {
+    expect(securityDepositAmount(1, 10001, 10.5)).toBe(8950.9); // 8,950.895
+    expect(securityDepositAmount(1, 70001, 12.5)).toBe(61250.88); // 61,250.875
+    expect(securityDepositAmount(1, 100010, 0.05)).toBe(99960); // 99,959.995
+    expect(securityDepositAmount(2, 10003, 10.5)).toBe(17905.37);
+    expect(round2(1.005)).toBe(1.01);
+    expect(round2(-1.005)).toBe(-1.01);
+    expect(round2(Number.NaN)).toBe(0);
+  });
+
   it("the deposit gets the rent's discount: a PKR discount as its share of one month's rent", () => {
     expect(rentDiscountPercent("Percentage", 10, 70000)).toBe(10);
     expect(rentDiscountPercent("Amount", 7000, 70000)).toBe(10);
@@ -70,7 +81,7 @@ describe("security deposit amount", () => {
 });
 
 describe("a saved quotation / booking", () => {
-  const base = { monthlyRent: 70000, discountPercent: 10 };
+  const base = { monthlyRent: 70000, discountPercent: 10, kind: "private" as const };
 
   it("uses the stored amount (older rows keep theirs)", () => {
     expect(savedSecurityDeposit({ ...base, amount: 70000, months: 2 })).toBe(70000);
@@ -82,6 +93,9 @@ describe("a saved quotation / booking", () => {
     expect(savedSecurityDeposit({ ...base, amount: 0, months: 0 })).toBe(0);
     expect(savedSecurityDeposit({ ...base, amount: null, months: null })).toBe(0);
     expect(savedSecurityDeposit({ ...base, amount: 0, months: 2, kind: "shared" })).toBe(0);
+    // Unknown kind counts as shared (as on the API): no deposit from months alone; a stored amount still counts.
+    expect(savedSecurityDeposit({ ...base, amount: 0, months: 2, kind: null })).toBe(0);
+    expect(savedSecurityDeposit({ ...base, amount: 50000, months: 1, kind: null })).toBe(50000);
   });
 
   it("prefill months: the stored months, else the months the stored amount stands for, never a default 2", () => {

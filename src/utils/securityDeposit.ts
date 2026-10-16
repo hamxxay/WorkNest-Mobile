@@ -15,7 +15,18 @@ export const SECURITY_DEPOSIT_FIELD_LABEL = "Security deposit (months)";
 export const SHARED_SPACE_DEPOSIT_HINT = "Shared spaces have no security deposit";
 export const NO_SECURITY_DEPOSIT = "No security deposit";
 
-const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+/**
+ * 2 decimals, halves away from zero, as the API rounds its decimals (MidpointRounding.AwayFromZero). Binary float noise
+ * is dropped first (15 significant digits), so 10,001 x 0.895 = 8,950.895 gives 8,950.90 here as on the server.
+ */
+export function round2(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  const clean = Number(n.toPrecision(15));
+  const shifted = Number(`${Math.round(Number(`${Math.abs(clean)}e2`))}e-2`);
+  const rounded = Number.isFinite(shifted) ? shifted : Math.round(Math.abs(clean) * 100) / 100;
+  return clean < 0 ? -rounded : rounded;
+}
+
 const clampPercent = (p: number) => (Number.isFinite(p) ? Math.min(100, Math.max(0, p)) : 0);
 const positive = (n: number | null | undefined) => (typeof n === "number" && Number.isFinite(n) && n > 0 ? n : 0);
 
@@ -80,15 +91,21 @@ export type SavedDeposit = {
   monthlyRent: number;
   /** The rent's discount percentage (rentDiscountPercent). */
   discountPercent: number;
-  /** The space kind when known: a shared space / meeting room never gets a deposit worked out from months. */
+  /**
+   * The space kind: only a private office gets a deposit worked out from months (unknown counts as shared, as on the
+   * API; an old shared quotation can hold 1 month with no amount).
+   */
   kind?: DepositSpaceKind | null;
 };
 
-/** The deposit of a saved quotation / booking: the stored amount, else months x rent x (1 - discount), else 0. */
+/**
+ * The deposit of a saved quotation / booking (the API's SecurityDepositRules.Stored): the stored amount; else, for a
+ * private office, months x rent x (1 - discount); else 0.
+ */
 export function savedSecurityDeposit(saved: SavedDeposit): number {
   const stored = positive(saved.amount);
   if (stored) return round2(stored);
-  if (saved.kind === "shared" || saved.kind === "meeting") return 0;
+  if (saved.kind !== "private") return 0;
   const months = isValidDepositMonths(saved.months) ? saved.months : 0;
   return securityDepositAmount(months, saved.monthlyRent, saved.discountPercent);
 }
