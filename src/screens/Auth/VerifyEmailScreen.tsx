@@ -28,7 +28,8 @@ import { fittingLabel } from "../App/General/shared/layout";
 import { signedInState } from "../../navigation/redirect";
 
 /**
- * "Verify your email": shown after sign-up and whenever the API answers EMAIL_NOT_VERIFIED. The user opens the link
+ * "Verify your email": shown whenever the API answers EMAIL_NOT_VERIFIED (sign-up, sign-in, start-up; only while
+ * the API requires a verified address, Security:RequireVerifiedEmail). The user opens the link
  * in the email, comes back and continues (the check also runs by itself when the app comes back to the front);
  * the link can be sent again once a minute; "Use a different account" signs out.
  */

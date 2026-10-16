@@ -42,7 +42,7 @@ export default function SplashScreen() {
           if (!active) return;
 
           if (!user) {
-            // Signed up but the email link was not opened yet: back to "Verify your email".
+            // The API asked for a verified address and the email link was not opened yet: back to "Verify your email".
             const pending = getPendingEmailVerification();
             if (pending) {
               navigation.replace("AuthStack", { screen: "VerifyEmail", params: { email: pending.email } });

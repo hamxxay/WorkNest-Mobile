@@ -64,9 +64,10 @@ import {
 // token (sent as `firebaseIdToken`) and returns its own JWT with the user's role; every API call sends that JWT.
 // The Firebase ID token itself is never used as the API token.
 //
-// - A new email account must verify its address first: sign-up sends the Firebase verification email and the
-//   "Verify your email" screen signs in once the link was opened (the API refuses unverified addresses with
-//   403 EMAIL_NOT_VERIFIED, which leads to the same screen).
+// - Whether an email address must be verified is the API's decision (its Security:RequireVerifiedEmail setting).
+//   Sign-up does the same token exchange as signing in: accepted, the new account is signed in straight away (no
+//   email). Answered 403 EMAIL_NOT_VERIFIED, sign-up sends the Firebase verification email and the "Verify your
+//   email" screen signs in once the link was opened (a sign-in answered EMAIL_NOT_VERIFIED opens the same screen).
 // - Staff added in the CMS who have no Firebase account yet sign in with their WorkNest password (POST auth/login);
 //   the Firebase account is then created in the background, as the CMS does.
 // - The token exchange is only repeated at start-up / on a Firebase token refresh when the stored WorkNest token is
@@ -92,13 +93,18 @@ type RegisterRequest = {
   lastName?: string;
 };
 
-/** Sign-up result: the account exists, the email address must be verified before the app opens. */
-export type SignUpResult = {
-  verificationRequired: true;
-  email: string;
-  /** False when the verification email could not be sent (the screen offers to send it again). */
-  emailSent: boolean;
-};
+/**
+ * Sign-up result. signedIn: the API accepted the new account, the session is saved and announced (as after a
+ * sign-in). Otherwise the API wants the email address verified first: the "Verify your email" screen comes next.
+ */
+export type SignUpResult =
+  | { signedIn: true; user: StoredUser }
+  | {
+      signedIn: false;
+      email: string;
+      /** False when the verification email could not be sent (the screen offers to send it again). */
+      emailSent: boolean;
+    };
 
 type ApiSession = { token: string; roles: string[] | null };
 
@@ -349,8 +355,8 @@ function refreshProfileInBackground(user: StoredUser): void {
 }
 
 // ─── Waiting for the email link ────────────────────────────────────────────────
-// A new email account (or one the API answered EMAIL_NOT_VERIFIED for) stays signed in to Firebase, but not to
-// WorkNest, until the address is verified: the "Verify your email" screen sends the link again, reloads the
+// An account the API answered EMAIL_NOT_VERIFIED for (at sign-up, sign-in or start-up) stays signed in to Firebase,
+// but not to WorkNest, until the address is verified: the "Verify your email" screen sends the link again, reloads the
 // account and then signs in. Nothing exchanges a token for that account meanwhile.
 
 type PendingVerification = { uid: string; email: string; name?: string; sentAt: number | null };
@@ -1056,9 +1062,16 @@ function createFirebaseAccountInBackground(email: string, password: string): voi
   }
 }
 
+/** Sign-up created the account but the API couldn't be asked (offline, server trouble): "try again" would fail. */
+const SIGNED_UP_NOT_SIGNED_IN_MESSAGE =
+  "Your account was created, but we couldn't sign you in just now. Please sign in to continue.";
+
 /**
- * Sign-up: creates the Firebase account, saves the typed name and sends the verification email. The app does not
- * sign in to WorkNest yet: the "Verify your email" screen does that once the link was opened.
+ * Sign-up: creates the Firebase account, saves the typed name and does the same token exchange as signing in.
+ * - The API accepts the account: signed in like after a sign-in (session saved, AuthContext told), no email sent.
+ * - The API answers EMAIL_NOT_VERIFIED: the verification email is sent and the account waits for the link (the
+ *   "Verify your email" screen signs in once it was opened).
+ * - Any other refusal (account turned off...) or failure: signed out again, with the API's reason.
  */
 export function registerUser(payload: RegisterRequest): Promise<SignUpResult> {
   return interactiveSignIn(() => registerWithPassword(payload));
@@ -1096,17 +1109,43 @@ async function registerWithPassword(payload: RegisterRequest): Promise<SignUpRes
     // Kept on the Firebase account too, so the name survives the app being closed before the link is opened.
     await credential.user.updateProfile({ displayName }).catch(error => warnDev("[Auth] display name not saved", error));
   }
-  markVerificationPending(credential.user, displayName || undefined, null);
 
-  let emailSent = false;
+  // The same exchange as signing in (with the typed name for the new user row); the API decides whether the
+  // unverified address is enough.
+  let session: { user: StoredUser; apiToken: string | null };
   try {
-    await sendVerificationEmail(credential.user);
-    emailSent = true;
+    session = await persistFirebaseSession(credential.user, displayName || undefined, {
+      strict: true,
+      keepFirebaseOn: isEmailNotVerified,
+    });
   } catch (error) {
-    debugAuth("verification email not sent", { code: errorCode(error) });
+    debugAuth("register error", { code: refusalCode(error) ?? errorCode(error) });
+    if (!isEmailNotVerified(error)) {
+      // Signed out again (persistFirebaseSession). Offline / server trouble: the account exists, so the user signs
+      // in later instead of signing up again ("That email address is already in use.").
+      if (isTemporaryFailure(error) && error instanceof ApiError) {
+        throw new ApiError(SIGNED_UP_NOT_SIGNED_IN_MESSAGE, error.status, error.details);
+      }
+      throw mapFirebaseError(error, "Registration failed.");
+    }
+    // The API wants a verified address: send the link; the "Verify your email" screen signs in once it was opened.
+    markVerificationPending(credential.user, displayName || undefined, null);
+    let emailSent = false;
+    try {
+      await sendVerificationEmail(credential.user);
+      emailSent = true;
+    } catch (sendError) {
+      debugAuth("verification email not sent", { code: errorCode(sendError) });
+    }
+    debugAuth("register success, waiting for the email link");
+    return { signedIn: false, email: credential.user.email ?? email, emailSent };
   }
-  debugAuth("register success, waiting for the email link");
-  return { verificationRequired: true, email: credential.user.email ?? email, emailSent };
+
+  // As after the email link: the typed name replaces the API's default name if a user row already existed.
+  await saveSignupName(displayName || undefined, session.user);
+  announceSignedIn(session.user);
+  debugAuth("register success, signed in");
+  return { signedIn: true, user: session.user };
 }
 
 /** Sends the verification link again to the account waiting for it. Returns when it was sent. */
