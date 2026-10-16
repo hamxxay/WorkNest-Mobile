@@ -594,24 +594,139 @@ describe("staff added in the CMS (no Firebase account yet)", () => {
   });
 });
 
-describe("email verification", () => {
-  it("sign-up sends the verification email and does not sign in to WorkNest yet", async () => {
-    const created = fakeUser({ uid: "uid-new", email: "new@example.com", displayName: null });
+describe("sign-up follows the API (Security:RequireVerifiedEmail)", () => {
+  const SIGN_UP = { email: "new@example.com", password: "Secret123", firstName: "Sara", lastName: "Khan" };
+
+  /** createUserWithEmailAndPassword signs the new account in to Firebase (and fires the token listener). */
+  function newFirebaseAccount(overrides: Partial<FakeUser> = {}): FakeUser {
+    const created = fakeUser({ uid: "uid-new", email: "new@example.com", displayName: null, ...overrides });
     mockFirebase.createUserWithEmailAndPassword.mockImplementation(async () => {
       mockFirebase.currentUser = created;
+      mockFirebase.idTokenListener?.(created);
       return { user: created };
     });
-    const fetchMock = installFetch(async () => jsonResponse(200, { isSuccessful: true, data: null }));
+    return created;
+  }
 
-    const result = await registerUser({ email: "new@example.com", password: "Secret123", firstName: "Sara", lastName: "Khan" });
+  const exchangesOf = (fetchMock: FetchMock) => fetchMock.mock.calls.filter(([url]) => /google-login$/.test(url));
 
-    expect(result).toEqual({ verificationRequired: true, email: "new@example.com", emailSent: true });
+  it("accepted by the API (setting off): signed in straight away, no verification email, nothing pending", async () => {
+    const announced = jest.fn();
+    const unsubscribe = subscribeToAuthChanges(announced);
+    const created = newFirebaseAccount();
+    const fetchMock = installFetch(async (url) => {
+      if (/google-login$/.test(url)) {
+        return jsonResponse(200, { isSuccessful: true, data: { token: "signup-jwt", roles: ["general"] } });
+      }
+      if (/auth\/me$/.test(url)) {
+        return jsonResponse(200, {
+          isSuccessful: true,
+          data: { email: "new@example.com", name: "Sara Khan", phone: null, role: "general" },
+        });
+      }
+      return jsonResponse(200, { isSuccessful: true, data: null });
+    });
+
+    const result = await registerUser(SIGN_UP);
+    await flush();
+
+    expect(result).toMatchObject({
+      signedIn: true,
+      user: { email: "new@example.com", name: "Sara Khan", role: "general" },
+    });
     expect(created.updateProfile).toHaveBeenCalledWith({ displayName: "Sara Khan" });
-    expect(created.sendEmailVerification).toHaveBeenCalledTimes(1);
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(getPendingEmailVerification()).toMatchObject({ email: "new@example.com" });
+    expect(created.sendEmailVerification).not.toHaveBeenCalled();
+    expect(getPendingEmailVerification()).toBeNull();
+    expect(mockFirebase.signOut).not.toHaveBeenCalled();
+    // The session is stored and AuthContext is told, as after a sign-in on the Login screen.
+    expect(mockKeychain.get("auth_token")).toBe("signup-jwt");
+    expect(JSON.parse(mockStorage.get("auth_user")!)).toMatchObject({ email: "new@example.com", name: "Sara Khan", role: "general" });
+    expect(announced).toHaveBeenCalledWith(expect.objectContaining({ email: "new@example.com", name: "Sara Khan" }));
+    expect(mockStorage.get("@worknest/onboarding_complete")).toBe("true");
+    // One exchange (the token listener adds none), with the typed name and as a button press.
+    const exchanges = exchangesOf(fetchMock);
+    expect(exchanges).toHaveLength(1);
+    expect(bodyOf(exchanges[0][1])).toMatchObject({ name: "Sara Khan", interactive: true });
+    // The database already has the typed name: nothing to correct.
+    expect(fetchMock.mock.calls.some(([url, init]) => /auth\/me$/.test(url) && init.method === "PUT")).toBe(false);
+    unsubscribe();
   });
 
+  it("answered EMAIL_NOT_VERIFIED (setting on): sends the verification email and waits for the link", async () => {
+    const created = newFirebaseAccount();
+    const fetchMock = installFetch(async (url) =>
+      /google-login$/.test(url) ? jsonResponse(403, NOT_VERIFIED_BODY) : jsonResponse(200, { isSuccessful: true, data: null }),
+    );
+
+    const result = await registerUser(SIGN_UP);
+    await flush();
+
+    expect(result).toEqual({ signedIn: false, email: "new@example.com", emailSent: true });
+    expect(created.updateProfile).toHaveBeenCalledWith({ displayName: "Sara Khan" });
+    expect(created.sendEmailVerification).toHaveBeenCalledTimes(1);
+    expect(getPendingEmailVerification()).toEqual({ email: "new@example.com", sentAt: expect.any(Number) });
+    // Firebase stays signed in for the Verify screen; there is no WorkNest session.
+    expect(mockFirebase.signOut).not.toHaveBeenCalled();
+    expect(mockKeychain.has("auth_token")).toBe(false);
+    expect(mockStorage.has("auth_user")).toBe(false);
+    expect(exchangesOf(fetchMock)).toHaveLength(1);
+    expect(bodyOf(exchangesOf(fetchMock)[0][1])).toMatchObject({ name: "Sara Khan", interactive: true });
+  });
+
+  it("answered EMAIL_NOT_VERIFIED and the email could not be sent: still waits (the Verify screen sends it again)", async () => {
+    // Its own uid: the once-a-minute record of the email sent in the test above is per account.
+    const created = newFirebaseAccount({
+      uid: "uid-new-2",
+      sendEmailVerification: jest.fn(async () => {
+        throw Object.assign(new Error("Too many requests"), { code: "auth/too-many-requests" });
+      }),
+    });
+    installFetch(async () => jsonResponse(403, NOT_VERIFIED_BODY));
+
+    await expect(registerUser(SIGN_UP)).resolves.toEqual({ signedIn: false, email: "new@example.com", emailSent: false });
+    expect(created.sendEmailVerification).toHaveBeenCalledTimes(1);
+    expect(getPendingEmailVerification()).toEqual({ email: "new@example.com", sentAt: null });
+  });
+
+  it("a turned-off account: signed out again with the API's reason, no email", async () => {
+    const created = newFirebaseAccount();
+    installFetch(async () =>
+      jsonResponse(403, {
+        isSuccessful: false,
+        message: "Your account is turned off. Please contact WorkNest.",
+        data: { code: "ACCOUNT_DISABLED" },
+      }),
+    );
+
+    await expect(registerUser(SIGN_UP)).rejects.toMatchObject({
+      status: 403,
+      message: "Your account is turned off. Please contact WorkNest.",
+    });
+    await flush();
+
+    expect(mockFirebase.signOut).toHaveBeenCalled();
+    expect(created.sendEmailVerification).not.toHaveBeenCalled();
+    expect(getPendingEmailVerification()).toBeNull();
+    expect(mockKeychain.has("auth_token")).toBe(false);
+    expect(expired).not.toHaveBeenCalled();
+  });
+
+  it("WorkNest can't be reached: signed out, and told the account exists so they sign in (not sign up again)", async () => {
+    newFirebaseAccount();
+    installFetch(async () => {
+      throw new TypeError("Network request failed");
+    });
+
+    await expect(registerUser(SIGN_UP)).rejects.toMatchObject({
+      status: 0,
+      message: "Your account was created, but we couldn't sign you in just now. Please sign in to continue.",
+    });
+    expect(mockFirebase.signOut).toHaveBeenCalled();
+    expect(mockKeychain.has("auth_token")).toBe(false);
+  });
+});
+
+describe("email verification", () => {
   it("'I've verified' before opening the link: not verified yet, nothing sent to the API", async () => {
     mockFirebase.currentUser = fakeUser({ uid: "uid-new", email: "new@example.com" });
     const fetchMock = installFetch(async () => jsonResponse(200, {}));
@@ -627,8 +742,13 @@ describe("email verification", () => {
       mockFirebase.currentUser = created;
       return { user: created };
     });
-    installFetch(async () => jsonResponse(200, { isSuccessful: true, data: null }));
-    await registerUser({ email: "sara.k@example.com", password: "Secret123", firstName: "Sara", lastName: "Khan" });
+    // The API requires a verified address (Security:RequireVerifiedEmail on): sign-up waits for the link.
+    installFetch(async (url) =>
+      /google-login$/.test(url) ? jsonResponse(403, NOT_VERIFIED_BODY) : jsonResponse(200, { isSuccessful: true, data: null }),
+    );
+    await expect(
+      registerUser({ email: "sara.k@example.com", password: "Secret123", firstName: "Sara", lastName: "Khan" }),
+    ).resolves.toMatchObject({ signedIn: false });
 
     const verified = { ...created, emailVerified: true };
     created.reload!.mockImplementation(async () => {

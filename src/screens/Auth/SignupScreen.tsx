@@ -105,7 +105,13 @@ export default function SignupScreen() {
         lastName,
       });
 
-      // The account exists; WorkNest opens once the email address is verified.
+      if (result.signedIn) {
+        // The API accepted the new account: signed in (AuthContext already has the user), as after Sign in.
+        routeToApp();
+        return;
+      }
+
+      // The API wants the email address verified first: WorkNest opens once the link in the email was opened.
       navigation.replace("VerifyEmail", {
         email: result.email,
         ...(redirectAfterLogin ? { redirectAfterLogin } : {}),
