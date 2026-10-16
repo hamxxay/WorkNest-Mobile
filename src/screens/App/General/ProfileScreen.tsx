@@ -17,7 +17,6 @@ import {
   SectionHeader,
   StatCard,
   TextField,
-  useConfirm,
   useToast,
 } from "../../../components/ui";
 import { useTabBarSpace } from "../../../components/ui/TabBar";
@@ -25,12 +24,13 @@ import { useThemedStyles, type AppColors, type Theme } from "../../../theme";
 import { useAuth } from "../../../context/AuthContext";
 import { useNotificationsAction } from "../../../hooks/useHeaderActions";
 import { useDoorAccess } from "../../../hooks/useDoorAccess";
-import { logoutUser, updateUserProfile } from "../../../services/authService";
+import { updateUserProfile } from "../../../services/authService";
 import { errorMessage } from "../../../services/apiClient";
 import { getMyBookings, summarizeBookings, type BookingSummary } from "../../../services/bookingService";
 import { formatPhoneInput, phoneError, PHONE_MAX_LENGTH } from "../../../utils/phone";
 import { rootNavRef } from "../../../navigation/AppNavigator";
 import { AccountSecurityCard } from "../../../components/account/AccountSecurityCard";
+import { SignOutButton } from "../../../components/account/SignOutButton";
 import type { AppStackParamList } from "../../../navigation/types";
 import { version as appVersion } from "../../../../package.json";
 
@@ -45,11 +45,10 @@ export default function ProfileScreen() {
   const navigation = useNavigation<Nav>();
   const styles = useThemedStyles(createStyles);
   const tabBarSpace = useTabBarSpace();
-  const { user, setUser, clearSession } = useAuth();
+  const { user, setUser } = useAuth();
   const bell = useNotificationsAction();
   const doorAccess = useDoorAccess();
   const toast = useToast();
-  const confirm = useConfirm();
 
   // Same rules as the My Bookings tabs: rejected, no-show and cancelled bookings are never "Upcoming".
   const [summary, setSummary] = useState<BookingSummary | null>(null);
@@ -111,19 +110,8 @@ export default function ProfileScreen() {
     }
   };
 
-  const signOut = async () => {
-    const ok = await confirm({
-      title: "Sign out?",
-      message: "You can sign in again any time.",
-      confirmLabel: "Sign out",
-      destructive: true,
-      icon: "log-out-outline",
-      onConfirm: async () => {
-        await logoutUser();
-        await clearSession();
-      },
-    }).catch(() => true);
-    if (!ok) return;
+  // Signed out: back to the tabs as a guest (Profile then offers sign in / create account).
+  const signedOut = () => {
     rootNavRef.current?.reset({ index: 0, routes: [{ name: "AppStack", params: { screen: "MainTabs" } }] });
   };
 
@@ -180,7 +168,11 @@ export default function ProfileScreen() {
                   </AppText>
                 </View>
               </View>
-              <Button title="Edit profile" variant="outline" size="sm" leftIcon="create-outline" style={styles.editBtn} onPress={openEdit} />
+              {/* Sign out sits next to Edit profile, so it is found without scrolling. */}
+              <View style={styles.identityActions}>
+                <Button title="Edit profile" variant="outline" size="sm" leftIcon="create-outline" onPress={openEdit} />
+                <SignOutButton message="You can sign in again any time." onSignedOut={signedOut} />
+              </View>
             </Card>
 
             {summary ? (
@@ -240,12 +232,6 @@ export default function ProfileScreen() {
 
         <SectionHeader title="WorkNest" />
         {exploreRows}
-
-        {user ? (
-          <Card padding={0}>
-            <ListRow leftIcon="log-out-outline" title="Sign out" destructive onPress={signOut} />
-          </Card>
-        ) : null}
 
         <AppText variant="caption" color="textMuted" align="center">
           Version {appVersion}
@@ -311,7 +297,7 @@ const createStyles = (_c: AppColors, t: Theme) =>
     identity: { flexDirection: "row", alignItems: "center", gap: t.spacing.lg },
     flex: { flex: 1 },
     top: { marginTop: t.spacing.sm },
-    editBtn: { alignSelf: "flex-start", marginTop: t.spacing.md },
+    identityActions: { flexDirection: "row", flexWrap: "wrap", gap: t.spacing.sm, marginTop: t.spacing.md },
     stats: { flexDirection: "row", gap: t.spacing.md },
     guestActions: { flexDirection: "row", gap: t.spacing.md, marginTop: t.spacing.lg },
   });
