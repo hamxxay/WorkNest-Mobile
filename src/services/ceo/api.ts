@@ -4,7 +4,18 @@ import { withQuery } from "../staff/normalize";
 import { breakdownParams, positiveId } from "./drill";
 import { toCeoError } from "./errors";
 import { normalizeCeoBreakdown, normalizeCeoDashboard, normalizeCeoRecords } from "./normalize";
-import type { CeoBreakdown, CeoBreakdownQuery, CeoDashboard, CeoRecordKind, CeoRecords, CeoRecordsQuery, CeoScope } from "./types";
+import { normalizeCeoRooms } from "./rooms";
+import type {
+  CeoBreakdown,
+  CeoBreakdownQuery,
+  CeoDashboard,
+  CeoPeriod,
+  CeoRecordKind,
+  CeoRecords,
+  CeoRecordsQuery,
+  CeoRooms,
+  CeoScope,
+} from "./types";
 
 // CEO dashboard calls. Same transport as the staff apps (services/staff/http: Bearer JWT, one silent token renewal
 // on 401, readable ApiError messages); the CEO API is read-only, so every call is a GET. A 503 means the server
@@ -15,6 +26,7 @@ export const CEO_ENDPOINTS = {
   dashboard: "/ceo/dashboard",
   breakdown: "/ceo/breakdown",
   records: (kind: CeoRecordKind) => `/ceo/records/${kind}`,
+  rooms: "/ceo/rooms",
 } as const;
 
 const RECORD_KINDS: readonly CeoRecordKind[] = ["invoices", "spaces", "bookings", "inquiries", "quotations", "leases"];
@@ -47,6 +59,16 @@ export async function getCeoRecords(query: CeoRecordsQuery): Promise<CeoRecords>
   if (!RECORD_KINDS.includes(query.kind)) throw new Error("Unknown list.");
   const raw = await ceoGet(withQuery(CEO_ENDPOINTS.records(query.kind), query.params));
   return normalizeCeoRecords(query.kind, raw);
+}
+
+/**
+ * GET api/ceo/rooms?period=&locationId= — the room report: rooms sold monthly (private offices, shared spaces), how
+ * full they are and the price each booking was sold at against the list / shift price. CEO / super admin. Before the
+ * server's database update CEO_02 it answers `available: false` with a message (shown instead of the report).
+ */
+export async function getCeoRooms(period: CeoPeriod, locationId?: number | null): Promise<CeoRooms> {
+  const raw = await ceoGet(withQuery(CEO_ENDPOINTS.rooms, { period, locationId: positiveId(locationId) }));
+  return normalizeCeoRooms(raw, period);
 }
 
 /**

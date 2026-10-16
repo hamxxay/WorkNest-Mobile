@@ -196,6 +196,36 @@ export type CeoBreakdown = {
   rows: CeoBreakdownRow[];
 };
 
+// ─── KPI drill-downs ──────────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Where a dashboard figure leads: a breakdown screen (GET api/ceo/breakdown; `recordsParams` are added to the records
+ * its rows open, e.g. status=paid for Collected) or a records list (GET api/ceo/records/*; `keepTitle` shows `title`
+ * instead of the server's, `timeless` names only the location under it: not bound to the period).
+ */
+export type CeoDrillStep =
+  | { kind: "breakdown"; query: CeoBreakdownQuery; recordsParams?: CeoRecordParams }
+  | { kind: "records"; query: CeoRecordsQuery; title?: string; keepTitle?: boolean; timeless?: boolean };
+
+/** A row of a list built from the dashboard's own figures (months of the period, aging buckets, locations). */
+export type CeoDrillListRow = CeoBreakdownRow & { open: CeoDrillStep | null };
+
+/** Drill level 2 built on the device from the dashboard's answer (no API call), shown like a breakdown. */
+export type CeoDrillList = {
+  title: string;
+  subtitle: string | null;
+  valueLabel: string;
+  value2Label: string | null;
+  /** money (PKR), count, or occupancy (value = occupied, value2 = total spaces). */
+  unit: "money" | "count" | "occupancy";
+  /** Spoken after a row: what it opens ("Opens this month by location"). */
+  rowHint: string;
+  rows: CeoDrillListRow[];
+};
+
+/** What a KPI tile opens: one of the steps above, or a list built from the dashboard. */
+export type CeoDrillTarget = CeoDrillStep | { kind: "list"; list: CeoDrillList };
+
 // ─── GET api/ceo/records/* (drill level 3) ───────────────────────────────────────────────────────────────
 
 export type CeoRecordKind = "invoices" | "spaces" | "bookings" | "inquiries" | "quotations" | "leases";
@@ -285,3 +315,122 @@ export type CeoRecords =
   | RecordsOf<"inquiries", CeoInquiryRecord>
   | RecordsOf<"quotations", CeoQuotationRecord>
   | RecordsOf<"leases", CeoLeaseRecord>;
+
+// ─── GET api/ceo/rooms (room report) ─────────────────────────────────────────────────────────────────────
+
+/** A booking's shift (the API's ShiftType normalised): "24/7" for full-time and anything unknown. */
+export type CeoRoomShift = "24/7" | "Morning" | "Evening";
+
+/** Sold per seat against the expected price (list price; shift price for Morning / Evening), 0.5% either way is "at". */
+export type CeoRoomPricing = "under" | "at" | "over";
+
+/** A sale's pricing: under / at / over, or "unpriced" when no list price is known (not compared). */
+export type CeoRoomSalePricing = CeoRoomPricing | "unpriced";
+
+/** A confirmed booking on a room that overlaps the period. Money in PKR a month (whole room / all its seats). */
+export type CeoRoomSale = {
+  bookingId: number | null;
+  /** Company, else the customer's name (as sent; "Customer" when missing). */
+  customer: string;
+  shift: CeoRoomShift;
+  seatsSold: number;
+  /** yyyy-MM-dd */
+  startOn: string | null;
+  endOn: string | null;
+  /** List price per seat when it was sold (the booking's own price row, else today's); null when none is known. */
+  listSeatPriceAtSale: number | null;
+  /**
+   * The shift's discount cap stored for this location, percent. Only Morning / Evening bookings are compared with
+   * the price less this cap; a 24/7 booking may carry a cap that does not apply to it.
+   */
+  shiftDiscountCapPct: number;
+  /** What a seat should sell for: the list price (24/7) or the list price less the shift cap; null when unpriced. */
+  expectedSeatPrice: number | null;
+  expectedMonthly: number | null;
+  soldMonthly: number;
+  soldSeatPrice: number;
+  /** (sold - expected) per seat x seats: negative = under the expected price; null when unpriced. */
+  varianceMonthly: number | null;
+  /** Sold per seat against expected, percent (-12.5 = 12.5% under); null when unpriced. */
+  variancePct: number | null;
+  pricing: CeoRoomSalePricing;
+};
+
+/** A room sold monthly (private office or shared space) and its sales in the period, in the server's order. */
+export type CeoRoom = {
+  spaceId: number | null;
+  name: string;
+  code: string | null;
+  locationId: number | null;
+  location: string | null;
+  spaceType: string | null;
+  categoryCode: string | null;
+  seats: number;
+  /** Today's monthly list price per seat; null when the room has none. */
+  listSeatPrice: number | null;
+  listRoomPrice: number | null;
+  /** A confirmed booking covers this moment. */
+  occupiedNow: boolean;
+  /** Days of the period so far with a confirmed booking, percent (0..100). */
+  periodOccupancyPct: number;
+  /** [] = no booking in the period (shown as vacant). */
+  sales: CeoRoomSale[];
+};
+
+export type CeoRoomShiftSummary = {
+  shift: CeoRoomShift;
+  /** under + at + over + unpriced */
+  sales: number;
+  under: number;
+  at: number;
+  over: number;
+  /** Sales without a list price (not compared). */
+  unpriced: number;
+  expectedMonthly: number;
+  soldMonthly: number;
+  varianceMonthly: number;
+};
+
+export type CeoRoomSummary = {
+  rooms: number;
+  occupiedNow: number;
+  vacantNow: number;
+  occupancyNowPct: number;
+  periodOccupancyPct: number;
+  /** under + at + over + unpriced */
+  sales: number;
+  under: number;
+  at: number;
+  over: number;
+  /** Sales without a list price (not compared). */
+  unpriced: number;
+  /** Expected monthly of the priced sales (list or shift price x seats). */
+  listMonthly: number;
+  /** Sold monthly of every sale. */
+  soldMonthly: number;
+  /** Net of the priced sales: sold - expected (negative = under overall). */
+  varianceMonthly: number;
+  /** The gap of the under-priced sales a month (zero or negative). */
+  underMonthly: number;
+  /** The premium of the over-priced sales a month (zero or positive). */
+  overMonthly: number;
+  /** Always 24/7, Morning, Evening in that order (a shift without sales as zeros). */
+  byShift: CeoRoomShiftSummary[];
+};
+
+/** The room report (available: the server's database update CEO_02 has run). */
+export type CeoRoomReport = {
+  available: true;
+  period: CeoPeriod;
+  /** e.g. "October 2026" ("" when not sent). */
+  periodLabel: string;
+  generatedAt: string | null;
+  summary: CeoRoomSummary;
+  /** By location, then room code / name (the server's order). */
+  rooms: CeoRoom[];
+};
+
+/** The server cannot build the report yet (its procedure is missing): only its message is shown. */
+export type CeoRoomsUnavailable = { available: false; message: string };
+
+export type CeoRooms = CeoRoomReport | CeoRoomsUnavailable;

@@ -26,6 +26,8 @@ export type StatCardProps = {
   icon?: string;
   trend?: StatTrend;
   onPress?: () => void;
+  /** Spoken after the card when it is pressable: what pressing it opens ("Opens invoiced this month by location"). */
+  accessibilityHint?: string;
   /** Shows a skeleton instead of the value. */
   loading?: boolean;
   /** Recent values, oldest first (e.g. the last 6 months). Two or more draw a sparkline at the bottom of the card. */
@@ -40,7 +42,19 @@ export { STAT_CARD_MIN_WIDTH };
  * KPI tile for dashboards. Lay several out with `<ResponsiveGrid minItemWidth={STAT_CARD_MIN_WIDTH}>` (two per row
  * on phones, four on tablets, one on a narrow phone with large text) rather than a fixed row.
  */
-export function StatCard({ label, value, sub, tone = "primary", icon, trend, onPress, loading = false, trendSeries, style }: StatCardProps) {
+export function StatCard({
+  label,
+  value,
+  sub,
+  tone = "primary",
+  icon,
+  trend,
+  onPress,
+  accessibilityHint,
+  loading = false,
+  trendSeries,
+  style,
+}: StatCardProps) {
   const { colors, tones, typography, radii, shadows } = useTheme();
   const t = tones[tone];
   const hasSeries = !!trendSeries && trendSeries.length > 1;
@@ -111,6 +125,7 @@ export function StatCard({ label, value, sub, tone = "primary", icon, trend, onP
         pressScale={PRESS_SCALE}
         accessibilityRole="button"
         accessibilityLabel={a11y}
+        accessibilityHint={accessibilityHint}
         onPress={onPress}
         android_ripple={{ color: colors.ripple, foreground: true }}
         style={({ pressed }) => [styles.flex, cardStyle, { overflow: "hidden" }, pressed && { opacity: 0.92 }, style]}

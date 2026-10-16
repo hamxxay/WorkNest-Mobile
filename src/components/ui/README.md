@@ -286,7 +286,8 @@ InfoRow: `label`, `value` (text or element), `icon`, `layout` (`inline | stacked
 
 ```tsx
 <ResponsiveGrid minItemWidth={STAT_CARD_MIN_WIDTH}>
-  <StatCard label="Bookings" value={12} icon="calendar-outline" sub="3 this week" onPress={openBookings} />
+  <StatCard label="Bookings" value={12} icon="calendar-outline" sub="3 this week" onPress={openBookings}
+    accessibilityHint="Opens the bookings" />
   <StatCard label="Outstanding" value={formatMoney(due, { compact: true })} tone="warning"
     icon="receipt-outline" trend={{ direction: "up", label: "+8% vs last month", upIsGood: false }} />
 </ResponsiveGrid>

@@ -7,6 +7,7 @@ import { onSessionExpired } from "../../services/apiClient";
 import { useNavigationTheme, useThemeColors } from "../../theme";
 import CeoDashboardScreen from "../../screens/App/Ceo/CeoDashboardScreen";
 import CeoBreakdownScreen from "../../screens/App/Ceo/CeoBreakdownScreen";
+import CeoListScreen from "../../screens/App/Ceo/CeoListScreen";
 import CeoRecordsScreen from "../../screens/App/Ceo/CeoRecordsScreen";
 import CeoProfileScreen from "../../screens/App/Ceo/CeoProfileScreen";
 import type { CeoStackParamList } from "../ceoTypes";
@@ -14,7 +15,7 @@ import { linkAndPushSources } from "../pushLinking";
 import { stackTransition, ceoTransition } from "../transitions";
 import { CEO_LINK_PREFIXES, ceoStateFromPath } from "./links";
 
-// The CEO app (role "ceo"): one stack with the CEO dashboard, its two drill-down levels and a small profile /
+// The CEO app (role "ceo"): one stack with the CEO dashboard, its drill-down levels and a small profile /
 // sign-out screen. No tabs, and no customer or staff screen is registered, so nothing can navigate a CEO there.
 // Deep links and tapped push notifications open the dashboard (./links.ts). Screens draw their own AppHeader and
 // status bar. A session the API refused ends with a "Session expired" message (RootNavigator then shows the
@@ -61,6 +62,7 @@ export function CeoNavigator() {
       <Stack.Navigator initialRouteName="CeoDashboard" screenOptions={screenOptions}>
         <Stack.Screen name="CeoDashboard" component={CeoDashboardScreen} />
         <Stack.Screen name="CeoBreakdown" component={CeoBreakdownScreen} />
+        <Stack.Screen name="CeoList" component={CeoListScreen} />
         <Stack.Screen name="CeoRecords" component={CeoRecordsScreen} />
         <Stack.Screen name="CeoProfile" component={CeoProfileScreen} />
       </Stack.Navigator>

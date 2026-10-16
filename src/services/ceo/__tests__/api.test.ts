@@ -28,7 +28,7 @@ jest.mock("../../apiClient", () => {
 });
 
 import { ApiError, apiRequest } from "../../apiClient";
-import { getCeoBreakdown, getCeoDashboard, getCeoForecast, getCeoRecords } from "../api";
+import { getCeoBreakdown, getCeoDashboard, getCeoForecast, getCeoRecords, getCeoRooms } from "../api";
 import { CEO_DB_UPDATE_MESSAGE, CEO_DB_UPDATE_TITLE, ceoErrorView, needsDatabaseUpdate, toCeoError } from "../errors";
 
 const api = apiRequest as jest.Mock;
@@ -78,6 +78,17 @@ describe("requests", () => {
     expect(api).not.toHaveBeenCalled();
   });
 
+  it("GET ceo/rooms with period and location (all locations: no location), the report normalised", async () => {
+    api.mockResolvedValueOnce({ isSuccessful: true, data: { available: true, period: "quarter", rooms: [{ spaceId: 3, name: "Office 3", sales: [] }] } });
+    const r = await getCeoRooms("quarter", 2);
+    expect(lastCall()).toMatchObject({ path: "/ceo/rooms?period=quarter&locationId=2", method: "GET", requiresAuth: true });
+    expect(r).toMatchObject({ available: true, period: "quarter" });
+    expect(r.available && r.rooms.map((x) => x.name)).toEqual(["Office 3"]);
+    api.mockResolvedValueOnce({ isSuccessful: true, data: { available: false, message: "Run CEO_02_room_report on the database to see the room report." } });
+    expect(await getCeoRooms("month", 0)).toEqual({ available: false, message: "Run CEO_02_room_report on the database to see the room report." });
+    expect(lastCall().path).toBe("/ceo/rooms?period=month");
+  });
+
   it("GET dashboard/forecast for 3 months, narrowed to the chosen location", async () => {
     api.mockResolvedValueOnce({ months: 3, totals: [{ month: "2026-11", expectedRent: 10 }] });
     const f = await getCeoForecast(4);
@@ -96,6 +107,7 @@ describe("503: the CEO database update has not been run", () => {
       () => getCeoBreakdown({ metric: "aging", bucket: "1_30", period: "month" }),
       () => getCeoRecords({ kind: "spaces", params: {} }),
       () => getCeoForecast(null),
+      () => getCeoRooms("month", null),
     ];
     for (const call of calls) {
       api.mockRejectedValueOnce(new ApiError("The service is temporarily unavailable.", 503, { message: "Run CEO_01.txt" }));

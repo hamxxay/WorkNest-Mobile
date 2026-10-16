@@ -90,6 +90,8 @@ export function RecordCard({ item }: { item: CeoRecordCard }) {
 export type RecordsViewProps = {
   /** Header title until the list has loaded (the server's title wins). */
   fallbackTitle: string;
+  /** Header title that stays (the server's title is not shown), e.g. "Active bookings". */
+  fixedTitle?: string;
   trail: readonly string[];
   scopeLabel?: string;
   /** Loads the list as cards; called again when it changes. Keep it stable (useCallback). */
@@ -98,7 +100,7 @@ export type RecordsViewProps = {
   describeError?: DescribeError;
 };
 
-export function RecordsView({ fallbackTitle, trail, scopeLabel, load, describeError = ceoErrorView }: RecordsViewProps) {
+export function RecordsView({ fallbackTitle, fixedTitle, trail, scopeLabel, load, describeError = ceoErrorView }: RecordsViewProps) {
   const refreshColors = useRefreshColors();
   const q = useCeoQuery(load);
   const cards = q.data?.cards ?? [];
@@ -128,7 +130,7 @@ export function RecordsView({ fallbackTitle, trail, scopeLabel, load, describeEr
 
   return (
     <Screen>
-      <AppHeader title={q.data?.title ?? fallbackTitle} />
+      <AppHeader title={fixedTitle ?? q.data?.title ?? fallbackTitle} />
       <FlatList
         data={cards}
         keyExtractor={(item) => item.key}

@@ -6,7 +6,9 @@ import {
   BREAKDOWN_ROOTS,
   count,
   getCeoBreakdown,
+  isOccupiedOnly,
   metricUnit,
+  occupiedRowsOnly,
   money,
   pct,
   recordsForBreakdownRow,
@@ -41,8 +43,13 @@ function rowDetail(query: CeoBreakdownQuery, b: CeoBreakdown, row: CeoBreakdownR
 export default function CeoBreakdownScreen() {
   const navigation = useNavigation<Nav>();
   const { params } = useRoute<Route>();
-  const { query, trail, scopeLabel } = params;
-  const load = useCallback(() => getCeoBreakdown(query), [query]);
+  const { query, trail, scopeLabel, recordsParams } = params;
+  // From the Occupancy tile: only the space types with an occupied room (their records: the occupied rooms).
+  const occupiedOnly = isOccupiedOnly(recordsParams);
+  const load = useCallback(
+    () => getCeoBreakdown(query).then((b) => (occupiedOnly ? occupiedRowsOnly(b) : b)),
+    [query, occupiedOnly],
+  );
   const format = metricUnit(query.metric) === "money" ? money : (v: number) => count(v);
 
   return (
@@ -54,7 +61,7 @@ export default function CeoBreakdownScreen() {
       format={format}
       rowDetail={(b, row) => rowDetail(query, b, row, format)}
       rowMeta={isOccupancy(query) ? () => undefined : (row) => format(row.value)}
-      recordsFor={(row) => recordsForBreakdownRow(query, row)}
+      recordsFor={(row) => recordsForBreakdownRow(query, row, recordsParams)}
       onOpenRecords={(row, records) => navigation.push("CeoRecords", { query: records, trail: [...trail, row.label], scopeLabel })}
     />
   );

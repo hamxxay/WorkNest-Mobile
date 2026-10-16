@@ -33,6 +33,7 @@ describe("CEO transitions", () => {
   it("the dashboard fades in, drill screens and the profile push", () => {
     expect(ceoTransition("CeoDashboard")).toBe("fade");
     expect(ceoTransition("CeoBreakdown")).toBe("push");
+    expect(ceoTransition("CeoList")).toBe("push");
     expect(ceoTransition("CeoRecords")).toBe("push");
     expect(ceoTransition("CeoProfile")).toBe("push");
   });
