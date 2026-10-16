@@ -27,13 +27,15 @@ const FULL = {
         { stage: "accepted", label: "Accepted", count: 4 },
         { stage: "bookings", label: "Bookings", count: 3 },
       ],
-      conversionRate: 30,
+      conversionRate: 20,
       conversionRatePrev: 25,
+      quotationsBooked: 2,
+      quotationsBookedPrev: 2,
       quotedDesks: 182,
       bookedDesks: 91,
       bookedDesksPrev: 80,
       months: [
-        { month: "2026-10", quotations: 10, accepted: 4, bookings: 3, bookedDesks: 91 },
+        { month: "2026-10", quotations: 10, accepted: 4, bookings: 3, bookedDesks: 91, quotationsBooked: 2 },
         { month: "2025-11", quotations: 2, accepted: 1, bookings: 1, bookedDesks: 6 },
       ],
     },
@@ -99,11 +101,20 @@ describe("normalizeSalesManagerDashboard", () => {
       ["accepted", 4],
       ["bookings", 3],
     ]);
-    expect(d.funnel).toMatchObject({ conversionRate: 30, conversionRatePrev: 25, quotedDesks: 182, bookedDesks: 91, bookedDesksPrev: 80 });
-    // Months oldest first.
+    // Conversion = this period's quotations that were booked / its quotations (2 of 10), not bookings / quotations.
+    expect(d.funnel).toMatchObject({
+      conversionRate: 20,
+      conversionRatePrev: 25,
+      quotationsBooked: 2,
+      quotationsBookedPrev: 2,
+      quotedDesks: 182,
+      bookedDesks: 91,
+      bookedDesksPrev: 80,
+    });
+    // Months oldest first; a month without quotationsBooked (an older API) counts its bookings, at most one per quotation.
     expect(d.funnel?.months).toEqual([
-      { month: "2025-11", quotations: 2, accepted: 1, bookings: 1, bookedDesks: 6 },
-      { month: "2026-10", quotations: 10, accepted: 4, bookings: 3, bookedDesks: 91 },
+      { month: "2025-11", quotations: 2, accepted: 1, bookings: 1, bookedDesks: 6, quotationsBooked: 1 },
+      { month: "2026-10", quotations: 10, accepted: 4, bookings: 3, bookedDesks: 91, quotationsBooked: 2 },
     ]);
 
     // People ranked by desks sold.
@@ -198,6 +209,8 @@ describe("normalizeSalesManagerDashboard", () => {
       stages: [],
       conversionRate: null,
       conversionRatePrev: null,
+      quotationsBooked: 0,
+      quotationsBookedPrev: null,
       quotedDesks: 0,
       bookedDesks: 0,
       bookedDesksPrev: null,
@@ -281,6 +294,36 @@ describe("normalizeSalesManagerDashboard", () => {
     expect(d.renewals?.expiring[3]).toMatchObject({ desks: 2, daysLeft: null });
     // No funnel and no figures: nothing booked, nothing ended, net 0.
     expect(d.renewals).toMatchObject({ bookedDesks: 0, endedDesks: 0, netDesks: 0, netDesksPrev: null });
+  });
+
+  it("conversion never passes 100%: an older API (all bookings / quotations, no quotationsBooked) is capped", () => {
+    const stages = [
+      { stage: "quotations", count: 10 },
+      { stage: "bookings", count: 12 },
+    ];
+    const old = normalizeSalesManagerDashboard({
+      funnel: { stages, conversionRate: 120, conversionRatePrev: 110, months: [{ month: "2026-10", quotations: 2, bookings: 5 }] },
+    });
+    // "10 of 10 quotations booked", 100%, never "12 of 10" / 120%.
+    expect(old.funnel).toMatchObject({ conversionRate: 100, conversionRatePrev: 100, quotationsBooked: 10, quotationsBookedPrev: null });
+    expect(old.funnel?.months[0].quotationsBooked).toBe(2);
+    // No rate either: the screen works it out from quotationsBooked / quotations.
+    expect(normalizeSalesManagerDashboard({ funnel: { stages } }).funnel).toMatchObject({ conversionRate: null, quotationsBooked: 10 });
+    // Fewer bookings than quotations: the bookings stand in.
+    const fewer = [
+      { stage: "quotations", count: 10 },
+      { stage: "bookings", count: 4 },
+    ];
+    expect(normalizeSalesManagerDashboard({ funnel: { stages: fewer } }).funnel?.quotationsBooked).toBe(4);
+    // Sent counts are kept within 0 and the quotations.
+    expect(normalizeSalesManagerDashboard({ funnel: { stages, quotationsBooked: 15, quotationsBookedPrev: -2 } }).funnel).toMatchObject({
+      quotationsBooked: 10,
+      quotationsBookedPrev: 0,
+    });
+    expect(normalizeSalesManagerDashboard({ funnel: { stages, quotationsBooked: "3", conversionRate: "30" } }).funnel).toMatchObject({
+      quotationsBooked: 3,
+      conversionRate: 30,
+    });
   });
 
   it("net desks: as sent, else desks booked minus desks ended (may be negative)", () => {

@@ -62,7 +62,8 @@ const FULL = {
         { stage: "accepted", label: "Accepted", count: 4 },
         { stage: "bookings", label: "Bookings", count: 3 },
       ],
-      conversionRate: 30,
+      conversionRate: 20,
+      quotationsBooked: 2,
       inquiriesByType: [
         { type: "Website", label: "Website", count: 8 },
         { type: "WalkIn", label: "Walk-In", count: 5 },
@@ -99,7 +100,9 @@ describe("normalizeCeoDashboard", () => {
     expect(d.sales?.funnel.map((f) => f.count)).toEqual([20, 10, 4, 3]);
     // No inquiriesAllLocations sent (an older API): its inquiry figures never followed the location.
     expect(d.sales?.inquiriesAllLocations).toBe(true);
-    expect(d.sales?.conversionRate).toBe(30);
+    // Conversion = this period's quotations that were booked / its quotations (2 of 10), not bookings / quotations.
+    expect(d.sales?.conversionRate).toBe(20);
+    expect(d.sales?.quotationsBooked).toBe(2);
     expect(d.team?.people[0]).toMatchObject({ userId: 5, name: "Sara", convertedValue: 300000 });
   });
 
@@ -140,7 +143,34 @@ describe("normalizeCeoDashboard", () => {
     expect(d.occupancy?.months).toEqual([]);
     expect(d.sales?.funnel).toEqual([]);
     expect(d.sales?.conversionRate).toBeNull();
+    expect(d.sales?.quotationsBooked).toBe(0);
     expect(d.team).toEqual({ perLocation: [], people: [] });
+  });
+
+  it("conversion never passes 100%: an older API (all bookings / quotations, no quotationsBooked) is capped", () => {
+    const stages = [
+      { stage: "quotations", count: 10 },
+      { stage: "bookings", count: 12 },
+    ];
+    const old = normalizeCeoDashboard({ sales: { funnel: stages, conversionRate: 120 } });
+    expect(old.sales).toMatchObject({ conversionRate: 100, quotationsBooked: 10 });
+    // No rate either: the screen works it out from quotationsBooked / quotations (10 of 10).
+    expect(normalizeCeoDashboard({ sales: { funnel: stages } }).sales).toMatchObject({ conversionRate: null, quotationsBooked: 10 });
+    // Fewer bookings than quotations: the bookings stand in.
+    const fewer = [
+      { stage: "quotations", count: 10 },
+      { stage: "bookings", count: 4 },
+    ];
+    expect(normalizeCeoDashboard({ sales: { funnel: fewer } }).sales?.quotationsBooked).toBe(4);
+    // A sent count is kept within 0 and the quotations.
+    expect(normalizeCeoDashboard({ sales: { funnel: stages, quotationsBooked: 15, conversionRate: 150 } }).sales).toMatchObject({
+      conversionRate: 100,
+      quotationsBooked: 10,
+    });
+    expect(normalizeCeoDashboard({ sales: { funnel: stages, quotationsBooked: -1, conversionRate: -5 } }).sales).toMatchObject({
+      conversionRate: 0,
+      quotationsBooked: 0,
+    });
   });
 
   it("gives rows without names a readable fallback and drops invalid ids", () => {

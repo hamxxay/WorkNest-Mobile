@@ -376,7 +376,9 @@ export function SalesSection({ sales: s, drill }: { sales: CeoSales; drill: Dril
   const inquiries = stage("inquiries");
   const quotations = stage("quotations");
   const bookings = stage("bookings");
-  const rate = s.conversionRate ?? (quotations > 0 ? (bookings / quotations) * 100 : null);
+  // Conversion: of this period's quotations, the ones booked (never above 100%; quotationsBooked <= quotations).
+  const rate = s.conversionRate ?? (quotations > 0 ? (s.quotationsBooked / quotations) * 100 : null);
+  const bookedText = `${count(s.quotationsBooked)} of ${count(quotations)} quotations booked`;
   const top = s.funnel[0]?.count ?? 0;
   const typeTotal = s.inquiriesByType.reduce((sum, t) => sum + t.count, 0);
   const tiles: StatCardProps[] = [
@@ -390,7 +392,7 @@ export function SalesSection({ sales: s, drill }: { sales: CeoSales; drill: Dril
     {
       label: "Conversion",
       value: rate != null ? pct(rate) : "—",
-      sub: "bookings per quotation",
+      sub: quotations ? bookedText : "No quotations yet",
       icon: "trending-up-outline",
       tone: rate != null && rate >= 30 ? "success" : quotations ? "warning" : "neutral",
     },
@@ -424,7 +426,7 @@ export function SalesSection({ sales: s, drill }: { sales: CeoSales; drill: Dril
                   total={100}
                   centerLabel={rate != null ? pct(rate) : "—"}
                   centerCaption="converted"
-                  accessibilityLabel={`Conversion ${words}: ${rate != null ? pct(rate) : "not available"}. ${bookings} bookings from ${quotations} quotations.`}
+                  accessibilityLabel={`Conversion ${words}: ${rate != null ? pct(rate) : "not available"}. ${bookedText}.`}
                 />
                 <View style={styles.facts}>
                   <Fact label="Quotations" value={`${count(quotations)} · ${money(s.quotationValue)}`} />

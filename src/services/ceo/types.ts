@@ -94,8 +94,16 @@ export type CeoInquiryTypeCount = {
 
 export type CeoSales = {
   funnel: CeoFunnelStage[];
-  /** Bookings / quotations in the period, percent; null when not sent. */
+  /**
+   * Quotations created in the period that were booked / quotations created in the period, percent (0-100, never
+   * above); null when not sent.
+   */
   conversionRate: number | null;
+  /**
+   * Quotations created in the period that were booked (never more than the quotations). An older API does not send
+   * it: then the period's bookings, at most one per quotation.
+   */
+  quotationsBooked: number;
   inquiriesByType: CeoInquiryTypeCount[];
   quotationValue: number;
   bookingValue: number;
