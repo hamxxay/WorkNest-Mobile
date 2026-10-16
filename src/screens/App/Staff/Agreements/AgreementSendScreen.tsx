@@ -10,6 +10,7 @@ import {
   Card,
   DateField,
   ErrorState,
+  InfoRow,
   ListSkeleton,
   SectionHeader,
   SegmentedControl,
@@ -34,6 +35,13 @@ import {
 import { cnicError, formatCnicInput } from "../../../../utils/cnic";
 import { formatPhoneInput, phoneError } from "../../../../utils/phone";
 import { formatMoney, parseDate } from "../../../../utils/format";
+import {
+  NO_SECURITY_DEPOSIT,
+  depositMonthsLabel,
+  isValidDepositMonths,
+  quotationSavedDeposit,
+  savedSecurityDeposit,
+} from "../../../../utils/securityDeposit";
 import { spacing } from "../../../../theme";
 import { StaffScreen } from "../shared/StaffScreen";
 import { DATE_FIELD_MIN_WIDTH, FieldRow } from "../shared/layout";
@@ -41,7 +49,7 @@ import { DATE_FIELD_MIN_WIDTH, FieldRow } from "../shared/layout";
 type Nav = NativeStackNavigationProp<StaffStackParamList>;
 type Route = RouteProp<StaffStackParamList, "AgreementSend">;
 type Entity = SendAgreementInput["entityType"];
-type Errors = Partial<Record<"fullName" | "cnic" | "phone" | "address" | "companyName" | "start" | "end" | "fee" | "deposit" | "email", string>>;
+type Errors = Partial<Record<"fullName" | "cnic" | "phone" | "address" | "companyName" | "start" | "end" | "fee" | "email", string>>;
 
 const BILLING = [
   { label: "Monthly", value: 1 },
@@ -53,7 +61,8 @@ const BILLING = [
 
 /**
  * Send the lease agreement for an accepted quotation (POST agreement/send): prefilled from the quotation and the
- * customer like the CMS dialog; the API generates the PDF and emails it.
+ * customer like the CMS dialog; the API generates the PDF and emails it. The security deposit is the quotation's
+ * (read-only; 0 = no deposit in the agreement).
  */
 export default function AgreementSendScreen() {
   const navigation = useNavigation<Nav>();
@@ -78,7 +87,6 @@ export default function AgreementSendScreen() {
   const [end, setEnd] = useState<Date | null>(null);
   const [billingMonths, setBillingMonths] = useState(1);
   const [fee, setFee] = useState("");
-  const [deposit, setDeposit] = useState("");
   const [refundDays, setRefundDays] = useState("30");
   const [hours, setHours] = useState("24/7");
   const [email, setEmail] = useState("");
@@ -100,8 +108,6 @@ export default function AgreementSendScreen() {
       const bpm = [1, 2, 3, 6, 12].includes(q.billingPeriodMonths) ? q.billingPeriodMonths : 1;
       setBillingMonths(bpm);
       setFee(String(agreementFeePerCycle(q, bpm) || ""));
-      // 0 is a valid deposit (the API needs a number; blank used to send null and fail).
-      setDeposit(String(q.securityDeposit || 0));
       setHours(q.offeringType || "24/7");
       setStart(parseDate(q.startDateTime));
       setEnd(parseDate(q.endDateTime));
@@ -141,12 +147,19 @@ export default function AgreementSendScreen() {
     load();
   }, [load]);
 
+  // The quotation's deposit: its stored amount (an older row with months but no amount: months x rent x (1 -
+  // discount)); 0 = none. Months are shown only when the quotation stores them.
+  const depositAmount = quotation ? savedSecurityDeposit(quotationSavedDeposit(quotation)) : 0;
+  const storedMonths = quotation && isValidDepositMonths(quotation.securityDepositMonths) ? quotation.securityDepositMonths : 0;
+  const depositText =
+    depositAmount > 0 ? `${formatMoney(depositAmount)}${storedMonths > 0 ? ` (${depositMonthsLabel(storedMonths)})` : ""}` : NO_SECURITY_DEPOSIT;
+
   const submit = async () => {
     setSendError(null);
     const company = entity !== "Individual";
     const ntnValue = company ? ntn.trim() || savedTaxIds?.ntn || "" : "";
     const secpValue = company ? secp.trim() || savedTaxIds?.secpRegistrationNo || "" : "";
-    // What the API needs (name, ID, address, dates, fee above 0, deposit 0 or more), then the format rules.
+    // What the API needs (name, ID, address, dates, fee above 0), then the format rules. The deposit is the quotation's.
     const next: Errors = agreementFormProblems({
       entityType: entity,
       fullName,
@@ -158,7 +171,6 @@ export default function AgreementSendScreen() {
       contractStartDate: start ? toApiDate(start) : null,
       contractEndDate: end ? toApiDate(end) : null,
       fee,
-      deposit,
     });
     const cErr = cnicError(cnic);
     if (cErr) next.cnic = cErr;
@@ -182,7 +194,8 @@ export default function AgreementSendScreen() {
       secpRegistrationNo: secpValue || undefined,
       refundDays: Number(refundDays) || 30,
       feeAmount: agreementAmount(fee),
-      securityDeposit: agreementAmount(deposit),
+      // The API takes the deposit from the quotation and ignores this; an older API still reads it.
+      securityDeposit: depositAmount,
       contractStartDate: start ? toApiDate(start) : null,
       contractEndDate: end ? toApiDate(end) : null,
       operatingHours: hours.trim() || "24/7",
@@ -294,15 +307,14 @@ export default function AgreementSendScreen() {
                   keyboardType="numeric"
                   helperText={quotation ? `From the quotation's monthly rent ${formatMoney(quotation.monthlyRent || quotation.monthlyBasePrice)}` : undefined}
                 />
-                <TextField
-                  label="Security deposit (PKR)"
-                  required
-                  value={deposit}
-                  onChangeText={(t) => setDeposit(t.replace(/[^\d.]/g, ""))}
-                  error={errors.deposit}
-                  keyboardType="numeric"
-                  helperText="0 if there is no deposit."
-                />
+                <View>
+                  <InfoRow label="Security deposit" value={depositText} icon="shield-outline" />
+                  <AppText variant="caption" color="textMuted">
+                    {depositAmount > 0
+                      ? "Refundable. From the quotation: to change it, edit the quotation."
+                      : "From the quotation: the agreement has no security deposit."}
+                  </AppText>
+                </View>
                 <TextField label="Refund within (days)" value={refundDays} onChangeText={(t) => setRefundDays(t.replace(/\D/g, "").slice(0, 3))} keyboardType="number-pad" />
                 <TextField label="Operating hours" value={hours} onChangeText={setHours} maxLength={40} />
               </View>

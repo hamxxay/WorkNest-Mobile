@@ -175,6 +175,10 @@ export type SendAgreementInput = {
   /** CMS default 30. */
   refundDays?: number;
   feeAmount?: number;
+  /**
+   * The quotation's stored deposit (read-only on the form). The API takes the deposit from the quotation / booking
+   * and ignores this; an older API still reads it, so the form sends the stored amount.
+   */
   securityDeposit?: number;
   /** yyyy-MM-dd */
   contractStartDate?: string | null;
@@ -222,7 +226,8 @@ export function agreementFormProblems(form: {
   contractStartDate: string | null;
   contractEndDate: string | null;
   fee: string;
-  deposit: string;
+  /** Checked only when given (the send form shows the quotation's deposit read-only). */
+  deposit?: string;
 }): AgreementFormProblems {
   const p: AgreementFormProblems = {};
   const company = form.entityType !== "Individual";
@@ -236,8 +241,10 @@ export function agreementFormProblems(form: {
   else if (form.contractStartDate && form.contractEndDate <= form.contractStartDate) p.end = "The end date must be after the start date.";
   const fee = agreementAmount(form.fee);
   if (!Number.isFinite(fee) || fee <= 0) p.fee = "Enter the fee per billing cycle (more than 0).";
-  const deposit = agreementAmount(form.deposit);
-  if (!Number.isFinite(deposit) || deposit < 0) p.deposit = "Enter the security deposit (0 if there is none).";
+  if (form.deposit !== undefined) {
+    const deposit = agreementAmount(form.deposit);
+    if (!Number.isFinite(deposit) || deposit < 0) p.deposit = "Enter the security deposit (0 if there is none).";
+  }
   return p;
 }
 

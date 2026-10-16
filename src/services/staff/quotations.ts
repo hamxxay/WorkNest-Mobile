@@ -85,7 +85,8 @@ export type StaffQuotation = {
   totalPayable: number;
   totalAmount: number;
   billingPeriodMonths: number;
-  securityDepositMonths: number;
+  /** The stored months (0-3); null when the API does not send them (older API). Never a default. */
+  securityDepositMonths: number | null;
   billingPeriodLabel: string | null;
   monthlyRent: number;
   currentCycleAmount: number;
@@ -153,7 +154,7 @@ export function normalizeQuotation(raw: any): StaffQuotation {
     totalPayable,
     totalAmount: num(raw, "totalAmount") || totalPayable,
     billingPeriodMonths: num(raw, "billingPeriodMonths"),
-    securityDepositMonths: num(raw, "securityDepositMonths"),
+    securityDepositMonths: optNum(raw, "securityDepositMonths"),
     billingPeriodLabel: optStr(raw, "billingPeriodLabel"),
     monthlyRent: num(raw, "monthlyRent"),
     currentCycleAmount: num(raw, "currentCycleAmount"),
@@ -366,10 +367,11 @@ export type QuotationInput = {
   discountType: QuotationDiscountType;
   /** Percent (0-100) for Percentage, rupees for Amount. */
   discountValue: number;
+  /** Ignored by the API for new quotations (the deposit comes from securityDepositMonths); the forms send null. */
   securityDepositOverride?: number | null;
   /** CMS defaults: 3 for offices / shared spaces, 1 for meeting rooms. */
   billingPeriodMonths?: number | null;
-  /** CMS default: 2 for private offices, 0 otherwise. */
+  /** 0, 1, 2 or 3 (utils/securityDeposit): private offices default 2; shared spaces and meeting rooms always 0. */
   securityDepositMonths?: number | null;
   remarks?: string;
 };

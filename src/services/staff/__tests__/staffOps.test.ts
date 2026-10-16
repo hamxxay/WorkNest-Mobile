@@ -317,6 +317,8 @@ describe("send agreement amounts", () => {
       address: "Enter the customer's address.",
     });
     expect(agreementFormProblems({ ...ok, deposit: "-1" }).deposit).toMatch(/0 if there is none/);
+    // The send form shows the quotation's deposit read-only and passes none: nothing to check.
+    expect(agreementFormProblems({ ...ok, deposit: undefined })).toEqual({});
     expect(agreementFormProblems({ ...ok, contractStartDate: null, contractEndDate: null })).toMatchObject({ start: expect.any(String), end: expect.any(String) });
     expect(agreementFormProblems({ ...ok, contractEndDate: "2026-10-01" }).end).toMatch(/after the start/);
     expect(agreementFormProblems({ ...ok, cnic: "" }).cnic).toBe("Enter the customer's CNIC.");

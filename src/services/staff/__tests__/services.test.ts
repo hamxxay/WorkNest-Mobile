@@ -176,6 +176,16 @@ describe("quotations", () => {
     expect(res.data.id).toBe(77);
   });
 
+  it("sends the chosen deposit months (0 stays 0) and no deposit override; reads the stored months, never a default", async () => {
+    api.mockResolvedValueOnce({ isSuccessful: true, data: { id: 78, securityDepositMonths: 0, securityDeposit: 0 } });
+    const res = await createQuotation({ ...input, securityDepositMonths: 0 });
+    expect(lastCall().body).toMatchObject({ securityDepositMonths: 0, securityDepositOverride: null });
+    expect(res.data).toMatchObject({ securityDepositMonths: 0, securityDeposit: 0 });
+    // An older API without the field: null (the screens fall back to the stored amount).
+    api.mockResolvedValueOnce({ isSuccessful: true, data: { id: 79, securityDeposit: 126000 } });
+    expect((await createQuotation(input)).data).toMatchObject({ securityDepositMonths: null, securityDeposit: 126000 });
+  });
+
   it("refuses an end before the start without calling the API", async () => {
     await expect(createQuotation({ ...input, endDateTime: "2026-10-01T00:00:00" })).rejects.toThrow("after the start");
     expect(api).not.toHaveBeenCalled();

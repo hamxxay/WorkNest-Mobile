@@ -86,7 +86,7 @@ export function SelectField<T extends string | number>({
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${spoken}: ${selected ? selected.label : "not selected"}`}
-        accessibilityHint={error ? `Error: ${error}` : "Opens a list of options"}
+        accessibilityHint={error ? `Error: ${error}` : disabled ? helperText : "Opens a list of options"}
         accessibilityState={{ disabled, expanded: open }}
         disabled={disabled}
         onPress={() => setOpen(true)}

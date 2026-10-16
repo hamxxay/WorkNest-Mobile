@@ -35,7 +35,20 @@ import {
 } from "../../../../services/staff";
 import { spacing } from "../../../../theme";
 import { formatDate, formatMoney, formatTime, parseDate } from "../../../../utils/format";
-import { discountError, discountEstimate as estimateDiscount, quotationDiscountLimit } from "../../../../utils/quotationDiscount";
+import { allowedDiscount, discountError, discountEstimate as estimateDiscount, quotationDiscountLimit } from "../../../../utils/quotationDiscount";
+import {
+  DEPOSIT_MONTH_OPTIONS,
+  SECURITY_DEPOSIT_FIELD_LABEL,
+  defaultDepositMonths,
+  depositFieldState,
+  depositHelperText,
+  depositMonthsLabel,
+  depositMonthsToSend,
+  quotationSavedDeposit,
+  rentDiscountPercent,
+  savedDepositMonths,
+  securityDepositAmount,
+} from "../../../../utils/securityDeposit";
 import { CustomerPickerField } from "../shared/CustomerPickerField";
 import {
   EMPTY_SPACE_SELECTION,
@@ -53,7 +66,6 @@ type Route = RouteProp<StaffStackParamList, "QuotationForm">;
 
 const MONTH_OPTIONS = [1, 2, 3, 6, 12, 18, 24, 36].map((m) => ({ label: `${m} ${m === 1 ? "month" : "months"}`, value: m }));
 const BILLING_OPTIONS = [1, 3, 6, 12];
-const DEPOSIT_OPTIONS = [0, 1, 2, 3].map((m) => ({ label: m === 0 ? "No deposit" : `${m} ${m === 1 ? "month" : "months"}`, value: m }));
 const DISCOUNT_OPTIONS: { label: string; value: QuotationDiscountType }[] = [
   { label: "Percent", value: "Percentage" },
   { label: "Amount (PKR)", value: "Amount" },
@@ -91,7 +103,7 @@ export default function QuotationFormScreen() {
   const [endTime, setEndTime] = useState<Date | null>(null);
   const [validUntil, setValidUntil] = useState<Date | null>(plusDays(7));
   const [billingMonths, setBillingMonths] = useState(3);
-  const [depositMonths, setDepositMonths] = useState(2);
+  const [depositMonths, setDepositMonths] = useState(defaultDepositMonths("private"));
   const [basePrice, setBasePrice] = useState("");
   const [discountType, setDiscountType] = useState<QuotationDiscountType>("Percentage");
   const [discount, setDiscount] = useState("");
@@ -131,10 +143,10 @@ export default function QuotationFormScreen() {
   }, [params?.customerId]);
 
   // Group defaults (CMS onQuotationSpaceTypeChange): billing 3 months for offices / shared, 1 for meeting rooms;
-  // deposit 2 months for private offices only.
+  // security deposit 2 months for private offices, 0 (locked) for shared spaces and meeting rooms.
   const applyGroupDefaults = useCallback((group: SpaceSelection["group"]) => {
     setBillingMonths(group === "meeting" ? 1 : 3);
-    setDepositMonths(group === "private" ? 2 : 0);
+    setDepositMonths(defaultDepositMonths(group));
   }, []);
 
   const onSelectionChange = (next: SpaceSelection) => {
@@ -186,7 +198,8 @@ export default function QuotationFormScreen() {
         setMonths(calendarMonthsBetween(start, end));
       }
       setBillingMonths(q.billingPeriodMonths || (group === "meeting" ? 1 : 3));
-      setDepositMonths(q.securityDepositMonths || (group === "private" ? 2 : 0));
+      // The quotation's own months (or, from an older API, the months its stored amount stands for); never a default.
+      setDepositMonths(group === "private" ? savedDepositMonths({ ...quotationSavedDeposit(q), kind: group }) : 0);
       if (q.perSeatBasePrice) setBasePrice(String(q.perSeatBasePrice));
       const isAmount = (q.discountType ?? "").toLowerCase().startsWith("amount") || (q.discountType ?? "").toLowerCase() === "fixed";
       setDiscountType(isAmount ? "Amount" : "Percentage");
@@ -240,6 +253,17 @@ export default function QuotationFormScreen() {
   // Only what the API will apply (a larger discount is lowered to the limit there).
   const discountEstimate = monthlyEstimate > 0 ? estimateDiscount(discountType, discountValue, discountLimit) : 0;
   const perSeatLabel = isPrivate || seats > 1;
+  // Security deposit: months x monthly rent x (1 - the rent's discount %), as the API works it out when saving.
+  const depositField = depositFieldState(selection.group);
+  const depositMonthsSent = depositMonthsToSend(selection.group, depositMonths);
+  const depositEstimate =
+    monthlyEstimate > 0
+      ? securityDepositAmount(
+          depositMonthsSent,
+          monthlyEstimate,
+          rentDiscountPercent(discountType, allowedDiscount(discountType, discountValue, discountLimit), monthlyEstimate),
+        )
+      : 0;
 
   const validate = (): { payload: Parameters<typeof createQuotation>[0] } | null => {
     const next: FieldErrors = {};
@@ -296,7 +320,7 @@ export default function QuotationFormScreen() {
         discountType,
         discountValue,
         billingPeriodMonths: isMeeting ? 1 : billingMonths,
-        securityDepositMonths: isPrivate ? depositMonths : 0,
+        securityDepositMonths: depositMonthsSent,
         remarks,
       },
     };
@@ -466,8 +490,16 @@ export default function QuotationFormScreen() {
                       onSubmitEditing={() => discountRef.current?.focus()}
                     />
                     <SelectField label="Billing" value={billingMonths} options={billingOptions} onChange={setBillingMonths} leftIcon="repeat-outline" />
-                    {isPrivate ? (
-                      <SelectField label="Security deposit" value={depositMonths} options={DEPOSIT_OPTIONS} onChange={setDepositMonths} leftIcon="shield-outline" />
+                    {depositField.visible ? (
+                      <SelectField
+                        label={SECURITY_DEPOSIT_FIELD_LABEL}
+                        value={depositMonthsSent}
+                        options={DEPOSIT_MONTH_OPTIONS}
+                        onChange={setDepositMonths}
+                        disabled={!depositField.editable}
+                        helperText={depositHelperText(selection.group, depositMonthsSent, depositEstimate, (n) => formatMoney(n))}
+                        leftIcon="shield-outline"
+                      />
                     ) : null}
                   </>
                 ) : null}
@@ -517,6 +549,9 @@ export default function QuotationFormScreen() {
                     value={`- ${formatMoney(discountEstimate)}`}
                     valueColor="success"
                   />
+                ) : null}
+                {depositEstimate > 0 ? (
+                  <InfoRow label={`Security deposit (${depositMonthsLabel(depositMonthsSent)})`} value={formatMoney(depositEstimate)} />
                 ) : null}
                 <Divider spacing={8} />
                 <AppText variant="caption" color="textMuted">
