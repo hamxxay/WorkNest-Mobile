@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
-import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
+import { StyleSheet, Text, View, useWindowDimensions, type StyleProp, type ViewStyle } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { tabularNums, useTheme } from "../../theme";
+import { stackLabelValue } from "../../utils/responsive";
 import { resolveColor, type TextColor } from "./AppText";
 
 export type InfoRowProps = {
@@ -10,7 +11,11 @@ export type InfoRowProps = {
   value?: ReactNode;
   /** Ionicons name before the label. */
   icon?: string;
-  /** "inline" (default): label left, value right. "stacked": label above value (long values, addresses). */
+  /**
+   * "inline" (default): label left, value right; with large system text on a narrow window it switches to stacked
+   * by itself, so neither half is squeezed into a few characters per line. "stacked": label above value (long
+   * values, addresses).
+   */
   layout?: "inline" | "stacked";
   /** Bold value (totals). */
   emphasize?: boolean;
@@ -32,9 +37,10 @@ export function InfoRow({
   style,
 }: InfoRowProps) {
   const { colors, typography } = useTheme();
+  const { width, fontScale } = useWindowDimensions();
   const empty = value === null || value === undefined || value === "";
   const isText = typeof value === "string" || typeof value === "number" || empty;
-  const stacked = layout === "stacked";
+  const stacked = layout === "stacked" || stackLabelValue(width, fontScale);
 
   const valueNode = isText ? (
     <Text

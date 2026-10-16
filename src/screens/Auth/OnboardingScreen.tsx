@@ -1,14 +1,17 @@
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FlatList,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   useWindowDimensions,
   View,
+  type LayoutChangeEvent,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -25,6 +28,7 @@ import { Screen } from "../../components/Screen";
 import { useThemeColors, useThemedStyles, type AppColors, type Theme } from "../../theme";
 import { Button } from "../../components/ui";
 import { MAX_CONTENT_WIDTH } from "../../utils/responsive";
+import { slideLayout } from "./onboardingLayout";
 import { setOnboardingCompleted } from "../../utils/onboardingStorage";
 import { useAuth } from "../../context/AuthContext";
 import type { ImageSourcePropType } from "react-native";
@@ -60,8 +64,17 @@ const slides: Slide[] = [
   },
 ];
 
+/** Side padding of the screen (dp): a carousel page is the content column minus this on both sides. */
+const SIDE_PADDING = 20;
+/** Below this window height (a phone in landscape, split screen) the screen scrolls and the card is fixed height. */
+const SHORT_WINDOW = 520;
+
 type OnboardingSlideProps = {
   cardWidth: number;
+  /** The photo's height in the stacked layout (ignored side by side). */
+  imageHeight: number;
+  /** Photo on the left, text on the right (wide, short viewport). */
+  side: boolean;
   index: number;
   slide: Slide;
   scrollX: SharedValue<number>;
@@ -71,6 +84,8 @@ type OnboardingSlideProps = {
 
 function OnboardingSlide({
   cardWidth,
+  imageHeight,
+  side,
   index,
   slide,
   scrollX,
@@ -112,22 +127,25 @@ function OnboardingSlide({
     };
   });
 
+  const page = useMemo(() => ({ width: cardWidth }), [cardWidth]);
+  const imageSize = useMemo(() => ({ height: imageHeight }), [imageHeight]);
+
   return (
-    <View style={{ width: cardWidth }}>
+    <View style={page}>
       <Animated.View
         accessible
         accessibilityLabel={`${slide.title}. ${slide.description}`}
-        style={[styles.card, slideAnimatedStyle]}
+        style={[styles.card, side && styles.cardSide, slideAnimatedStyle]}
       >
-        <View style={styles.imageFrame}>
+        <View style={side ? styles.imageFrameSide : [styles.imageFrame, imageSize]}>
           <Animated.Image
             source={slide.image}
             style={styles.cardImage}
             resizeMode="cover"
           />
         </View>
-        <View style={styles.copyBlock}>
-          <View style={styles.iconWell}>
+        <View style={[styles.copyBlock, side && styles.copyBlockSide]}>
+          <View style={[styles.iconWell, side && styles.iconWellSide]}>
             <Ionicons name={slide.icon} size={24} color={iconColor} />
           </View>
           <Text style={styles.title}>{slide.title}</Text>
@@ -147,11 +165,35 @@ export default function OnboardingScreen() {
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [currentIndex, setCurrentIndex] = useState(0);
   const listRef = useRef<FlatList<Slide>>(null);
-  const { width: screenWidth } = useWindowDimensions();
-  // Screen centres a MAX_CONTENT_WIDTH column on tablets; the carousel pages must match that column.
-  const cardWidth = Math.min(screenWidth, MAX_CONTENT_WIDTH) - 40;
+  const { width: screenWidth, height: screenHeight, fontScale } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const short = screenHeight < SHORT_WINDOW;
+  // A page is exactly the carousel viewport, measured, so it follows rotation and a foldable switching screens.
+  // Until the first layout: Screen's column (the window minus side insets, at most MAX_CONTENT_WIDTH) minus padding.
+  const estimatedWidth =
+    Math.min(Math.max(0, screenWidth - insets.left - insets.right), MAX_CONTENT_WIDTH) - 2 * SIDE_PADDING;
+  const [viewport, setViewport] = useState({ width: 0, height: 0 });
+  const onViewportLayout = useCallback((event: LayoutChangeEvent) => {
+    const width = Math.floor(event.nativeEvent.layout.width);
+    const height = Math.floor(event.nativeEvent.layout.height);
+    setViewport((prev) => (prev.width === width && prev.height === height ? prev : { width, height }));
+  }, []);
+  const cardWidth = Math.max(1, viewport.width || estimatedWidth);
+  const layout = slideLayout({ width: cardWidth, height: viewport.height, windowHeight: screenHeight, fontScale, short });
+  // Short window: a fixed card height (the screen scrolls), not the flexible one that fills the screen.
+  const fixedViewport = useMemo(
+    () => (layout.cardHeight !== null ? { flex: 0, height: layout.cardHeight } : null),
+    [layout.cardHeight],
+  );
   const scrollX = useSharedValue(0);
   const { user } = useAuth();
+
+  // The page width changed (rotation, a foldable opened or closed): keep showing the same slide.
+  const indexRef = useRef(currentIndex);
+  indexRef.current = currentIndex;
+  useEffect(() => {
+    listRef.current?.scrollToOffset({ offset: indexRef.current * cardWidth, animated: false });
+  }, [cardWidth]);
 
   const isLast = currentIndex === slides.length - 1;
 
@@ -190,7 +232,7 @@ export default function OnboardingScreen() {
 
   const handleMomentumEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const nextIndex = Math.round(event.nativeEvent.contentOffset.x / cardWidth);
-    setCurrentIndex(nextIndex);
+    setCurrentIndex(Math.max(0, Math.min(nextIndex, slides.length - 1)));
   };
 
   const scrollHandler = useAnimatedScrollHandler({
@@ -199,105 +241,120 @@ export default function OnboardingScreen() {
     },
   });
 
+  const content = (
+    <>
+      <View style={styles.headerRow}>
+        <Text style={styles.stepText} accessibilityLabel={`Step ${currentIndex + 1} of ${slides.length}`}>
+          {currentIndex + 1} of {slides.length}
+        </Text>
+        {!isLast ? (
+          <Button title="Skip" variant="ghost" size="sm" onPress={handleSkip} accessibilityHint="Skips the introduction" />
+        ) : (
+          <View style={styles.skipPlaceholder} />
+        )}
+      </View>
+
+      <View style={[styles.cardViewport, fixedViewport]} onLayout={onViewportLayout}>
+        <AnimatedFlatList
+          ref={listRef}
+          data={slides}
+          extraData={`${cardWidth}x${layout.imageHeight}${layout.side ? "s" : ""}`}
+          initialScrollIndex={currentIndex}
+          keyExtractor={(item) => item.title}
+          renderItem={({ item, index }) => (
+            <OnboardingSlide
+              cardWidth={cardWidth}
+              imageHeight={layout.imageHeight}
+              side={layout.side}
+              index={index}
+              slide={item}
+              scrollX={scrollX}
+              styles={styles}
+              iconColor={colors.onPrimary}
+            />
+          )}
+          horizontal
+          pagingEnabled
+          bounces={false}
+          decelerationRate="fast"
+          showsHorizontalScrollIndicator={false}
+          onMomentumScrollEnd={handleMomentumEnd}
+          onScroll={scrollHandler}
+          scrollEventThrottle={16}
+          contentContainerStyle={styles.carouselContent}
+          getItemLayout={(_, index) => ({
+            index,
+            length: cardWidth,
+            offset: cardWidth * index,
+          })}
+        />
+
+        <View pointerEvents="box-none" style={styles.tapOverlay}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Previous slide"
+            onPress={() => goToIndex(currentIndex - 1)}
+            style={styles.tapZone}
+          />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={isLast ? "Finish onboarding" : "Next slide"}
+            onPress={() => {
+              if (isLast) {
+                handleNext();
+                return;
+              }
+              goToIndex(currentIndex + 1);
+            }}
+            style={styles.tapZone}
+          />
+        </View>
+      </View>
+
+      <View
+        style={styles.dotsRow}
+        accessible
+        accessibilityRole="adjustable"
+        accessibilityLabel="Slides"
+        accessibilityValue={{ min: 1, max: slides.length, now: currentIndex + 1, text: `${currentIndex + 1} of ${slides.length}` }}
+        accessibilityActions={[{ name: "increment" }, { name: "decrement" }]}
+        onAccessibilityAction={(event) => {
+          if (event.nativeEvent.actionName === "increment") goToIndex(currentIndex + 1);
+          if (event.nativeEvent.actionName === "decrement") goToIndex(currentIndex - 1);
+        }}
+      >
+        {slides.map((slide, index) => {
+          const active = index === currentIndex;
+          return (
+            <View
+              key={`dot-${slide.title}`}
+              style={[styles.dot, active && styles.dotActive]}
+            />
+          );
+        })}
+      </View>
+
+      <Button
+        title={isLast ? "Get started" : "Next"}
+        rightIcon={isLast ? "checkmark" : "arrow-forward"}
+        size="lg"
+        fullWidth
+        onPress={handleNext}
+        style={styles.primaryButton}
+      />
+    </>
+  );
+
+  // A short window (a phone in landscape) scrolls; otherwise the card fills the space between header and button.
   return (
     <Screen>
-      <View style={styles.container}>
-        <View style={styles.headerRow}>
-          <Text style={styles.stepText} accessibilityLabel={`Step ${currentIndex + 1} of ${slides.length}`}>
-            {currentIndex + 1} of {slides.length}
-          </Text>
-          {!isLast ? (
-            <Button title="Skip" variant="ghost" size="sm" onPress={handleSkip} accessibilityHint="Skips the introduction" />
-          ) : (
-            <View style={styles.skipPlaceholder} />
-          )}
-        </View>
-
-        <View style={styles.cardViewport}>
-          <AnimatedFlatList
-            ref={listRef}
-            data={slides}
-            keyExtractor={(item) => item.title}
-            renderItem={({ item, index }) => (
-              <OnboardingSlide
-                cardWidth={cardWidth}
-                index={index}
-                slide={item}
-                scrollX={scrollX}
-                styles={styles}
-                iconColor={colors.onPrimary}
-              />
-            )}
-            horizontal
-            pagingEnabled
-            bounces={false}
-            decelerationRate="fast"
-            showsHorizontalScrollIndicator={false}
-            onMomentumScrollEnd={handleMomentumEnd}
-            onScroll={scrollHandler}
-            scrollEventThrottle={16}
-            contentContainerStyle={styles.carouselContent}
-            getItemLayout={(_, index) => ({
-              index,
-              length: cardWidth,
-              offset: cardWidth * index,
-            })}
-          />
-
-          <View pointerEvents="box-none" style={styles.tapOverlay}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Previous slide"
-              onPress={() => goToIndex(currentIndex - 1)}
-              style={styles.tapZone}
-            />
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={isLast ? "Finish onboarding" : "Next slide"}
-              onPress={() => {
-                if (isLast) {
-                  handleNext();
-                  return;
-                }
-                goToIndex(currentIndex + 1);
-              }}
-              style={styles.tapZone}
-            />
-          </View>
-        </View>
-
-        <View
-          style={styles.dotsRow}
-          accessible
-          accessibilityRole="adjustable"
-          accessibilityLabel="Slides"
-          accessibilityValue={{ min: 1, max: slides.length, now: currentIndex + 1, text: `${currentIndex + 1} of ${slides.length}` }}
-          accessibilityActions={[{ name: "increment" }, { name: "decrement" }]}
-          onAccessibilityAction={(event) => {
-            if (event.nativeEvent.actionName === "increment") goToIndex(currentIndex + 1);
-            if (event.nativeEvent.actionName === "decrement") goToIndex(currentIndex - 1);
-          }}
-        >
-          {slides.map((slide, index) => {
-            const active = index === currentIndex;
-            return (
-              <View
-                key={`dot-${slide.title}`}
-                style={[styles.dot, active && styles.dotActive]}
-              />
-            );
-          })}
-        </View>
-
-        <Button
-          title={isLast ? "Get started" : "Next"}
-          rightIcon={isLast ? "checkmark" : "arrow-forward"}
-          size="lg"
-          fullWidth
-          onPress={handleNext}
-          style={styles.primaryButton}
-        />
-      </View>
+      {short ? (
+        <ScrollView contentContainerStyle={[styles.container, styles.containerShort]} showsVerticalScrollIndicator={false}>
+          {content}
+        </ScrollView>
+      ) : (
+        <View style={styles.container}>{content}</View>
+      )}
     </Screen>
   );
 }
@@ -305,10 +362,11 @@ export default function OnboardingScreen() {
 const createStyles = (colors: AppColors, theme: Theme) => StyleSheet.create({
   container: {
     flex: 1,
-    paddingHorizontal: 20,
+    paddingHorizontal: SIDE_PADDING,
     paddingTop: 8,
     paddingBottom: 20,
   },
+  containerShort: { flex: 0, flexGrow: 1, paddingBottom: 12 },
   headerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -335,18 +393,24 @@ const createStyles = (colors: AppColors, theme: Theme) => StyleSheet.create({
   tapZone: {
     flex: 1,
   },
+  // Fills the page (the carousel viewport). No minimum height: on a short window the screen scrolls instead.
   card: {
     flex: 1,
     borderRadius: theme.radii.sheet,
     overflow: "hidden",
-    minHeight: 420,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
   },
+  cardSide: { flexDirection: "row" },
+  // Height from slideLayout (4:3, at most about half the card).
   imageFrame: {
     width: "100%",
-    aspectRatio: 4 / 3,
+    backgroundColor: colors.surfaceAlt,
+  },
+  // Side by side: stretched to the card's height by the row.
+  imageFrameSide: {
+    width: "45%",
     backgroundColor: colors.surfaceAlt,
   },
   cardImage: {
@@ -366,6 +430,8 @@ const createStyles = (colors: AppColors, theme: Theme) => StyleSheet.create({
     borderWidth: 3,
     borderColor: colors.surface,
   },
+  // Side by side the icon sits at the top of the text, not overlapping a photo above it.
+  iconWellSide: { marginTop: 0 },
   copyBlock: {
     flex: 1,
     justifyContent: "flex-start",
@@ -373,6 +439,7 @@ const createStyles = (colors: AppColors, theme: Theme) => StyleSheet.create({
     paddingBottom: 22,
     gap: 10,
   },
+  copyBlockSide: { paddingTop: 22, justifyContent: "center" },
   title: {
     ...theme.typography.display,
     color: colors.text,

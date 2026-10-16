@@ -36,6 +36,7 @@ import { formatPhoneInput, phoneError } from "../../../../utils/phone";
 import { formatMoney, parseDate } from "../../../../utils/format";
 import { spacing } from "../../../../theme";
 import { StaffScreen } from "../shared/StaffScreen";
+import { DATE_FIELD_MIN_WIDTH, FieldRow } from "../shared/layout";
 
 type Nav = NativeStackNavigationProp<StaffStackParamList>;
 type Route = RouteProp<StaffStackParamList, "AgreementSend">;
@@ -276,10 +277,10 @@ export default function AgreementSendScreen() {
             <SectionHeader title="Terms" variant="overline" />
             <Card>
               <View style={styles.form}>
-                <View style={styles.row}>
-                  <DateField label="Contract start" required value={start} onChange={setStart} containerStyle={styles.flex} error={errors.start} />
-                  <DateField label="Contract end" required value={end} onChange={setEnd} containerStyle={styles.flex} error={errors.end} minimumDate={start ?? undefined} />
-                </View>
+                <FieldRow minItemWidth={DATE_FIELD_MIN_WIDTH}>
+                  <DateField label="Contract start" required value={start} onChange={setStart} error={errors.start} />
+                  <DateField label="Contract end" required value={end} onChange={setEnd} error={errors.end} minimumDate={start ?? undefined} />
+                </FieldRow>
                 <SelectField label="Billing" value={billingMonths} options={BILLING} onChange={(v) => {
                   setBillingMonths(v);
                   if (quotation) setFee(String(agreementFeePerCycle(quotation, v) || ""));
@@ -337,5 +338,4 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { padding: spacing.screen, gap: spacing.md, paddingBottom: spacing.xxl },
   form: { gap: spacing.lg },
-  row: { flexDirection: "row", gap: spacing.md, alignItems: "flex-start" },
 });

@@ -23,7 +23,7 @@ import {
 import { dashboardTrend } from "../../../services/staff/dashboard";
 import { spacing, useComplaintStatusColors, useTheme } from "../../../theme";
 import { formatDate } from "../../../utils/format";
-import { CeoErrorState, ChartCard, ChartSkeleton, InlineEmpty, SectionEmpty, StaleBanner, type CeoQuery } from "../Ceo/parts";
+import { CeoErrorState, ChartCard, ChartGrid, ChartSkeleton, InlineEmpty, SectionEmpty, StaleBanner, type CeoQuery } from "../Ceo/parts";
 import { KpiGrid } from "../Staff/Dashboard/parts";
 import type { SmDrill } from "./sections";
 
@@ -171,36 +171,38 @@ export function ComplaintsContent({ complaints: c, drill }: { complaints: SmComp
   return (
     <>
       <KpiGrid tiles={tiles} />
-      <StatusCard complaints={c} onOpen={openStatus} />
-      <CategoryCard complaints={c} words={words} onOpen={(category) => open({ category }, [category], `Complaints: ${category}`)} />
-      {smShowsComplaintBranches(c.byBranch) ? (
-        <BranchCard complaints={c} words={words} onOpen={(branch, label) => open({ branch }, [label], `Complaints: ${label}`)} />
-      ) : null}
-      <ChartCard title="Complaints by month" caption="Created and resolved, last 12 months. Tap a month for the complaints created then.">
-        {recent.length ? (
-          <BarChart
-            label="Complaints created and resolved by month"
-            series={[
-              { label: "Created", color: colorOf("open") },
-              { label: "Resolved", color: colorOf("resolved") },
-            ]}
-            data={recent.map((m) => ({ label: monthShort(m.month), title: monthLabel(m.month), values: [m.created, m.resolved] }))}
-            formatValue={count}
-            emptyText="No complaints in these months."
-            itemAccessibilityHint="Opens the complaints created this month"
-            onPressItem={(i) => {
-              const month = recent[i]?.month;
-              if (month) open({ month }, [monthLabel(month)], `Complaints, ${monthLabel(month)}`);
-            }}
-          />
-        ) : (
-          <InlineEmpty text="No complaint history yet." />
-        )}
-      </ChartCard>
-      <OldestCard
-        complaints={c}
-        onOpenAll={() => open({ status: "active" }, ["Open and in progress"], "Open and in progress")}
-      />
+      <ChartGrid>
+        <StatusCard complaints={c} onOpen={openStatus} />
+        <CategoryCard complaints={c} words={words} onOpen={(category) => open({ category }, [category], `Complaints: ${category}`)} />
+        {smShowsComplaintBranches(c.byBranch) ? (
+          <BranchCard complaints={c} words={words} onOpen={(branch, label) => open({ branch }, [label], `Complaints: ${label}`)} />
+        ) : null}
+        <ChartCard title="Complaints by month" caption="Created and resolved, last 12 months. Tap a month for the complaints created then.">
+          {recent.length ? (
+            <BarChart
+              label="Complaints created and resolved by month"
+              series={[
+                { label: "Created", color: colorOf("open") },
+                { label: "Resolved", color: colorOf("resolved") },
+              ]}
+              data={recent.map((m) => ({ label: monthShort(m.month), title: monthLabel(m.month), values: [m.created, m.resolved] }))}
+              formatValue={count}
+              emptyText="No complaints in these months."
+              itemAccessibilityHint="Opens the complaints created this month"
+              onPressItem={(i) => {
+                const month = recent[i]?.month;
+                if (month) open({ month }, [monthLabel(month)], `Complaints, ${monthLabel(month)}`);
+              }}
+            />
+          ) : (
+            <InlineEmpty text="No complaint history yet." />
+          )}
+        </ChartCard>
+        <OldestCard
+          complaints={c}
+          onOpenAll={() => open({ status: "active" }, ["Open and in progress"], "Open and in progress")}
+        />
+      </ChartGrid>
     </>
   );
 }
@@ -272,7 +274,7 @@ function StatusCard({ complaints: c, onOpen }: { complaints: SmComplaints; onOpe
                       </AppText>
                     ) : null}
                   </View>
-                  <AppText variant="captionStrong" style={styles.tabular}>
+                  <AppText variant="captionStrong" numberOfLines={2} style={[styles.tabular, styles.value]}>
                     {value}
                   </AppText>
                   <Ionicons name="chevron-forward" size={14} color={theme.colors.textMuted} />
@@ -322,7 +324,7 @@ function CategoryCard({ complaints: c, words, onOpen }: { complaints: SmComplain
                   <AppText variant="bodySmall" color="textSecondary" numberOfLines={1} style={styles.flex}>
                     {k.category}
                   </AppText>
-                  <AppText variant="captionStrong" numberOfLines={1} style={styles.tabular}>
+                  <AppText variant="captionStrong" numberOfLines={2} style={[styles.tabular, styles.value]}>
                     {value}
                   </AppText>
                   <Ionicons name="chevron-forward" size={14} color={theme.colors.textMuted} />
@@ -449,6 +451,9 @@ const styles = StyleSheet.create({
   flexShrink: { flexShrink: 1 },
   flex: { flex: 1 },
   tabular: { fontVariant: ["tabular-nums"] },
+  // The figure next to a label: never more than about half the row, wrapping (large text) instead of pushing the
+  // label out.
+  value: { flexShrink: 1, maxWidth: "55%", textAlign: "right" },
   pressed: { opacity: 0.7 },
   padded: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md },
   // A segment is at least 4 dp wide so a small count stays visible (and tappable from the rows below).

@@ -25,7 +25,7 @@ import { dashboardTrend, type DashboardForecast } from "../../../services/staff/
 import { spacing, useInquiryTypeColors, type Tone } from "../../../theme";
 import { formatDate } from "../../../utils/format";
 import { Fact, KpiGrid } from "../Staff/Dashboard/parts";
-import { ChartCard, InlineEmpty } from "./parts";
+import { ChartCard, ChartGrid, InlineEmpty } from "./parts";
 
 // The CEO dashboard sections (Money, Occupancy, Sales, Team, 3-month outlook). Read-only: every tappable element
 // drills down (breakdown or records); nothing changes data. Figures stay on screen as text next to every chart.
@@ -123,65 +123,67 @@ export function MoneySection({ money: m, drill }: { money: CeoMoney; drill: Dril
   return (
     <>
       <KpiGrid tiles={tiles} />
-      <View ref={drill.target("revenue")} collapsable={false}>
-        <ChartCard title="Revenue and collections" caption="Last 12 months. Tap a month to see it by location.">
-          {recent.length ? (
-            <BarChart
-              label="Invoiced and collected by month"
-              series={[{ label: "Invoiced" }, { label: "Collected" }]}
-              data={recent.map((x) => ({ label: monthShort(x.month), title: monthLabel(x.month), values: [x.invoiced, x.collected] }))}
-              formatValue={money}
-              emptyText="Nothing invoiced in these months."
-              itemAccessibilityHint="Opens this month by location"
-              onPressItem={(i) => drill.breakdown({ metric: "revenue", month: recent[i].month }, ["Revenue", monthLabel(recent[i].month)])}
-            />
+      <ChartGrid>
+        <View ref={drill.target("revenue")} collapsable={false}>
+          <ChartCard title="Revenue and collections" caption="Last 12 months. Tap a month to see it by location.">
+            {recent.length ? (
+              <BarChart
+                label="Invoiced and collected by month"
+                series={[{ label: "Invoiced" }, { label: "Collected" }]}
+                data={recent.map((x) => ({ label: monthShort(x.month), title: monthLabel(x.month), values: [x.invoiced, x.collected] }))}
+                formatValue={money}
+                emptyText="Nothing invoiced in these months."
+                itemAccessibilityHint="Opens this month by location"
+                onPressItem={(i) => drill.breakdown({ metric: "revenue", month: recent[i].month }, ["Revenue", monthLabel(recent[i].month)])}
+              />
+            ) : (
+              <InlineEmpty text="No invoices in the last 12 months." />
+            )}
+          </ChartCard>
+        </View>
+        <View ref={drill.target("aging")} collapsable={false}>
+          <ChartCard title="Receivables aging" caption={`${money(m.outstanding)} outstanding. Tap a bucket to see it by location.`}>
+            {agingItems.length ? (
+              <HBarList
+                label="Receivables by age"
+                items={agingItems}
+                formatValue={money}
+                itemAccessibilityHint="Opens this bucket by location"
+                onPressItem={(item) => {
+                  const bucket = m.aging.find((b) => b.bucket === item.key);
+                  if (bucket) drill.breakdown({ metric: "aging", bucket: bucket.bucket }, ["Receivables", bucket.label]);
+                }}
+              />
+            ) : (
+              <InlineEmpty text="No open invoices." />
+            )}
+          </ChartCard>
+        </View>
+        <ChartCard title="Top customers" caption="Invoiced over the last 12 months" padding={0}>
+          {m.topCustomers.length ? (
+            m.topCustomers.map((c, i) => {
+              const query = drill.customerRecords(c.customerId);
+              return (
+                <Fragment key={`${c.customerId ?? c.name}-${i}`}>
+                  {i > 0 ? <Divider inset={16} /> : null}
+                  <ListRow
+                    leftIcon="business-outline"
+                    title={c.name}
+                    subtitle={`${count(c.invoices)} ${c.invoices === 1 ? "invoice" : "invoices"}`}
+                    meta={money(c.amount)}
+                    accessibilityHint={query ? "Opens this customer's invoices" : undefined}
+                    onPress={query ? () => drill.records(query, ["Top customers", c.name], `${c.name}: invoices`) : undefined}
+                  />
+                </Fragment>
+              );
+            })
           ) : (
-            <InlineEmpty text="No invoices in the last 12 months." />
+            <View style={styles.padded}>
+              <InlineEmpty text="No customers invoiced in the last 12 months." />
+            </View>
           )}
         </ChartCard>
-      </View>
-      <View ref={drill.target("aging")} collapsable={false}>
-        <ChartCard title="Receivables aging" caption={`${money(m.outstanding)} outstanding. Tap a bucket to see it by location.`}>
-          {agingItems.length ? (
-            <HBarList
-              label="Receivables by age"
-              items={agingItems}
-              formatValue={money}
-              itemAccessibilityHint="Opens this bucket by location"
-              onPressItem={(item) => {
-                const bucket = m.aging.find((b) => b.bucket === item.key);
-                if (bucket) drill.breakdown({ metric: "aging", bucket: bucket.bucket }, ["Receivables", bucket.label]);
-              }}
-            />
-          ) : (
-            <InlineEmpty text="No open invoices." />
-          )}
-        </ChartCard>
-      </View>
-      <ChartCard title="Top customers" caption="Invoiced over the last 12 months" padding={0}>
-        {m.topCustomers.length ? (
-          m.topCustomers.map((c, i) => {
-            const query = drill.customerRecords(c.customerId);
-            return (
-              <Fragment key={`${c.customerId ?? c.name}-${i}`}>
-                {i > 0 ? <Divider inset={16} /> : null}
-                <ListRow
-                  leftIcon="business-outline"
-                  title={c.name}
-                  subtitle={`${count(c.invoices)} ${c.invoices === 1 ? "invoice" : "invoices"}`}
-                  meta={money(c.amount)}
-                  accessibilityHint={query ? "Opens this customer's invoices" : undefined}
-                  onPress={query ? () => drill.records(query, ["Top customers", c.name], `${c.name}: invoices`) : undefined}
-                />
-              </Fragment>
-            );
-          })
-        ) : (
-          <View style={styles.padded}>
-            <InlineEmpty text="No customers invoiced in the last 12 months." />
-          </View>
-        )}
-      </ChartCard>
+      </ChartGrid>
     </>
   );
 }
@@ -239,123 +241,125 @@ export function OccupancySection({ occupancy: o, drill }: { occupancy: CeoOccupa
   return (
     <>
       <KpiGrid tiles={tiles} />
-      <ChartCard title="Occupancy trend" caption="Last 12 months. Tap a month for its new bookings by location.">
-        <SegmentedControl
-          accessibilityLabel="Trend shows"
-          options={[
-            { label: "Occupancy", value: "occupancy" },
-            { label: "New bookings", value: "bookings" },
-          ]}
-          value={view}
-          onChange={setView}
-        />
-        {recent.length ? (
-          <BarChart
-            key={view}
-            style={styles.gapTop}
-            label={view === "occupancy" ? "Occupancy by month" : "New bookings by month"}
-            series={[{ label: view === "occupancy" ? "Occupancy" : "New bookings", tone: view === "occupancy" ? undefined : "indigo" }]}
-            data={recent.map((x) => ({
-              label: monthShort(x.month),
-              title: monthLabel(x.month),
-              values: [view === "occupancy" ? x.occupancyPct : x.newBookings],
-            }))}
-            formatValue={view === "occupancy" ? pct : count}
-            formatTick={view === "occupancy" ? (v) => `${Math.round(v)}%` : undefined}
-            emptyText="Nothing to show for these months."
-            itemAccessibilityHint="Opens this month's new bookings by location"
-            onPressItem={openMonth}
+      <ChartGrid>
+        <ChartCard title="Occupancy trend" caption="Last 12 months. Tap a month for its new bookings by location.">
+          <SegmentedControl
+            accessibilityLabel="Trend shows"
+            options={[
+              { label: "Occupancy", value: "occupancy" },
+              { label: "New bookings", value: "bookings" },
+            ]}
+            value={view}
+            onChange={setView}
           />
-        ) : (
-          <InlineEmpty text="No occupancy history yet." />
-        )}
-      </ChartCard>
-      <ChartCard title="By space type" caption="Spaces in use today. Tap a type to see it by location.">
-        {byType.length ? (
-          <HBarList
-            label="Occupancy by space type"
-            max={100}
-            items={byType.map((t) => {
-              const share = shareOf(t.occupied, t.total);
-              return { key: t.spaceTypeId ?? t.name, label: t.name, value: share, valueLabel: `${pct(share)} · ${t.occupied}/${t.total}` };
-            })}
-            itemAccessibilityHint="Opens this space type by location"
-            onPressItem={(_item, i) => {
-              const t = byType[i];
-              if (t.spaceTypeId) drill.breakdown({ metric: "occupancy-type", spaceTypeId: t.spaceTypeId }, ["Occupancy", t.name]);
-            }}
-          />
-        ) : (
-          <InlineEmpty text="No spaces set up." />
-        )}
-      </ChartCard>
-      <View ref={drill.target("byLocation")} collapsable={false}>
-        <ChartCard title="By location" caption="Spaces in use today. Tap a location to see it by space type.">
-          {byLocation.length ? (
+          {recent.length ? (
+            <BarChart
+              key={view}
+              style={styles.gapTop}
+              label={view === "occupancy" ? "Occupancy by month" : "New bookings by month"}
+              series={[{ label: view === "occupancy" ? "Occupancy" : "New bookings", tone: view === "occupancy" ? undefined : "indigo" }]}
+              data={recent.map((x) => ({
+                label: monthShort(x.month),
+                title: monthLabel(x.month),
+                values: [view === "occupancy" ? x.occupancyPct : x.newBookings],
+              }))}
+              formatValue={view === "occupancy" ? pct : count}
+              formatTick={view === "occupancy" ? (v) => `${Math.round(v)}%` : undefined}
+              emptyText="Nothing to show for these months."
+              itemAccessibilityHint="Opens this month's new bookings by location"
+              onPressItem={openMonth}
+            />
+          ) : (
+            <InlineEmpty text="No occupancy history yet." />
+          )}
+        </ChartCard>
+        <ChartCard title="By space type" caption="Spaces in use today. Tap a type to see it by location.">
+          {byType.length ? (
             <HBarList
-              label="Occupancy by location"
+              label="Occupancy by space type"
               max={100}
-              items={byLocation.map((l) => {
-                const share = shareOf(l.occupied, l.total);
-                return { key: l.locationId ?? l.name, label: l.name, value: share, valueLabel: `${pct(share)} · ${l.occupied}/${l.total}` };
+              items={byType.map((t) => {
+                const share = shareOf(t.occupied, t.total);
+                return { key: t.spaceTypeId ?? t.name, label: t.name, value: share, valueLabel: `${pct(share)} · ${t.occupied}/${t.total}` };
               })}
-              itemAccessibilityHint="Opens this location by space type"
+              itemAccessibilityHint="Opens this space type by location"
               onPressItem={(_item, i) => {
-                const l = byLocation[i];
-                if (l.locationId) drill.breakdown({ metric: "occupancy-location", locationId: l.locationId }, ["Occupancy", l.name]);
+                const t = byType[i];
+                if (t.spaceTypeId) drill.breakdown({ metric: "occupancy-type", spaceTypeId: t.spaceTypeId }, ["Occupancy", t.name]);
               }}
             />
           ) : (
-            <InlineEmpty text="No locations with spaces." />
+            <InlineEmpty text="No spaces set up." />
           )}
         </ChartCard>
-      </View>
-      <View ref={drill.target("leases")} collapsable={false}>
-        <ChartCard
-          title="Leases expiring"
-          caption={["Ending in the next 90 days", o.leasesExpiringMonthly ? `${money(o.leasesExpiringMonthly)} a month` : null].filter(Boolean).join(" · ")}
-          padding={0}
-        >
-          {o.leasesExpiring.length ? (
-            <>
-              {shownLeases.map((b, i) => (
-                <Fragment key={`${b.bookingId ?? b.customer}-${i}`}>
-                  {i > 0 ? <Divider inset={16} /> : null}
-                  <ListRow
-                    leftIcon="hourglass-outline"
-                    leftIconTone="warning"
-                    title={b.customer}
-                    subtitle={[b.space, b.location, b.endOn ? `ends ${formatDate(b.endOn)}` : null].filter(Boolean).join(" · ")}
-                    meta={b.monthlyAmount != null ? `${money(b.monthlyAmount)}/mo` : undefined}
-                  />
-                </Fragment>
-              ))}
-              {moreLeases > 0 && canOpenAllLeases ? (
-                <>
-                  <Divider inset={16} />
-                  <ListRow
-                    leftIcon="list-outline"
-                    title={`All ${count(expiringCount)} leases expiring`}
-                    subtitle={`and ${count(moreLeases)} more not shown here`}
-                    accessibilityHint="Opens every lease ending in the next 90 days"
-                    onPress={openAllLeases}
-                  />
-                </>
-              ) : moreLeases > 0 ? (
-                <View style={styles.padded}>
-                  <AppText variant="caption" color="textMuted">
-                    and {count(moreLeases)} more
-                  </AppText>
-                </View>
-              ) : null}
-            </>
-          ) : (
-            <View style={styles.padded}>
-              <InlineEmpty text="No leases end in the next 90 days." />
-            </View>
-          )}
-        </ChartCard>
-      </View>
+        <View ref={drill.target("byLocation")} collapsable={false}>
+          <ChartCard title="By location" caption="Spaces in use today. Tap a location to see it by space type.">
+            {byLocation.length ? (
+              <HBarList
+                label="Occupancy by location"
+                max={100}
+                items={byLocation.map((l) => {
+                  const share = shareOf(l.occupied, l.total);
+                  return { key: l.locationId ?? l.name, label: l.name, value: share, valueLabel: `${pct(share)} · ${l.occupied}/${l.total}` };
+                })}
+                itemAccessibilityHint="Opens this location by space type"
+                onPressItem={(_item, i) => {
+                  const l = byLocation[i];
+                  if (l.locationId) drill.breakdown({ metric: "occupancy-location", locationId: l.locationId }, ["Occupancy", l.name]);
+                }}
+              />
+            ) : (
+              <InlineEmpty text="No locations with spaces." />
+            )}
+          </ChartCard>
+        </View>
+        <View ref={drill.target("leases")} collapsable={false}>
+          <ChartCard
+            title="Leases expiring"
+            caption={["Ending in the next 90 days", o.leasesExpiringMonthly ? `${money(o.leasesExpiringMonthly)} a month` : null].filter(Boolean).join(" · ")}
+            padding={0}
+          >
+            {o.leasesExpiring.length ? (
+              <>
+                {shownLeases.map((b, i) => (
+                  <Fragment key={`${b.bookingId ?? b.customer}-${i}`}>
+                    {i > 0 ? <Divider inset={16} /> : null}
+                    <ListRow
+                      leftIcon="hourglass-outline"
+                      leftIconTone="warning"
+                      title={b.customer}
+                      subtitle={[b.space, b.location, b.endOn ? `ends ${formatDate(b.endOn)}` : null].filter(Boolean).join(" · ")}
+                      meta={b.monthlyAmount != null ? `${money(b.monthlyAmount)}/mo` : undefined}
+                    />
+                  </Fragment>
+                ))}
+                {moreLeases > 0 && canOpenAllLeases ? (
+                  <>
+                    <Divider inset={16} />
+                    <ListRow
+                      leftIcon="list-outline"
+                      title={`All ${count(expiringCount)} leases expiring`}
+                      subtitle={`and ${count(moreLeases)} more not shown here`}
+                      accessibilityHint="Opens every lease ending in the next 90 days"
+                      onPress={openAllLeases}
+                    />
+                  </>
+                ) : moreLeases > 0 ? (
+                  <View style={styles.padded}>
+                    <AppText variant="caption" color="textMuted">
+                      and {count(moreLeases)} more
+                    </AppText>
+                  </View>
+                ) : null}
+              </>
+            ) : (
+              <View style={styles.padded}>
+                <InlineEmpty text="No leases end in the next 90 days." />
+              </View>
+            )}
+          </ChartCard>
+        </View>
+      </ChartGrid>
     </>
   );
 }
@@ -409,72 +413,74 @@ export function SalesSection({ sales: s, drill }: { sales: CeoSales; drill: Dril
   return (
     <>
       <KpiGrid tiles={tiles} />
-      <ChartCard title="Sales funnel" caption={`Created ${words}. Tap a stage for the list.`}>
-        {s.funnel.length ? (
-          <>
-            <View style={styles.donutRow}>
-              <Donut
-                size={DONUT_SIZE}
-                segments={[{ label: "Converted", value: clampPct(rate) }]}
-                total={100}
-                centerLabel={rate != null ? pct(rate) : "—"}
-                centerCaption="converted"
-                accessibilityLabel={`Conversion ${words}: ${rate != null ? pct(rate) : "not available"}. ${bookings} bookings from ${quotations} quotations.`}
-              />
-              <View style={styles.facts}>
-                <Fact label="Quotations" value={`${count(quotations)} · ${money(s.quotationValue)}`} />
-                <Fact label="Bookings" value={`${count(bookings)} · ${money(s.bookingValue)}`} />
+      <ChartGrid>
+        <ChartCard title="Sales funnel" caption={`Created ${words}. Tap a stage for the list.`}>
+          {s.funnel.length ? (
+            <>
+              <View style={styles.donutRow}>
+                <Donut
+                  size={DONUT_SIZE}
+                  segments={[{ label: "Converted", value: clampPct(rate) }]}
+                  total={100}
+                  centerLabel={rate != null ? pct(rate) : "—"}
+                  centerCaption="converted"
+                  accessibilityLabel={`Conversion ${words}: ${rate != null ? pct(rate) : "not available"}. ${bookings} bookings from ${quotations} quotations.`}
+                />
+                <View style={styles.facts}>
+                  <Fact label="Quotations" value={`${count(quotations)} · ${money(s.quotationValue)}`} />
+                  <Fact label="Bookings" value={`${count(bookings)} · ${money(s.bookingValue)}`} />
+                </View>
               </View>
-            </View>
-            <HBarList
-              style={styles.gapTop}
-              label={`Sales funnel ${words}`}
-              items={s.funnel.map((f) => ({
-                key: f.stage,
-                label: f.stage === "inquiries" && inquiriesEverywhere ? `${f.label} (all locations)` : f.label,
-                value: f.count,
-                // No share over 100% (most quotations don't start as tour inquiries): just the count then.
-                valueLabel: top > 0 && f.stage !== s.funnel[0]?.stage && f.count <= top ? `${count(f.count)} · ${pct(shareOf(f.count, top))}` : count(f.count),
-              }))}
-              itemAccessibilityHint="Opens the list"
-              onPressItem={(item) => {
-                const f = s.funnel.find((x) => x.stage === item.key);
-                if (f) drill.records(drill.funnelRecords(f.stage), ["Sales", f.label], f.label);
-              }}
-            />
-          </>
-        ) : (
-          <InlineEmpty text={`No inquiries or quotations ${words}.`} />
-        )}
-      </ChartCard>
-      <ChartCard title="Inquiries by type" caption={`How visitors found WorkNest, ${inquiryWords}. Tap a type for the last 6 months.`}>
-        {typeItems.length && typeTotal > 0 ? (
-          <>
-            <View style={styles.donutCenter}>
-              <Donut
-                size={DONUT_SIZE}
-                segments={s.inquiriesByType.map((t) => ({ label: t.label, value: t.count, color: colorOf(t.type) }))}
-                legend={false}
-                centerLabel={count(typeTotal)}
-                centerCaption="inquiries"
-                label={`Inquiries by type ${inquiryWords}`}
+              <HBarList
+                style={styles.gapTop}
+                label={`Sales funnel ${words}`}
+                items={s.funnel.map((f) => ({
+                  key: f.stage,
+                  label: f.stage === "inquiries" && inquiriesEverywhere ? `${f.label} (all locations)` : f.label,
+                  value: f.count,
+                  // No share over 100% (most quotations don't start as tour inquiries): just the count then.
+                  valueLabel: top > 0 && f.stage !== s.funnel[0]?.stage && f.count <= top ? `${count(f.count)} · ${pct(shareOf(f.count, top))}` : count(f.count),
+                }))}
+                itemAccessibilityHint="Opens the list"
+                onPressItem={(item) => {
+                  const f = s.funnel.find((x) => x.stage === item.key);
+                  if (f) drill.records(drill.funnelRecords(f.stage), ["Sales", f.label], f.label);
+                }}
               />
-            </View>
-            <HBarList
-              style={styles.gapTop}
-              label="Inquiries by type"
-              items={typeItems}
-              itemAccessibilityHint="Opens this type by month"
-              onPressItem={(item) => {
-                const t = s.inquiriesByType.find((x) => x.key === item.key);
-                if (t) drill.breakdown({ metric: "inquiries-type", type: t.key }, ["Inquiries", t.label]);
-              }}
-            />
-          </>
-        ) : (
-          <InlineEmpty text={`No tour inquiries ${words}.`} />
-        )}
-      </ChartCard>
+            </>
+          ) : (
+            <InlineEmpty text={`No inquiries or quotations ${words}.`} />
+          )}
+        </ChartCard>
+        <ChartCard title="Inquiries by type" caption={`How visitors found WorkNest, ${inquiryWords}. Tap a type for the last 6 months.`}>
+          {typeItems.length && typeTotal > 0 ? (
+            <>
+              <View style={styles.donutCenter}>
+                <Donut
+                  size={DONUT_SIZE}
+                  segments={s.inquiriesByType.map((t) => ({ label: t.label, value: t.count, color: colorOf(t.type) }))}
+                  legend={false}
+                  centerLabel={count(typeTotal)}
+                  centerCaption="inquiries"
+                  label={`Inquiries by type ${inquiryWords}`}
+                />
+              </View>
+              <HBarList
+                style={styles.gapTop}
+                label="Inquiries by type"
+                items={typeItems}
+                itemAccessibilityHint="Opens this type by month"
+                onPressItem={(item) => {
+                  const t = s.inquiriesByType.find((x) => x.key === item.key);
+                  if (t) drill.breakdown({ metric: "inquiries-type", type: t.key }, ["Inquiries", t.label]);
+                }}
+              />
+            </>
+          ) : (
+            <InlineEmpty text={`No tour inquiries ${words}.`} />
+          )}
+        </ChartCard>
+      </ChartGrid>
     </>
   );
 }
@@ -487,46 +493,48 @@ export function TeamSection({ team: t, drill }: { team: CeoTeam; drill: Drill })
   const words = periodWords(drill.period);
   return (
     <>
-      <ChartCard title="Per location" caption={`Staff and quotations ${words}`} padding={0}>
-        {t.perLocation.length ? (
-          t.perLocation.map((l, i) => (
-            <Fragment key={`${l.locationId ?? l.name}-${i}`}>
-              {i > 0 ? <Divider inset={16} /> : null}
-              <ListRow
-                leftIcon="location-outline"
-                title={l.name}
-                subtitle={`${plural(l.admins, "admin", "admins")} · ${plural(l.salesExecutives, "sales executive", "sales executives")}`}
-                meta={`${count(l.quotations)} quotes · ${count(l.converted)} won`}
-              />
-            </Fragment>
-          ))
-        ) : (
-          <View style={styles.padded}>
-            <InlineEmpty text="No locations with staff." />
-          </View>
-        )}
-      </ChartCard>
-      <ChartCard title="People" caption={`Quotations and conversions ${words}. Tap a person for the last 6 months.`} padding={0}>
-        {t.people.length ? (
-          t.people.map((p, i) => (
-            <Fragment key={`${p.userId ?? p.name}-${i}`}>
-              {i > 0 ? <Divider inset={68} /> : null}
-              <ListRow
-                avatar={{ name: p.name }}
-                title={p.name}
-                subtitle={[p.role, p.locations, p.convertedValue ? `${money(p.convertedValue)} won` : null].filter(Boolean).join(" · ")}
-                meta={`${count(p.quotations)} quotes · ${count(p.converted)} won`}
-                accessibilityHint={p.userId ? "Opens this person's last 6 months" : undefined}
-                onPress={p.userId ? () => drill.breakdown({ metric: "staff", userId: p.userId as number }, ["Team", p.name]) : undefined}
-              />
-            </Fragment>
-          ))
-        ) : (
-          <View style={styles.padded}>
-            <InlineEmpty text="No admins or sales executives yet." />
-          </View>
-        )}
-      </ChartCard>
+      <ChartGrid>
+        <ChartCard title="Per location" caption={`Staff and quotations ${words}`} padding={0}>
+          {t.perLocation.length ? (
+            t.perLocation.map((l, i) => (
+              <Fragment key={`${l.locationId ?? l.name}-${i}`}>
+                {i > 0 ? <Divider inset={16} /> : null}
+                <ListRow
+                  leftIcon="location-outline"
+                  title={l.name}
+                  subtitle={`${plural(l.admins, "admin", "admins")} · ${plural(l.salesExecutives, "sales executive", "sales executives")}`}
+                  meta={`${count(l.quotations)} quotes · ${count(l.converted)} won`}
+                />
+              </Fragment>
+            ))
+          ) : (
+            <View style={styles.padded}>
+              <InlineEmpty text="No locations with staff." />
+            </View>
+          )}
+        </ChartCard>
+        <ChartCard title="People" caption={`Quotations and conversions ${words}. Tap a person for the last 6 months.`} padding={0}>
+          {t.people.length ? (
+            t.people.map((p, i) => (
+              <Fragment key={`${p.userId ?? p.name}-${i}`}>
+                {i > 0 ? <Divider inset={68} /> : null}
+                <ListRow
+                  avatar={{ name: p.name }}
+                  title={p.name}
+                  subtitle={[p.role, p.locations, p.convertedValue ? `${money(p.convertedValue)} won` : null].filter(Boolean).join(" · ")}
+                  meta={`${count(p.quotations)} quotes · ${count(p.converted)} won`}
+                  accessibilityHint={p.userId ? "Opens this person's last 6 months" : undefined}
+                  onPress={p.userId ? () => drill.breakdown({ metric: "staff", userId: p.userId as number }, ["Team", p.name]) : undefined}
+                />
+              </Fragment>
+            ))
+          ) : (
+            <View style={styles.padded}>
+              <InlineEmpty text="No admins or sales executives yet." />
+            </View>
+          )}
+        </ChartCard>
+      </ChartGrid>
     </>
   );
 }
@@ -580,9 +588,10 @@ export function OutlookSection({ forecast }: { forecast: DashboardForecast }) {
 const styles = StyleSheet.create({
   padded: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md },
   gapTop: { marginTop: spacing.md },
-  donutRow: { flexDirection: "row", alignItems: "center", gap: spacing.lg },
+  // Wraps: on a narrow window or with large text the figures go under the donut instead of being cut off.
+  donutRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: spacing.lg },
   donutCenter: { alignItems: "center" },
-  facts: { flex: 1, gap: spacing.sm },
+  facts: { flexGrow: 1, flexShrink: 1, flexBasis: 120, gap: spacing.sm },
   monthList: { gap: spacing.md, marginTop: spacing.md },
   monthRow: { gap: 4 },
   rowBetween: { flexDirection: "row", alignItems: "center", gap: spacing.sm },

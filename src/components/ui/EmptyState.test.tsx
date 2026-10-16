@@ -7,6 +7,7 @@ import React from "react";
 import TestRenderer, { act, type ReactTestInstance } from "react-test-renderer";
 import { EmptyState, ErrorState } from "./States";
 
+let mockWindow = { width: 390, height: 844, fontScale: 1, scale: 3 };
 jest.mock("react-native", () => ({
   ActivityIndicator: "ActivityIndicator",
   // The theme's typography reads Platform.OS when it loads (Inter font families per platform).
@@ -14,6 +15,7 @@ jest.mock("react-native", () => ({
   StyleSheet: { create: <T,>(styles: T) => styles, hairlineWidth: 1 },
   Text: "Text",
   View: "View",
+  useWindowDimensions: () => mockWindow,
 }));
 jest.mock("react-native-vector-icons/Ionicons", () => "Ionicons");
 jest.mock("react-native-svg", () => ({
@@ -97,6 +99,18 @@ describe("EmptyState", () => {
   test("compact uses a smaller illustration unless a size is given", () => {
     expect(svgOf(render(<EmptyState compact illustration="people" title="Nobody" />)).props.width).toBe(96);
     expect(svgOf(render(<EmptyState compact illustration="people" illustrationSize={120} title="Nobody" />)).props.width).toBe(120);
+  });
+
+  test("a short window (phone in landscape, large text) uses the compact picture so the text still fits", () => {
+    try {
+      expect(svgOf(render(<EmptyState illustration="people" title="Nobody" />)).props.width).toBe(140);
+      mockWindow = { width: 844, height: 390, fontScale: 1, scale: 3 };
+      expect(svgOf(render(<EmptyState illustration="people" title="Nobody" />)).props.width).toBe(96);
+      mockWindow = { width: 412, height: 915, fontScale: 2, scale: 3 };
+      expect(svgOf(render(<ErrorState title="Offline" />)).props.width).toBe(96);
+    } finally {
+      mockWindow = { width: 390, height: 844, fontScale: 1, scale: 3 };
+    }
   });
 });
 

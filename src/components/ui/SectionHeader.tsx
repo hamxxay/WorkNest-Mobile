@@ -1,6 +1,7 @@
-import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
+import { Pressable, StyleSheet, Text, View, useWindowDimensions, type StyleProp, type ViewStyle } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { useTheme } from "../../theme";
+import { textScale } from "../../utils/responsive";
 
 export type SectionHeaderProps = {
   title: string;
@@ -26,6 +27,9 @@ export function SectionHeader({
   style,
 }: SectionHeaderProps) {
   const { colors, typography } = useTheme();
+  // Large text: the title may take two lines rather than being cut beside the action.
+  const { fontScale } = useWindowDimensions();
+  const titleLines = textScale(fontScale) >= 1.3 ? 2 : 1;
   return (
     <View style={[styles.row, style]}>
       <View style={styles.titles}>
@@ -34,7 +38,7 @@ export function SectionHeader({
           style={[variant === "overline" ? typography.overline : typography.subheading, {
             color: variant === "overline" ? colors.textMuted : colors.text,
           }]}
-          numberOfLines={1}
+          numberOfLines={titleLines}
         >
           {title}
         </Text>

@@ -43,6 +43,7 @@ import {
 } from "../../../../services/staff";
 import { spacing } from "../../../../theme";
 import { formatDate, formatRelative } from "../../../../utils/format";
+import { MAX_CONTENT_WIDTH, estimateButtonWidth, scaledMinWidth, useResponsive } from "../../../../utils/responsive";
 import {
   canContactByPhone,
   inquiryFeedbackText,
@@ -59,11 +60,14 @@ import { SearchField } from "../shared/SearchField";
 import { StaffScreen, useInTabs } from "../shared/StaffScreen";
 import { useStaffSession } from "../shared/StaffSession";
 import { useDebounced, usePagedList, useSingleFlight } from "../shared/hooks";
+import { useShortWindow } from "../shared/layout";
 import { uniqueBy } from "../shared/guards";
 
 type Nav = NativeStackNavigationProp<StaffStackParamList>;
 type Route = RouteProp<StaffStackParamList, "TourInquiries">;
 const PAGE_SIZE = 50;
+/** AsyncList's default content padding (dp). */
+const LIST_PADDING = 16;
 
 /**
  * Tour inquiries (GET contact?page=&limit=&search=&locationId=) with their latest feedback. Like the CMS: follow-ups
@@ -142,14 +146,11 @@ export default function InquiryListScreen() {
       },
     });
 
-  return (
-    <StaffScreen>
-      <AppHeader
-        showBack={inTabs ? false : undefined}
-        title="Tour inquiries"
-        subtitle={list.total ? `${list.total} inquiries` : undefined}
-        actions={[{ icon: "add", accessibilityLabel: "Add inquiry", onPress: () => setAdding(true) }]}
-      />
+  // A short window (phone in landscape, large text on a small phone): the search and filters scroll away with the
+  // list instead of taking most of the height above it.
+  const short = useShortWindow();
+  const filters = (
+    <>
       <SearchField value={query} onChangeText={setQuery} placeholder="Search name, email or phone" />
       <FilterChips
         value={filter}
@@ -173,7 +174,21 @@ export default function InquiryListScreen() {
           contentContainerStyle={styles.chips}
         />
       ) : null}
+    </>
+  );
+
+  return (
+    <StaffScreen>
+      <AppHeader
+        showBack={inTabs ? false : undefined}
+        title="Tour inquiries"
+        subtitle={list.total ? `${list.total} inquiries` : undefined}
+        actions={[{ icon: "add", accessibilityLabel: "Add inquiry", onPress: () => setAdding(true) }]}
+      />
+      {short ? null : filters}
       <AsyncList
+        ListHeaderComponent={short ? filters : undefined}
+        ListHeaderComponentStyle={short ? styles.listHeader : undefined}
         data={rows}
         keyExtractor={(i, index) => inquiryRowKey(i, index)}
         loading={list.loading}
@@ -271,6 +286,10 @@ function InquiryCard({
   const phoneOk = canContactByPhone(item.phone);
   const status = item.followUpDue ? "Follow-up due" : INQUIRY_STATUS_LABELS[item.statusId] ?? "New";
   const tone = item.followUpDue ? "warning" : undefined;
+  const { fontScale, isLargeText } = useResponsive();
+  // The branch name keeps at least this much room beside "Change branch"; with less (320dp phone, large text) the
+  // button goes under it instead of squeezing the name to a few letters.
+  const branchMinWidth = { flexBasis: scaledMinWidth(BRANCH_MIN_WIDTH, fontScale) };
 
   // WhatsApp: the message the API fills in from the CMS template (GET contact/{publicId}/whatsapp-message). Without
   // a public id, or when the call fails (offline, an older API) or sends no link, the app's own greeting opens instead,
@@ -293,7 +312,7 @@ function InquiryCard({
     <Card>
       <View style={styles.row}>
         <View style={styles.flex}>
-          <AppText variant="bodyStrong" numberOfLines={1}>
+          <AppText variant="bodyStrong" numberOfLines={isLargeText ? 2 : 1}>
             {item.fullName || item.email || "Visitor"}
           </AppText>
           <AppText variant="caption" color="textMuted" numberOfLines={1}>
@@ -307,8 +326,8 @@ function InquiryCard({
           {`Type: ${type}`}
         </AppText>
       ) : null}
-      <View style={[styles.row, styles.gapTop]}>
-        <BranchLine name={branch} style={styles.flex} />
+      <View style={[styles.wrapRow, styles.gapTop]}>
+        <BranchLine name={branch} style={[styles.branchLine, branchMinWidth]} />
         {onSetBranch ? (
           <Button
             title={branch ? "Change branch" : "Set branch"}
@@ -329,29 +348,48 @@ function InquiryCard({
           {feedback}
         </AppText>
       ) : null}
-      <View style={[styles.row, styles.gapTop]}>
-        <AppText variant="caption" color="textMuted" style={styles.flex}>
+      {/* Time on the left, the actions on the right; when both don't fit (most phones with all four actions, large
+          text) the actions go to their own line, and they wrap themselves on a very narrow card. */}
+      <View style={[styles.wrapRow, styles.gapTop]}>
+        <AppText variant="caption" color="textMuted" style={styles.grow}>
           {formatRelative(item.createdAt)}
         </AppText>
-        {phoneOk ? (
-          <>
-            <IconButton icon="call-outline" accessibilityLabel={`Call ${item.fullName}`} variant="tonal" onPress={() => Linking.openURL(`tel:${item.phone}`).catch(() => undefined)} />
-            <IconButton
-              icon="logo-whatsapp"
-              accessibilityLabel={`WhatsApp ${item.fullName}`}
-              variant="tonal"
-              loading={openingWhatsApp}
-              onPress={openWhatsApp}
-            />
-          </>
-        ) : null}
-        {item.feedbackOutcome !== "converted" ? (
-          <IconButton icon="document-text-outline" accessibilityLabel="Create quotation" variant="tonal" onPress={onConvert} />
-        ) : null}
-        <Button title="Feedback" size="sm" variant="outline" onPress={onFeedback} />
+        <View style={styles.cardActions}>
+          {phoneOk ? (
+            <>
+              <IconButton icon="call-outline" accessibilityLabel={`Call ${item.fullName}`} variant="tonal" onPress={() => Linking.openURL(`tel:${item.phone}`).catch(() => undefined)} />
+              <IconButton
+                icon="logo-whatsapp"
+                accessibilityLabel={`WhatsApp ${item.fullName}`}
+                variant="tonal"
+                loading={openingWhatsApp}
+                onPress={openWhatsApp}
+              />
+            </>
+          ) : null}
+          {item.feedbackOutcome !== "converted" ? (
+            <IconButton icon="document-text-outline" accessibilityLabel="Create quotation" variant="tonal" onPress={onConvert} />
+          ) : null}
+          <Button title="Feedback" size="sm" variant="outline" onPress={onFeedback} />
+        </View>
       </View>
     </Card>
   );
+}
+
+/** Narrowest the branch name gets beside the "Change branch" button (font scale 1, dp). */
+const BRANCH_MIN_WIDTH = 140;
+
+/** BottomSheet's side padding (dp). */
+const SHEET_SIDE_PADDING = 20;
+
+/**
+ * A footer button's label, or its shorter form when the full one would not fit the sheet's width (320dp phone,
+ * large text): a Button label is one line, so a long one would be cut.
+ */
+function fittingLabel(full: string, short: string, width: number, fontScale: number): string {
+  const available = Math.min(width, MAX_CONTENT_WIDTH) - 2 * SHEET_SIDE_PADDING;
+  return estimateButtonWidth(full, fontScale, true) <= available ? full : short;
 }
 
 const OUTCOMES: { label: string; value: InquiryOutcome }[] = [
@@ -374,6 +412,7 @@ function FeedbackSheet({
   /** Opens the quotation an inquiry was converted into. */
   onOpenQuotation: (quotationId: number) => void;
 }) {
+  const { width, fontScale } = useResponsive();
   // Already converted: no second quotation from here; the linked one can be opened instead.
   const converted = item.feedbackOutcome === "converted";
   const canSetStatus = !!inquiryPath(item, "status");
@@ -429,16 +468,25 @@ function FeedbackSheet({
           converted ? (
             item.quotationId ? (
               <Button
-                title={`Open quotation #${item.quotationId}`}
+                title={fittingLabel(`Open quotation #${item.quotationId}`, `Quotation #${item.quotationId}`, width, fontScale)}
                 leftIcon="document-text-outline"
                 onPress={() => item.quotationId && onOpenQuotation(item.quotationId)}
+                accessibilityLabel={`Open quotation #${item.quotationId}`}
                 style={styles.flex}
+                textStyle={styles.shrink}
               />
             ) : (
               <Button title="Close" variant="outline" onPress={onClose} style={styles.flex} />
             )
           ) : (
-            <Button title="Create the quotation" leftIcon="document-text-outline" onPress={onConvert} style={styles.flex} />
+            <Button
+              title={fittingLabel("Create the quotation", "Create quotation", width, fontScale)}
+              leftIcon="document-text-outline"
+              onPress={onConvert}
+              accessibilityLabel="Create the quotation"
+              style={styles.flex}
+              textStyle={styles.shrink}
+            />
           )
         ) : (
           <>
@@ -672,9 +720,26 @@ function AddInquirySheet({
 
 const styles = StyleSheet.create({
   chipBar: { flexGrow: 0, flexShrink: 0 },
+  // The filters as the list's header: over the list's padding, so they look as they do pinned above it.
+  listHeader: { marginHorizontal: -LIST_PADDING, marginTop: -LIST_PADDING, paddingBottom: spacing.sm },
   chips: { paddingHorizontal: spacing.screen, paddingTop: spacing.sm },
   row: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  // A row whose second part moves to its own line when both don't fit.
+  wrapRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: spacing.sm, rowGap: spacing.xs },
+  branchLine: { flexGrow: 1, flexShrink: 1 },
+  grow: { flexGrow: 1, flexShrink: 1 },
+  cardActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: spacing.sm,
+    flexGrow: 1,
+    flexShrink: 1,
+  },
   flex: { flex: 1 },
+  // A button label that ends in "..." rather than being cut at both sides if it is still too long.
+  shrink: { flexShrink: 1 },
   gapTop: { marginTop: spacing.sm },
   statusBlock: { gap: spacing.sm },
 });

@@ -54,6 +54,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     alignSelf: "flex-start",
+    // Never wider than its row: a long status ellipsizes instead of overflowing (320dp phone, large text).
+    maxWidth: "100%",
     gap: 6,
     borderWidth: 1,
     borderRadius: 999,
@@ -61,7 +63,7 @@ const styles = StyleSheet.create({
   sm: { paddingHorizontal: 8, paddingVertical: 2, minHeight: 22 },
   md: { paddingHorizontal: 12, paddingVertical: 4, minHeight: 28 },
   dot: { width: 6, height: 6, borderRadius: 3 },
-  text: { ...fontFor("600"), includeFontPadding: false },
+  text: { ...fontFor("600"), includeFontPadding: false, flexShrink: 1 },
   textSm: { fontSize: 12 },
   textMd: { fontSize: 13 },
 });

@@ -5,6 +5,7 @@ import { canSelfDelete, STAFF_DELETE_MESSAGE } from "../../services/account/acco
 import { currentSignInMethods } from "../../services/account/firebaseAccount";
 import { ChangePasswordSheet } from "./ChangePasswordSheet";
 import { DeleteAccountSheet } from "./DeleteAccountSheet";
+import { useResponsive } from "../../utils/responsive";
 
 export type AccountSecurityCardProps = {
   /** After a customer deleted their account (this device is signed out by then). */
@@ -23,6 +24,9 @@ export function AccountSecurityCard({ onDeleted }: AccountSecurityCardProps) {
   // Recomputed when the signed-in user changes (Firebase's current user is read synchronously).
   const methods = useMemo(() => currentSignInMethods(), [user]); // eslint-disable-line react-hooks/exhaustive-deps
   const customer = canSelfDelete(role);
+  // With large text the row subtitles get more lines instead of being cut off.
+  const { isLargeText } = useResponsive();
+  const subtitleLines = isLargeText ? 4 : 2;
 
   if (!user) return null;
 
@@ -35,6 +39,7 @@ export function AccountSecurityCard({ onDeleted }: AccountSecurityCardProps) {
               leftIcon="key-outline"
               title="Change password"
               subtitle="Update the password you sign in with"
+              subtitleLines={subtitleLines}
               chevron
               onPress={() => setPasswordOpen(true)}
             />
@@ -47,6 +52,7 @@ export function AccountSecurityCard({ onDeleted }: AccountSecurityCardProps) {
             leftIconTone="danger"
             title="Delete account"
             subtitle="Remove your account and personal details"
+            subtitleLines={subtitleLines}
             destructive
             chevron
             onPress={() => setDeleteOpen(true)}
@@ -57,7 +63,7 @@ export function AccountSecurityCard({ onDeleted }: AccountSecurityCardProps) {
             leftIconTone="neutral"
             title="Delete account"
             subtitle={STAFF_DELETE_MESSAGE}
-            subtitleLines={3}
+            subtitleLines={isLargeText ? 6 : 3}
             chevron={false}
           />
         )}

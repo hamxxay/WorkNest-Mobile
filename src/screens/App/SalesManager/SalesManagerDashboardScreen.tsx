@@ -34,6 +34,7 @@ import {
   type SmDrill,
   type SmFocusTarget,
 } from "./sections";
+import { MAX_CONTENT_WIDTH } from "../../../utils/responsive";
 
 type Nav = NativeStackNavigationProp<SalesManagerStackParamList, "SalesManagerDashboard">;
 
@@ -150,7 +151,7 @@ export default function SalesManagerDashboardScreen() {
   const openProfile = () => navigation.navigate("SalesManagerProfile", { locations: knownLocations.map((l) => l.name) });
 
   return (
-    <Screen>
+    <Screen width="wide">
       <AppHeader
         variant="dashboard"
         overline={roleDisplayLabel}
@@ -257,6 +258,7 @@ export default function SalesManagerDashboardScreen() {
 const styles = StyleSheet.create({
   content: { padding: spacing.screen, paddingBottom: spacing.xxxl },
   stack: { gap: spacing.xl },
-  controls: { gap: spacing.md },
+  // The period / location pickers keep a form width on a wide dashboard instead of stretching across it.
+  controls: { gap: spacing.md, width: "100%", maxWidth: MAX_CONTENT_WIDTH },
   badgeRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: spacing.sm },
 });

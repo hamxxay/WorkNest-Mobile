@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { RefreshControl, ScrollView, StyleSheet, View } from "react-native";
+import { RefreshControl, ScrollView, StyleSheet } from "react-native";
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -39,6 +39,8 @@ import { returnToBookingScreen } from "../../../navigation/stackReturn";
 import { DoorSuspendedBanner } from "./shared/DoorSuspendedBanner";
 import { useEmployeeSummaries } from "./shared/useEmployeeSummaries";
 import { useInvoicePdf } from "./shared/useInvoicePdf";
+import { ScrollableState } from "./shared/ScrollableState";
+import { TitleRow } from "./shared/TitleRow";
 import type { AppStackParamList } from "../../../navigation/types";
 
 type Nav = NativeStackNavigationProp<AppStackParamList>;
@@ -162,7 +164,9 @@ export default function BookingDetailScreen() {
       {loading ? (
         <LoadingState message="Loading booking" />
       ) : error || !booking ? (
-        <ErrorState message={error} onRetry={() => load()} />
+        <ScrollableState>
+          <ErrorState message={error} onRetry={() => load()} />
+        </ScrollableState>
       ) : (
         <ScrollView
           contentContainerStyle={styles.content}
@@ -192,12 +196,13 @@ export default function BookingDetailScreen() {
             />
           ) : null}
           <Card>
-            <View style={styles.titleRow}>
-              <AppText variant="heading" style={styles.flex}>
-                {booking.spaceName ?? "Booking"}
-              </AppText>
-              <StatusPill status={status} size="md" />
-            </View>
+            <TitleRow
+              title={booking.spaceName ?? "Booking"}
+              variant="heading"
+              numberOfLines={0}
+              right={<StatusPill status={status} size="md" />}
+              style={styles.titleRow}
+            />
             <InfoRow label="Dates" value={formatDateRange(booking.startOn, booking.endOn)} icon="calendar-outline" />
             {booking.spaceTypeName ? <InfoRow label="Type" value={booking.spaceTypeName} icon="business-outline" /> : null}
             {booking.branchName || booking.locationName ? (
@@ -314,7 +319,6 @@ export default function BookingDetailScreen() {
 const createStyles = (_c: AppColors, t: Theme) =>
   StyleSheet.create({
     content: { padding: t.spacing.screen, gap: t.spacing.lg, paddingBottom: t.spacing.xxl },
-    titleRow: { flexDirection: "row", alignItems: "center", gap: t.spacing.sm, marginBottom: t.spacing.xs },
-    flex: { flex: 1 },
+    titleRow: { marginBottom: t.spacing.xs },
     top: { marginTop: t.spacing.sm },
   });

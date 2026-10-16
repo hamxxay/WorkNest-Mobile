@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
-import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
+import { StyleSheet, Text, View, useWindowDimensions, type StyleProp, type ViewStyle } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { useTheme, type Tone } from "../../theme";
 import { PRESS_SCALE_LARGE, ScalePressable } from "../motion/ScalePressable";
+import { stackLabelValue, textScale } from "../../utils/responsive";
 import { Avatar } from "./Avatar";
 
 export type ListRowProps = {
@@ -27,7 +28,7 @@ export type ListRowProps = {
   disabled?: boolean;
   /** Red title (e.g. "Delete account", "Log out"). */
   destructive?: boolean;
-  /** Max lines for title / subtitle. Default 1 / 2. */
+  /** Max lines for title / subtitle. Default 1 / 2 (title 2 with large system text). */
   titleLines?: number;
   subtitleLines?: number;
   accessibilityLabel?: string;
@@ -50,13 +51,20 @@ export function ListRow({
   onLongPress,
   disabled = false,
   destructive = false,
-  titleLines = 1,
+  titleLines,
   subtitleLines = 2,
   accessibilityLabel,
   accessibilityHint,
   style,
 }: ListRowProps) {
   const { colors, tones, typography } = useTheme();
+  const { width, fontScale } = useWindowDimensions();
+  // Large text on a phone: the meta (date, amount, "12 quotes · 3 won") and the right element (status pill, badge)
+  // go under the subtitle instead of squeezing the title to a few letters.
+  const below = stackLabelValue(width, fontScale);
+  const metaBelow = !!meta && below;
+  const titleMax = titleLines ?? (textScale(fontScale) >= 1.3 ? 2 : 1);
+  const rightBelow = right != null && right !== false && below;
   const pressable = !!(onPress || onLongPress);
   const showChevron = chevron ?? !!onPress;
   const tone = destructive ? tones.danger : tones[leftIconTone];
@@ -76,7 +84,7 @@ export function ListRow({
       {leading}
       <View style={styles.body}>
         <Text
-          numberOfLines={titleLines}
+          numberOfLines={titleMax}
           style={[typography.bodyStrong, { color: destructive ? colors.danger : colors.text }]}
         >
           {title}
@@ -86,13 +94,19 @@ export function ListRow({
             {subtitle}
           </Text>
         ) : null}
+        {metaBelow ? (
+          <Text numberOfLines={2} style={[typography.caption, { color: colors.textMuted }]}>
+            {meta}
+          </Text>
+        ) : null}
+        {rightBelow ? <View style={styles.rightBelow}>{right}</View> : null}
       </View>
-      {meta ? (
+      {meta && !metaBelow ? (
         <Text numberOfLines={1} style={[typography.caption, styles.meta, { color: colors.textMuted }]}>
           {meta}
         </Text>
       ) : null}
-      {right}
+      {rightBelow ? null : right}
       {showChevron ? <Ionicons name="chevron-forward" size={18} color={colors.textMuted} /> : null}
     </>
   );
@@ -135,6 +149,7 @@ const styles = StyleSheet.create({
   },
   body: { flex: 1, gap: 2 },
   iconWell: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  meta: { maxWidth: "35%", textAlign: "right" },
+  meta: { maxWidth: "35%", flexShrink: 1, textAlign: "right" },
+  rightBelow: { alignSelf: "flex-start", marginTop: 2 },
   disabled: { opacity: 0.5 },
 });

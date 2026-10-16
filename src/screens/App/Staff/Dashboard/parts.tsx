@@ -1,22 +1,38 @@
 import { Fragment, type ReactNode } from "react";
-import { StyleSheet, View } from "react-native";
-import { AppText, Card, Divider, ErrorState, KpiSkeleton, ListRow, SectionHeader, StatCard, type StatCardProps } from "../../../../components/ui";
+import { ScrollView, StyleSheet, View, useWindowDimensions } from "react-native";
+import {
+  AppText,
+  Card,
+  Divider,
+  ErrorState,
+  KpiSkeleton,
+  ListRow,
+  ResponsiveGrid,
+  SectionHeader,
+  STAT_CARD_MIN_WIDTH,
+  StatCard,
+  type StatCardProps,
+} from "../../../../components/ui";
 import type { AttentionItem } from "../../../../services/staff";
 import { spacing, useTheme } from "../../../../theme";
 import { formatDate, formatMoney } from "../../../../utils/format";
+import { textScale, useMeasuredWidth } from "../../../../utils/responsive";
 
 // Building blocks of the staff dashboard sections.
 
 export const money = (v: number | null | undefined) => formatMoney(v, { compact: true });
 
-/** KPI tiles, two per row. */
+/**
+ * KPI tiles in as many columns as fit: two per row on phones, four on tablets and unfolded foldables, one on a
+ * narrow phone with large text.
+ */
 export function KpiGrid({ tiles }: { tiles: StatCardProps[] }) {
   return (
-    <View style={styles.grid}>
+    <ResponsiveGrid minItemWidth={STAT_CARD_MIN_WIDTH} gap={spacing.md}>
       {tiles.map((t) => (
-        <StatCard key={t.label} {...t} style={styles.tile} />
+        <StatCard key={t.label} {...t} />
       ))}
-    </View>
+    </ResponsiveGrid>
   );
 }
 
@@ -63,7 +79,7 @@ export function Fact({ label, value }: { label: string; value: string }) {
       <AppText variant="caption" color="textMuted" numberOfLines={1}>
         {label}
       </AppText>
-      <AppText variant="bodyStrong" numberOfLines={1}>
+      <AppText variant="bodyStrong" numberOfLines={2}>
         {value}
       </AppText>
     </View>
@@ -72,15 +88,24 @@ export function Fact({ label, value }: { label: string; value: string }) {
 
 export type TableColumn = { label: string; flex?: number; align?: "left" | "right" };
 
+/** Width one table column of flex 1 needs at the default font size, before the table scrolls sideways (dp). */
+const TABLE_COLUMN_MIN = 64;
+
 /**
  * A compact table of figures under a chart, so every value stays readable as text. Each row is read as one
  * sentence by screen readers ("Oct 2026, Invoiced PKR 1.2M, Paid PKR 900K").
  */
 export function FigureTable({ columns, rows }: { columns: TableColumn[]; rows: { key: string; cells: string[] }[] }) {
   const { colors } = useTheme();
+  const { fontScale } = useWindowDimensions();
+  const [available, onLayout] = useMeasuredWidth(0);
+  // Too narrow for every column at this text size (320dp phone, large text): the table keeps a readable width
+  // and scrolls sideways inside its card instead of cutting the figures.
+  const needed = Math.ceil(columns.reduce((sum, c) => sum + (c.flex ?? 1), 0) * TABLE_COLUMN_MIN * textScale(fontScale));
+  const scrolls = available > 0 && needed > available;
   const cellStyle = (c: TableColumn) => [styles.cell, { flex: c.flex ?? 1 }, c.align === "right" ? styles.right : null];
-  return (
-    <View style={styles.table}>
+  const table = (
+    <View style={[styles.table, scrolls && { width: needed }]}>
       <View style={[styles.tableRow, styles.tableHead, { borderBottomColor: colors.border }]} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
         {columns.map((c) => (
           <AppText key={c.label} variant="caption" color="textMuted" numberOfLines={1} style={cellStyle(c)}>
@@ -110,6 +135,17 @@ export function FigureTable({ columns, rows }: { columns: TableColumn[]; rows: {
           ))}
         </View>
       ))}
+    </View>
+  );
+  return (
+    <View onLayout={onLayout}>
+      {scrolls ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator nestedScrollEnabled>
+          {table}
+        </ScrollView>
+      ) : (
+        table
+      )}
     </View>
   );
 }
@@ -153,8 +189,6 @@ export function AttentionList({
 }
 
 const styles = StyleSheet.create({
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md },
-  tile: { flexBasis: "46%", flexGrow: 1 },
   section: { gap: spacing.sm },
   fact: { gap: 2 },
   table: { gap: 2 },

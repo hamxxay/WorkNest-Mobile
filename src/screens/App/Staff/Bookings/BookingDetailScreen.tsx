@@ -43,6 +43,7 @@ import { normalizeStatus, spacing, useTheme } from "../../../../theme";
 import { formatDate, formatDateRange, formatMoney, parseDate } from "../../../../utils/format";
 import { StaffScreen } from "../shared/StaffScreen";
 import { useAsyncData } from "../shared/hooks";
+import { ActionRow, useStackedMeta } from "../shared/layout";
 import { useOpenFile } from "../shared/useOpenFile";
 import { useRefreshColors } from "../shared/refresh";
 import { InitialInvoiceSheet } from "./InitialInvoiceSheet";
@@ -60,6 +61,8 @@ export default function BookingDetailScreen() {
   const toast = useToast();
   const { opening, open } = useOpenFile();
   const refreshColors = useRefreshColors();
+  // Large text on a narrow phone: the status pill goes under the customer's name.
+  const stacked = useStackedMeta();
   const fetcher = useCallback(() => getBooking(params.bookingId), [params.bookingId]);
   const { data: b, loading, refreshing, error, reload, refresh } = useAsyncData<StaffBookingDetail>(fetcher);
   // Whether the first invoice exists (null: the server can't say, so the button stays offered).
@@ -147,9 +150,9 @@ export default function BookingDetailScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} {...refreshColors} />}
         >
           <Card>
-            <View style={styles.row}>
-              <View style={styles.flex}>
-                <AppText variant="heading" numberOfLines={2}>
+            <View style={stacked ? styles.stack : styles.row}>
+              <View style={stacked ? undefined : styles.flex}>
+                <AppText variant="heading" numberOfLines={stacked ? 3 : 2}>
                   {b.customerName || "Customer"}
                 </AppText>
                 {b.companyName ? (
@@ -219,17 +222,16 @@ export default function BookingDetailScreen() {
             {status === "confirmed" ? (
               <Button title="Reassign space" variant="secondary" leftIcon="git-compare-outline" onPress={() => setReassignOpen(true)} fullWidth />
             ) : null}
-            <View style={styles.row}>
+            <ActionRow>
               <Button
                 title="Challan PDF"
                 variant="outline"
                 leftIcon="document-outline"
                 loading={opening === "challan"}
                 onPress={() => open("challan", () => downloadBookingChallanPdf(b.bookingId, b.challanNumber), "Booking challan")}
-                style={styles.flex}
               />
-              <Button title="Email challan" variant="outline" leftIcon="mail-outline" loading={busy === "email"} onPress={emailChallan} style={styles.flex} />
-            </View>
+              <Button title="Email challan" variant="outline" leftIcon="mail-outline" loading={busy === "email"} onPress={emailChallan} />
+            </ActionRow>
             {!isCancelled ? (
               <Button title="Cancel booking" variant="danger" leftIcon="close-circle-outline" onPress={() => setConfirmCancel(true)} fullWidth />
             ) : null}
@@ -323,6 +325,8 @@ function StatusSheet({
   onPick: (id: BookingStatusId) => void;
 }) {
   const { colors, typography } = useTheme();
+  // Large text on a narrow phone: "Set to ..." under the pill instead of a few letters per line beside it.
+  const stacked = useStackedMeta();
   return (
     <BottomSheet error={error} visible={visible} onClose={onClose} dismissible={!busy} title="Change status" subtitle="Any status can be changed to any other, as in the web portal.">
       {BOOKING_STATUS_OPTIONS.map((o) => {
@@ -338,8 +342,10 @@ function StatusSheet({
             android_ripple={{ color: colors.ripple }}
             style={[styles.option, { borderColor: selected ? colors.primary : colors.border, backgroundColor: selected ? colors.primarySoft : colors.surface }]}
           >
-            <StatusPill status={o.label} />
-            <AppText style={[typography.body, styles.flex]}>{selected ? "Current status" : `Set to ${o.label}`}</AppText>
+            <View style={stacked ? styles.optionStack : styles.optionMain}>
+              <StatusPill status={o.label} />
+              <AppText style={[typography.body, !stacked && styles.flex]}>{selected ? "Current status" : `Set to ${o.label}`}</AppText>
+            </View>
             {selected ? <Ionicons name="checkmark" size={20} color={colors.primary} /> : null}
           </Pressable>
         );
@@ -449,7 +455,10 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { padding: spacing.screen, gap: spacing.md, paddingBottom: spacing.xxl },
   row: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  stack: { alignItems: "flex-start", gap: spacing.xs },
   actions: { gap: spacing.sm },
+  optionMain: { flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.md },
+  optionStack: { flex: 1, alignItems: "flex-start", gap: spacing.xs },
   option: {
     minHeight: 52,
     flexDirection: "row",

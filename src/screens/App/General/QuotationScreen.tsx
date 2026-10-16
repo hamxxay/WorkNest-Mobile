@@ -41,6 +41,8 @@ import type { AppStackParamList } from "../../../navigation/types";
 import { useAuth } from "../../../context/AuthContext";
 import { splitBreakdown } from "../../../services/amountBreakdown";
 import { AmountBreakdown } from "./shared/AmountBreakdown";
+import { ScrollableState } from "./shared/ScrollableState";
+import { TitleRow } from "./shared/TitleRow";
 
 /**
  * One quotation. Shared with the sales stack: customers (role general) can accept or decline (a reason is
@@ -172,7 +174,9 @@ export default function QuotationScreen() {
       {loading ? (
         <LoadingState message="Loading quotation" />
       ) : error || !quotation ? (
-        <ErrorState message={error} onRetry={() => load()} />
+        <ScrollableState>
+          <ErrorState message={error} onRetry={() => load()} />
+        </ScrollableState>
       ) : (
         <ScrollView
           contentContainerStyle={styles.content}
@@ -188,13 +192,14 @@ export default function QuotationScreen() {
           }
         >
           <Card>
-            <View style={styles.titleRow}>
-              <AppText variant="overline" color="textMuted" style={styles.flex}>
-                {quotation.customerName || "Quotation"}
-              </AppText>
-              <StatusPill status={quotationDisplayStatus(quotation)} size="md" />
-            </View>
-            <AppText variant="display" style={styles.total}>
+            <TitleRow
+              title={quotation.customerName || "Quotation"}
+              variant="overline"
+              color="textMuted"
+              numberOfLines={0}
+              right={<StatusPill status={quotationDisplayStatus(quotation)} size="md" />}
+            />
+            <AppText variant="display" maxFontSizeMultiplier={1.5} style={styles.total}>
               {formatMoney(quotation.total)}
             </AppText>
             <InfoRow label="Issued" value={formatDate(quotation.quotationDate)} icon="calendar-outline" />
@@ -334,7 +339,6 @@ export default function QuotationScreen() {
 const createStyles = (_c: AppColors, t: Theme) =>
   StyleSheet.create({
     content: { padding: t.spacing.screen, gap: t.spacing.lg, paddingBottom: t.spacing.xxl },
-    titleRow: { flexDirection: "row", alignItems: "center", gap: t.spacing.sm },
     flex: { flex: 1 },
     total: { marginVertical: t.spacing.sm },
     actions: { gap: t.spacing.md },

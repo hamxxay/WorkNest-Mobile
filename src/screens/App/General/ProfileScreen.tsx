@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { ScrollView, StyleSheet, View, type TextInput } from "react-native";
+import { ScrollView, StyleSheet, View, useWindowDimensions, type TextInput } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import {
@@ -13,8 +13,10 @@ import {
   Divider,
   HapticsSetting,
   ListRow,
+  ResponsiveGrid,
   Screen,
   SectionHeader,
+  STAT_CARD_MIN_WIDTH,
   StatCard,
   TextField,
   useToast,
@@ -32,6 +34,8 @@ import { rootNavRef } from "../../../navigation/AppNavigator";
 import { AccountSecurityCard } from "../../../components/account/AccountSecurityCard";
 import { SignOutButton } from "../../../components/account/SignOutButton";
 import type { AppStackParamList } from "../../../navigation/types";
+import { stackActions, textScale } from "../../../utils/responsive";
+import { useContentWidth } from "./shared/layout";
 import { version as appVersion } from "../../../../package.json";
 
 type Nav = NativeStackNavigationProp<AppStackParamList>;
@@ -49,6 +53,11 @@ export default function ProfileScreen() {
   const bell = useNotificationsAction();
   const doorAccess = useDoorAccess();
   const toast = useToast();
+  const { fontScale } = useWindowDimensions();
+  // Large text: the name and email may take two lines instead of a few letters and "...".
+  const identityLines = textScale(fontScale) >= 1.3 ? 2 : 1;
+  // Sign in / Create account side by side only when both labels fit (not on a 320dp phone or with large text).
+  const stackGuestActions = stackActions(useContentWidth() - 2 * CARD_PADDING, fontScale, ["Sign in", "Create account"], GUEST_ACTIONS_GAP);
 
   // Same rules as the My Bookings tabs: rejected, no-show and cancelled bookings are never "Upcoming".
   const [summary, setSummary] = useState<BookingSummary | null>(null);
@@ -155,11 +164,11 @@ export default function ProfileScreen() {
               <View style={styles.identity}>
                 <Avatar name={displayName} size={56} />
                 <View style={styles.flex}>
-                  <AppText variant="heading" numberOfLines={1}>
+                  <AppText variant="heading" numberOfLines={identityLines}>
                     {displayName}
                   </AppText>
                   {email ? (
-                    <AppText variant="bodySmall" color="textMuted" numberOfLines={1}>
+                    <AppText variant="bodySmall" color="textMuted" numberOfLines={identityLines}>
                       {email}
                     </AppText>
                   ) : null}
@@ -176,10 +185,10 @@ export default function ProfileScreen() {
             </Card>
 
             {summary ? (
-              <View style={styles.stats}>
+              <ResponsiveGrid minItemWidth={STAT_CARD_MIN_WIDTH} maxColumns={2}>
                 <StatCard label="Upcoming" value={summary.upcoming} icon="calendar-outline" onPress={() => navigation.navigate("MainTabs", { screen: "Bookings", params: { tab: "upcoming" } })} />
                 <StatCard label="Completed" value={summary.completed} tone="success" icon="checkmark-done-outline" onPress={() => navigation.navigate("MainTabs", { screen: "Bookings", params: { tab: "history" } })} />
-              </View>
+              </ResponsiveGrid>
             ) : null}
 
             <SectionHeader title="My account" />
@@ -216,9 +225,14 @@ export default function ProfileScreen() {
             <AppText variant="bodySmall" color="textSecondary" style={styles.top}>
               Sign in to book spaces, see your challans and payments, and sign your agreements.
             </AppText>
-            <View style={styles.guestActions}>
-              <Button title="Sign in" style={styles.flex} onPress={() => navigation.navigate("Login")} />
-              <Button title="Create account" variant="outline" style={styles.flex} onPress={() => navigation.navigate("Signup")} />
+            <View style={[styles.guestActions, stackGuestActions && styles.guestActionsStacked]}>
+              <Button title="Sign in" style={stackGuestActions ? null : styles.flex} onPress={() => navigation.navigate("Login")} />
+              <Button
+                title="Create account"
+                variant="outline"
+                style={stackGuestActions ? null : styles.flex}
+                onPress={() => navigation.navigate("Signup")}
+              />
             </View>
           </Card>
         )}
@@ -291,6 +305,10 @@ export default function ProfileScreen() {
   );
 }
 
+/** Card's default padding and the gap between the guest buttons (dp). */
+const CARD_PADDING = 16;
+const GUEST_ACTIONS_GAP = 12;
+
 const createStyles = (_c: AppColors, t: Theme) =>
   StyleSheet.create({
     content: { padding: t.spacing.screen, gap: t.spacing.lg, paddingBottom: t.spacing.xxl },
@@ -298,6 +316,6 @@ const createStyles = (_c: AppColors, t: Theme) =>
     flex: { flex: 1 },
     top: { marginTop: t.spacing.sm },
     identityActions: { flexDirection: "row", flexWrap: "wrap", gap: t.spacing.sm, marginTop: t.spacing.md },
-    stats: { flexDirection: "row", gap: t.spacing.md },
-    guestActions: { flexDirection: "row", gap: t.spacing.md, marginTop: t.spacing.lg },
+    guestActions: { flexDirection: "row", gap: GUEST_ACTIONS_GAP, marginTop: t.spacing.lg },
+    guestActionsStacked: { flexDirection: "column" },
   });

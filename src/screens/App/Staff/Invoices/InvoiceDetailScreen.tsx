@@ -34,6 +34,7 @@ import { spacing } from "../../../../theme";
 import { formatDate, formatDateRange, formatMoney, formatNumber } from "../../../../utils/format";
 import { StaffScreen } from "../shared/StaffScreen";
 import { useAsyncData } from "../shared/hooks";
+import { ActionRow, useStackedMeta } from "../shared/layout";
 import { useOpenFile } from "../shared/useOpenFile";
 import { useRefreshColors } from "../shared/refresh";
 
@@ -52,6 +53,8 @@ export default function InvoiceDetailScreen() {
   const { opening, open } = useOpenFile();
   const [emailing, setEmailing] = useState(false);
   const [paying, setPaying] = useState(false);
+  // Large text on a narrow phone: the status pill goes under the name, line amounts under their details.
+  const stacked = useStackedMeta();
   const fetcher = useCallback(() => getInvoice(params.invoiceId, params.invoice), [params.invoiceId, params.invoice]);
   const { data: inv, loading, refreshing, error, reload, refresh } = useAsyncData(fetcher);
 
@@ -80,9 +83,9 @@ export default function InvoiceDetailScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} {...refreshColors} />}
         >
           <Card>
-            <View style={styles.row}>
-              <View style={styles.flex}>
-                <AppText variant="heading" numberOfLines={2}>
+            <View style={stacked ? styles.stack : styles.row}>
+              <View style={stacked ? undefined : styles.flex}>
+                <AppText variant="heading" numberOfLines={stacked ? 3 : 2}>
                   {inv.customerName || "Customer"}
                 </AppText>
                 {inv.customerEmail ? (
@@ -123,12 +126,14 @@ export default function InvoiceDetailScreen() {
                   <View key={l.id || i}>
                     {i > 0 ? <Divider spacing={8} /> : null}
                     <AppText variant="bodyStrong">{l.description || l.chargeTypeLabel || "Charge"}</AppText>
-                    <View style={styles.row}>
-                      <AppText variant="caption" color="textMuted" style={styles.flex}>
+                    <View style={stacked ? styles.stack : styles.row}>
+                      <AppText variant="caption" color="textMuted" style={stacked ? undefined : styles.flex}>
                         {formatNumber(l.quantity)} x {formatMoney(l.unitPrice)}
                         {l.taxRate ? ` · tax ${formatNumber(l.taxRate * (l.taxRate <= 1 ? 100 : 1))}%` : ""}
                       </AppText>
-                      <AppText variant="bodySmall">{formatMoney(l.quantity * l.unitPrice - l.discountAmount)}</AppText>
+                      <AppText variant="bodySmall" numberOfLines={1} style={styles.shrink}>
+                        {formatMoney(l.quantity * l.unitPrice - l.discountAmount)}
+                      </AppText>
                     </View>
                   </View>
                 ))}
@@ -154,17 +159,16 @@ export default function InvoiceDetailScreen() {
             </Card>
           ) : null}
 
-          <View style={styles.row}>
+          <ActionRow>
             <Button
               title="Statement PDF"
               variant="outline"
               leftIcon="document-outline"
               loading={opening === "pdf"}
               onPress={() => open("pdf", () => downloadInvoicePdf(inv.id, inv.invoiceNumber), inv.invoiceNumber)}
-              style={styles.flex}
             />
-            <Button title="Email customer" leftIcon="mail-outline" loading={emailing} onPress={sendEmail} style={styles.flex} />
-          </View>
+            <Button title="Email customer" leftIcon="mail-outline" loading={emailing} onPress={sendEmail} />
+          </ActionRow>
           {canRecordPayment(inv) ? (
             <Button title="Record payment" leftIcon="cash-outline" onPress={() => setPaying(true)} fullWidth haptic />
           ) : null}
@@ -276,4 +280,6 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { padding: spacing.screen, gap: spacing.md, paddingBottom: spacing.xxl },
   row: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  stack: { alignItems: "flex-start", gap: spacing.xs },
+  shrink: { flexShrink: 1 },
 });

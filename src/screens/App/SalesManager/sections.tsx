@@ -26,7 +26,7 @@ import {
 import { dashboardTrend } from "../../../services/staff/dashboard";
 import { INQUIRY_TYPE_LABELS, INQUIRY_TYPES, spacing, useInquiryTypeColors } from "../../../theme";
 import { formatDate } from "../../../utils/format";
-import { ChartCard, InlineEmpty } from "../Ceo/parts";
+import { ChartCard, ChartGrid, InlineEmpty } from "../Ceo/parts";
 import { KpiGrid } from "../Staff/Dashboard/parts";
 
 // The Sales Manager dashboard sections (Sales funnel, Team performance, Tour inquiries, Renewals & desks), built
@@ -126,53 +126,55 @@ export function FunnelSection({ funnel: f, drill }: { funnel: SmFunnel; drill: S
   return (
     <>
       <KpiGrid tiles={tiles} />
-      <ChartCard title="Funnel" caption={`Created ${words}. Tap a stage for the list.`}>
-        {f.stages.length ? (
-          <HBarList
-            label={`Sales funnel ${words}`}
-            items={f.stages.map((s) => ({
-              key: s.stage,
-              label: s.label,
-              value: s.count,
-              // No share over 100% (most quotations don't start as tour inquiries): just the count then.
-              valueLabel: top > 0 && s.stage !== f.stages[0]?.stage && s.count <= top ? `${count(s.count)} · ${pct(shareOf(s.count, top))}` : count(s.count),
-            }))}
-            itemAccessibilityHint="Opens the list"
-            onPressItem={(item) => {
-              const s = f.stages.find((x) => x.stage === item.key);
-              if (s) openStage(s.stage, s.label);
-            }}
-          />
-        ) : (
-          <InlineEmpty text={`No inquiries or quotations ${words}.`} />
-        )}
-      </ChartCard>
-      <ChartCard title="Last 12 months" caption="Quotations, accepted and bookings by month. Tap a month for its desks booked by location.">
-        {recent.length ? (
-          <>
-            <SummaryStats
-              label="Last 12 months"
-              style={styles.gapBottom}
-              items={[
-                { label: "Quotations", value: count(totals.quotations) },
-                { label: "Bookings", value: count(totals.bookings) },
-                { label: "Desks booked", value: count(totals.desks) },
-              ]}
+      <ChartGrid>
+        <ChartCard title="Funnel" caption={`Created ${words}. Tap a stage for the list.`}>
+          {f.stages.length ? (
+            <HBarList
+              label={`Sales funnel ${words}`}
+              items={f.stages.map((s) => ({
+                key: s.stage,
+                label: s.label,
+                value: s.count,
+                // No share over 100% (most quotations don't start as tour inquiries): just the count then.
+                valueLabel: top > 0 && s.stage !== f.stages[0]?.stage && s.count <= top ? `${count(s.count)} · ${pct(shareOf(s.count, top))}` : count(s.count),
+              }))}
+              itemAccessibilityHint="Opens the list"
+              onPressItem={(item) => {
+                const s = f.stages.find((x) => x.stage === item.key);
+                if (s) openStage(s.stage, s.label);
+              }}
             />
-            <BarChart
-              label="Quotations, accepted and bookings by month"
-              series={[{ label: "Quotations" }, { label: "Accepted" }, { label: "Bookings" }]}
-              data={recent.map((m) => ({ label: monthShort(m.month), title: monthLabel(m.month), values: [m.quotations, m.accepted, m.bookings] }))}
-              formatValue={count}
-              emptyText="No quotations in these months."
-              itemAccessibilityHint="Opens this month by location"
-              onPressItem={(i) => drill.breakdown({ metric: "funnel-month", month: recent[i].month }, ["Sales funnel", monthLabel(recent[i].month)])}
-            />
-          </>
-        ) : (
-          <InlineEmpty text="No sales history yet." />
-        )}
-      </ChartCard>
+          ) : (
+            <InlineEmpty text={`No inquiries or quotations ${words}.`} />
+          )}
+        </ChartCard>
+        <ChartCard title="Last 12 months" caption="Quotations, accepted and bookings by month. Tap a month for its desks booked by location.">
+          {recent.length ? (
+            <>
+              <SummaryStats
+                label="Last 12 months"
+                style={styles.gapBottom}
+                items={[
+                  { label: "Quotations", value: count(totals.quotations) },
+                  { label: "Bookings", value: count(totals.bookings) },
+                  { label: "Desks booked", value: count(totals.desks) },
+                ]}
+              />
+              <BarChart
+                label="Quotations, accepted and bookings by month"
+                series={[{ label: "Quotations" }, { label: "Accepted" }, { label: "Bookings" }]}
+                data={recent.map((m) => ({ label: monthShort(m.month), title: monthLabel(m.month), values: [m.quotations, m.accepted, m.bookings] }))}
+                formatValue={count}
+                emptyText="No quotations in these months."
+                itemAccessibilityHint="Opens this month by location"
+                onPressItem={(i) => drill.breakdown({ metric: "funnel-month", month: recent[i].month }, ["Sales funnel", monthLabel(recent[i].month)])}
+              />
+            </>
+          ) : (
+            <InlineEmpty text="No sales history yet." />
+          )}
+        </ChartCard>
+      </ChartGrid>
     </>
   );
 }
@@ -195,67 +197,69 @@ export function TeamSection({ team: t, drill }: { team: SmTeam; drill: SmDrill }
   const words = periodWords(drill.scope.period);
   return (
     <>
-      <ChartCard title="People" caption={`Ranked by desks sold ${words}. Tap a person for the last 6 months.`} padding={0}>
-        {t.people.length ? (
-          t.people.map((p, i) => (
-            <Fragment key={`${p.userId ?? p.name}-${i}`}>
-              {i > 0 ? <Divider inset={68} /> : null}
-              <ListRow
-                avatar={{ name: p.name }}
-                title={p.name}
-                subtitle={personSubtitle(p)}
-                subtitleLines={3}
-                meta={desks(p.desksSold)}
-                right={p.followUpsDue ? <StatusPill tone="warning" icon="time-outline" label={`${count(p.followUpsDue)} due`} /> : undefined}
-                accessibilityLabel={[
-                  `Rank ${i + 1}: ${p.name}`,
-                  personSubtitle(p),
-                  `${desks(p.desksSold)} sold`,
-                  p.followUpsDue ? plural(p.followUpsDue, "follow-up due", "follow-ups due") : null,
-                ]
-                  .filter(Boolean)
-                  .join(". ")}
-                accessibilityHint={p.userId ? "Opens this person's last 6 months" : undefined}
-                onPress={p.userId ? () => drill.breakdown({ metric: "staff", userId: p.userId as number }, ["Team", p.name]) : undefined}
-              />
-            </Fragment>
-          ))
-        ) : (
-          <View style={styles.padded}>
-            <InlineEmpty text="No sales executives or admins at your locations yet." />
-          </View>
-        )}
-      </ChartCard>
-      <ChartCard title="Per location" caption={`Quotations, converted and desks sold ${words}`} padding={0}>
-        {t.perLocation.length ? (
-          t.perLocation.map((l, i) => (
-            <Fragment key={`${l.locationId ?? l.name}-${i}`}>
-              {i > 0 ? <Divider inset={16} /> : null}
-              <ListRow
-                leftIcon="location-outline"
-                title={l.name}
-                subtitle={[
-                  plural(l.salesExecutives, "sales executive", "sales executives"),
-                  plural(l.quotations, "quotation", "quotations"),
-                  `${count(l.converted)} converted`,
-                ].join(" · ")}
-                meta={desks(l.desksSold)}
-                accessibilityLabel={[
-                  l.name,
-                  plural(l.salesExecutives, "sales executive", "sales executives"),
-                  plural(l.quotations, "quotation", "quotations"),
-                  `${count(l.converted)} converted`,
-                  `${desks(l.desksSold)} sold`,
-                ].join(", ")}
-              />
-            </Fragment>
-          ))
-        ) : (
-          <View style={styles.padded}>
-            <InlineEmpty text="No locations with sales figures." />
-          </View>
-        )}
-      </ChartCard>
+      <ChartGrid>
+        <ChartCard title="People" caption={`Ranked by desks sold ${words}. Tap a person for the last 6 months.`} padding={0}>
+          {t.people.length ? (
+            t.people.map((p, i) => (
+              <Fragment key={`${p.userId ?? p.name}-${i}`}>
+                {i > 0 ? <Divider inset={68} /> : null}
+                <ListRow
+                  avatar={{ name: p.name }}
+                  title={p.name}
+                  subtitle={personSubtitle(p)}
+                  subtitleLines={3}
+                  meta={desks(p.desksSold)}
+                  right={p.followUpsDue ? <StatusPill tone="warning" icon="time-outline" label={`${count(p.followUpsDue)} due`} /> : undefined}
+                  accessibilityLabel={[
+                    `Rank ${i + 1}: ${p.name}`,
+                    personSubtitle(p),
+                    `${desks(p.desksSold)} sold`,
+                    p.followUpsDue ? plural(p.followUpsDue, "follow-up due", "follow-ups due") : null,
+                  ]
+                    .filter(Boolean)
+                    .join(". ")}
+                  accessibilityHint={p.userId ? "Opens this person's last 6 months" : undefined}
+                  onPress={p.userId ? () => drill.breakdown({ metric: "staff", userId: p.userId as number }, ["Team", p.name]) : undefined}
+                />
+              </Fragment>
+            ))
+          ) : (
+            <View style={styles.padded}>
+              <InlineEmpty text="No sales executives or admins at your locations yet." />
+            </View>
+          )}
+        </ChartCard>
+        <ChartCard title="Per location" caption={`Quotations, converted and desks sold ${words}`} padding={0}>
+          {t.perLocation.length ? (
+            t.perLocation.map((l, i) => (
+              <Fragment key={`${l.locationId ?? l.name}-${i}`}>
+                {i > 0 ? <Divider inset={16} /> : null}
+                <ListRow
+                  leftIcon="location-outline"
+                  title={l.name}
+                  subtitle={[
+                    plural(l.salesExecutives, "sales executive", "sales executives"),
+                    plural(l.quotations, "quotation", "quotations"),
+                    `${count(l.converted)} converted`,
+                  ].join(" · ")}
+                  meta={desks(l.desksSold)}
+                  accessibilityLabel={[
+                    l.name,
+                    plural(l.salesExecutives, "sales executive", "sales executives"),
+                    plural(l.quotations, "quotation", "quotations"),
+                    `${count(l.converted)} converted`,
+                    `${desks(l.desksSold)} sold`,
+                  ].join(", ")}
+                />
+              </Fragment>
+            ))
+          ) : (
+            <View style={styles.padded}>
+              <InlineEmpty text="No locations with sales figures." />
+            </View>
+          )}
+        </ChartCard>
+      </ChartGrid>
     </>
   );
 }
@@ -323,72 +327,74 @@ export function InquiriesSection({ inquiries: q, drill }: { inquiries: SmInquiri
   return (
     <>
       <KpiGrid tiles={tiles} />
-      <ChartCard title="By type" caption={`How visitors found WorkNest, ${words}. Tap a type for the last 6 months.`}>
-        {typeItems.length && typeTotal > 0 ? (
-          <>
-            <View style={styles.donutCenter}>
-              <Donut
-                size={DONUT_SIZE}
-                segments={q.byType.map((t) => ({ label: t.label, value: t.count, color: colorOf(t.type) }))}
-                legend={false}
-                centerLabel={count(typeTotal)}
-                centerCaption="inquiries"
-                label={`Tour inquiries by type ${words}`}
+      <ChartGrid>
+        <ChartCard title="By type" caption={`How visitors found WorkNest, ${words}. Tap a type for the last 6 months.`}>
+          {typeItems.length && typeTotal > 0 ? (
+            <>
+              <View style={styles.donutCenter}>
+                <Donut
+                  size={DONUT_SIZE}
+                  segments={q.byType.map((t) => ({ label: t.label, value: t.count, color: colorOf(t.type) }))}
+                  legend={false}
+                  centerLabel={count(typeTotal)}
+                  centerCaption="inquiries"
+                  label={`Tour inquiries by type ${words}`}
+                />
+              </View>
+              <HBarList
+                style={styles.gapTop}
+                label="Tour inquiries by type"
+                items={typeItems}
+                itemAccessibilityHint="Opens this type by month"
+                onPressItem={(item) => {
+                  const t = q.byType.find((x) => x.key === item.key);
+                  if (t) drill.breakdown({ metric: "inquiries-type", type: t.key }, ["Tour inquiries", t.label]);
+                }}
               />
-            </View>
+            </>
+          ) : (
+            <InlineEmpty text={`No tour inquiries ${words}.`} />
+          )}
+        </ChartCard>
+        <ChartCard title="Why not interested" caption={`Top reasons ${words}. Tap a reason for those inquiries.`}>
+          {q.notInterestedReasons.length ? (
             <HBarList
-              style={styles.gapTop}
-              label="Tour inquiries by type"
-              items={typeItems}
-              itemAccessibilityHint="Opens this type by month"
-              onPressItem={(item) => {
-                const t = q.byType.find((x) => x.key === item.key);
-                if (t) drill.breakdown({ metric: "inquiries-type", type: t.key }, ["Tour inquiries", t.label]);
+              label="Not interested reasons"
+              items={q.notInterestedReasons.map((r, i) => ({ key: `${r.reason}-${i}`, label: r.reason, value: r.count, tone: "neutral" }))}
+              formatValue={count}
+              itemAccessibilityHint="Opens these inquiries"
+              onPressItem={(_item, i) => {
+                const r = q.notInterestedReasons[i];
+                if (r) drill.records(smNotInterestedRecords(r.reason, drill.scope), ["Tour inquiries", "Not interested", r.reason], "Not interested");
               }}
             />
-          </>
-        ) : (
-          <InlineEmpty text={`No tour inquiries ${words}.`} />
-        )}
-      </ChartCard>
-      <ChartCard title="Why not interested" caption={`Top reasons ${words}. Tap a reason for those inquiries.`}>
-        {q.notInterestedReasons.length ? (
-          <HBarList
-            label="Not interested reasons"
-            items={q.notInterestedReasons.map((r, i) => ({ key: `${r.reason}-${i}`, label: r.reason, value: r.count, tone: "neutral" }))}
-            formatValue={count}
-            itemAccessibilityHint="Opens these inquiries"
-            onPressItem={(_item, i) => {
-              const r = q.notInterestedReasons[i];
-              if (r) drill.records(smNotInterestedRecords(r.reason, drill.scope), ["Tour inquiries", "Not interested", r.reason], "Not interested");
-            }}
-          />
-        ) : (
-          <InlineEmpty text={`No inquiries marked not interested ${words}.`} />
-        )}
-      </ChartCard>
-      <ChartCard title="Last 12 months" caption="Tour inquiries by type each month. Tap a month for its inquiries.">
-        {recent.length ? (
-          <BarChart
-            stacked
-            label="Tour inquiries by type and month"
-            series={monthSeries}
-            data={recent.map((m) => ({
-              label: monthShort(m.month),
-              title: monthLabel(m.month),
-              values: INQUIRY_TYPES.map((t) => m.counts[t]),
-            }))}
-            formatValue={count}
-            emptyText="No tour inquiries in these months."
-            itemAccessibilityHint="Opens this month's inquiries"
-            onPressItem={(i) =>
-              drill.records(smInquiryMonthRecords(recent[i].month, drill.scope), ["Tour inquiries", monthLabel(recent[i].month)], `Tour inquiries, ${monthLabel(recent[i].month)}`)
-            }
-          />
-        ) : (
-          <InlineEmpty text="No inquiry history yet." />
-        )}
-      </ChartCard>
+          ) : (
+            <InlineEmpty text={`No inquiries marked not interested ${words}.`} />
+          )}
+        </ChartCard>
+        <ChartCard title="Last 12 months" caption="Tour inquiries by type each month. Tap a month for its inquiries.">
+          {recent.length ? (
+            <BarChart
+              stacked
+              label="Tour inquiries by type and month"
+              series={monthSeries}
+              data={recent.map((m) => ({
+                label: monthShort(m.month),
+                title: monthLabel(m.month),
+                values: INQUIRY_TYPES.map((t) => m.counts[t]),
+              }))}
+              formatValue={count}
+              emptyText="No tour inquiries in these months."
+              itemAccessibilityHint="Opens this month's inquiries"
+              onPressItem={(i) =>
+                drill.records(smInquiryMonthRecords(recent[i].month, drill.scope), ["Tour inquiries", monthLabel(recent[i].month)], `Tour inquiries, ${monthLabel(recent[i].month)}`)
+              }
+            />
+          ) : (
+            <InlineEmpty text="No inquiry history yet." />
+          )}
+        </ChartCard>
+      </ChartGrid>
     </>
   );
 }
@@ -469,95 +475,97 @@ export function RenewalsSection({ renewals: r, drill }: { renewals: SmRenewals; 
   return (
     <>
       <KpiGrid tiles={tiles} />
-      <View ref={drill.target("renewalsMonths")} collapsable={false}>
-        <ChartCard
-          title={view === "desks" ? "Desks booked & desks ending" : "Leases ending"}
-          caption="Last 12 months and the next 3. Tap a month to see it by location."
-        >
-          <SegmentedControl
-            accessibilityLabel="Chart shows"
-            options={[
-              { label: "Desks", value: "desks" },
-              { label: "Leases ending", value: "leases" },
-            ]}
-            value={view}
-            onChange={setView}
-          />
-          {months.length ? (
-            view === "desks" ? (
-              <BarChart
-                key="desks"
-                style={styles.gapTop}
-                label="Desks booked and desks ending by month"
-                series={[{ label: "Desks booked", tone: "success" }, { label: "Desks ending", tone: "warning" }]}
-                data={months.map((m) => ({ label: monthShort(m.month), title: monthLabel(m.month), values: [m.bookedDesks, m.endingDesks] }))}
-                formatValue={count}
-                emptyText="No desks booked or ending in these months."
-                itemAccessibilityHint="Opens this month by location"
-                onPressItem={openMonth}
-              />
+      <ChartGrid>
+        <View ref={drill.target("renewalsMonths")} collapsable={false}>
+          <ChartCard
+            title={view === "desks" ? "Desks booked & desks ending" : "Leases ending"}
+            caption="Last 12 months and the next 3. Tap a month to see it by location."
+          >
+            <SegmentedControl
+              accessibilityLabel="Chart shows"
+              options={[
+                { label: "Desks", value: "desks" },
+                { label: "Leases ending", value: "leases" },
+              ]}
+              value={view}
+              onChange={setView}
+            />
+            {months.length ? (
+              view === "desks" ? (
+                <BarChart
+                  key="desks"
+                  style={styles.gapTop}
+                  label="Desks booked and desks ending by month"
+                  series={[{ label: "Desks booked", tone: "success" }, { label: "Desks ending", tone: "warning" }]}
+                  data={months.map((m) => ({ label: monthShort(m.month), title: monthLabel(m.month), values: [m.bookedDesks, m.endingDesks] }))}
+                  formatValue={count}
+                  emptyText="No desks booked or ending in these months."
+                  itemAccessibilityHint="Opens this month by location"
+                  onPressItem={openMonth}
+                />
+              ) : (
+                <BarChart
+                  key="leases"
+                  style={styles.gapTop}
+                  label="Leases ending by month"
+                  series={[{ label: "Leases ending", tone: "warning" }]}
+                  data={months.map((m) => ({ label: monthShort(m.month), title: monthLabel(m.month), values: [m.expiring] }))}
+                  formatValue={count}
+                  emptyText="No leases end in these months."
+                  itemAccessibilityHint="Opens this month by location"
+                  onPressItem={openMonth}
+                />
+              )
             ) : (
-              <BarChart
-                key="leases"
-                style={styles.gapTop}
-                label="Leases ending by month"
-                series={[{ label: "Leases ending", tone: "warning" }]}
-                data={months.map((m) => ({ label: monthShort(m.month), title: monthLabel(m.month), values: [m.expiring] }))}
-                formatValue={count}
-                emptyText="No leases end in these months."
-                itemAccessibilityHint="Opens this month by location"
-                onPressItem={openMonth}
-              />
-            )
-          ) : (
-            <InlineEmpty text="No history yet." />
-          )}
-        </ChartCard>
-      </View>
-      <View ref={drill.target("expiring")} collapsable={false}>
-        <ChartCard title="Leases expiring" caption="Ending in the next 90 days, soonest first" padding={0}>
-          {r.expiring.length ? (
-            <>
-              <SummaryStats
-                label="Leases expiring"
-                style={styles.summaryPadded}
-                items={[
-                  { label: "Leases", value: count(r.expiringCount) },
-                  { label: "Desks", value: count(r.expiringDesks) },
-                ]}
-              />
-              {shownLeases.map((l, i) => (
-                <Fragment key={`${l.bookingId ?? l.customer}-${i}`}>
-                  <Divider inset={16} />
-                  <ListRow
-                    leftIcon="hourglass-outline"
-                    leftIconTone={l.daysLeft != null && l.daysLeft <= 30 ? "danger" : "warning"}
-                    title={l.customer}
-                    subtitle={[l.space, l.location, l.endOn ? `ends ${formatDate(l.endOn)}` : null, daysLeftWords(l.daysLeft)].filter(Boolean).join(" · ")}
-                    meta={desks(l.desks)}
-                  />
-                </Fragment>
-              ))}
-              {moreLeases > 0 ? (
-                <>
-                  <Divider inset={16} />
-                  <ListRow
-                    leftIcon="list-outline"
-                    title={`All ${count(r.expiringCount)} leases expiring`}
-                    subtitle={`and ${count(moreLeases)} more not shown here`}
-                    accessibilityHint="Opens every lease ending in the next 90 days"
-                    onPress={() => openLeases()}
-                  />
-                </>
-              ) : null}
-            </>
-          ) : (
-            <View style={styles.padded}>
-              <InlineEmpty text="No leases end in the next 90 days." />
-            </View>
-          )}
-        </ChartCard>
-      </View>
+              <InlineEmpty text="No history yet." />
+            )}
+          </ChartCard>
+        </View>
+        <View ref={drill.target("expiring")} collapsable={false}>
+          <ChartCard title="Leases expiring" caption="Ending in the next 90 days, soonest first" padding={0}>
+            {r.expiring.length ? (
+              <>
+                <SummaryStats
+                  label="Leases expiring"
+                  style={styles.summaryPadded}
+                  items={[
+                    { label: "Leases", value: count(r.expiringCount) },
+                    { label: "Desks", value: count(r.expiringDesks) },
+                  ]}
+                />
+                {shownLeases.map((l, i) => (
+                  <Fragment key={`${l.bookingId ?? l.customer}-${i}`}>
+                    <Divider inset={16} />
+                    <ListRow
+                      leftIcon="hourglass-outline"
+                      leftIconTone={l.daysLeft != null && l.daysLeft <= 30 ? "danger" : "warning"}
+                      title={l.customer}
+                      subtitle={[l.space, l.location, l.endOn ? `ends ${formatDate(l.endOn)}` : null, daysLeftWords(l.daysLeft)].filter(Boolean).join(" · ")}
+                      meta={desks(l.desks)}
+                    />
+                  </Fragment>
+                ))}
+                {moreLeases > 0 ? (
+                  <>
+                    <Divider inset={16} />
+                    <ListRow
+                      leftIcon="list-outline"
+                      title={`All ${count(r.expiringCount)} leases expiring`}
+                      subtitle={`and ${count(moreLeases)} more not shown here`}
+                      accessibilityHint="Opens every lease ending in the next 90 days"
+                      onPress={() => openLeases()}
+                    />
+                  </>
+                ) : null}
+              </>
+            ) : (
+              <View style={styles.padded}>
+                <InlineEmpty text="No leases end in the next 90 days." />
+              </View>
+            )}
+          </ChartCard>
+        </View>
+      </ChartGrid>
     </>
   );
 }

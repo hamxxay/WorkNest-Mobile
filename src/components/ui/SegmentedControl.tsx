@@ -68,7 +68,9 @@ export function SegmentedControl<T extends string | number>({
             ]}
           >
             {opt.icon ? <Ionicons name={opt.icon} size={16} color={fg} /> : null}
-            <Text numberOfLines={1} maxFontSizeMultiplier={1.3} style={[typography.label, { color: fg }]}>
+            {/* Two lines before an ellipsis: on a 320dp phone or with large text a label wraps instead of losing
+                its end ("New bookings" -> "New book..."). */}
+            <Text numberOfLines={2} maxFontSizeMultiplier={1.3} style={[typography.label, styles.label, { color: fg }]}>
               {opt.label}
             </Text>
           </Pressable>
@@ -94,9 +96,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 6,
     paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: 9,
     borderWidth: 1,
     borderColor: "transparent",
   },
   selected: {},
+  label: { flexShrink: 1, textAlign: "center" },
 });

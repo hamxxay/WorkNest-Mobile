@@ -5,6 +5,7 @@ import { SkeletonBlock, SkeletonGroup } from "../Skeleton";
 import { PRESS_SCALE, ScalePressable } from "../motion/ScalePressable";
 import { Sparkline } from "../charts/Sparkline";
 import { describeTrend } from "../charts/summary";
+import { STAT_CARD_MIN_WIDTH } from "../../utils/responsive";
 
 export type StatTrend = {
   direction: "up" | "down" | "flat";
@@ -32,7 +33,13 @@ export type StatCardProps = {
   style?: StyleProp<ViewStyle>;
 };
 
-/** KPI tile for dashboards. Put two per row: `<View style={{flexDirection:"row", gap:12}}>`. */
+/** Narrowest a StatCard should get at the default font size (dp): the column width ResponsiveGrid / KpiGrid use. */
+export { STAT_CARD_MIN_WIDTH };
+
+/**
+ * KPI tile for dashboards. Lay several out with `<ResponsiveGrid minItemWidth={STAT_CARD_MIN_WIDTH}>` (two per row
+ * on phones, four on tablets, one on a narrow phone with large text) rather than a fixed row.
+ */
 export function StatCard({ label, value, sub, tone = "primary", icon, trend, onPress, loading = false, trendSeries, style }: StatCardProps) {
   const { colors, tones, typography, radii, shadows } = useTheme();
   const t = tones[tone];
@@ -124,7 +131,8 @@ export const KpiCard = StatCard;
 export type KpiCardProps = StatCardProps;
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, minWidth: 140 },
+  // No minWidth: in a plain row of two on a 320dp phone the cards must shrink, not push past the screen edge.
+  flex: { flex: 1 },
   top: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 8 },
   label: { flex: 1 },
   iconWell: { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center" },

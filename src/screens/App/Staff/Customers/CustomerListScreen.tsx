@@ -4,6 +4,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { AppHeader, AsyncList, Card, ListRow, StatusPill } from "../../../../components/ui";
 import type { StaffStackParamList } from "../../../../navigation/staffTypes";
 import { listCustomers, type StaffCustomer } from "../../../../services/staff";
+import { useResponsive } from "../../../../utils/responsive";
 import { SearchField } from "../shared/SearchField";
 import { StaffScreen, useInTabs } from "../shared/StaffScreen";
 import { useDebounced, usePagedList } from "../shared/hooks";
@@ -63,14 +64,18 @@ export default function CustomerListScreen() {
 }
 
 function CustomerRow({ customer, onPress }: { customer: StaffCustomer; onPress: () => void }) {
-  const subtitle = [customer.company, customer.email, customer.phoneNumber].filter(Boolean).join(" · ");
+  // An inactive customer on a phone: the code moves into the subtitle, so the code and the Inactive pill beside it
+  // don't leave the name a few letters wide.
+  const { isTablet } = useResponsive();
+  const codeBeside = isTablet || customer.isActive;
+  const subtitle = [codeBeside ? null : customer.code, customer.company, customer.email, customer.phoneNumber].filter(Boolean).join(" · ");
   return (
     <Card padding={0}>
       <ListRow
         avatar={{ name: customer.fullName || customer.email }}
         title={customer.fullName || customer.email}
         subtitle={subtitle}
-        meta={customer.code || undefined}
+        meta={codeBeside ? customer.code || undefined : undefined}
         right={customer.isActive ? undefined : <StatusPill status="Inactive" />}
         onPress={onPress}
       />

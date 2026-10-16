@@ -10,6 +10,7 @@ import { formatDateRange, formatMoney } from "../../../../utils/format";
 import { SearchField } from "../shared/SearchField";
 import { StaffScreen, useInTabs } from "../shared/StaffScreen";
 import { useDebounced, usePagedList } from "../shared/hooks";
+import { useStackedMeta } from "../shared/layout";
 
 type Nav = NativeStackNavigationProp<StaffStackParamList>;
 const PAGE_SIZE = 15;
@@ -57,11 +58,13 @@ export default function BookingListScreen() {
 }
 
 function BookingCard({ booking: b, onPress }: { booking: StaffBooking; onPress: () => void }) {
+  // Large text on a narrow phone: the status and the amount go under the text beside them.
+  const stacked = useStackedMeta();
   return (
     <Card onPress={onPress} accessibilityLabel={`Booking ${b.bookingId}, ${b.customerName}, ${b.statusLabel}`}>
-      <View style={styles.row}>
-        <View style={styles.flex}>
-          <AppText variant="bodyStrong" numberOfLines={1}>
+      <View style={stacked ? styles.stack : styles.row}>
+        <View style={stacked ? undefined : styles.flex}>
+          <AppText variant="bodyStrong" numberOfLines={stacked ? 2 : 1}>
             {b.customerName || "Customer"}
           </AppText>
           <AppText variant="caption" color="textMuted" numberOfLines={1}>
@@ -74,11 +77,15 @@ function BookingCard({ booking: b, onPress }: { booking: StaffBooking; onPress: 
       <AppText variant="bodySmall" color="textSecondary" numberOfLines={1} style={styles.gapTop}>
         {[b.spaceName, b.locationName].filter(Boolean).join(" · ") || "Space"}
       </AppText>
-      <View style={[styles.row, styles.gapTop]}>
-        <AppText variant="caption" color="textMuted" style={styles.flex}>
+      <View style={[stacked ? styles.stack : styles.row, styles.gapTop]}>
+        <AppText variant="caption" color="textMuted" style={stacked ? undefined : styles.flex}>
           {formatDateRange(b.contractStartDate || b.startOn, b.contractEndDate || b.endOn)}
         </AppText>
-        {b.totalAmount ? <AppText variant="amount">{formatMoney(b.totalAmount)}</AppText> : null}
+        {b.totalAmount ? (
+          <AppText variant="amount" numberOfLines={1} style={styles.shrink}>
+            {formatMoney(b.totalAmount)}
+          </AppText>
+        ) : null}
       </View>
     </Card>
   );
@@ -86,6 +93,8 @@ function BookingCard({ booking: b, onPress }: { booking: StaffBooking; onPress: 
 
 const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  stack: { alignItems: "flex-start", gap: spacing.xs },
   flex: { flex: 1 },
+  shrink: { flexShrink: 1 },
   gapTop: { marginTop: spacing.xs },
 });

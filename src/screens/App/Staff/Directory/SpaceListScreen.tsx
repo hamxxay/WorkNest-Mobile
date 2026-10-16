@@ -17,6 +17,7 @@ import { SearchField } from "../shared/SearchField";
 import { StaffScreen } from "../shared/StaffScreen";
 import { useStaffSession } from "../shared/StaffSession";
 import { useDebounced, usePagedList } from "../shared/hooks";
+import { useShortWindow, useStackedMeta } from "../shared/layout";
 
 type Route = RouteProp<StaffStackParamList, "Spaces">;
 type GroupFilter = SpaceGroup | "all";
@@ -47,11 +48,14 @@ export default function SpaceListScreen() {
     [list.items, locationId, group, search],
   );
   const booked = rows.filter(isSpaceBooked).length;
+  // Phone in landscape / large text: location, type and search would leave the list a strip of a card or two;
+  // they scroll away with the list instead.
+  const short = useShortWindow();
+  const stacked = useStackedMeta();
 
-  return (
-    <StaffScreen>
-      <AppHeader title="Spaces" subtitle={list.items.length ? `${rows.length} shown · ${booked} booked` : undefined} />
-      <View style={styles.filters}>
+  const filters = (
+    <>
+      <View style={short ? styles.filtersInList : styles.filters}>
         <SelectField
           label="Location"
           value={locationId}
@@ -73,8 +77,16 @@ export default function SpaceListScreen() {
           style={styles.chipBar}
         />
       </View>
-      <SearchField value={query} onChangeText={setQuery} placeholder="Search name or code" />
+      <SearchField value={query} onChangeText={setQuery} placeholder="Search name or code" style={short ? styles.searchInList : undefined} />
+    </>
+  );
+
+  return (
+    <StaffScreen>
+      <AppHeader title="Spaces" subtitle={list.items.length ? `${rows.length} shown · ${booked} booked` : undefined} />
+      {short ? null : filters}
       <AsyncList
+        ListHeaderComponent={short ? <View style={styles.listHeader}>{filters}</View> : undefined}
         data={rows}
         keyExtractor={(s) => String(s.id)}
         loading={list.loading}
@@ -86,19 +98,19 @@ export default function SpaceListScreen() {
         empty={{ illustration: search ? "search" : "building", title: "No spaces found" }}
         renderItem={({ item: s }) => (
           <Card padding={12}>
-            <View style={styles.row}>
-              <View style={styles.flex}>
-                <AppText variant="bodyStrong" numberOfLines={1}>
+            <View style={stacked ? styles.stack : styles.row}>
+              <View style={stacked ? undefined : styles.flex}>
+                <AppText variant="bodyStrong" numberOfLines={stacked ? 2 : 1}>
                   {[s.name, s.code].filter(Boolean).join(" · ")}
                 </AppText>
                 <AppText variant="caption" color="textMuted" numberOfLines={1}>
                   {[s.spaceTypeName, s.locationName, s.floor, s.capacity ? `${s.capacity} seats` : null].filter(Boolean).join(" · ")}
                 </AppText>
               </View>
-              <View style={styles.right}>
+              <View style={stacked ? styles.metaStacked : styles.right}>
                 <StatusPill status={isSpaceBooked(s) ? "Booked" : "Available"} />
                 {spaceMonthlyPrice(s) ? (
-                  <AppText variant="caption" color="textMuted">
+                  <AppText variant="caption" color="textMuted" numberOfLines={1}>
                     {formatMoney(spaceMonthlyPrice(s))}
                   </AppText>
                 ) : null}
@@ -119,8 +131,14 @@ export default function SpaceListScreen() {
 const styles = StyleSheet.create({
   filters: { paddingHorizontal: spacing.screen, paddingTop: spacing.md, gap: spacing.sm },
   chipBar: { flexGrow: 0, flexShrink: 0 },
+  // Inside the list header (short windows) the list already pads the content.
+  filtersInList: { gap: spacing.sm },
+  searchInList: { paddingHorizontal: 0, paddingTop: spacing.sm },
+  listHeader: { marginBottom: spacing.sm },
   row: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  stack: { alignItems: "flex-start", gap: spacing.xs },
   flex: { flex: 1 },
-  right: { alignItems: "flex-end", gap: 4 },
+  right: { alignItems: "flex-end", gap: 4, flexShrink: 1 },
+  metaStacked: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: spacing.sm },
   gapTop: { marginTop: spacing.xs },
 });

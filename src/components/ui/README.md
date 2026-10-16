@@ -147,6 +147,15 @@ Please delete the per-screen `statusColor` / `STATUS_CONFIG` maps when you resty
 Status-bar policy: the bar takes the colour of the header under it (AppHeader registers itself) or the page
 background, with matching light / dark icons, applied only while the screen is focused.
 
+Screen sizes (phones from 320dp, the Galaxy Z Fold cover and inner screens, tablets, landscape, font scale up
+to 2): on a wide window the content sits in a centred column, `width="content"` (default, 720dp: forms, lists,
+details), `"wide"` (1120dp: dashboards) or `"full"`; the AppHeader background still spans the window. The column
+wrapper never changes, so unfolding a Fold does not remount the screen. Size rules live in
+`src/utils/responsive.ts` (`useResponsive`, `columnsFor`, `stackActions`, `stackLabelValue`): always read sizes
+through `useWindowDimensions` / onLayout, never `Dimensions.get()` at import time. Tiles and cards in columns:
+`<ResponsiveGrid minItemWidth={148}>` (1 / 2 / 4 columns by measured width and font size). BottomSheet footers,
+ConfirmDialog buttons, InfoRow and ListRow meta stack by themselves when they would not fit.
+
 ```tsx
 <Screen>
   <AppHeader title="Booking details" subtitle="BK-1042" />            {/* variant "stack": auto back button */}
@@ -276,11 +285,11 @@ InfoRow: `label`, `value` (text or element), `icon`, `layout` (`inline | stacked
 ### StatCard (alias KpiCard)
 
 ```tsx
-<View style={{ flexDirection: "row", gap: 12 }}>
+<ResponsiveGrid minItemWidth={STAT_CARD_MIN_WIDTH}>
   <StatCard label="Bookings" value={12} icon="calendar-outline" sub="3 this week" onPress={openBookings} />
   <StatCard label="Outstanding" value={formatMoney(due, { compact: true })} tone="warning"
     icon="receipt-outline" trend={{ direction: "up", label: "+8% vs last month", upIsGood: false }} />
-</View>
+</ResponsiveGrid>
 <StatCard label="Revenue" value="" loading />
 ```
 

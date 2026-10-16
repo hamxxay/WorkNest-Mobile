@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View, type TextInput } from "react-native";
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View, useWindowDimensions, type TextInput } from "react-native";
 import {
   AppHeader,
   AppText,
@@ -25,6 +25,7 @@ import { useStaffSession } from "../shared/StaffSession";
 import { useSingleFlight } from "../shared/hooks";
 import { AccountSecurityCard } from "../../../../components/account/AccountSecurityCard";
 import { SignOutButton } from "../../../../components/account/SignOutButton";
+import { textScale } from "../../../../utils/responsive";
 
 /**
  * Staff profile: name and phone (PUT auth/me, as the CMS profile page), role and assigned locations, appearance
@@ -75,6 +76,9 @@ export default function StaffProfileScreen() {
     }
   });
 
+  // Large text: the name and email may take two lines instead of a few letters and "...".
+  const identityLines = textScale(useWindowDimensions().fontScale) >= 1.3 ? 2 : 1;
+
   return (
     <StaffScreen>
       <AppHeader title="Profile" />
@@ -84,11 +88,11 @@ export default function StaffProfileScreen() {
             <View style={styles.identity}>
               <Avatar name={displayName} size={56} />
               <View style={styles.flex}>
-                <AppText variant="heading" numberOfLines={1}>
+                <AppText variant="heading" numberOfLines={identityLines}>
                   {displayName}
                 </AppText>
                 {email ? (
-                  <AppText variant="bodySmall" color="textMuted" numberOfLines={1}>
+                  <AppText variant="bodySmall" color="textMuted" numberOfLines={identityLines}>
                     {email}
                   </AppText>
                 ) : null}

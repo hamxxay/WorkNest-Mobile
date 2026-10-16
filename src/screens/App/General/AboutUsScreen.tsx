@@ -2,6 +2,7 @@ import { ScrollView, StyleSheet, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { AppHeader, AppText, BrandLogo, Button, Card, Chip, ListRow, Screen, SectionHeader, Divider } from "../../../components/ui";
 import { useThemedStyles, type AppColors, type Theme } from "../../../theme";
+import { useResponsive } from "../../../utils/responsive";
 
 const FEATURES = [
   { icon: "calendar-outline", title: "Book in the app", desc: "Find a space, pick your dates and get your challan in minutes." },
@@ -16,6 +17,8 @@ const VALUES = ["Community first", "Sustainability", "Innovation", "Inclusivity"
 export default function AboutUsScreen() {
   const navigation = useNavigation<any>();
   const styles = useThemedStyles(createStyles);
+  // With large text the feature rows wrap instead of being cut off.
+  const { isLargeText } = useResponsive();
   return (
     <Screen>
       <AppHeader title="About WorkNest" />
@@ -47,7 +50,13 @@ export default function AboutUsScreen() {
           {FEATURES.map((f, i) => (
             <View key={f.title}>
               {i > 0 ? <Divider inset={68} /> : null}
-              <ListRow leftIcon={f.icon} title={f.title} subtitle={f.desc} subtitleLines={3} />
+              <ListRow
+                leftIcon={f.icon}
+                title={f.title}
+                titleLines={isLargeText ? 2 : 1}
+                subtitle={f.desc}
+                subtitleLines={isLargeText ? 6 : 3}
+              />
             </View>
           ))}
         </Card>

@@ -30,6 +30,8 @@ import {
   type AgreementRecord,
 } from "../../../services/agreementService";
 import { GuestState } from "./shared/GuestState";
+import { LIST_CARD_MIN_WIDTH, useCardGrid } from "./shared/layout";
+import { TitleRow } from "./shared/TitleRow";
 import type { AppStackParamList } from "../../../navigation/types";
 
 type Nav = NativeStackNavigationProp<AppStackParamList>;
@@ -51,6 +53,8 @@ export default function AgreementListScreen() {
   const { user } = useAuth();
   const bell = useNotificationsAction();
   const toast = useToast();
+  // One card per row on phones, two on tablets and unfolded foldables.
+  const grid = useCardGrid({ minItemWidth: LIST_CARD_MIN_WIDTH });
 
   const [agreements, setAgreements] = useState<AgreementRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -118,6 +122,10 @@ export default function AgreementListScreen() {
     <Screen edges={["top", "left", "right"]}>
       <AppHeader variant="brand" title="Agreements" actions={bell} />
       <AsyncList
+        // FlatList cannot change numColumns on the fly: a new list when the window gets wider or narrower.
+        key={grid.numColumns}
+        numColumns={grid.numColumns}
+        columnWrapperStyle={grid.columnWrapperStyle}
         data={agreements}
         keyExtractor={(a) => String(a.id)}
         loading={loading}
@@ -137,13 +145,16 @@ export default function AgreementListScreen() {
           const signable = isAgreementSignable(item, agreements);
           const hasSigned = stage === "review" || stage === "booked";
           return (
-            <Card>
-              <View style={styles.titleRow}>
-                <AppText variant="subheading" numberOfLines={1} style={styles.flex}>
-                  {item.spaceName || `Agreement #${item.id}`}
-                </AppText>
-                <StatusPill status={superseded ? "Inactive" : String(item.status ?? "")} label={superseded ? "Replaced" : statusLabel(String(item.status ?? ""))} />
-              </View>
+            <Card style={grid.cellStyle}>
+              <TitleRow
+                title={item.spaceName || `Agreement #${item.id}`}
+                right={
+                  <StatusPill
+                    status={superseded ? "Inactive" : String(item.status ?? "")}
+                    label={superseded ? "Replaced" : statusLabel(String(item.status ?? ""))}
+                  />
+                }
+              />
               <AppText variant="caption" color="textMuted">
                 Agreement #{item.id}
                 {item.quotationNumber ? `  ·  Quotation ${item.quotationNumber}` : ""}
@@ -225,8 +236,6 @@ export default function AgreementListScreen() {
 
 const createStyles = (_c: AppColors, t: Theme) =>
   StyleSheet.create({
-    titleRow: { flexDirection: "row", alignItems: "center", gap: t.spacing.sm },
-    flex: { flex: 1 },
     rows: { marginTop: t.spacing.sm },
     stageText: { marginTop: t.spacing.sm },
     actions: { flexDirection: "row", flexWrap: "wrap", gap: t.spacing.sm, marginTop: t.spacing.md },

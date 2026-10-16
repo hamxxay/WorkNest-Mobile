@@ -60,6 +60,7 @@ jest.mock("../Ceo/parts", () => {
   return {
     CeoErrorState: "CeoErrorState",
     ChartCard: ({ children, ...props }: any) => R.createElement("ChartCard", props, children),
+    ChartGrid: ({ children }: any) => R.createElement("ChartGrid", null, children),
     ChartSkeleton: "ChartSkeleton",
     InlineEmpty: "InlineEmpty",
     SectionEmpty: "SectionEmpty",

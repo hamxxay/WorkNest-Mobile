@@ -37,6 +37,7 @@ import {
 } from "../shared/SpaceSelectionFields";
 import { StaffScreen } from "../shared/StaffScreen";
 import { useStaffSession } from "../shared/StaffSession";
+import { FieldRow, TIME_FIELD_MIN_WIDTH } from "../shared/layout";
 
 type Nav = NativeStackNavigationProp<StaffStackParamList>;
 type Route = RouteProp<StaffStackParamList, "BookingForm">;
@@ -236,10 +237,10 @@ export default function BookingFormScreen() {
                     onChange={(v) => setMeetingDay(v as "hours" | "day")}
                   />
                   {meetingDay === "hours" ? (
-                    <View style={styles.row}>
-                      <DateField label="From" required mode="time" value={startTime} onChange={setStartTime} containerStyle={styles.flex} format={formatTime} />
-                      <DateField label="To" required mode="time" value={endTime} onChange={setEndTime} containerStyle={styles.flex} error={errors.end} format={formatTime} />
-                    </View>
+                    <FieldRow minItemWidth={TIME_FIELD_MIN_WIDTH}>
+                      <DateField label="From" required mode="time" value={startTime} onChange={setStartTime} format={formatTime} />
+                      <DateField label="To" required mode="time" value={endTime} onChange={setEndTime} error={errors.end} format={formatTime} />
+                    </FieldRow>
                   ) : null}
                 </>
               ) : (
@@ -311,5 +312,4 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { padding: spacing.screen, gap: spacing.md, paddingBottom: spacing.xxl },
   form: { gap: spacing.lg },
-  row: { flexDirection: "row", gap: spacing.md, alignItems: "flex-start" },
 });

@@ -87,8 +87,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     overflow: "hidden",
   },
-  row: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10 },
-  label: { fontSize: 14, lineHeight: 20, fontWeight: "500", includeFontPadding: false },
+  // The label shrinks (ellipsis) rather than being clipped by the pill on a narrow window with large text.
+  row: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, maxWidth: "100%" },
+  label: { fontSize: 14, lineHeight: 20, fontWeight: "500", includeFontPadding: false, flexShrink: 1 },
   disabled: { opacity: 0.5 },
 });
 

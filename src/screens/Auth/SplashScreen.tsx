@@ -70,7 +70,8 @@ export default function SplashScreen() {
   }, [animation, mountedAt, navigation, reduceMotion, user]);
 
   return (
-    <Screen backgroundColor={colors.headerBg} statusBarColor={colors.headerBg}>
+    // Full width: the glows behind the logo reach the window edges on tablets too (not cut at a content column).
+    <Screen backgroundColor={colors.headerBg} statusBarColor={colors.headerBg} width="full">
       <SplashContent animation={animation} styles={styles} />
     </Screen>
   );

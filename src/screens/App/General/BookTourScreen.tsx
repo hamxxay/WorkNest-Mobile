@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { KeyboardAvoidingView, Linking, Platform, ScrollView, StyleSheet, View, type TextInput } from "react-native";
+import { KeyboardAvoidingView, Linking, Platform, ScrollView, StyleSheet, View, useWindowDimensions, type TextInput } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import {
   AppHeader,
@@ -29,6 +29,8 @@ import {
 import { isValidEmail } from "../../../utils/validation";
 import { formatPhoneInput, phoneError, PHONE_MAX_LENGTH } from "../../../utils/phone";
 import { nameError } from "../../../utils/inputSanitizer";
+import { ScrollableState } from "./shared/ScrollableState";
+import { fittingLabel, useContentWidth } from "./shared/layout";
 
 type Errors = Partial<Record<"fullName" | "email" | "phone" | "location" | "date" | "slot", string>>;
 
@@ -38,6 +40,9 @@ function startOfToday(): Date {
   return d;
 }
 
+/** The WhatsApp button after a tour request, then shorter labels for a narrow phone or large text. */
+const WHATSAPP_LABELS = ["Also message us on WhatsApp", "Message us on WhatsApp", "WhatsApp us"] as const;
+
 /**
  * Book a Tour, like worknestpk.com: name, email, phone, location, preferred date and time slot.
  * Sent to POST /book-tour (works signed out); the sales team can also be messaged on WhatsApp.
@@ -45,6 +50,9 @@ function startOfToday(): Date {
 export default function BookTourScreen() {
   const navigation = useNavigation<any>();
   const styles = useThemedStyles(createStyles);
+  const { fontScale } = useWindowDimensions();
+  // The empty state's button sits inside its 24dp side padding.
+  const stateWidth = useContentWidth("content", 24);
   const toast = useToast();
   const { user } = useAuth();
 
@@ -148,16 +156,18 @@ export default function BookTourScreen() {
     return (
       <Screen>
         <AppHeader title="Book a tour" />
-        <EmptyState
-          icon="checkmark-circle-outline"
-          title="Tour requested"
-          message={`We received your request for ${sent.preferredDate ? formatDate(sent.preferredDate) : "your visit"}${sent.timeSlot ? `, ${sent.timeSlot}` : ""}. Our team will contact you to confirm.`}
-          actionLabel="Also message us on WhatsApp"
-          onAction={() => openWhatsApp(sent)}
-        />
-        <View style={styles.doneActions}>
-          <Button title="Back to home" variant="outline" fullWidth onPress={() => navigation.navigate("MainTabs", { screen: "Home" })} />
-        </View>
+        <ScrollableState>
+          <EmptyState
+            icon="checkmark-circle-outline"
+            title="Tour requested"
+            message={`We received your request for ${sent.preferredDate ? formatDate(sent.preferredDate) : "your visit"}${sent.timeSlot ? `, ${sent.timeSlot}` : ""}. Our team will contact you to confirm.`}
+            actionLabel={fittingLabel(WHATSAPP_LABELS, stateWidth, fontScale)}
+            onAction={() => openWhatsApp(sent)}
+          />
+          <View style={styles.doneActions}>
+            <Button title="Back to home" variant="outline" fullWidth onPress={() => navigation.navigate("MainTabs", { screen: "Home" })} />
+          </View>
+        </ScrollableState>
       </Screen>
     );
   }

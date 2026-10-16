@@ -10,6 +10,7 @@ import { formatDate } from "../../../../utils/format";
 import { SearchField } from "../shared/SearchField";
 import { StaffScreen } from "../shared/StaffScreen";
 import { useDebounced, usePagedList } from "../shared/hooks";
+import { useShortWindow, useStackedMeta } from "../shared/layout";
 
 type Nav = NativeStackNavigationProp<StaffStackParamList>;
 type Route = RouteProp<StaffStackParamList, "AgreementList">;
@@ -35,20 +36,34 @@ export default function AgreementListScreen() {
     [search, status],
   );
   const list = usePagedList(fetchPage);
-
-  return (
-    <StaffScreen>
-      <AppHeader title="Agreements" subtitle={list.total ? `${list.total} agreements` : undefined} />
-      <SearchField value={query} onChangeText={setQuery} placeholder="Search customer, company, quotation or CNIC" />
+  // Phone in landscape / large text: the search and the status filter scroll away with the list instead of
+  // taking most of the short window.
+  const short = useShortWindow();
+  const filters = (
+    <>
+      <SearchField
+        value={query}
+        onChangeText={setQuery}
+        placeholder="Search customer, company, quotation or CNIC"
+        style={short ? styles.searchInList : undefined}
+      />
       <FilterChips
         value={status}
         onChange={setStatus}
         options={STATUS_FILTERS}
         accessibilityLabel="Agreement status"
         style={styles.chipBar}
-        contentContainerStyle={styles.chips}
+        contentContainerStyle={short ? styles.chipsInList : styles.chips}
       />
+    </>
+  );
+
+  return (
+    <StaffScreen>
+      <AppHeader title="Agreements" subtitle={list.total ? `${list.total} agreements` : undefined} />
+      {short ? null : filters}
       <AsyncList
+        ListHeaderComponent={short ? <View style={styles.listHeader}>{filters}</View> : undefined}
         data={list.items}
         keyExtractor={(a) => String(a.id)}
         loading={list.loading}
@@ -69,6 +84,8 @@ export default function AgreementListScreen() {
 
 function AgreementCard({ agreement: a, onPress }: { agreement: StaffAgreement; onPress: () => void }) {
   const tone = a.bookingId ? "success" : statusTone(a.status);
+  // Large text on a narrow phone: the sent / signed date goes under the status instead of beside it.
+  const stacked = useStackedMeta();
   return (
     <Card onPress={onPress} accessibilityLabel={`Agreement for ${a.customerName}, ${a.statusLabel}`}>
       <View style={styles.row}>
@@ -81,9 +98,9 @@ function AgreementCard({ agreement: a, onPress }: { agreement: StaffAgreement; o
           </AppText>
         </View>
       </View>
-      <View style={[styles.row, styles.gapTop]}>
+      <View style={[stacked ? styles.stack : styles.row, styles.gapTop]}>
         <StatusPill tone={tone} label={a.statusLabel} />
-        <AppText variant="caption" color="textMuted" style={styles.flex} align="right">
+        <AppText variant="caption" color="textMuted" style={stacked ? undefined : styles.flex} align={stacked ? "left" : "right"}>
           {a.signedDate ? `Signed ${formatDate(a.signedDate)}` : a.sentDate ? `Sent ${formatDate(a.sentDate)}` : ""}
         </AppText>
       </View>
@@ -94,7 +111,12 @@ function AgreementCard({ agreement: a, onPress }: { agreement: StaffAgreement; o
 const styles = StyleSheet.create({
   chipBar: { flexGrow: 0, flexShrink: 0 },
   chips: { paddingHorizontal: spacing.screen, paddingTop: spacing.sm },
+  // Inside the list header (short windows) the list already pads the content.
+  chipsInList: { paddingTop: spacing.sm },
+  searchInList: { paddingHorizontal: 0, paddingTop: 0 },
+  listHeader: { marginBottom: spacing.sm },
   row: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  stack: { alignItems: "flex-start", gap: spacing.xs },
   flex: { flex: 1 },
   gapTop: { marginTop: spacing.sm },
 });

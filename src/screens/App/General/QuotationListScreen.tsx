@@ -14,6 +14,8 @@ import {
   type Quotation,
 } from "../../../services/customerQuotationService";
 import { GuestState } from "./shared/GuestState";
+import { LIST_CARD_MIN_WIDTH, useCardGrid } from "./shared/layout";
+import { TitleRow } from "./shared/TitleRow";
 import type { AppStackParamList } from "../../../navigation/types";
 
 type Nav = NativeStackNavigationProp<AppStackParamList>;
@@ -26,6 +28,8 @@ export default function QuotationListScreen() {
   const navigation = useNavigation<Nav>();
   const styles = useThemedStyles(createStyles);
   const { user } = useAuth();
+  // One card per row on phones, two on tablets and unfolded foldables.
+  const grid = useCardGrid({ minItemWidth: LIST_CARD_MIN_WIDTH });
 
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -75,6 +79,10 @@ export default function QuotationListScreen() {
         <GuestState illustration="document" title="Sign in to see your quotations" message="Quotations from our sales team appear here." />
       ) : (
         <AsyncList
+          // FlatList cannot change numColumns on the fly: a new list when the window gets wider or narrower.
+          key={grid.numColumns}
+          numColumns={grid.numColumns}
+          columnWrapperStyle={grid.columnWrapperStyle}
           data={quotations}
           keyExtractor={(q) => String(q.id)}
           loading={loading}
@@ -92,17 +100,16 @@ export default function QuotationListScreen() {
             const respond = canRespondToQuotation(item);
             return (
               <Card
+                style={grid.cellStyle}
                 onPress={() => open(item)}
                 accessibilityLabel={`Quotation ${item.quotationNumber || item.id}, ${quotationDisplayStatus(item)}`}
               >
-                <View style={styles.titleRow}>
-                  <AppText variant="subheading" numberOfLines={1} style={styles.flex}>
-                    {item.quotationNumber || `Quotation #${item.id}`}
-                  </AppText>
-                  <StatusPill status={quotationDisplayStatus(item)} />
-                </View>
+                <TitleRow
+                  title={item.quotationNumber || `Quotation #${item.id}`}
+                  right={<StatusPill status={quotationDisplayStatus(item)} />}
+                />
                 {item.spaceName || item.locationName ? (
-                  <AppText variant="caption" color="textMuted" numberOfLines={1}>
+                  <AppText variant="caption" color="textMuted" numberOfLines={2}>
                     {[item.spaceName, item.locationName].filter(Boolean).join("  ·  ")}
                   </AppText>
                 ) : null}
@@ -131,8 +138,6 @@ export default function QuotationListScreen() {
 
 const createStyles = (_c: AppColors, t: Theme) =>
   StyleSheet.create({
-    titleRow: { flexDirection: "row", alignItems: "center", gap: t.spacing.sm },
-    flex: { flex: 1 },
     rows: { marginTop: t.spacing.sm },
     cta: { marginTop: t.spacing.sm },
   });

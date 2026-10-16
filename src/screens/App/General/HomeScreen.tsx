@@ -14,6 +14,7 @@ import {
   InfoRow,
   ListRow,
   ListSkeleton,
+  ResponsiveGrid,
   Screen,
   SectionHeader,
   StatusPill,
@@ -30,7 +31,8 @@ import { useNotificationsAction } from "../../../hooks/useHeaderActions";
 import { errorMessage } from "../../../services/apiClient";
 import { getWorkspaces, type Workspace } from "../../../services/workspaceService";
 import { getMyBookings, isChallanToPay, type MyBooking } from "../../../services/bookingService";
-import { WorkspaceCard } from "../../Home/WorkspaceCard";
+import { SPACE_CARD_MIN_WIDTH, WorkspaceCard } from "../../Home/WorkspaceCard";
+import { TitleRow } from "./shared/TitleRow";
 import type { AppStackParamList } from "../../../navigation/types";
 import { useTabBarSpace } from "../../../components/ui/TabBar";
 
@@ -38,6 +40,12 @@ type Nav = NativeStackNavigationProp<AppStackParamList>;
 
 /** How many space cards Home shows before "See all". */
 const HOME_SPACES = 4;
+
+/**
+ * Narrowest a quick-action tile gets at the default font size (dp): two per row on phones (one on a 320dp phone or
+ * with large text on a narrow one), four on tablets and unfolded foldables.
+ */
+const QUICK_TILE_MIN_WIDTH = 148;
 
 type QuickAction = { key: string; label: string; icon: string; onPress: () => void; busy?: boolean };
 
@@ -163,12 +171,12 @@ export default function HomeScreen() {
       >
         {pendingChallan ? (
           <Card>
-            <View style={styles.rowBetween}>
-              <AppText variant="overline" color="textMuted">
-                Challan to pay
-              </AppText>
-              <StatusPill status={pendingChallan.status} />
-            </View>
+            <TitleRow
+              title="Challan to pay"
+              variant="overline"
+              color="textMuted"
+              right={<StatusPill status={pendingChallan.status} />}
+            />
             <AppText variant="heading" style={styles.top}>
               {pendingChallan.spaceName}
             </AppText>
@@ -196,7 +204,7 @@ export default function HomeScreen() {
           </Card>
         ) : null}
 
-        <View style={styles.quickGrid}>
+        <ResponsiveGrid minItemWidth={QUICK_TILE_MIN_WIDTH} maxColumns={4}>
           {quickActions.map((action) => (
             <ScalePressable
               key={action.key}
@@ -220,7 +228,7 @@ export default function HomeScreen() {
               </AppText>
             </ScalePressable>
           ))}
-        </View>
+        </ResponsiveGrid>
 
         <SectionHeader
           title="Spaces open for booking"
@@ -242,13 +250,17 @@ export default function HomeScreen() {
           />
         ) : (
           <View style={styles.list}>
-            {spaces.slice(0, HOME_SPACES).map((ws) => (
-              <WorkspaceCard
-                key={`${ws.id}-${ws.location}-${ws.type}`}
-                workspace={ws}
-                onPress={() => navigation.navigate("SpaceDetail", { workspace: ws })}
-              />
-            ))}
+            {/* One card per row on phones, two on tablets and unfolded foldables. */}
+            <ResponsiveGrid minItemWidth={SPACE_CARD_MIN_WIDTH} maxColumns={2} stretchLastRow={false}>
+              {spaces.slice(0, HOME_SPACES).map((ws) => (
+                <WorkspaceCard
+                  key={`${ws.id}-${ws.location}-${ws.type}`}
+                  workspace={ws}
+                  style={styles.fillCell}
+                  onPress={() => navigation.navigate("SpaceDetail", { workspace: ws })}
+                />
+              ))}
+            </ResponsiveGrid>
             {spaces.length > HOME_SPACES ? (
               <Button
                 title={`See all ${spaces.length} spaces`}
@@ -277,12 +289,12 @@ export default function HomeScreen() {
 const createStyles = (c: AppColors, t: Theme) =>
   StyleSheet.create({
     content: { padding: t.spacing.screen, gap: t.spacing.lg, paddingBottom: 96 },
-    rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: t.spacing.sm },
     top: { marginTop: t.spacing.sm },
     list: { gap: t.spacing.md },
-    quickGrid: { flexDirection: "row", flexWrap: "wrap", gap: t.spacing.md },
+    // Cards side by side (tablets) are as tall as the tallest one in their row.
+    fillCell: { flexGrow: 1 },
+    // Fills its grid cell, so the tiles of one row are the same height when a label wraps.
     quickTile: {
-      flexBasis: "47%",
       flexGrow: 1,
       minHeight: 64,
       flexDirection: "row",

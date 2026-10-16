@@ -14,7 +14,8 @@ import {
 import { useThemedStyles, type AppColors, type Theme } from "../../../theme";
 import { errorMessage } from "../../../services/apiClient";
 import { getWorkspaces, type Workspace } from "../../../services/workspaceService";
-import { WorkspaceCard } from "../../Home/WorkspaceCard";
+import { SPACE_CARD_MIN_WIDTH, WorkspaceCard } from "../../Home/WorkspaceCard";
+import { useCardGrid } from "./shared/layout";
 import type { AppStackParamList, SpaceTypeFilter } from "../../../navigation/types";
 
 type Nav = NativeStackNavigationProp<AppStackParamList>;
@@ -43,6 +44,8 @@ export default function SpacesScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<RouteProp<AppStackParamList, "Spaces">>();
   const styles = useThemedStyles(createStyles);
+  // One card per row on phones, two side by side on tablets and unfolded foldables.
+  const grid = useCardGrid({ minItemWidth: SPACE_CARD_MIN_WIDTH });
 
   const [spaces, setSpaces] = useState<Workspace[]>([]);
   const [loading, setLoading] = useState(true);
@@ -90,10 +93,18 @@ export default function SpacesScreen() {
     <Screen>
       <AppHeader title="Book a space" subtitle="Choose a space type and location" />
       <AsyncList
+        // FlatList cannot change numColumns on the fly: a new list when the window gets wider or narrower.
+        key={grid.numColumns}
+        numColumns={grid.numColumns}
+        columnWrapperStyle={grid.columnWrapperStyle}
         data={filtered}
         keyExtractor={(ws) => `${ws.id}-${ws.location}-${ws.type}`}
         renderItem={({ item }) => (
-          <WorkspaceCard workspace={item} onPress={() => navigation.navigate("SpaceDetail", { workspace: item })} />
+          <WorkspaceCard
+            workspace={item}
+            style={grid.cellStyle}
+            onPress={() => navigation.navigate("SpaceDetail", { workspace: item })}
+          />
         )}
         loading={loading}
         refreshing={refreshing}

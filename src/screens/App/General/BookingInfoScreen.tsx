@@ -24,6 +24,7 @@ import { isPrivateOfficeCategory, priceUnitLabel } from "../../../services/works
 import { formatPhoneInput, phoneError, PHONE_MAX_LENGTH } from "../../../utils/phone";
 import { nameError } from "../../../utils/inputSanitizer";
 import type { AppStackParamList, BookingDraft } from "../../../navigation/types";
+import { TitleRow } from "./shared/TitleRow";
 
 type Nav = NativeStackNavigationProp<AppStackParamList>;
 type Mode = BookingDraft["mode"];
@@ -329,18 +330,22 @@ export default function BookingInfoScreen() {
                   <TextField label="Full name" value={name || "Not set"} disabled leftIcon="person-outline" />
                   <TextField label="Email" value={email} disabled leftIcon="mail-outline" />
                   <TextField label="Phone" value={phone || "Not set"} disabled leftIcon="call-outline" />
-                  <View style={styles.profileRow}>
-                    <AppText variant="caption" color="textMuted" style={styles.flex}>
-                      To change these details, edit them in Profile.
-                    </AppText>
-                    <Button
-                      title="Edit in Profile"
-                      variant="ghost"
-                      size="sm"
-                      rightIcon="arrow-forward"
-                      onPress={() => navigation.navigate("MainTabs", { screen: "Profile" })}
-                    />
-                  </View>
+                  {/* The button moves under the note when both don't fit on one line (narrow phone, large text). */}
+                  <TitleRow
+                    title="To change these details, edit them in Profile."
+                    variant="caption"
+                    color="textMuted"
+                    numberOfLines={0}
+                    right={
+                      <Button
+                        title="Edit in Profile"
+                        variant="ghost"
+                        size="sm"
+                        rightIcon="arrow-forward"
+                        onPress={() => navigation.navigate("MainTabs", { screen: "Profile" })}
+                      />
+                    }
+                  />
                 </>
               ) : (
                 <>
@@ -417,5 +422,4 @@ const createStyles = (_c: AppColors, t: Theme) =>
     content: { padding: t.spacing.screen, gap: t.spacing.lg, paddingBottom: t.spacing.xxl },
     fields: { gap: t.spacing.md },
     status: { gap: t.spacing.sm },
-    profileRow: { flexDirection: "row", alignItems: "center", gap: t.spacing.sm },
   });
