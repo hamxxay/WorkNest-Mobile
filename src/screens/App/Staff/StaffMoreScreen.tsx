@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { AppHeader, Badge, Card, Divider, ListRow, SectionHeader } from "../../../components/ui";
+import { SignOutButton } from "../../../components/account/SignOutButton";
 import { useTabBarSpace } from "../../../components/ui/TabBar";
 import { useAuth } from "../../../context/AuthContext";
 import { userRoleLabel } from "../../../context/userDisplay";
@@ -14,7 +15,8 @@ import { useStaffSession } from "./shared/StaffSession";
 
 type Nav = NativeStackNavigationProp<StaffStackParamList>;
 
-/** "More" tab: every other screen the role may open, grouped like the CMS sidebar, with waiting counts. */
+/** "More" tab: who is signed in (opens Profile) and Sign out, then every other screen the role may open, grouped like
+ * the CMS sidebar, with waiting counts. */
 export default function StaffMoreScreen() {
   const inTabs = useInTabs();
   const tabBarSpace = useTabBarSpace();
@@ -47,6 +49,8 @@ export default function StaffMoreScreen() {
             onPress={() => navigation.navigate("StaffProfile")}
             accessibilityLabel={`${name}, ${userRoleLabel(user, role)}. Open profile`}
           />
+          <Divider inset={68} />
+          <SignOutButton appearance="row" message="You will need to sign in again to use the staff app." />
         </Card>
         {sections
           .map((section) => ({ ...section, items: section.items.filter((i) => i.route !== "StaffProfile") }))

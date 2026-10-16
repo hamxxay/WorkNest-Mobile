@@ -7,11 +7,9 @@ import {
   Avatar,
   Button,
   Card,
-  ConfirmDialog,
   Divider,
   HapticsSetting,
   InfoRow,
-  ListRow,
   SectionHeader,
   TextField,
   useToast,
@@ -19,7 +17,6 @@ import {
 import { useAuth } from "../../../../context/AuthContext";
 import { userRoleLabel } from "../../../../context/userDisplay";
 import { errorMessage } from "../../../../services/apiClient";
-import { logoutUser } from "../../../../services/authService";
 import { assignedLocationsLabel, updateStaffProfile } from "../../../../services/staff";
 import { formatPhoneInput, phoneError } from "../../../../utils/phone";
 import { spacing } from "../../../../theme";
@@ -27,14 +24,15 @@ import { StaffScreen } from "../shared/StaffScreen";
 import { useStaffSession } from "../shared/StaffSession";
 import { useSingleFlight } from "../shared/hooks";
 import { AccountSecurityCard } from "../../../../components/account/AccountSecurityCard";
+import { SignOutButton } from "../../../../components/account/SignOutButton";
 
 /**
  * Staff profile: name and phone (PUT auth/me, as the CMS profile page), role and assigned locations, appearance
- * (System / Light / Dark) and sign out.
+ * (System / Light / Dark) and sign out (at the top, under who is signed in).
  */
 export default function StaffProfileScreen() {
   const toast = useToast();
-  const { user, setUser, clearSession } = useAuth();
+  const { user, setUser } = useAuth();
   const { role, profile, locations, reloadProfile } = useStaffSession();
   const phoneRef = useRef<TextInput>(null);
 
@@ -42,8 +40,6 @@ export default function StaffProfileScreen() {
   const [phone, setPhone] = useState("");
   const [errors, setErrors] = useState<{ name?: string; phone?: string }>({});
   const [saving, setSaving] = useState(false);
-  const [confirmSignOut, setConfirmSignOut] = useState(false);
-  const [signingOut, setSigningOut] = useState(false);
 
   useEffect(() => {
     if (!profile) return;
@@ -79,17 +75,6 @@ export default function StaffProfileScreen() {
     }
   });
 
-  const signOut = async () => {
-    setSigningOut(true);
-    try {
-      await logoutUser();
-    } catch {
-      // Google / Firebase sign-out can fail offline; the local session is still ended below.
-    } finally {
-      await clearSession();
-    }
-  };
-
   return (
     <StaffScreen>
       <AppHeader title="Profile" />
@@ -112,6 +97,7 @@ export default function StaffProfileScreen() {
             <Divider spacing={12} />
             <InfoRow label="Role" value={userRoleLabel(user, role)} icon="shield-checkmark-outline" />
             <InfoRow label="Locations" value={assigned} icon="location-outline" layout="stacked" />
+            <SignOutButton message="You will need to sign in again to use the staff app." style={styles.signOut} />
           </Card>
 
           <SectionHeader title="Your details" variant="overline" />
@@ -153,32 +139,8 @@ export default function StaffProfileScreen() {
             <Divider spacing={12} />
             <HapticsSetting />
           </Card>
-
-          <Card padding={0}>
-            <ListRow
-              leftIcon="log-out-outline"
-              title={signingOut ? "Signing out..." : "Sign out"}
-              destructive
-              disabled={signingOut}
-              chevron={false}
-              onPress={() => setConfirmSignOut(true)}
-            />
-          </Card>
         </ScrollView>
       </KeyboardAvoidingView>
-
-      <ConfirmDialog
-        visible={confirmSignOut}
-        title="Sign out?"
-        message="You will need to sign in again to use the staff app."
-        confirmLabel="Sign out"
-        cancelLabel="Stay signed in"
-        destructive
-        icon="log-out-outline"
-        loading={signingOut}
-        onCancel={() => setConfirmSignOut(false)}
-        onConfirm={signOut}
-      />
     </StaffScreen>
   );
 }
@@ -188,4 +150,5 @@ const styles = StyleSheet.create({
   content: { padding: spacing.screen, gap: spacing.md, paddingBottom: spacing.xxl },
   identity: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   form: { gap: spacing.lg },
+  signOut: { alignSelf: "flex-start", marginTop: spacing.md },
 });
