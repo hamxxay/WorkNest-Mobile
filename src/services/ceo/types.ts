@@ -188,6 +188,36 @@ export type CeoBreakdown = {
   rows: CeoBreakdownRow[];
 };
 
+// ─── KPI drill-downs ──────────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Where a dashboard figure leads: a breakdown screen (GET api/ceo/breakdown; `recordsParams` are added to the records
+ * its rows open, e.g. status=paid for Collected) or a records list (GET api/ceo/records/*; `keepTitle` shows `title`
+ * instead of the server's, `timeless` names only the location under it: not bound to the period).
+ */
+export type CeoDrillStep =
+  | { kind: "breakdown"; query: CeoBreakdownQuery; recordsParams?: CeoRecordParams }
+  | { kind: "records"; query: CeoRecordsQuery; title?: string; keepTitle?: boolean; timeless?: boolean };
+
+/** A row of a list built from the dashboard's own figures (months of the period, aging buckets, locations). */
+export type CeoDrillListRow = CeoBreakdownRow & { open: CeoDrillStep | null };
+
+/** Drill level 2 built on the device from the dashboard's answer (no API call), shown like a breakdown. */
+export type CeoDrillList = {
+  title: string;
+  subtitle: string | null;
+  valueLabel: string;
+  value2Label: string | null;
+  /** money (PKR), count, or occupancy (value = occupied, value2 = total spaces). */
+  unit: "money" | "count" | "occupancy";
+  /** Spoken after a row: what it opens ("Opens this month by location"). */
+  rowHint: string;
+  rows: CeoDrillListRow[];
+};
+
+/** What a KPI tile opens: one of the steps above, or a list built from the dashboard. */
+export type CeoDrillTarget = CeoDrillStep | { kind: "list"; list: CeoDrillList };
+
 // ─── GET api/ceo/records/* (drill level 3) ───────────────────────────────────────────────────────────────
 
 export type CeoRecordKind = "invoices" | "spaces" | "bookings" | "inquiries" | "quotations" | "leases";

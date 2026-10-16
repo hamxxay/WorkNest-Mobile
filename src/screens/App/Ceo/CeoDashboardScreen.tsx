@@ -30,6 +30,7 @@ import {
   periodWords,
   recordsForCustomer,
   recordsForFunnelStage,
+  type CeoDrillTarget,
   type CeoLocation,
   type CeoPeriod,
   type CeoRecordsQuery,
@@ -61,8 +62,9 @@ type Nav = NativeStackNavigationProp<CeoStackParamList, "CeoDashboard">;
  * The CEO dashboard (GET api/ceo/dashboard + GET api/dashboard/forecast + GET api/ceo/rooms): Money, Occupancy, Sales
  * and Team for this month / quarter / year against the previous period, for all locations or one, the 3-month outlook
  * and the Rooms report (occupancy and the price each room was sold at against its list / shift price).
- * Read-only. Tapping a chart element or row drills down: a breakdown screen (by location / space type / month),
- * then a records list; some elements open their records directly. Pull to refresh reloads everything.
+ * Read-only. Tapping a KPI card, a chart element or a row drills down: a breakdown screen (by location / space type /
+ * month) or a list built from the dashboard (the period's months, aging buckets, locations), then a records list;
+ * some open their records directly. Pull to refresh reloads everything.
  */
 export default function CeoDashboardScreen() {
   const navigation = useNavigation<Nav>();
@@ -136,6 +138,15 @@ export default function CeoDashboardScreen() {
       records: (query: CeoRecordsQuery | null, trail: string[], title?: string) => {
         // Leases ending in the next 90 days are not bound to the period: name only the location.
         if (query) navigation.navigate("CeoRecords", { query, trail, title, scopeLabel: query.kind === "leases" ? locationLabel : scopeLabel });
+      },
+      open: (t: CeoDrillTarget, trail: string[]) => {
+        if (t.kind === "list") navigation.navigate("CeoList", { list: t.list, trail, scopeLabel });
+        else if (t.kind === "breakdown") {
+          if (isCompleteBreakdown(t.query)) navigation.navigate("CeoBreakdown", { query: t.query, recordsParams: t.recordsParams, trail, scopeLabel });
+        } else {
+          const timeless = t.timeless || t.query.kind === "leases";
+          navigation.navigate("CeoRecords", { query: t.query, title: t.title, keepTitle: t.keepTitle, trail, scopeLabel: timeless ? locationLabel : scopeLabel });
+        }
       },
       focus,
       target,

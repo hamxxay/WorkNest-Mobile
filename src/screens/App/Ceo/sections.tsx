@@ -3,22 +3,28 @@ import { StyleSheet, View } from "react-native";
 import { BarChart, Donut, HBarList, type HBarItem } from "../../../components/charts";
 import { AppText, Divider, ListRow, SegmentedControl, type StatCardProps } from "../../../components/ui";
 import {
+  activeBookingsRecords,
+  agingTarget,
   clampPct,
   count,
   inquiriesCountAllLocations,
   monthLabel,
   monthShort,
   money,
+  occupancyTarget,
   pct,
   periodWords,
+  revenueTarget,
   shareOf,
   type CeoAgingBucket,
   type CeoBreakdownQuery,
+  type CeoDrillTarget,
   type CeoMoney,
   type CeoOccupancy,
   type CeoPeriod,
   type CeoRecordsQuery,
   type CeoSales,
+  type CeoScope,
   type CeoTeam,
 } from "../../../services/ceo";
 import { dashboardTrend, type DashboardForecast } from "../../../services/staff/dashboard";
@@ -34,7 +40,7 @@ import { ChartCard, ChartGrid, InlineEmpty } from "./parts";
 export type BreakdownTarget = Omit<CeoBreakdownQuery, "period" | "locationId"> & { locationId?: number | null };
 
 /** Places on the dashboard a KPI card can scroll to. */
-export type FocusTarget = "revenue" | "aging" | "byLocation" | "leases" | "roomList";
+export type FocusTarget = "leases" | "roomList";
 
 /** What the sections may do: open a drill screen or scroll to a chart. */
 export type Drill = {
@@ -43,6 +49,8 @@ export type Drill = {
   locationId: number | null;
   breakdown: (target: BreakdownTarget, trail: string[]) => void;
   records: (query: CeoRecordsQuery | null, trail: string[], title?: string) => void;
+  /** Opens what a KPI card leads to (a breakdown, a list built from the dashboard, or records). */
+  open: (target: CeoDrillTarget, trail: string[]) => void;
   focus: (target: FocusTarget) => void;
   /** Ref callback that registers a scroll target. */
   target: (name: FocusTarget) => Ref<View>;
@@ -57,6 +65,12 @@ export type Drill = {
 
 
 const DONUT_SIZE = 112;
+
+/** The dashboard's period and location, as the drill helpers take them. */
+const scopeOf = (drill: Drill): CeoScope => ({ period: drill.period, locationId: drill.locationId });
+
+/** "Opens invoiced this month by location" / "Opens invoiced this quarter by month". */
+const revenueHint = (what: string, period: CeoPeriod) => `Opens ${what} ${periodWords(period)} by ${period === "month" ? "location" : "month"}`;
 
 /** "vs last period" change, or undefined when the previous figure was not sent. */
 const trend = (now: number, prev: number | null, unit: "pts" | "n" | "%", upIsGood = true) =>
@@ -84,7 +98,8 @@ export function MoneySection({ money: m, drill }: { money: CeoMoney; drill: Dril
       icon: "receipt-outline",
       trend: trend(m.invoiced, m.invoicedPrev, "%"),
       trendSeries: recent.map((x) => x.invoiced),
-      onPress: () => drill.focus("revenue"),
+      onPress: () => drill.open(revenueTarget(m, "invoiced", scopeOf(drill)), ["Money", `Invoiced ${words}`]),
+      accessibilityHint: revenueHint("invoiced", drill.period),
     },
     {
       label: "Collected",
@@ -94,7 +109,8 @@ export function MoneySection({ money: m, drill }: { money: CeoMoney; drill: Dril
       tone: "success",
       trend: trend(m.collected, m.collectedPrev, "%"),
       trendSeries: recent.map((x) => x.collected),
-      onPress: () => drill.focus("revenue"),
+      onPress: () => drill.open(revenueTarget(m, "collected", scopeOf(drill)), ["Money", `Collected ${words}`]),
+      accessibilityHint: revenueHint("collected", drill.period),
     },
     {
       label: "Outstanding",
@@ -102,7 +118,8 @@ export function MoneySection({ money: m, drill }: { money: CeoMoney; drill: Dril
       sub: `${count(m.outstandingCount)} open invoices`,
       icon: "wallet-outline",
       tone: m.outstanding ? "warning" : "success",
-      onPress: () => drill.focus("aging"),
+      onPress: () => drill.open(agingTarget(m, scopeOf(drill)), ["Money", "Outstanding"]),
+      accessibilityHint: "Opens the outstanding invoices by age",
     },
     {
       label: "Overdue",
@@ -111,6 +128,7 @@ export function MoneySection({ money: m, drill }: { money: CeoMoney; drill: Dril
       icon: "alert-circle-outline",
       tone: m.overdueCount ? "danger" : "success",
       onPress: () => drill.records(drill.overdueRecords(), ["Money", "Overdue invoices"], "Overdue invoices"),
+      accessibilityHint: "Opens the overdue invoices",
     },
   ];
   const agingItems: HBarItem[] = m.aging.map((b: CeoAgingBucket) => ({
@@ -124,41 +142,37 @@ export function MoneySection({ money: m, drill }: { money: CeoMoney; drill: Dril
     <>
       <KpiGrid tiles={tiles} />
       <ChartGrid>
-        <View ref={drill.target("revenue")} collapsable={false}>
-          <ChartCard title="Revenue and collections" caption="Last 12 months. Tap a month to see it by location.">
-            {recent.length ? (
-              <BarChart
-                label="Invoiced and collected by month"
-                series={[{ label: "Invoiced" }, { label: "Collected" }]}
-                data={recent.map((x) => ({ label: monthShort(x.month), title: monthLabel(x.month), values: [x.invoiced, x.collected] }))}
-                formatValue={money}
-                emptyText="Nothing invoiced in these months."
-                itemAccessibilityHint="Opens this month by location"
-                onPressItem={(i) => drill.breakdown({ metric: "revenue", month: recent[i].month }, ["Revenue", monthLabel(recent[i].month)])}
-              />
-            ) : (
-              <InlineEmpty text="No invoices in the last 12 months." />
-            )}
-          </ChartCard>
-        </View>
-        <View ref={drill.target("aging")} collapsable={false}>
-          <ChartCard title="Receivables aging" caption={`${money(m.outstanding)} outstanding. Tap a bucket to see it by location.`}>
-            {agingItems.length ? (
-              <HBarList
-                label="Receivables by age"
-                items={agingItems}
-                formatValue={money}
-                itemAccessibilityHint="Opens this bucket by location"
-                onPressItem={(item) => {
-                  const bucket = m.aging.find((b) => b.bucket === item.key);
-                  if (bucket) drill.breakdown({ metric: "aging", bucket: bucket.bucket }, ["Receivables", bucket.label]);
-                }}
-              />
-            ) : (
-              <InlineEmpty text="No open invoices." />
-            )}
-          </ChartCard>
-        </View>
+        <ChartCard title="Revenue and collections" caption="Last 12 months. Tap a month to see it by location.">
+          {recent.length ? (
+            <BarChart
+              label="Invoiced and collected by month"
+              series={[{ label: "Invoiced" }, { label: "Collected" }]}
+              data={recent.map((x) => ({ label: monthShort(x.month), title: monthLabel(x.month), values: [x.invoiced, x.collected] }))}
+              formatValue={money}
+              emptyText="Nothing invoiced in these months."
+              itemAccessibilityHint="Opens this month by location"
+              onPressItem={(i) => drill.breakdown({ metric: "revenue", month: recent[i].month }, ["Revenue", monthLabel(recent[i].month)])}
+            />
+          ) : (
+            <InlineEmpty text="No invoices in the last 12 months." />
+          )}
+        </ChartCard>
+        <ChartCard title="Receivables aging" caption={`${money(m.outstanding)} outstanding. Tap a bucket to see it by location.`}>
+          {agingItems.length ? (
+            <HBarList
+              label="Receivables by age"
+              items={agingItems}
+              formatValue={money}
+              itemAccessibilityHint="Opens this bucket by location"
+              onPressItem={(item) => {
+                const bucket = m.aging.find((b) => b.bucket === item.key);
+                if (bucket) drill.breakdown({ metric: "aging", bucket: bucket.bucket }, ["Receivables", bucket.label]);
+              }}
+            />
+          ) : (
+            <InlineEmpty text="No open invoices." />
+          )}
+        </ChartCard>
         <ChartCard title="Top customers" caption="Invoiced over the last 12 months" padding={0}>
           {m.topCustomers.length ? (
             m.topCustomers.map((c, i) => {
@@ -214,7 +228,8 @@ export function OccupancySection({ occupancy: o, drill }: { occupancy: CeoOccupa
       tone: o.occupancyPct >= 70 ? "success" : o.occupancyPct >= 40 ? "primary" : "warning",
       trend: trend(o.occupancyPct, o.occupancyPctPrev, "pts"),
       trendSeries: recent.map((x) => x.occupancyPct),
-      onPress: () => drill.focus("byLocation"),
+      onPress: () => drill.open(occupancyTarget(o, scopeOf(drill)), ["Occupancy", "Spaces in use"]),
+      accessibilityHint: drill.locationId ? "Opens this location by space type" : "Opens the occupancy by location",
     },
     {
       label: "New bookings",
@@ -223,15 +238,30 @@ export function OccupancySection({ occupancy: o, drill }: { occupancy: CeoOccupa
       icon: "calendar-outline",
       trend: trend(o.newBookings, o.newBookingsPrev, "n"),
       onPress: () => drill.records(drill.newBookingsRecords(), ["Occupancy", "New bookings"], "New bookings"),
+      accessibilityHint: "Opens the new bookings",
     },
-    { label: "Active bookings", value: count(o.activeBookings), sub: "running today", icon: "time-outline", tone: "info" },
+    {
+      label: "Active bookings",
+      value: count(o.activeBookings),
+      sub: "running today",
+      icon: "time-outline",
+      tone: "info",
+      onPress: () =>
+        drill.open({ kind: "records", query: activeBookingsRecords(scopeOf(drill)), title: "Active bookings", keepTitle: true, timeless: true }, [
+          "Occupancy",
+          "Active bookings",
+        ]),
+      accessibilityHint: "Opens the bookings running today",
+    },
     {
       label: "Leases expiring",
       value: count(expiringCount),
       sub: "in the next 90 days",
       icon: "hourglass-outline",
       tone: expiringCount ? "warning" : "success",
-      onPress: () => drill.focus("leases"),
+      // The full list once the server counts them all; before that, the list on this screen.
+      onPress: canOpenAllLeases ? openAllLeases : () => drill.focus("leases"),
+      accessibilityHint: canOpenAllLeases ? "Opens every lease ending in the next 90 days" : "Shows the leases ending soon",
     },
   ];
   const byType = o.byType.filter((t) => t.total > 0);
@@ -292,27 +322,25 @@ export function OccupancySection({ occupancy: o, drill }: { occupancy: CeoOccupa
             <InlineEmpty text="No spaces set up." />
           )}
         </ChartCard>
-        <View ref={drill.target("byLocation")} collapsable={false}>
-          <ChartCard title="By location" caption="Spaces in use today. Tap a location to see it by space type.">
-            {byLocation.length ? (
-              <HBarList
-                label="Occupancy by location"
-                max={100}
-                items={byLocation.map((l) => {
-                  const share = shareOf(l.occupied, l.total);
-                  return { key: l.locationId ?? l.name, label: l.name, value: share, valueLabel: `${pct(share)} · ${l.occupied}/${l.total}` };
-                })}
-                itemAccessibilityHint="Opens this location by space type"
-                onPressItem={(_item, i) => {
-                  const l = byLocation[i];
-                  if (l.locationId) drill.breakdown({ metric: "occupancy-location", locationId: l.locationId }, ["Occupancy", l.name]);
-                }}
-              />
-            ) : (
-              <InlineEmpty text="No locations with spaces." />
-            )}
-          </ChartCard>
-        </View>
+        <ChartCard title="By location" caption="Spaces in use today. Tap a location to see it by space type.">
+          {byLocation.length ? (
+            <HBarList
+              label="Occupancy by location"
+              max={100}
+              items={byLocation.map((l) => {
+                const share = shareOf(l.occupied, l.total);
+                return { key: l.locationId ?? l.name, label: l.name, value: share, valueLabel: `${pct(share)} · ${l.occupied}/${l.total}` };
+              })}
+              itemAccessibilityHint="Opens this location by space type"
+              onPressItem={(_item, i) => {
+                const l = byLocation[i];
+                if (l.locationId) drill.breakdown({ metric: "occupancy-location", locationId: l.locationId }, ["Occupancy", l.name]);
+              }}
+            />
+          ) : (
+            <InlineEmpty text="No locations with spaces." />
+          )}
+        </ChartCard>
         <View ref={drill.target("leases")} collapsable={false}>
           <ChartCard
             title="Leases expiring"
@@ -386,6 +414,7 @@ export function SalesSection({ sales: s, drill }: { sales: CeoSales; drill: Dril
       sub: inquiryWords,
       icon: "walk-outline",
       onPress: () => drill.records(drill.funnelRecords("inquiries"), ["Sales", "Tour inquiries"], "Tour inquiries"),
+      accessibilityHint: "Opens the tour inquiries",
     },
     {
       label: "Conversion",
@@ -393,9 +422,27 @@ export function SalesSection({ sales: s, drill }: { sales: CeoSales; drill: Dril
       sub: "bookings per quotation",
       icon: "trending-up-outline",
       tone: rate != null && rate >= 30 ? "success" : quotations ? "warning" : "neutral",
+      onPress: () => drill.records(drill.funnelRecords("converted"), ["Sales", "Converted quotations"], "Converted quotations"),
+      accessibilityHint: "Opens the quotations converted to bookings",
     },
-    { label: "Quotation value", value: money(s.quotationValue), sub: `${count(quotations)} quotations ${words}`, icon: "document-text-outline", tone: "indigo" },
-    { label: "Booking value", value: money(s.bookingValue), sub: `${count(bookings)} bookings ${words}`, icon: "calendar-outline", tone: "success" },
+    {
+      label: "Quotation value",
+      value: money(s.quotationValue),
+      sub: `${count(quotations)} quotations ${words}`,
+      icon: "document-text-outline",
+      tone: "indigo",
+      onPress: () => drill.records(drill.funnelRecords("quotations"), ["Sales", "Quotations"], "Quotations"),
+      accessibilityHint: "Opens the quotations",
+    },
+    {
+      label: "Booking value",
+      value: money(s.bookingValue),
+      sub: `${count(bookings)} bookings ${words}`,
+      icon: "calendar-outline",
+      tone: "success",
+      onPress: () => drill.records(drill.funnelRecords("bookings"), ["Sales", "Bookings"], "Bookings"),
+      accessibilityHint: "Opens the bookings",
+    },
   ];
   const typeItems = useMemo(
     () =>

@@ -17,6 +17,7 @@ import {
 import {
   ALL_ROOMS,
   ROOM_PRICE_TOLERANCE_PCT,
+  ROOM_NOW_FILTERS,
   ROOM_PRICING_LABELS,
   ROOM_PRICING_TONES,
   ROOM_SHIFT_FILTERS,
@@ -28,6 +29,7 @@ import {
   roomCardView,
   roomFilterCounts,
   roomFilterLabel,
+  roomNowLabel,
   roomPricingFilters,
   roomsShownText,
   signedMoneyCompact,
@@ -135,9 +137,20 @@ export function RoomsContent({ report, drill }: { report: CeoRoomReport; drill: 
     {
       label: "Occupied now",
       value: `${count(s.occupiedNow)} of ${count(s.rooms)}`,
-      sub: `${pct(s.occupancyNowPct)} of rooms · ${count(s.vacantNow)} vacant`,
+      sub: `${pct(s.occupancyNowPct)} of rooms`,
       icon: "business-outline",
       tone: s.occupancyNowPct >= 70 ? "success" : s.occupancyNowPct >= 40 ? "primary" : "warning",
+      onPress: () => showInList({ now: "occupied" }),
+      accessibilityHint: "Shows the occupied rooms in the list below",
+    },
+    {
+      label: "Vacant now",
+      value: count(s.vacantNow),
+      sub: s.vacantNow ? "rooms free to sell today" : "every room is in use",
+      icon: "key-outline",
+      tone: s.vacantNow ? "warning" : "success",
+      onPress: () => showInList({ now: "vacant" }),
+      accessibilityHint: "Shows the vacant rooms in the list below",
     },
     {
       label: `Occupancy ${words}`,
@@ -153,6 +166,7 @@ export function RoomsContent({ report, drill }: { report: CeoRoomReport; drill: 
       icon: "trending-down-outline",
       tone: s.under ? "danger" : "success",
       onPress: () => showInList({ pricing: "under" }),
+      accessibilityHint: "Shows the bookings sold under the price in the list below",
     },
     {
       label: "At price",
@@ -161,6 +175,7 @@ export function RoomsContent({ report, drill }: { report: CeoRoomReport; drill: 
       icon: "checkmark-circle-outline",
       tone: "neutral",
       onPress: () => showInList({ pricing: "at" }),
+      accessibilityHint: "Shows the bookings sold at the price in the list below",
     },
     {
       label: "Sold over price",
@@ -169,6 +184,7 @@ export function RoomsContent({ report, drill }: { report: CeoRoomReport; drill: 
       icon: "trending-up-outline",
       tone: s.over ? "success" : "neutral",
       onPress: () => showInList({ pricing: "over" }),
+      accessibilityHint: "Shows the bookings sold over the price in the list below",
     },
     {
       label: "Sold a month",
@@ -224,6 +240,12 @@ export function RoomsContent({ report, drill }: { report: CeoRoomReport; drill: 
           </AppText>
         </View>
         <FilterGroup
+          label="Right now"
+          value={filters.now}
+          options={ROOM_NOW_FILTERS.map((v) => ({ label: roomNowLabel(v), value: v, count: counts.now[v] }))}
+          onChange={(now) => setFilters({ ...filters, now })}
+        />
+        <FilterGroup
           label="Shift"
           value={filters.shift}
           options={ROOM_SHIFT_FILTERS.map((v) => ({ label: roomFilterLabel(v), value: v, count: counts.shift[v] }))}
@@ -247,7 +269,7 @@ export function RoomsContent({ report, drill }: { report: CeoRoomReport; drill: 
               compact
               icon="funnel-outline"
               title="No rooms match"
-              message="No room has a booking for this shift and pricing."
+              message="No room matches these filters."
               actionLabel="Show all rooms"
               onAction={() => setFilters(ALL_ROOMS)}
             />

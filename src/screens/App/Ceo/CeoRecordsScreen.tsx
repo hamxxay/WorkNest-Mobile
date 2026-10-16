@@ -12,10 +12,18 @@ type Route = RouteProp<CeoStackParamList, "CeoRecords">;
  */
 export default function CeoRecordsScreen() {
   const { params } = useRoute<Route>();
-  const { query, trail, scopeLabel, title } = params;
+  const { query, trail, scopeLabel, title, keepTitle } = params;
   const load = useCallback(
     () => getCeoRecords(query).then((r): RecordCardList => ({ title: r.title, total: r.total, cards: recordCards(r) })),
     [query],
   );
-  return <RecordsView fallbackTitle={title ?? "Records"} trail={trail} scopeLabel={scopeLabel} load={load} />;
+  return (
+    <RecordsView
+      fallbackTitle={title ?? "Records"}
+      fixedTitle={keepTitle && title ? title : undefined}
+      trail={trail}
+      scopeLabel={scopeLabel}
+      load={load}
+    />
+  );
 }

@@ -39,6 +39,8 @@ export type BreakdownViewProps<R> = {
   secondaryRecordsFor?: (row: CeoBreakdownRow) => { title: string; subtitle?: string; records: R } | null;
   /** Opens the records of a row. */
   onOpenRecords: (row: CeoBreakdownRow, records: R) => void;
+  /** Spoken after a row or column that opens something. Default "Opens the list". */
+  rowAccessibilityHint?: string;
   /** Error wording (default the CEO's). */
   describeError?: DescribeError;
 };
@@ -55,6 +57,7 @@ export function BreakdownView<R>({
   recordsFor,
   secondaryRecordsFor,
   onOpenRecords,
+  rowAccessibilityHint = "Opens the list",
   describeError = ceoErrorView,
 }: BreakdownViewProps<R>) {
   const refreshColors = useRefreshColors();
@@ -110,7 +113,7 @@ export function BreakdownView<R>({
                 }))}
                 formatValue={format}
                 emptyText="Nothing to show for this choice."
-                itemAccessibilityHint="Opens the list"
+                itemAccessibilityHint={rowAccessibilityHint}
                 onPressItem={(i) => openRow(chartRows[i])}
               />
               {rows.length > chartRows.length ? (
@@ -130,7 +133,7 @@ export function BreakdownView<R>({
                       title={row.label}
                       subtitle={rowDetail(b, row)}
                       meta={rowMeta(row)}
-                      accessibilityHint={records ? "Opens the list" : undefined}
+                      accessibilityHint={records ? rowAccessibilityHint : undefined}
                       onPress={records ? () => openRow(row) : undefined}
                     />
                     {secondary ? (

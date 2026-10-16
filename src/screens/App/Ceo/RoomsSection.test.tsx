@@ -172,7 +172,8 @@ describe("RoomsContent", () => {
     const root = render(<RoomsBlock query={query({ data: REPORT })} drill={makeDrill()} />);
     const tiles = byType(root, "KpiGrid")[0].props.tiles;
     expect(tiles.map((t: any) => [t.label, t.value, t.sub, t.tone])).toEqual([
-      ["Occupied now", "2 of 3", "66.7% of rooms · 1 vacant", "primary"],
+      ["Occupied now", "2 of 3", "66.7% of rooms", "primary"],
+      ["Vacant now", "1", "rooms free to sell today", "warning"],
       ["Occupancy this month", "58.5%", "of days with a booking", "info"],
       ["Sold under price", "1", "PKR 10K a month below", "danger"],
       ["At price", "1", "within 0.5% of expected", "neutral"],
@@ -207,6 +208,11 @@ describe("RoomsContent", () => {
     expect(listed(root)).toEqual([["Office 1", "Acme"], ["Shared A", "Beta", "Gamma"], ["Office 2"]]);
     const vacant = root.findAll((n) => n.type === ("StatusPill" as unknown) && n.props.label === "Vacant");
     expect(vacant).toHaveLength(1);
+    expect(chips(root, "Right now").props.options.map((o: any) => [o.label, o.count])).toEqual([
+      ["All", 4],
+      ["Occupied now", 3],
+      ["Vacant now", 1],
+    ]);
     expect(chips(root, "Shift").props.options.map((o: any) => [o.label, o.count])).toEqual([
       ["All", 4],
       ["24/7", 2],
@@ -238,15 +244,28 @@ describe("RoomsContent", () => {
     const root = render(<RoomsBlock query={query({ data: REPORT })} drill={drill} />);
     expect(drill.target).toHaveBeenCalledWith("roomList");
     const tiles = byType(root, "KpiGrid")[0].props.tiles;
-    act(() => tiles[2].onPress());
+    act(() => tiles[3].onPress());
     expect(listed(root)).toEqual([["Office 1", "Acme"]]);
     expect(chips(root, "Pricing").props.value).toBe("under");
     act(() => byType(root, "BarChart")[0].props.onPressItem(1));
     expect(listed(root)).toEqual([["Shared A", "Gamma"]]);
     expect([chips(root, "Shift").props.value, chips(root, "Pricing").props.value]).toEqual(["Morning", "all"]);
-    expect(drill.focus.mock.calls).toEqual([["roomList"], ["roomList"]]);
+    // Occupied now / Vacant now: the rooms in use or not, right now.
+    act(() => tiles[0].onPress());
+    expect(listed(root)).toEqual([["Office 1", "Acme"], ["Shared A", "Beta", "Gamma"]]);
+    expect(chips(root, "Right now").props.value).toBe("occupied");
+    act(() => tiles[1].onPress());
+    expect(listed(root)).toEqual([["Office 2"]]);
+    expect(drill.focus.mock.calls).toEqual([["roomList"], ["roomList"], ["roomList"], ["roomList"]]);
+    expect(tiles.filter((t: any) => t.onPress).map((t: any) => t.accessibilityHint)).toEqual([
+      "Shows the occupied rooms in the list below",
+      "Shows the vacant rooms in the list below",
+      "Shows the bookings sold under the price in the list below",
+      "Shows the bookings sold at the price in the list below",
+      "Shows the bookings sold over the price in the list below",
+    ]);
     // Tiles without a list behind them do nothing on press.
-    expect(tiles[0].onPress).toBeUndefined();
+    expect(tiles[2].onPress).toBeUndefined();
   });
 
   test("a long list shows the first rooms and more on demand", () => {

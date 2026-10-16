@@ -250,10 +250,24 @@ export function normalizeCeoRooms(raw: unknown, requested: CeoPeriod = "month"):
 // ─── Filters ──────────────────────────────────────────────────────────────────────────────────────────────
 
 export type RoomShiftFilter = "all" | CeoRoomShift;
+/** "vacant": rooms without a booking in the period. */
 export type RoomPricingFilter = "all" | CeoRoomSalePricing | "vacant";
-export type RoomFilters = { shift: RoomShiftFilter; pricing: RoomPricingFilter };
+/** Whether a booking covers this moment (the Occupied now / Vacant now cards). */
+export type RoomNowFilter = "all" | "occupied" | "vacant";
+export type RoomFilters = { shift: RoomShiftFilter; pricing: RoomPricingFilter; now: RoomNowFilter };
 
-export const ALL_ROOMS: RoomFilters = { shift: "all", pricing: "all" };
+export const ALL_ROOMS: RoomFilters = { shift: "all", pricing: "all", now: "all" };
+
+export const ROOM_NOW_FILTERS: readonly RoomNowFilter[] = ["all", "occupied", "vacant"];
+
+const NOW_LABELS: Record<RoomNowFilter, string> = { all: "All", occupied: "Occupied now", vacant: "Vacant now" };
+
+export const roomNowLabel = (value: RoomNowFilter): string => NOW_LABELS[value];
+
+/** A room passes the "right now" filter. */
+export function roomNowMatches(room: CeoRoom, filters: RoomFilters): boolean {
+  return filters.now === "all" || room.occupiedNow === (filters.now === "occupied");
+}
 
 export const ROOM_SHIFT_FILTERS: readonly RoomShiftFilter[] = ["all", ...ROOM_SHIFTS];
 /** "No list price" is offered only when the report has such sales (roomPricingFilters). */
@@ -298,6 +312,7 @@ export function vacantMatches(filters: RoomFilters): boolean {
 export function filterRooms(rooms: readonly CeoRoom[], filters: RoomFilters): RoomListItem[] {
   const out: RoomListItem[] = [];
   for (const room of rooms) {
+    if (!roomNowMatches(room, filters)) continue;
     if (!room.sales.length) {
       if (vacantMatches(filters)) out.push({ room, sales: [], vacant: true });
       continue;
@@ -310,7 +325,10 @@ export function filterRooms(rooms: readonly CeoRoom[], filters: RoomFilters): Ro
 
 /** Rows (sales, and one per vacant room) that pass these filters. */
 export function countRows(rooms: readonly CeoRoom[], filters: RoomFilters): number {
-  return rooms.reduce((sum, r) => sum + (r.sales.length ? r.sales.filter((s) => saleMatches(s, filters)).length : vacantMatches(filters) ? 1 : 0), 0);
+  return rooms.reduce((sum, r) => {
+    if (!roomNowMatches(r, filters)) return sum;
+    return sum + (r.sales.length ? r.sales.filter((s) => saleMatches(s, filters)).length : vacantMatches(filters) ? 1 : 0);
+  }, 0);
 }
 
 export type RoomFilterCounts = {
@@ -318,15 +336,19 @@ export type RoomFilterCounts = {
   shift: Record<RoomShiftFilter, number>;
   /** Rows each pricing option would show with the current shift filter. */
   pricing: Record<RoomPricingFilter, number>;
+  /** Rows each "right now" option would show with the other filters. */
+  now: Record<RoomNowFilter, number>;
 };
 
-/** How many rows each filter chip would show, keeping the other filter as it is. */
+/** How many rows each filter chip would show, keeping the other filters as they are. */
 export function roomFilterCounts(rooms: readonly CeoRoom[], filters: RoomFilters): RoomFilterCounts {
   const shift = {} as Record<RoomShiftFilter, number>;
   for (const value of ROOM_SHIFT_FILTERS) shift[value] = countRows(rooms, { ...filters, shift: value });
   const pricing = {} as Record<RoomPricingFilter, number>;
   for (const value of ROOM_PRICING_FILTERS) pricing[value] = countRows(rooms, { ...filters, pricing: value });
-  return { shift, pricing };
+  const now = {} as Record<RoomNowFilter, number>;
+  for (const value of ROOM_NOW_FILTERS) now[value] = countRows(rooms, { ...filters, now: value });
+  return { shift, pricing, now };
 }
 
 // ─── Display ──────────────────────────────────────────────────────────────────────────────────────────────

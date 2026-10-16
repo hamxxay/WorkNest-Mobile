@@ -41,7 +41,7 @@ function rowDetail(query: CeoBreakdownQuery, b: CeoBreakdown, row: CeoBreakdownR
 export default function CeoBreakdownScreen() {
   const navigation = useNavigation<Nav>();
   const { params } = useRoute<Route>();
-  const { query, trail, scopeLabel } = params;
+  const { query, trail, scopeLabel, recordsParams } = params;
   const load = useCallback(() => getCeoBreakdown(query), [query]);
   const format = metricUnit(query.metric) === "money" ? money : (v: number) => count(v);
 
@@ -54,7 +54,7 @@ export default function CeoBreakdownScreen() {
       format={format}
       rowDetail={(b, row) => rowDetail(query, b, row, format)}
       rowMeta={isOccupancy(query) ? () => undefined : (row) => format(row.value)}
-      recordsFor={(row) => recordsForBreakdownRow(query, row)}
+      recordsFor={(row) => recordsForBreakdownRow(query, row, recordsParams)}
       onOpenRecords={(row, records) => navigation.push("CeoRecords", { query: records, trail: [...trail, row.label], scopeLabel })}
     />
   );

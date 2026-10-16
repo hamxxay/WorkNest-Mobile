@@ -360,7 +360,7 @@ describe("sales without a list price", () => {
     expect(roomPricingFilters(rooms)).toEqual(["all", "under", "at", "over", "unpriced", "vacant"]);
     expect(roomPricingFilters(report().rooms)).toEqual(["all", "under", "at", "over", "vacant"]);
     expect(roomPricingFilters(report().rooms, "unpriced")).toContain("unpriced");
-    expect(filterRooms(rooms, { shift: "all", pricing: "unpriced" }).map((i) => i.sales.map((x) => x.customer))).toEqual([["Epsilon"]]);
+    expect(filterRooms(rooms, { ...ALL_ROOMS, shift: "all", pricing: "unpriced" }).map((i) => i.sales.map((x) => x.customer))).toEqual([["Epsilon"]]);
     const view = roomCardView(filterRooms(rooms, ALL_ROOMS)[0], "month");
     expect(view.facts).toBe("No list price · 0% occupied this month");
     const [sale, atSale] = view.sales;
@@ -434,31 +434,43 @@ describe("filters", () => {
   });
 
   it("a shift keeps that shift's bookings (a vacant room has no shift)", () => {
-    expect(names({ shift: "Morning", pricing: "all" })).toEqual([["Shared A", false, ["Gamma Studio"]]]);
-    expect(names({ shift: "24/7", pricing: "all" })).toEqual([
+    expect(names({ ...ALL_ROOMS, shift: "Morning", pricing: "all" })).toEqual([["Shared A", false, ["Gamma Studio"]]]);
+    expect(names({ ...ALL_ROOMS, shift: "24/7", pricing: "all" })).toEqual([
       ["Office 1", false, ["Acme Traders"]],
       ["Shared A", false, ["Beta Labs"]],
     ]);
-    expect(names({ shift: "Evening", pricing: "all" })).toEqual([]);
+    expect(names({ ...ALL_ROOMS, shift: "Evening", pricing: "all" })).toEqual([]);
   });
 
   it("pricing keeps under / at / over bookings; Vacant keeps the rooms without one", () => {
-    expect(names({ shift: "all", pricing: "under" })).toEqual([["Office 1", false, ["Acme Traders"]]]);
-    expect(names({ shift: "all", pricing: "at" })).toEqual([["Shared A", false, ["Beta Labs"]]]);
-    expect(names({ shift: "all", pricing: "over" })).toEqual([["Shared A", false, ["Gamma Studio"]]]);
-    expect(names({ shift: "all", pricing: "vacant" })).toEqual([["Office 2", true, []]]);
-    expect(names({ shift: "Morning", pricing: "vacant" })).toEqual([]);
-    expect(names({ shift: "Morning", pricing: "under" })).toEqual([]);
+    expect(names({ ...ALL_ROOMS, shift: "all", pricing: "under" })).toEqual([["Office 1", false, ["Acme Traders"]]]);
+    expect(names({ ...ALL_ROOMS, shift: "all", pricing: "at" })).toEqual([["Shared A", false, ["Beta Labs"]]]);
+    expect(names({ ...ALL_ROOMS, shift: "all", pricing: "over" })).toEqual([["Shared A", false, ["Gamma Studio"]]]);
+    expect(names({ ...ALL_ROOMS, shift: "all", pricing: "vacant" })).toEqual([["Office 2", true, []]]);
+    expect(names({ ...ALL_ROOMS, shift: "Morning", pricing: "vacant" })).toEqual([]);
+    expect(names({ ...ALL_ROOMS, shift: "Morning", pricing: "under" })).toEqual([]);
   });
 
   it("counts what each chip would show, keeping the other filter", () => {
     expect(roomFilterCounts(rooms, ALL_ROOMS)).toEqual({
       shift: { all: 4, "24/7": 2, Morning: 1, Evening: 0 },
       pricing: { all: 4, under: 1, at: 1, over: 1, unpriced: 0, vacant: 1 },
+      // Office 1 and Shared A (3 bookings) are in use; Office 2 is not.
+      now: { all: 4, occupied: 3, vacant: 1 },
     });
-    expect(roomFilterCounts(rooms, { shift: "Morning", pricing: "all" }).pricing).toEqual({ all: 1, under: 0, at: 0, over: 1, unpriced: 0, vacant: 0 });
-    expect(roomFilterCounts(rooms, { shift: "all", pricing: "under" }).shift).toEqual({ all: 1, "24/7": 1, Morning: 0, Evening: 0 });
+    expect(roomFilterCounts(rooms, { ...ALL_ROOMS, shift: "Morning", pricing: "all" }).pricing).toEqual({ all: 1, under: 0, at: 0, over: 1, unpriced: 0, vacant: 0 });
+    expect(roomFilterCounts(rooms, { ...ALL_ROOMS, shift: "all", pricing: "under" }).shift).toEqual({ all: 1, "24/7": 1, Morning: 0, Evening: 0 });
     expect(countRows([], ALL_ROOMS)).toBe(0);
+  });
+
+  it("right now: the rooms in use (with their bookings) or the vacant ones, with the other filters", () => {
+    expect(names({ ...ALL_ROOMS, now: "occupied" })).toEqual([
+      ["Office 1", false, ["Acme Traders"]],
+      ["Shared A", false, ["Beta Labs", "Gamma Studio"]],
+    ]);
+    expect(names({ ...ALL_ROOMS, now: "vacant" })).toEqual([["Office 2", true, []]]);
+    expect(names({ ...ALL_ROOMS, now: "occupied", pricing: "over" })).toEqual([["Shared A", false, ["Gamma Studio"]]]);
+    expect(roomFilterCounts(rooms, { ...ALL_ROOMS, now: "vacant" }).pricing).toEqual({ all: 1, under: 0, at: 0, over: 0, unpriced: 0, vacant: 1 });
   });
 });
 
@@ -507,7 +519,7 @@ describe("card texts", () => {
   });
 
   it("a vacant room", () => {
-    const vacant = filterRooms(rooms, { shift: "all", pricing: "vacant" })[0];
+    const vacant = filterRooms(rooms, { ...ALL_ROOMS, shift: "all", pricing: "vacant" })[0];
     expect(roomCardView(vacant, "quarter")).toMatchObject({
       title: "Office 2",
       now: { label: "Vacant now", tone: "neutral" },
