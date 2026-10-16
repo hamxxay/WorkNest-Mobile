@@ -37,14 +37,32 @@ export type SmLocation = CeoLocation;
 
 // ─── GET api/sales-manager/dashboard ─────────────────────────────────────────────────────────────────────
 
-export type SmFunnelMonth = { month: string; quotations: number; accepted: number; bookings: number; bookedDesks: number };
+export type SmFunnelMonth = {
+  month: string;
+  quotations: number;
+  accepted: number;
+  bookings: number;
+  bookedDesks: number;
+  /** Quotations created that month that were booked (never more than the quotations). */
+  quotationsBooked: number;
+};
 
 export type SmFunnel = {
   /** inquiries, quotations, accepted, bookings (created in the period), in that order; extra stages after them. */
   stages: CeoFunnelStage[];
-  /** Bookings / quotations in the period, percent; null when not sent. */
+  /**
+   * Quotations created in the period that were booked / quotations created in the period, percent (0-100, never
+   * above); null when not sent.
+   */
   conversionRate: number | null;
   conversionRatePrev: number | null;
+  /**
+   * Quotations created in the period that were booked (never more than the quotations). An older API does not send
+   * it: then the period's bookings, at most one per quotation.
+   */
+  quotationsBooked: number;
+  /** The same for the previous period; null when not sent. */
+  quotationsBookedPrev: number | null;
   /** Desks on the quotations created in the period. */
   quotedDesks: number;
   /** Desks on the bookings created in the period. */

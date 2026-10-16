@@ -84,7 +84,8 @@ export function FunnelSection({ funnel: f, drill }: { funnel: SmFunnel; drill: S
   const stage = (key: string) => f.stages.find((s) => s.stage === key)?.count ?? 0;
   const quotations = stage("quotations");
   const bookings = stage("bookings");
-  const rate = f.conversionRate ?? (quotations > 0 ? (bookings / quotations) * 100 : null);
+  // Conversion: of this period's quotations, the ones booked (never above 100%; quotationsBooked <= quotations).
+  const rate = f.conversionRate ?? (quotations > 0 ? (f.quotationsBooked / quotations) * 100 : null);
   const top = f.stages[0]?.count ?? 0;
   const recent = f.months.slice(-12);
   const openStage = (key: string, label: string) => drill.records(smRecordsForFunnelStage(key, drill.scope), ["Sales funnel", label], label);
@@ -98,7 +99,7 @@ export function FunnelSection({ funnel: f, drill }: { funnel: SmFunnel; drill: S
     {
       label: "Conversion",
       value: rate != null ? pct(rate) : "—",
-      sub: "bookings per quotation",
+      sub: quotations ? `${count(f.quotationsBooked)} of ${count(quotations)} quotations booked` : "No quotations yet",
       icon: "trending-up-outline",
       tone: rate != null && rate >= 30 ? "success" : quotations ? "warning" : "neutral",
       trend: rate != null ? trend(rate, f.conversionRatePrev, "pts") : undefined,

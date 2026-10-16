@@ -183,6 +183,28 @@ export function normalizeFunnel(value: unknown): CeoFunnelStage[] {
   return [...FUNNEL_ORDER.map((stage) => found.get(stage) ?? { stage, label: FUNNEL_LABELS[stage], count: 0 }), ...extra];
 }
 
+/** Count of one funnel stage ("quotations", "bookings"...), 0 when it is not there. */
+export function stageCount(stages: CeoFunnelStage[], stage: CeoFunnelStageKey): number {
+  return stages.find((s) => s.stage === stage)?.count ?? 0;
+}
+
+/**
+ * Quotations created in the period that were booked (the API's quotationsBooked), never more than the quotations.
+ * An older API does not send it: the period's bookings stand in, at most one per quotation.
+ */
+export function quotationsBookedOf(sent: number | null, bookings: number, quotations: number): number {
+  return Math.max(0, Math.min(sent ?? bookings, quotations));
+}
+
+/**
+ * A conversion rate as sent, kept within 0-100 (an older API sent all bookings / quotations, which could pass
+ * 100%); null when not sent. Conversion = quotations created in the period that were booked / quotations created
+ * in the period (owner's rule, 16 Oct 2026).
+ */
+export function conversionRateOf(sent: number | null): number | null {
+  return sent == null ? null : Math.max(0, Math.min(100, sent));
+}
+
 /**
  * Inquiries by Type: Website, WhatsApp, Walk-In, Reference, Not set, in that order (duplicates and spellings such
  * as "Walk-In" / "walk_in" merged); a type the app does not know is kept after them with its own label.
@@ -211,9 +233,11 @@ export function normalizeInquiryTypes(value: unknown): CeoInquiryTypeCount[] {
 
 function normalizeSales(raw: Row | null): CeoSales | null {
   if (!raw) return null;
+  const funnel = normalizeFunnel(pick(raw, "funnel"));
   return {
-    funnel: normalizeFunnel(pick(raw, "funnel")),
-    conversionRate: optNum(raw, "conversionRate"),
+    funnel,
+    conversionRate: conversionRateOf(optNum(raw, "conversionRate")),
+    quotationsBooked: quotationsBookedOf(optNum(raw, "quotationsBooked"), stageCount(funnel, "bookings"), stageCount(funnel, "quotations")),
     inquiriesByType: normalizeInquiryTypes(pick(raw, "inquiriesByType")),
     quotationValue: num(raw, "quotationValue"),
     bookingValue: num(raw, "bookingValue"),

@@ -1,13 +1,16 @@
 import { INQUIRY_TYPES, type InquiryType } from "../../theme/inquiryTypes";
 import { bool, num, optNum, optStr, pick, str } from "../staff/normalize";
 import {
+  conversionRateOf,
   normalizeBreakdownWith,
   normalizeFunnel,
   normalizeInquiryTypes,
   normalizeLocations,
   normalizePeriod,
+  quotationsBookedOf,
   recordsPayload,
   recordsTotal,
+  stageCount,
   toBookingRecord,
   toInquiryRecord,
   toQuotationRecord,
@@ -46,21 +49,31 @@ import type {
 
 function normalizeFunnelSection(raw: Row | null): SmFunnel | null {
   if (!raw) return null;
+  const stages = normalizeFunnel(pick(raw, "stages"));
+  const prevBooked = optNum(raw, "quotationsBookedPrev");
   return {
-    stages: normalizeFunnel(pick(raw, "stages")),
-    conversionRate: optNum(raw, "conversionRate"),
-    conversionRatePrev: optNum(raw, "conversionRatePrev"),
+    stages,
+    // Conversion = quotations of the period that were booked / quotations of the period: never above 100%.
+    conversionRate: conversionRateOf(optNum(raw, "conversionRate")),
+    conversionRatePrev: conversionRateOf(optNum(raw, "conversionRatePrev")),
+    quotationsBooked: quotationsBookedOf(optNum(raw, "quotationsBooked"), stageCount(stages, "bookings"), stageCount(stages, "quotations")),
+    quotationsBookedPrev: prevBooked == null ? null : Math.max(0, prevBooked),
     quotedDesks: num(raw, "quotedDesks"),
     bookedDesks: num(raw, "bookedDesks"),
     bookedDesksPrev: optNum(raw, "bookedDesksPrev"),
     months: byMonth(
-      list(raw, "months", (m) => ({
-        month: str(m, "month"),
-        quotations: num(m, "quotations"),
-        accepted: num(m, "accepted"),
-        bookings: num(m, "bookings"),
-        bookedDesks: num(m, "bookedDesks"),
-      })),
+      list(raw, "months", (m) => {
+        const quotations = num(m, "quotations");
+        const bookings = num(m, "bookings");
+        return {
+          month: str(m, "month"),
+          quotations,
+          accepted: num(m, "accepted"),
+          bookings,
+          bookedDesks: num(m, "bookedDesks"),
+          quotationsBooked: quotationsBookedOf(optNum(m, "quotationsBooked"), bookings, quotations),
+        };
+      }),
     ),
   };
 }
