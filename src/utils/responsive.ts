@@ -91,8 +91,8 @@ export const STAT_CARD_MIN_WIDTH = 148;
 export const MIN_ACTION_WIDTH = 120;
 /** Buttons cap their text at this font scale (Button maxFontSizeMultiplier), so wider is never needed. */
 const ACTION_TEXT_CAP = 1.4;
-/** Average width of one character of button text (Inter SemiBold 16) as a share of the font size. */
-const BUTTON_CHAR_EM = 0.6;
+/** Average width of one character of button text (Inter SemiBold 16, mixed case with spaces) as a share of the font size. */
+const BUTTON_CHAR_EM = 0.55;
 
 /** A button in a row of actions: its label (and whether an icon sits before it). */
 export type ActionLabel = string | { title: string; icon?: boolean };

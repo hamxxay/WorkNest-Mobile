@@ -353,4 +353,14 @@ describe("ListRow meta", () => {
     expect(flat(meta.parent!).flexDirection).toBeUndefined();
     expect(meta.props.numberOfLines).toBe(2);
   });
+
+  it("a status pill on the right goes under the title with large text too", () => {
+    const pill = React.createElement("Pill");
+    setWindow(360, 780);
+    let root = render(<ListRow title="Ayesha Khan" right={pill} />).root;
+    expect(flat(byType(root, "Pill")[0].parent!).flexDirection).toBe("row");
+    setWindow(360, 780, 1.6);
+    root = render(<ListRow title="Ayesha Khan" right={pill} />).root;
+    expect(flat(byType(root, "Pill")[0].parent!)).toMatchObject({ alignSelf: "flex-start" });
+  });
 });

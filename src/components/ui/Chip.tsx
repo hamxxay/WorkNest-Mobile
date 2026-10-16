@@ -48,7 +48,7 @@ export function Chip({ label, selected = false, onPress, icon, count, onRemove, 
         ]}
       >
         {icon ? <Ionicons name={icon} size={16} color={fg} /> : null}
-        <Text numberOfLines={1} maxFontSizeMultiplier={1.3} style={[typography.label, { color: fg }]}>
+        <Text numberOfLines={1} maxFontSizeMultiplier={1.3} style={[typography.label, styles.label, { color: fg }]}>
           {label}
         </Text>
         {count !== undefined ? (
@@ -136,9 +136,15 @@ export function FilterChips<T extends string | number>(props: FilterChipsProps<T
 }
 
 const styles = StyleSheet.create({
-  wrap: { flexDirection: "row", alignItems: "center" },
+  // Never wider than its row (a long chip in a wrapping row ellipsizes on a 320dp phone instead of overflowing).
+  wrap: { flexDirection: "row", alignItems: "center", maxWidth: "100%" },
   chip: {
     minHeight: 36,
+    // A short chip ("1".."9") still has a 44dp wide target, and fills a wider wrapper (`style={{ minWidth }}`).
+    minWidth: 44,
+    flexGrow: 1,
+    flexShrink: 1,
+    justifyContent: "center",
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
@@ -157,6 +163,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 999,
     borderBottomRightRadius: 999,
   },
+  label: { flexShrink: 1 },
   count: { minWidth: 20, paddingHorizontal: 6, borderRadius: 999, alignItems: "center" },
   // Count bubble on the teal fill of a selected chip.
   countOnFill: { backgroundColor: "rgba(255, 255, 255, 0.22)" },

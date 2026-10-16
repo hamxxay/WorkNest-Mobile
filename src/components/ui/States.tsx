@@ -1,11 +1,11 @@
-import { ActivityIndicator, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, View, useWindowDimensions, type StyleProp, type ViewStyle } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { useTheme } from "../../theme";
 import { Illustration, type IllustrationName } from "../illustrations";
 import { SkeletonBlock, SkeletonGroup } from "../Skeleton";
 import { Button } from "./Button";
 import { ResponsiveGrid } from "./ResponsiveGrid";
-import { STAT_CARD_MIN_WIDTH } from "../../utils/responsive";
+import { STAT_CARD_MIN_WIDTH, textScale } from "../../utils/responsive";
 
 // ─── LoadingState ─────────────────────────────────────────────────────────────
 
@@ -108,6 +108,15 @@ export function KpiSkeleton({ count = 4, columns, style }: KpiSkeletonProps) {
 /** Illustration size in dp: full states / compact states (inside cards and sheets). */
 const ART_SIZE = 140;
 const ART_SIZE_COMPACT = 96;
+/**
+ * A short window (phone in landscape, or large text on a small phone): full states use the compact picture and
+ * paddings so the title, message and button still fit on screen.
+ */
+function useShortWindow(): boolean {
+  const { height, fontScale } = useWindowDimensions();
+  return height / textScale(fontScale) < 560;
+}
+
 /** The picture above the title is decorative: screen readers skip it and read the title and message. */
 const decorative = { accessibilityElementsHidden: true, importantForAccessibility: "no-hide-descendants" as const };
 
@@ -139,10 +148,11 @@ export function EmptyState({
   message,
   actionLabel,
   onAction,
-  compact = false,
+  compact: compactProp = false,
   style,
 }: EmptyStateProps) {
   const { colors, typography } = useTheme();
+  const compact = useShortWindow() || compactProp;
   return (
     <View style={[styles.center, compact ? styles.compact : styles.roomy, style]}>
       {illustration ? (
@@ -198,10 +208,11 @@ export function ErrorState({
   onRetry,
   retryLabel = "Try again",
   retrying = false,
-  compact = false,
+  compact: compactProp = false,
   style,
 }: ErrorStateProps) {
   const { colors, typography } = useTheme();
+  const compact = useShortWindow() || compactProp;
   const art = illustration ?? (icon ? undefined : "cloud-off");
   return (
     <View accessibilityRole="alert" style={[styles.center, compact ? styles.compact : styles.roomy, style]}>
