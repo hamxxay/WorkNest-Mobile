@@ -229,7 +229,7 @@ export function OccupancySection({ occupancy: o, drill }: { occupancy: CeoOccupa
       trend: trend(o.occupancyPct, o.occupancyPctPrev, "pts"),
       trendSeries: recent.map((x) => x.occupancyPct),
       onPress: () => drill.open(occupancyTarget(o, scopeOf(drill)), ["Occupancy", "Spaces in use"]),
-      accessibilityHint: drill.locationId ? "Opens this location by space type" : "Opens the occupancy by location",
+      accessibilityHint: drill.locationId ? "Opens the occupied rooms of this location by space type" : "Opens the occupied rooms by location",
     },
     {
       label: "New bookings",

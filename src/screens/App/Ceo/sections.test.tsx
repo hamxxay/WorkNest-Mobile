@@ -141,8 +141,8 @@ describe("Occupancy cards", () => {
   test("Occupancy by location, Active bookings running today, New bookings and every lease expiring", () => {
     const drill = makeDrill("quarter");
     const tiles = tilesOf(<OccupancySection occupancy={D.occupancy!} drill={drill} />);
-    expect(press(tiles, "Occupancy").accessibilityHint).toBe("Opens the occupancy by location");
-    expect(drill.open.mock.calls[0][0]).toMatchObject({ kind: "list", list: { title: "Occupancy by location" } });
+    expect(press(tiles, "Occupancy").accessibilityHint).toBe("Opens the occupied rooms by location");
+    expect(drill.open.mock.calls[0][0]).toMatchObject({ kind: "list", list: { title: "Occupied rooms by location" } });
     expect(press(tiles, "Active bookings").accessibilityHint).toBe("Opens the bookings running today");
     expect(drill.open.mock.calls[1]).toEqual([
       {
@@ -160,11 +160,15 @@ describe("Occupancy cards", () => {
     expect(drill.focus).not.toHaveBeenCalled();
   });
 
-  test("one location chosen: Occupancy opens it by space type; without the full lease count the card shows the list here", () => {
+  test("one location chosen: Occupancy opens its occupied rooms by space type; without the full lease count the card shows the list here", () => {
     const drill = makeDrill("month", 1);
     const tiles = tilesOf(<OccupancySection occupancy={{ ...D.occupancy!, leasesExpiringCount: null }} drill={drill} />);
-    expect(press(tiles, "Occupancy").accessibilityHint).toBe("Opens this location by space type");
-    expect(drill.open.mock.calls[0][0]).toEqual({ kind: "breakdown", query: { metric: "occupancy-location", period: "month", locationId: 1 } });
+    expect(press(tiles, "Occupancy").accessibilityHint).toBe("Opens the occupied rooms of this location by space type");
+    expect(drill.open.mock.calls[0][0]).toEqual({
+      kind: "breakdown",
+      query: { metric: "occupancy-location", period: "month", locationId: 1 },
+      recordsParams: { occupied: true },
+    });
     press(tiles, "Leases expiring");
     expect(drill.focus).toHaveBeenCalledWith("leases");
   });
