@@ -239,8 +239,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     overflow: "hidden",
   },
-  row: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
-  label: { ...fontFor("600"), includeFontPadding: false, textAlign: "center" },
+  // The label never pushes past the button: on a narrow button (320dp phone, Fold cover screen, large text) it
+  // ends in "..." instead of being cut off at both sides.
+  row: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, maxWidth: "100%" },
+  label: { ...fontFor("600"), includeFontPadding: false, textAlign: "center", flexShrink: 1 },
   fullWidth: { alignSelf: "stretch" },
   disabled: { opacity: 0.5 },
   iconBtn: { alignItems: "center", justifyContent: "center" },

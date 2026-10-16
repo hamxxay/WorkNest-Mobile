@@ -1,4 +1,4 @@
-import { ScrollView, StyleSheet, View } from "react-native";
+import { ScrollView, StyleSheet, View, useWindowDimensions } from "react-native";
 import {
   AppHeader,
   AppText,
@@ -15,6 +15,7 @@ import { useAuth, userDisplayName } from "../../../context/AuthContext";
 import { spacing } from "../../../theme";
 import { AccountSecurityCard } from "../../../components/account/AccountSecurityCard";
 import { SignOutButton } from "../../../components/account/SignOutButton";
+import { textScale } from "../../../utils/responsive";
 
 // Profile of a single-purpose app (CEO, Sales Manager, Access Officer): who is signed in (name and role from the
 // database, via auth/me), the locations they see, what the account can do, appearance (System / Light / Dark) and
@@ -45,6 +46,9 @@ export function ViewOnlyProfile({
   const email = typeof user?.email === "string" ? user.email : "";
   const displayName = userDisplayName(user, fallbackName);
 
+  // Large text: the name and email may take two lines instead of a few letters and "...".
+  const identityLines = textScale(useWindowDimensions().fontScale) >= 1.3 ? 2 : 1;
+
   return (
     <Screen>
       <AppHeader title="Profile" />
@@ -53,11 +57,11 @@ export function ViewOnlyProfile({
           <View style={styles.identity}>
             <Avatar name={displayName} size={56} />
             <View style={styles.flex}>
-              <AppText variant="heading" numberOfLines={1}>
+              <AppText variant="heading" numberOfLines={identityLines}>
                 {displayName}
               </AppText>
               {email && email !== displayName ? (
-                <AppText variant="bodySmall" color="textMuted" numberOfLines={1}>
+                <AppText variant="bodySmall" color="textMuted" numberOfLines={identityLines}>
                   {email}
                 </AppText>
               ) : null}
