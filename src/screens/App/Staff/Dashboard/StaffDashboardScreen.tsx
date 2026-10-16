@@ -34,6 +34,7 @@ import {
   TeamSection,
 } from "./sections";
 import { useRefreshColors } from "../shared/refresh";
+import { MAX_CONTENT_WIDTH } from "../../../../utils/responsive";
 
 /** Coming back to the dashboard reloads it when the figures are older than this. */
 const FOCUS_RELOAD_AFTER_MS = 15_000;
@@ -150,7 +151,7 @@ export default function StaffDashboardScreen() {
   const r = roleDash.data;
 
   return (
-    <StaffScreen>
+    <StaffScreen width="wide">
       <AppHeader
         variant="dashboard"
         overline={userRoleLabel(user, role)}
@@ -228,5 +229,6 @@ export default function StaffDashboardScreen() {
 
 const styles = StyleSheet.create({
   content: { padding: spacing.screen, gap: spacing.xl, paddingBottom: spacing.xxxl },
-  controls: { gap: spacing.md },
+  // The period / location pickers keep a form width on a wide dashboard instead of stretching across it.
+  controls: { gap: spacing.md, width: "100%", maxWidth: MAX_CONTENT_WIDTH },
 });

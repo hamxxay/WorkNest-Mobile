@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { PixelRatio, Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
+import { Pressable, StyleSheet, View, useWindowDimensions, type StyleProp, type ViewStyle } from "react-native";
 import Animated, { useAnimatedProps, type SharedValue } from "react-native-reanimated";
 import Svg, { Line, Path, Rect } from "react-native-svg";
 import { useTheme, type Tone } from "../../theme";
@@ -99,6 +99,8 @@ export function BarChart({
 }: BarChartProps) {
   const theme = useTheme();
   const chart = useChartColors();
+  // Live font scale (re-renders when the system font size changes while the app is open).
+  const { fontScale: systemFontScale } = useWindowDimensions();
   const [width, onLayout] = useLayoutWidth();
   const [picked, setPicked] = useState<number | null>(null);
   // A pick from an earlier, longer data set (period switched) is dropped.
@@ -117,7 +119,7 @@ export function BarChart({
   const ticks = empty ? [0] : domain.ticks;
   const tickLabels = ticks.map(t => formatTick(t));
   // Axis text follows the system font size, so the axis band and label widths scale with it.
-  const fontScale = PixelRatio.getFontScale() || 1;
+  const fontScale = systemFontScale || 1;
   const lineHeight = CAPTION_LINE * fontScale;
   const charWidth = CHAR_W * fontScale;
   const plotTop = Math.ceil(lineHeight / 2);

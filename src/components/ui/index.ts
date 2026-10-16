@@ -26,12 +26,13 @@ export { InfoRow, type InfoRowProps } from "./InfoRow";
 export { SectionHeader, type SectionHeaderProps } from "./SectionHeader";
 export { Divider, type DividerProps } from "./Divider";
 export { StatusPill, type StatusPillProps } from "./StatusPill";
-export { StatCard, KpiCard, type StatCardProps, type KpiCardProps, type StatTrend } from "./StatCard";
+export { StatCard, KpiCard, STAT_CARD_MIN_WIDTH, type StatCardProps, type KpiCardProps, type StatTrend } from "./StatCard";
 export { SegmentedControl, type SegmentedControlProps, type SegmentOption } from "./SegmentedControl";
 export { Chip, FilterChips, type ChipProps, type FilterChipsProps, type FilterOption } from "./Chip";
 export { Badge, type BadgeProps } from "./Badge";
 export { Avatar, initialsOf, type AvatarProps } from "./Avatar";
 export { TabBar, useTabBarSpace, type TabBarProps } from "./TabBar";
+export { ResponsiveGrid, type ResponsiveGridProps } from "./ResponsiveGrid";
 export {
   LoadingState,
   ListSkeleton,
@@ -58,7 +59,7 @@ export { BrandLogo, BRAND_NAVY, BRAND_W_ASPECT, type BrandLogoProps } from "./Br
 export { AppearanceSetting, type AppearanceSettingProps } from "./AppearanceSetting";
 export { HapticsSetting, type HapticsSettingProps } from "./HapticsSetting";
 export { FocusAwareStatusBar, barStyleFor, type FocusAwareStatusBarProps } from "./FocusAwareStatusBar";
-export { useScreenChrome, type StatusBarChrome } from "./screenChrome";
+export { useScreenChrome, useScreenColumnWidth, type StatusBarChrome } from "./screenChrome";
 
 // Re-exported so screens can get everything UI-related from one import.
 export { SkeletonGroup, SkeletonBlock, FadeInView } from "../Skeleton";

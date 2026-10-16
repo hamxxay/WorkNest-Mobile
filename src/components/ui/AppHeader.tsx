@@ -121,6 +121,13 @@ export function AppHeader({
   const screen = useScreenChrome({ color: bg, barStyle });
   const padTop = safeArea === "auto" ? !screen?.topInsetApplied : safeArea;
 
+  // Tablets / unfolded foldables / landscape: the header sits in the screen's centred content column, but its
+  // background (and bottom line) still spans the whole window, like the status-bar strip above it.
+  const bleedLeft = screen?.bleedLeft ?? 0;
+  const bleedRight = screen?.bleedRight ?? 0;
+  const bleeding = bleedLeft > 0 || bleedRight > 0;
+  const barBg = bleeding ? "transparent" : bg;
+
   const back = showBack ?? (variant === "stack" ? autoBack : false);
   const logo = showLogo ?? variant !== "stack";
   const border = bordered ?? !dark;
@@ -151,14 +158,25 @@ export function AppHeader({
       style={[
         styles.bar,
         {
-          backgroundColor: bg,
+          backgroundColor: barBg,
           paddingTop: (padTop ? insets.top : 0) + 8,
           borderBottomColor: dark ? colors.headerLine : colors.border,
         },
-        border && styles.bordered,
+        border && !bleeding && styles.bordered,
         style,
       ]}
     >
+      {bleeding ? (
+        <View
+          pointerEvents="none"
+          testID="app-header-bleed"
+          style={[
+            styles.bleed,
+            { left: -bleedLeft, right: -bleedRight, backgroundColor: bg, borderBottomColor: dark ? colors.headerLine : colors.border },
+            border && styles.bordered,
+          ]}
+        />
+      ) : null}
       {!screen ? <FocusAwareStatusBar barStyle={barStyle} /> : null}
       <View style={styles.row}>
         {leading}
@@ -211,6 +229,7 @@ export function AppHeader({
 const styles = StyleSheet.create({
   bar: { paddingHorizontal: 12, paddingBottom: 10 },
   bordered: { borderBottomWidth: StyleSheet.hairlineWidth },
+  bleed: { position: "absolute", top: 0, bottom: 0 },
   row: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 44 },
   backBtn: { marginLeft: -4 },
   logo: { marginLeft: 4 },

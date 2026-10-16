@@ -48,6 +48,7 @@ import {
   type Drill,
   type FocusTarget,
 } from "./sections";
+import { MAX_CONTENT_WIDTH } from "../../../utils/responsive";
 
 /** Shown on the Sales section while one location is chosen and the server still counts every location's inquiries. */
 const INQUIRIES_ALL_LOCATIONS_NOTE = "Tour inquiries count every location until database update QA_07 is run";
@@ -153,7 +154,7 @@ export default function CeoDashboardScreen() {
   const staleError = !!d && !!dashboard.error && !dashboard.refreshing;
 
   return (
-    <Screen>
+    <Screen width="wide">
       <AppHeader
         variant="dashboard"
         overline={roleDisplayLabel}
@@ -256,6 +257,7 @@ export default function CeoDashboardScreen() {
 const styles = StyleSheet.create({
   content: { padding: spacing.screen, paddingBottom: spacing.xxxl },
   stack: { gap: spacing.xl },
-  controls: { gap: spacing.md },
+  // The period / location pickers keep a form width on a wide dashboard instead of stretching across it.
+  controls: { gap: spacing.md, width: "100%", maxWidth: MAX_CONTENT_WIDTH },
   section: { gap: spacing.sm },
 });

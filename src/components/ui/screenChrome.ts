@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useRef } from "react";
+import { useWindowDimensions } from "react-native";
 
 export type StatusBarChrome = {
   /** Colour painted behind the status bar (and of the top safe-area strip). */
@@ -11,6 +12,15 @@ export type ScreenChromeContextValue = {
   topInsetApplied: boolean;
   /** A header registers its colour so the status bar and top strip match it. Pass null to unregister. */
   setChrome: (owner: number, chrome: StatusBarChrome | null) => void;
+  /** Width of the screen's content column (the window, capped at the screen's max width on tablets). */
+  columnWidth: number;
+  /**
+   * Distance from the column's left / right edge to the window edge (side margins on tablets and unfolded
+   * foldables, plus side safe-area insets in landscape). Full-width chrome such as the header bar paints its
+   * background this far past the column so it still spans the whole window. 0 on phones in portrait.
+   */
+  bleedLeft: number;
+  bleedRight: number;
 };
 
 /** Provided by <Screen>. Headers read it to avoid a double top inset and to colour the status bar. */
@@ -37,4 +47,14 @@ export function useScreenChrome(chrome: StatusBarChrome | null): ScreenChromeCon
   }, [ctx, color, barStyle]);
 
   return ctx;
+}
+
+/**
+ * Width of the enclosing <Screen>'s content column (the window width outside a Screen). A good first guess for
+ * layouts that measure themselves (grids) before their first onLayout.
+ */
+export function useScreenColumnWidth(): number {
+  const ctx = useContext(ScreenChromeContext);
+  const { width } = useWindowDimensions();
+  return ctx?.columnWidth || width;
 }

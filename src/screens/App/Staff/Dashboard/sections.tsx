@@ -17,6 +17,7 @@ import type {
 } from "../../../../services/staff";
 import { spacing, type Tone } from "../../../../theme";
 import { formatDate, formatNumber, formatRelative } from "../../../../utils/format";
+import { ChartGrid } from "../../Ceo/parts";
 import { AttentionList, Fact, FigureTable, KpiGrid, money } from "./parts";
 
 type Nav = NativeStackNavigationProp<StaffStackParamList>;
@@ -86,57 +87,59 @@ export function SalesSection({ sales, periodWord }: { sales: SalesDashboard; per
           },
         ]}
       />
-      <Card>
-        <AppText variant="subheading">Pipeline {periodWord}</AppText>
-        <View style={styles.donutRow}>
-          <Donut
-            size={DONUT_SIZE}
-            segments={[{ label: "Converted", value: clampPct(s.conversionPct) }]}
-            total={100}
-            centerLabel={pct(s.conversionPct)}
-            centerCaption="converted"
-            accessibilityLabel={`Conversion ${periodWord}: ${pct(s.conversionPct)}. ${s.converted} of ${s.quotationsCreated} quotations converted, worth ${money(s.convertedValue)}.`}
+      <ChartGrid>
+        <Card>
+          <AppText variant="subheading">Pipeline {periodWord}</AppText>
+          <View style={styles.donutRow}>
+            <Donut
+              size={DONUT_SIZE}
+              segments={[{ label: "Converted", value: clampPct(s.conversionPct) }]}
+              total={100}
+              centerLabel={pct(s.conversionPct)}
+              centerCaption="converted"
+              accessibilityLabel={`Conversion ${periodWord}: ${pct(s.conversionPct)}. ${s.converted} of ${s.quotationsCreated} quotations converted, worth ${money(s.convertedValue)}.`}
+            />
+            <View style={styles.facts}>
+              <Fact label="Quotations" value={String(s.quotationsCreated)} />
+              <Fact label="Converted" value={`${s.converted} · ${money(s.convertedValue)}`} />
+              <Fact label="Lost" value={String(s.lost)} />
+            </View>
+          </View>
+          <HBarList
+            style={styles.chart}
+            label={`Pipeline ${periodWord}`}
+            items={stages.map((st) => ({ label: st.label, value: st.n, tone: st.tone }))}
           />
-          <View style={styles.facts}>
-            <Fact label="Quotations" value={String(s.quotationsCreated)} />
-            <Fact label="Converted" value={`${s.converted} · ${money(s.convertedValue)}`} />
-            <Fact label="Lost" value={String(s.lost)} />
-          </View>
-        </View>
-        <HBarList
-          style={styles.chart}
-          label={`Pipeline ${periodWord}`}
-          items={stages.map((st) => ({ label: st.label, value: st.n, tone: st.tone }))}
-        />
-      </Card>
-      {s.followUps.length ? (
-        <Card padding={0}>
-          <View style={styles.cardTitle}>
-            <AppText variant="subheading">Follow-ups</AppText>
-          </View>
-          {s.followUps.slice(0, 5).map((f, i) => (
-            <Fragment key={`${f.contactId}-${i}`}>
-              {i > 0 ? <Divider inset={16} /> : null}
-              <ListRow
-                leftIcon="call-outline"
-                title={f.name || "Visitor"}
-                subtitle={[f.phone, f.followUpOn ? `due ${formatDate(f.followUpOn)}` : null, f.note].filter(Boolean).join(" · ")}
-                onPress={() => navigation.navigate("TourInquiries", { filter: "due" })}
-              />
-            </Fragment>
-          ))}
         </Card>
-      ) : null}
-      <AttentionCard
-        title="Waiting for signature"
-        items={s.awaitingSignature}
-        empty="No agreements waiting for a signature."
-        dateLabel="sent"
-        onAll={() => navigation.navigate("AgreementList", { status: "AgreementSent" })}
-      />
-      <AttentionCard title="Bookings to confirm" items={s.pendingBookings} empty="Nothing waiting for confirmation." dateLabel="starts" />
-      <AttentionCard title="Renewals" items={s.renewals} empty="No leases ending soon." dateLabel="ends" />
-      <AttentionCard title="Overdue invoices" items={s.overdueInvoices} empty="No overdue invoices." dateLabel="due" onAll={() => navigation.navigate("InvoiceList")} />
+        {s.followUps.length ? (
+          <Card padding={0}>
+            <View style={styles.cardTitle}>
+              <AppText variant="subheading">Follow-ups</AppText>
+            </View>
+            {s.followUps.slice(0, 5).map((f, i) => (
+              <Fragment key={`${f.contactId}-${i}`}>
+                {i > 0 ? <Divider inset={16} /> : null}
+                <ListRow
+                  leftIcon="call-outline"
+                  title={f.name || "Visitor"}
+                  subtitle={[f.phone, f.followUpOn ? `due ${formatDate(f.followUpOn)}` : null, f.note].filter(Boolean).join(" · ")}
+                  onPress={() => navigation.navigate("TourInquiries", { filter: "due" })}
+                />
+              </Fragment>
+            ))}
+          </Card>
+        ) : null}
+        <AttentionCard
+          title="Waiting for signature"
+          items={s.awaitingSignature}
+          empty="No agreements waiting for a signature."
+          dateLabel="sent"
+          onAll={() => navigation.navigate("AgreementList", { status: "AgreementSent" })}
+        />
+        <AttentionCard title="Bookings to confirm" items={s.pendingBookings} empty="Nothing waiting for confirmation." dateLabel="starts" />
+        <AttentionCard title="Renewals" items={s.renewals} empty="No leases ending soon." dateLabel="ends" />
+        <AttentionCard title="Overdue invoices" items={s.overdueInvoices} empty="No overdue invoices." dateLabel="due" onAll={() => navigation.navigate("InvoiceList")} />
+      </ChartGrid>
     </>
   );
 }
@@ -234,93 +237,95 @@ export function OverviewSection({ data, periodWord }: { data: DashboardOverview;
           },
         ]}
       />
-      <Card padding={0}>
-        <View style={styles.cardTitle}>
-          <AppText variant="subheading">Needs attention</AppText>
-        </View>
-        <View style={styles.padded}>
-          <SegmentedControl
-            accessibilityLabel="Needs attention"
-            options={[
-              { label: `Overdue (${d.overdueInvoices.length})`, value: "overdue" },
-              { label: `Ending (${d.endingLeases.length})`, value: "ending" },
-              { label: `Pending (${d.pendingBookings.length})`, value: "pending" },
-            ]}
-            value={tab}
-            onChange={(v) => setTab(v as typeof tab)}
-          />
-        </View>
-        {tab === "overdue" ? (
-          <AttentionList items={d.overdueInvoices} empty="No overdue invoices." dateLabel="due" onOpen={(it) => navigation.navigate("BookingDetail", { bookingId: it.bookingId as number })} />
-        ) : tab === "ending" ? (
-          <AttentionList
-            items={d.endingLeases}
-            empty={`No leases ending in ${d.endingSoonDays || 30} days.`}
-            dateLabel="ends"
-            onOpen={(it) => navigation.navigate("BookingDetail", { bookingId: it.bookingId as number })}
-          />
-        ) : (
-          <AttentionList items={d.pendingBookings} empty="No bookings waiting." dateLabel="starts" onOpen={(it) => navigation.navigate("BookingDetail", { bookingId: it.bookingId as number })} />
-        )}
-      </Card>
-      <Card>
-        <AppText variant="subheading">Occupancy</AppText>
-        <View style={styles.donutRow}>
-          <Donut
-            size={DONUT_SIZE}
-            segments={[{ label: "Occupied", value: clampPct(d.occupancyPct) }]}
-            total={100}
-            centerLabel={pct(d.occupancyPct)}
-            centerCaption={d.totalSpaces ? "occupied" : "no spaces"}
-            accessibilityLabel={`Occupancy ${pct(d.occupancyPct)}: ${d.occupiedSpaces} of ${d.totalSpaces} spaces in use. Last month ${pct(d.occupancyPctLastMonth)}.`}
-          />
-          <View style={styles.facts}>
-            <Fact label="In use" value={`${d.occupiedSpaces} of ${d.totalSpaces} spaces`} />
-            <Fact label="Free" value={`${Math.max(0, d.totalSpaces - d.occupiedSpaces)} spaces`} />
-            <Fact label="Last month" value={pct(d.occupancyPctLastMonth)} />
+      <ChartGrid>
+        <Card padding={0}>
+          <View style={styles.cardTitle}>
+            <AppText variant="subheading">Needs attention</AppText>
           </View>
-        </View>
-        {spaceTypes.length ? (
-          <>
-            <AppText variant="label" color="textSecondary" style={styles.chart}>
-              By space type
-            </AppText>
-            <HBarList
-              style={styles.gapTop}
-              label="Occupancy by space type"
-              max={100}
-              items={spaceTypes.map((t) => {
-                const share = Math.round(percentOf(t.occupied, t.total) * 10) / 10;
-                return { label: t.spaceType || "Other", value: share, valueLabel: `${pct(share)} · ${t.occupied}/${t.total}` };
-              })}
-            />
-          </>
-        ) : null}
-      </Card>
-      {lastSix.length ? (
-        <Card>
-          <AppText variant="subheading">Invoiced and paid</AppText>
-          <BarChart
-            style={styles.chart}
-            label="Invoiced and paid by month"
-            series={[{ label: "Invoiced" }, { label: "Paid" }]}
-            data={lastSix.map((m) => ({ label: monthShort(m.month), title: monthLabel(m.month), values: [m.invoiced, m.paid] }))}
-            formatValue={money}
-            emptyText="Nothing invoiced in these months."
-          />
-          <View style={styles.chart}>
-            <FigureTable
-              columns={[
-                { label: "Month", flex: 1.1 },
-                { label: "Invoiced", align: "right" },
-                { label: "Paid", align: "right" },
-                { label: "Occupied", flex: 0.8, align: "right" },
+          <View style={styles.padded}>
+            <SegmentedControl
+              accessibilityLabel="Needs attention"
+              options={[
+                { label: `Overdue (${d.overdueInvoices.length})`, value: "overdue" },
+                { label: `Ending (${d.endingLeases.length})`, value: "ending" },
+                { label: `Pending (${d.pendingBookings.length})`, value: "pending" },
               ]}
-              rows={lastSix.map((m) => ({ key: m.month, cells: [monthLabel(m.month), money(m.invoiced), money(m.paid), pct(m.occupancyPct)] }))}
+              value={tab}
+              onChange={(v) => setTab(v as typeof tab)}
             />
           </View>
+          {tab === "overdue" ? (
+            <AttentionList items={d.overdueInvoices} empty="No overdue invoices." dateLabel="due" onOpen={(it) => navigation.navigate("BookingDetail", { bookingId: it.bookingId as number })} />
+          ) : tab === "ending" ? (
+            <AttentionList
+              items={d.endingLeases}
+              empty={`No leases ending in ${d.endingSoonDays || 30} days.`}
+              dateLabel="ends"
+              onOpen={(it) => navigation.navigate("BookingDetail", { bookingId: it.bookingId as number })}
+            />
+          ) : (
+            <AttentionList items={d.pendingBookings} empty="No bookings waiting." dateLabel="starts" onOpen={(it) => navigation.navigate("BookingDetail", { bookingId: it.bookingId as number })} />
+          )}
         </Card>
-      ) : null}
+        <Card>
+          <AppText variant="subheading">Occupancy</AppText>
+          <View style={styles.donutRow}>
+            <Donut
+              size={DONUT_SIZE}
+              segments={[{ label: "Occupied", value: clampPct(d.occupancyPct) }]}
+              total={100}
+              centerLabel={pct(d.occupancyPct)}
+              centerCaption={d.totalSpaces ? "occupied" : "no spaces"}
+              accessibilityLabel={`Occupancy ${pct(d.occupancyPct)}: ${d.occupiedSpaces} of ${d.totalSpaces} spaces in use. Last month ${pct(d.occupancyPctLastMonth)}.`}
+            />
+            <View style={styles.facts}>
+              <Fact label="In use" value={`${d.occupiedSpaces} of ${d.totalSpaces} spaces`} />
+              <Fact label="Free" value={`${Math.max(0, d.totalSpaces - d.occupiedSpaces)} spaces`} />
+              <Fact label="Last month" value={pct(d.occupancyPctLastMonth)} />
+            </View>
+          </View>
+          {spaceTypes.length ? (
+            <>
+              <AppText variant="label" color="textSecondary" style={styles.chart}>
+                By space type
+              </AppText>
+              <HBarList
+                style={styles.gapTop}
+                label="Occupancy by space type"
+                max={100}
+                items={spaceTypes.map((t) => {
+                  const share = Math.round(percentOf(t.occupied, t.total) * 10) / 10;
+                  return { label: t.spaceType || "Other", value: share, valueLabel: `${pct(share)} · ${t.occupied}/${t.total}` };
+                })}
+              />
+            </>
+          ) : null}
+        </Card>
+        {lastSix.length ? (
+          <Card>
+            <AppText variant="subheading">Invoiced and paid</AppText>
+            <BarChart
+              style={styles.chart}
+              label="Invoiced and paid by month"
+              series={[{ label: "Invoiced" }, { label: "Paid" }]}
+              data={lastSix.map((m) => ({ label: monthShort(m.month), title: monthLabel(m.month), values: [m.invoiced, m.paid] }))}
+              formatValue={money}
+              emptyText="Nothing invoiced in these months."
+            />
+            <View style={styles.chart}>
+              <FigureTable
+                columns={[
+                  { label: "Month", flex: 1.1 },
+                  { label: "Invoiced", align: "right" },
+                  { label: "Paid", align: "right" },
+                  { label: "Occupied", flex: 0.8, align: "right" },
+                ]}
+                rows={lastSix.map((m) => ({ key: m.month, cells: [monthLabel(m.month), money(m.invoiced), money(m.paid), pct(m.occupancyPct)] }))}
+              />
+            </View>
+          </Card>
+        ) : null}
+      </ChartGrid>
     </>
   );
 }
@@ -629,6 +634,7 @@ const styles = StyleSheet.create({
   block: { padding: spacing.lg, gap: 4 },
   rowBetween: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   chart: { marginTop: spacing.md },
-  donutRow: { flexDirection: "row", alignItems: "center", gap: spacing.lg, marginTop: spacing.md },
-  facts: { flex: 1, gap: spacing.sm },
+  // Wraps: on a narrow window or with large text the figures go under the donut instead of being cut off.
+  donutRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: spacing.lg, marginTop: spacing.md },
+  facts: { flexGrow: 1, flexShrink: 1, flexBasis: 120, gap: spacing.sm },
 });

@@ -232,7 +232,12 @@ function ToastView({
     shown.type === "success" ? palette.emerald[400] : shown.type === "error" ? palette.red[400] : palette.teal[300];
   const icon = shown.type === "success" ? "checkmark-circle" : shown.type === "error" ? "alert-circle" : "information-circle";
   const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [placement === "top" ? -24 : 24, 0] });
-  const position = placement === "top" ? { top: insets.top + offset } : { bottom: insets.bottom + offset };
+  // Side insets too (landscape cutout / 3-button bar on the side), so the toast never runs under them.
+  const position = {
+    left: insets.left + 16,
+    right: insets.right + 16,
+    ...(placement === "top" ? { top: insets.top + offset } : { bottom: insets.bottom + offset }),
+  };
 
   return (
     <View pointerEvents="box-none" style={[styles.host, position]}>
@@ -288,7 +293,7 @@ function ToastView({
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  host: { position: "absolute", left: 16, right: 16, alignItems: "center" },
+  host: { position: "absolute", alignItems: "center" },
   toast: {
     width: "100%",
     maxWidth: 560,

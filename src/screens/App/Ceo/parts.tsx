@@ -8,6 +8,7 @@ import {
   EmptyState,
   ErrorState,
   KpiSkeleton,
+  ResponsiveGrid,
   SectionHeader,
   SkeletonBlock,
   SkeletonGroup,
@@ -224,6 +225,21 @@ export function ChartCard({
       </View>
       {children}
     </Card>
+  );
+}
+
+/** Narrowest a chart card gets before chart cards go one per row (dp). */
+const CHART_CARD_MIN_WIDTH = 420;
+
+/**
+ * Chart cards of one section: one per row on phones and the Fold, two side by side on a wide window (a tablet in
+ * landscape) instead of charts stretched across the whole screen. An odd last card takes the full width.
+ */
+export function ChartGrid({ children }: { children: ReactNode }) {
+  return (
+    <ResponsiveGrid minItemWidth={CHART_CARD_MIN_WIDTH} maxColumns={2} balanced={false} fontWeight={0.25} gap={spacing.sm}>
+      {children}
+    </ResponsiveGrid>
   );
 }
 

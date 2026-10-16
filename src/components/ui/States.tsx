@@ -4,6 +4,8 @@ import { useTheme } from "../../theme";
 import { Illustration, type IllustrationName } from "../illustrations";
 import { SkeletonBlock, SkeletonGroup } from "../Skeleton";
 import { Button } from "./Button";
+import { ResponsiveGrid } from "./ResponsiveGrid";
+import { STAT_CARD_MIN_WIDTH } from "../../utils/responsive";
 
 // ─── LoadingState ─────────────────────────────────────────────────────────────
 
@@ -75,38 +77,28 @@ export function ListSkeleton({ rows = 6, avatar = true, variant = "card", style 
 export type KpiSkeletonProps = {
   /** Number of tiles. Default 4. */
   count?: number;
-  /** Tiles per row. Default 2. */
+  /** Tiles per row. Default: as many as fit, like KpiGrid / ResponsiveGrid (2 on phones, 4 on tablets). */
   columns?: number;
   style?: StyleProp<ViewStyle>;
 };
 
-/** Placeholder grid for StatCards. */
-export function KpiSkeleton({ count = 4, columns = 2, style }: KpiSkeletonProps) {
+/** Placeholder grid for StatCards (same columns as the tiles it stands in for). */
+export function KpiSkeleton({ count = 4, columns, style }: KpiSkeletonProps) {
   const { colors, radii } = useTheme();
-  const rows: number[][] = [];
-  for (let i = 0; i < count; i += columns) rows.push(Array.from({ length: Math.min(columns, count - i) }, (_, k) => i + k));
   return (
-    <SkeletonGroup style={[styles.gap12, style]}>
-      {rows.map((row, r) => (
-        <View key={r} style={styles.kpiRow}>
-          {row.map(i => (
-            <View
-              key={i}
-              style={[
-                styles.kpiTile,
-                { backgroundColor: colors.surface, borderRadius: radii.card, borderColor: colors.border },
-              ]}
-            >
-              <SkeletonBlock width="60%" height={12} radius={5} />
-              <SkeletonBlock width="45%" height={24} radius={6} />
-              <SkeletonBlock width="70%" height={10} radius={5} />
-            </View>
-          ))}
-          {row.length < columns
-            ? Array.from({ length: columns - row.length }).map((_, k) => <View key={`pad${k}`} style={styles.kpiPad} />)
-            : null}
-        </View>
-      ))}
+    <SkeletonGroup style={style}>
+      <ResponsiveGrid minItemWidth={STAT_CARD_MIN_WIDTH} columns={columns} gap={12}>
+        {Array.from({ length: count }, (_, i) => (
+          <View
+            key={i}
+            style={[styles.kpiTile, { backgroundColor: colors.surface, borderRadius: radii.card, borderColor: colors.border }]}
+          >
+            <SkeletonBlock width="60%" height={12} radius={5} />
+            <SkeletonBlock width="45%" height={24} radius={6} />
+            <SkeletonBlock width="70%" height={10} radius={5} />
+          </View>
+        ))}
+      </ResponsiveGrid>
     </SkeletonGroup>
   );
 }
@@ -253,7 +245,5 @@ const styles = StyleSheet.create({
   skFlat: { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth },
   gap12: { gap: 12 },
   skBody: { flex: 1, gap: 8 },
-  kpiRow: { flexDirection: "row", gap: 12 },
-  kpiTile: { flex: 1, borderWidth: 1, padding: 14, gap: 10 },
-  kpiPad: { flex: 1 },
+  kpiTile: { borderWidth: 1, padding: 14, gap: 10 },
 });

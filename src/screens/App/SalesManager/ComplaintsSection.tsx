@@ -23,7 +23,7 @@ import {
 import { dashboardTrend } from "../../../services/staff/dashboard";
 import { spacing, useComplaintStatusColors, useTheme } from "../../../theme";
 import { formatDate } from "../../../utils/format";
-import { CeoErrorState, ChartCard, ChartSkeleton, InlineEmpty, SectionEmpty, StaleBanner, type CeoQuery } from "../Ceo/parts";
+import { CeoErrorState, ChartCard, ChartGrid, ChartSkeleton, InlineEmpty, SectionEmpty, StaleBanner, type CeoQuery } from "../Ceo/parts";
 import { KpiGrid } from "../Staff/Dashboard/parts";
 import type { SmDrill } from "./sections";
 
@@ -171,36 +171,38 @@ export function ComplaintsContent({ complaints: c, drill }: { complaints: SmComp
   return (
     <>
       <KpiGrid tiles={tiles} />
-      <StatusCard complaints={c} onOpen={openStatus} />
-      <CategoryCard complaints={c} words={words} onOpen={(category) => open({ category }, [category], `Complaints: ${category}`)} />
-      {smShowsComplaintBranches(c.byBranch) ? (
-        <BranchCard complaints={c} words={words} onOpen={(branch, label) => open({ branch }, [label], `Complaints: ${label}`)} />
-      ) : null}
-      <ChartCard title="Complaints by month" caption="Created and resolved, last 12 months. Tap a month for the complaints created then.">
-        {recent.length ? (
-          <BarChart
-            label="Complaints created and resolved by month"
-            series={[
-              { label: "Created", color: colorOf("open") },
-              { label: "Resolved", color: colorOf("resolved") },
-            ]}
-            data={recent.map((m) => ({ label: monthShort(m.month), title: monthLabel(m.month), values: [m.created, m.resolved] }))}
-            formatValue={count}
-            emptyText="No complaints in these months."
-            itemAccessibilityHint="Opens the complaints created this month"
-            onPressItem={(i) => {
-              const month = recent[i]?.month;
-              if (month) open({ month }, [monthLabel(month)], `Complaints, ${monthLabel(month)}`);
-            }}
-          />
-        ) : (
-          <InlineEmpty text="No complaint history yet." />
-        )}
-      </ChartCard>
-      <OldestCard
-        complaints={c}
-        onOpenAll={() => open({ status: "active" }, ["Open and in progress"], "Open and in progress")}
-      />
+      <ChartGrid>
+        <StatusCard complaints={c} onOpen={openStatus} />
+        <CategoryCard complaints={c} words={words} onOpen={(category) => open({ category }, [category], `Complaints: ${category}`)} />
+        {smShowsComplaintBranches(c.byBranch) ? (
+          <BranchCard complaints={c} words={words} onOpen={(branch, label) => open({ branch }, [label], `Complaints: ${label}`)} />
+        ) : null}
+        <ChartCard title="Complaints by month" caption="Created and resolved, last 12 months. Tap a month for the complaints created then.">
+          {recent.length ? (
+            <BarChart
+              label="Complaints created and resolved by month"
+              series={[
+                { label: "Created", color: colorOf("open") },
+                { label: "Resolved", color: colorOf("resolved") },
+              ]}
+              data={recent.map((m) => ({ label: monthShort(m.month), title: monthLabel(m.month), values: [m.created, m.resolved] }))}
+              formatValue={count}
+              emptyText="No complaints in these months."
+              itemAccessibilityHint="Opens the complaints created this month"
+              onPressItem={(i) => {
+                const month = recent[i]?.month;
+                if (month) open({ month }, [monthLabel(month)], `Complaints, ${monthLabel(month)}`);
+              }}
+            />
+          ) : (
+            <InlineEmpty text="No complaint history yet." />
+          )}
+        </ChartCard>
+        <OldestCard
+          complaints={c}
+          onOpenAll={() => open({ status: "active" }, ["Open and in progress"], "Open and in progress")}
+        />
+      </ChartGrid>
     </>
   );
 }

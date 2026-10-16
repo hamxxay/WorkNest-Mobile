@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Children, Fragment, cloneElement, isValidElement, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Animated,
   Easing,
@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "../../theme";
+import { MAX_CONTENT_WIDTH, stackActions, type ActionLabel } from "../../utils/responsive";
 import { Banner } from "./Banner";
 import { IconButton } from "./Button";
 import { ToastModalHost } from "./Toast";
@@ -47,6 +48,40 @@ export type BottomSheetProps = {
   error?: string | null | false;
 };
 
+/** Width of the sheet's side padding (content and footer). */
+const SIDE_PADDING = 20;
+const FOOTER_GAP = 12;
+
+/**
+ * The buttons of a footer given as a fragment (`<><Button title="Cancel" /><Button title="Save" /></>`), with their
+ * labels when they have a `title`, so the footer can tell whether they fit side by side.
+ */
+function footerActions(footer: ReactNode): ActionLabel[] | number {
+  if (!isValidElement(footer) || footer.type !== Fragment) return 1;
+  const items = Children.toArray((footer.props as { children?: ReactNode }).children).filter(isValidElement);
+  const labels: ActionLabel[] = [];
+  for (const item of items) {
+    const props = item.props as { title?: unknown; leftIcon?: unknown; loading?: unknown };
+    if (typeof props.title !== "string") return items.length;
+    labels.push({ title: props.title, icon: !!props.leftIcon || !!props.loading });
+  }
+  return labels;
+}
+
+/**
+ * The footer's buttons one above the other: their `flex: 1` (meant for sharing a row) is reset, otherwise in a
+ * column inside the height-capped sheet they would grow to fill it.
+ */
+function stackedFooter(footer: ReactNode): ReactNode {
+  if (!isValidElement(footer) || footer.type !== Fragment) return footer;
+  const items = Children.toArray((footer.props as { children?: ReactNode }).children);
+  return items.map((item) =>
+    isValidElement<{ style?: StyleProp<ViewStyle> }>(item)
+      ? cloneElement(item, { style: [item.props.style, styles.stackedAction] })
+      : item,
+  );
+}
+
 /**
  * Modal-based bottom sheet (no extra dependencies). Slides up, dims the page, closes on backdrop / back.
  *
@@ -73,7 +108,7 @@ export function BottomSheet({
 }: BottomSheetProps) {
   const { colors, radii, typography } = useTheme();
   const insets = useSafeAreaInsets();
-  const { height: windowHeight } = useWindowDimensions();
+  const { width: windowWidth, height: windowHeight, fontScale } = useWindowDimensions();
   const [mounted, setMounted] = useState(visible);
   const progress = useRef(new Animated.Value(0)).current;
 
@@ -103,6 +138,10 @@ export function BottomSheet({
     if (dismissible) onClose();
   };
 
+  // Footer buttons that would be too narrow side by side (320dp phone, Fold cover screen, large text) go one
+  // above the other, the main action on top.
+  const sheetWidth = Math.min(windowWidth - insets.left - insets.right, MAX_CONTENT_WIDTH);
+  const stackFooter = !!footer && stackActions(sheetWidth - 2 * SIDE_PADDING, fontScale, footerActions(footer), FOOTER_GAP);
   // With a footer, the footer pads the bottom inset itself.
   const sheetBottomPadding = footer ? 0 : Math.max(insets.bottom, 16);
   const translateY = progress.interpolate({ inputRange: [0, 1], outputRange: [windowHeight, 0] });
@@ -193,10 +232,11 @@ export function BottomSheet({
             <View
               style={[
                 styles.footer,
+                stackFooter && styles.footerStacked,
                 { borderTopColor: colors.border, paddingBottom: Math.max(insets.bottom, 12) + 4 },
               ]}
             >
-              {footer}
+              {stackFooter ? stackedFooter(footer) : footer}
             </View>
           ) : null}
         </Animated.View>
@@ -208,12 +248,21 @@ export function BottomSheet({
 
 const styles = StyleSheet.create({
   root: { flex: 1, justifyContent: "flex-end" },
-  sheet: { width: "100%", maxWidth: 720, alignSelf: "center", overflow: "hidden" },
+  sheet: { width: "100%", maxWidth: MAX_CONTENT_WIDTH, alignSelf: "center", overflow: "hidden" },
   handle: { alignSelf: "center", width: 40, height: 4, borderRadius: 2, marginTop: 8, marginBottom: 4 },
   header: { flexDirection: "row", alignItems: "flex-start", gap: 8, paddingLeft: 20, paddingRight: 8, paddingTop: 8, paddingBottom: 4 },
   headerText: { flex: 1, gap: 2, paddingTop: 6 },
   content: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 16, gap: 12 },
-  footer: { paddingHorizontal: 20, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, flexDirection: "row", gap: 12 },
+  footer: {
+    paddingHorizontal: SIDE_PADDING,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    flexDirection: "row",
+    gap: FOOTER_GAP,
+  },
+  // Column-reverse: the last button (the main action) on top, the order unchanged for screen readers.
+  footerStacked: { flexDirection: "column-reverse", alignItems: "stretch" },
+  stackedAction: { flexGrow: 0, flexShrink: 0, flexBasis: "auto" },
   flex: { flex: 1 },
   flexShrink: { flexShrink: 1 },
   error: { paddingHorizontal: 20, paddingBottom: 12 },

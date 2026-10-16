@@ -1,6 +1,18 @@
 import { Fragment, type ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
-import { AppText, Card, Divider, ErrorState, KpiSkeleton, ListRow, SectionHeader, StatCard, type StatCardProps } from "../../../../components/ui";
+import {
+  AppText,
+  Card,
+  Divider,
+  ErrorState,
+  KpiSkeleton,
+  ListRow,
+  ResponsiveGrid,
+  SectionHeader,
+  STAT_CARD_MIN_WIDTH,
+  StatCard,
+  type StatCardProps,
+} from "../../../../components/ui";
 import type { AttentionItem } from "../../../../services/staff";
 import { spacing, useTheme } from "../../../../theme";
 import { formatDate, formatMoney } from "../../../../utils/format";
@@ -9,14 +21,17 @@ import { formatDate, formatMoney } from "../../../../utils/format";
 
 export const money = (v: number | null | undefined) => formatMoney(v, { compact: true });
 
-/** KPI tiles, two per row. */
+/**
+ * KPI tiles in as many columns as fit: two per row on phones, four on tablets and unfolded foldables, one on a
+ * narrow phone with large text.
+ */
 export function KpiGrid({ tiles }: { tiles: StatCardProps[] }) {
   return (
-    <View style={styles.grid}>
+    <ResponsiveGrid minItemWidth={STAT_CARD_MIN_WIDTH} gap={spacing.md}>
       {tiles.map((t) => (
-        <StatCard key={t.label} {...t} style={styles.tile} />
+        <StatCard key={t.label} {...t} />
       ))}
-    </View>
+    </ResponsiveGrid>
   );
 }
 
@@ -63,7 +78,7 @@ export function Fact({ label, value }: { label: string; value: string }) {
       <AppText variant="caption" color="textMuted" numberOfLines={1}>
         {label}
       </AppText>
-      <AppText variant="bodyStrong" numberOfLines={1}>
+      <AppText variant="bodyStrong" numberOfLines={2}>
         {value}
       </AppText>
     </View>
@@ -153,8 +168,6 @@ export function AttentionList({
 }
 
 const styles = StyleSheet.create({
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md },
-  tile: { flexBasis: "46%", flexGrow: 1 },
   section: { gap: spacing.sm },
   fact: { gap: 2 },
   table: { gap: 2 },
