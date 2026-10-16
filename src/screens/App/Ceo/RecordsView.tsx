@@ -1,7 +1,18 @@
-import { FlatList, RefreshControl, StyleSheet, View } from "react-native";
-import { AppHeader, AppText, Card, EmptyState, ListSkeleton, Screen, StatusPill } from "../../../components/ui";
+import { FlatList, RefreshControl, StyleSheet, View, useWindowDimensions } from "react-native";
+import {
+  AppHeader,
+  AppText,
+  Card,
+  EmptyState,
+  ListSkeleton,
+  ResponsiveGrid,
+  Screen,
+  StatusPill,
+  useScreenColumnWidth,
+} from "../../../components/ui";
 import { ceoErrorView, showingText, type CeoRecordCard } from "../../../services/ceo";
 import { spacing } from "../../../theme";
+import { scaledMinWidth } from "../../../utils/responsive";
 import { useRefreshColors } from "../Staff/shared/refresh";
 import { Breadcrumb, CeoErrorState, StaleBanner, useCeoQuery, type DescribeError } from "./parts";
 
@@ -12,12 +23,27 @@ import { Breadcrumb, CeoErrorState, StaleBanner, useCeoQuery, type DescribeError
 /** A records list ready to show: the server's title, its full count and one card per row. */
 export type RecordCardList = { title: string; total: number; cards: CeoRecordCard[] };
 
-/** One read-only record: title, status, amount and its details. Not pressable (the viewer only views). */
+/** Narrowest the title gets beside the status / amount before they go under it (font scale 1, dp). */
+const TITLE_MIN_WIDTH = 140;
+/** Narrowest a detail field gets before the details go in fewer columns (font scale 1, dp). */
+const FIELD_MIN_WIDTH = 115;
+/** Card padding + border on each side (dp): Card's default padding 16 and its 1dp border. */
+const CARD_INSET = 17;
+
+/**
+ * One read-only record: title, status, amount and its details. Not pressable (the viewer only views).
+ * The status and amount sit beside the title while it keeps TITLE_MIN_WIDTH; otherwise (320dp phone, a long
+ * amount, large text) they move to their own line, right-aligned, so an amount is never cut. The details are in
+ * as many columns as fit (2 on a phone, 1 with large text, up to 3 on a tablet).
+ */
 export function RecordCard({ item }: { item: CeoRecordCard }) {
+  const { fontScale } = useWindowDimensions();
+  const columnWidth = useScreenColumnWidth();
+  const titleMin = { flexBasis: scaledMinWidth(TITLE_MIN_WIDTH, fontScale) };
   return (
     <Card accessible accessibilityLabel={item.accessibilityLabel}>
       <View style={styles.head}>
-        <View style={styles.flex}>
+        <View style={[styles.titleBlock, titleMin]}>
           <AppText variant="bodyStrong" numberOfLines={2}>
             {item.title}
           </AppText>
@@ -27,20 +53,27 @@ export function RecordCard({ item }: { item: CeoRecordCard }) {
             </AppText>
           ) : null}
         </View>
-        <View style={styles.side}>
-          {item.status ? <StatusPill status={item.status} tone={item.statusTone} size="sm" /> : null}
-          {item.amount ? (
-            <AppText variant="bodyStrong" numberOfLines={1} style={styles.amount}>
-              {item.amount}
-            </AppText>
-          ) : null}
-        </View>
+        {item.status || item.amount ? (
+          <View style={styles.side}>
+            {item.status ? <StatusPill status={item.status} tone={item.statusTone} size="sm" /> : null}
+            {item.amount ? (
+              <AppText variant="bodyStrong" numberOfLines={2} style={styles.amount}>
+                {item.amount}
+              </AppText>
+            ) : null}
+          </View>
+        ) : null}
       </View>
       {item.fields.length ? (
-        <View style={styles.fields}>
+        <ResponsiveGrid
+          minItemWidth={FIELD_MIN_WIDTH}
+          maxColumns={3}
+          estimatedWidth={columnWidth - 2 * spacing.screen - 2 * CARD_INSET}
+          style={styles.fields}
+        >
           {item.fields.map((f) => (
             <View key={f.label} style={styles.field}>
-              <AppText variant="caption" color="textMuted" numberOfLines={1}>
+              <AppText variant="caption" color="textMuted" numberOfLines={2}>
                 {f.label}
               </AppText>
               <AppText variant="bodySmall" numberOfLines={3}>
@@ -48,7 +81,7 @@ export function RecordCard({ item }: { item: CeoRecordCard }) {
               </AppText>
             </View>
           ))}
-        </View>
+        </ResponsiveGrid>
       ) : null}
     </Card>
   );
@@ -120,10 +153,11 @@ const styles = StyleSheet.create({
   content: { padding: spacing.screen, paddingBottom: spacing.xxxl, flexGrow: 1 },
   header: { gap: spacing.sm, marginBottom: spacing.md },
   separator: { height: spacing.md },
-  head: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md },
-  flex: { flex: 1, gap: 2 },
-  side: { alignItems: "flex-end", gap: spacing.xs, maxWidth: "45%" },
-  amount: { fontVariant: ["tabular-nums"] },
-  fields: { flexDirection: "row", flexWrap: "wrap", marginTop: spacing.md, rowGap: spacing.sm, columnGap: spacing.lg },
-  field: { minWidth: "40%", flexGrow: 1, flexBasis: "40%", gap: 2 },
+  // Title, then status + amount on the same line when they fit, else on the next one (flexWrap).
+  head: { flexDirection: "row", flexWrap: "wrap", alignItems: "flex-start", columnGap: spacing.md, rowGap: spacing.xs },
+  titleBlock: { flexGrow: 1, flexShrink: 1, gap: 2 },
+  side: { alignItems: "flex-end", gap: spacing.xs, flexShrink: 1, marginLeft: "auto" },
+  amount: { fontVariant: ["tabular-nums"], textAlign: "right" },
+  fields: { marginTop: spacing.md },
+  field: { gap: 2 },
 });

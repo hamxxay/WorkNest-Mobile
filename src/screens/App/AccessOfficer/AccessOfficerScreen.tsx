@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Keyboard, KeyboardAvoidingView, Platform, RefreshControl, ScrollView, StyleSheet, View, type TextInput } from "react-native";
+import {
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  View,
+  useWindowDimensions,
+  type TextInput,
+} from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -47,12 +57,21 @@ import {
 import { statusOf } from "../../../services/ceo/errors";
 import { spacing, useThemeColors } from "../../../theme";
 import { haptics } from "../../../utils/haptics";
+import { MAX_CONTENT_WIDTH, textScale } from "../../../utils/responsive";
 import { CeoErrorState } from "../Ceo/parts";
 import { useRefreshColors } from "../Staff/shared/refresh";
 import { EnrolSheet, type EnrolFlow } from "./EnrolSheet";
 import { MatchCard, PersonCard } from "./MatchCard";
 
 type Nav = NativeStackNavigationProp<AccessOfficerStackParamList, "AccessOfficerAccess">;
+
+/** Card padding + border on each side (dp): Card's default padding 16 and its 1dp border. */
+const CARD_INSET = 17;
+
+/** Rough width of a small Button with an icon (14sp label capped at 1.4x, 14dp side padding, 16dp icon + gap). */
+function smallButtonWidth(title: string, fontScale: number): number {
+  return Math.ceil(title.length * 0.6 * 14 * Math.min(textScale(fontScale), 1.4) + 2 * 14 + 16 + 8);
+}
 
 /** The lookup on screen: nothing asked yet, loading, an answer (found / not found) or an error. */
 type LookupState =
@@ -318,6 +337,12 @@ export default function AccessOfficerScreen() {
   const locked = busy != null || flow?.phase === "waiting";
   const openProfile = () => navigation.navigate("AccessOfficerProfile", { locations });
   const isCnic = mode === "cnic";
+  // The CNIC / passport switch: its full label when it fits the card (one line), else the short one (320dp phone,
+  // Fold cover screen, large text).
+  const { width, fontScale } = useWindowDimensions();
+  const cardInner = Math.min(width, MAX_CONTENT_WIDTH) - 2 * spacing.screen - 2 * CARD_INSET;
+  const switchFull = isCnic ? "Use a passport number instead" : "Use a CNIC instead";
+  const switchLabel = smallButtonWidth(switchFull, fontScale) <= cardInner ? switchFull : isCnic ? "Use a passport" : "Use a CNIC";
 
   return (
     <Screen>
@@ -366,11 +391,13 @@ export default function AccessOfficerScreen() {
               />
               <Button title="Find" leftIcon="search" onPress={find} loading={state.status === "loading"} fullWidth />
               <Button
-                title={isCnic ? "Use a passport number instead" : "Use a CNIC instead"}
+                title={switchLabel}
                 variant="ghost"
                 size="sm"
                 leftIcon={isCnic ? "document-text-outline" : "id-card-outline"}
                 onPress={switchMode}
+                accessibilityLabel={switchFull}
+                textStyle={styles.shrink}
               />
             </View>
           </Card>
@@ -462,6 +489,8 @@ function Results({
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  // A button label that ends in "..." instead of being cut at both sides if it is still too long.
+  shrink: { flexShrink: 1 },
   content: { padding: spacing.screen, gap: spacing.lg, paddingBottom: spacing.xxxl },
   locations: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
   search: { gap: spacing.sm },

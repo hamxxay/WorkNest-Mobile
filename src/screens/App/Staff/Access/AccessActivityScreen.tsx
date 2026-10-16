@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, View, useWindowDimensions } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import {
   AppHeader,
@@ -25,11 +25,15 @@ import {
 } from "../../../../services/staff";
 import { spacing, useTheme } from "../../../../theme";
 import { formatDate, formatDateTime, formatTime } from "../../../../utils/format";
+import { BREAKPOINTS, stackLabelValue } from "../../../../utils/responsive";
 import { SearchField } from "../shared/SearchField";
 import { StaffScreen } from "../shared/StaffScreen";
 import { useDebounced, usePagedList } from "../shared/hooks";
+import { useShortWindow } from "../shared/layout";
 
 type Period = AccessPeriod;
+/** AsyncList's default content padding (dp). */
+const LIST_PADDING = 16;
 type Result = "all" | "granted" | "denied";
 
 const METHOD_ICONS: Record<string, string> = {
@@ -101,8 +105,11 @@ function DoorEvents() {
   const denied = list.items.filter((e) => e.isDenied).length;
   // The API returns at most the newest 2000 events: say so instead of silently leaving older ones out.
   const capNote = list.loading ? null : accessEventsCapNote(list.items.length);
+  // A short window (phone in landscape, large text on a small phone): the filters scroll away with the list instead
+  // of leaving it almost no room.
+  const short = useShortWindow();
 
-  return (
+  const filters = (
     <>
       <View style={styles.filters}>
         <FilterChips
@@ -145,7 +152,15 @@ function DoorEvents() {
           </AppText>
         </View>
       ) : null}
+    </>
+  );
+
+  return (
+    <>
+      {short ? null : filters}
       <AsyncList
+        ListHeaderComponent={short ? filters : undefined}
+        ListHeaderComponentStyle={short ? styles.listHeader : undefined}
         data={rows}
         keyExtractor={(e) => String(e.id)}
         loading={list.loading}
@@ -162,8 +177,23 @@ function DoorEvents() {
   );
 }
 
+/**
+ * True when a row's time goes under its name instead of beside the status pill: on a small phone or with large
+ * text the time column would squeeze the name to a few letters.
+ */
+function useTimeBelow(): boolean {
+  const { width, fontScale } = useWindowDimensions();
+  return width < BREAKPOINTS.small || stackLabelValue(width, fontScale);
+}
+
 function EventRow({ event: e }: { event: AccessEvent }) {
   const { colors } = useTheme();
+  const timeBelow = useTimeBelow();
+  const time = (
+    <AppText variant="caption" color="textMuted" numberOfLines={1}>
+      {`${formatDate(e.time, { year: false })} ${formatTime(e.time)}`}
+    </AppText>
+  );
   return (
     <Card padding={12}>
       <View style={styles.row}>
@@ -175,12 +205,39 @@ function EventRow({ event: e }: { event: AccessEvent }) {
           <AppText variant="caption" color="textMuted" numberOfLines={1}>
             {[e.device, e.label].filter(Boolean).join(" · ")}
           </AppText>
+          {timeBelow ? time : null}
         </View>
         <View style={styles.right}>
           <StatusPill tone={e.isDenied ? "danger" : "success"} label={e.isDenied ? "Denied" : "Granted"} />
-          <AppText variant="caption" color="textMuted">
-            {formatDate(e.time, { year: false })} {formatTime(e.time)}
+          {timeBelow ? null : time}
+        </View>
+      </View>
+    </Card>
+  );
+}
+
+function SyncRow({ activity: a }: { activity: AccessSyncActivity }) {
+  const timeBelow = useTimeBelow();
+  const time = (
+    <AppText variant="caption" color="textMuted" numberOfLines={1}>
+      {formatDateTime(a.time)}
+    </AppText>
+  );
+  return (
+    <Card padding={12}>
+      <View style={styles.row}>
+        <View style={styles.flex}>
+          <AppText variant="bodyStrong" numberOfLines={2}>
+            {(a.action ?? "Sync").replace(/^(AUDIT|queued|applied-queued|dropped-queued):\s*/i, "")}
           </AppText>
+          <AppText variant="caption" color="textMuted" numberOfLines={2}>
+            {[a.employeeName, a.deviceName, a.detail].filter(Boolean).join(" · ")}
+          </AppText>
+          {timeBelow ? time : null}
+        </View>
+        <View style={styles.right}>
+          <StatusPill tone={a.ok ? "success" : "danger"} label={a.ok ? "OK" : "Failed"} />
+          {timeBelow ? null : time}
         </View>
       </View>
     </Card>
@@ -203,26 +260,7 @@ function SystemLog() {
       error={list.error}
       gap={8}
       empty={{ illustration: "chart", title: "No sync activity" }}
-      renderItem={({ item: a }) => (
-        <Card padding={12}>
-          <View style={styles.row}>
-            <View style={styles.flex}>
-              <AppText variant="bodyStrong" numberOfLines={2}>
-                {(a.action ?? "Sync").replace(/^(AUDIT|queued|applied-queued|dropped-queued):\s*/i, "")}
-              </AppText>
-              <AppText variant="caption" color="textMuted" numberOfLines={2}>
-                {[a.employeeName, a.deviceName, a.detail].filter(Boolean).join(" · ")}
-              </AppText>
-            </View>
-            <View style={styles.right}>
-              <StatusPill tone={a.ok ? "success" : "danger"} label={a.ok ? "OK" : "Failed"} />
-              <AppText variant="caption" color="textMuted">
-                {formatDateTime(a.time)}
-              </AppText>
-            </View>
-          </View>
-        </Card>
-      )}
+      renderItem={({ item }) => <SyncRow activity={item} />}
     />
   );
 }
@@ -231,6 +269,8 @@ const styles = StyleSheet.create({
   segment: { paddingHorizontal: spacing.screen, paddingTop: spacing.md },
   filters: { paddingHorizontal: spacing.screen, paddingTop: spacing.md, gap: spacing.sm },
   capNote: { paddingHorizontal: spacing.screen, paddingBottom: spacing.xs },
+  // The filters as the list's header: over the list's padding, so they look as they do pinned above it.
+  listHeader: { marginHorizontal: -LIST_PADDING, marginTop: -LIST_PADDING, paddingBottom: spacing.sm },
   chipBar: { flexGrow: 0, flexShrink: 0 },
   row: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   flex: { flex: 1 },

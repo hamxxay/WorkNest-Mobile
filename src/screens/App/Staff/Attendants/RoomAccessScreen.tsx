@@ -301,7 +301,15 @@ export default function RoomAccessScreen() {
               {data.suspension.overrideUntil ? (
                 <InfoRow label="Access until" value={`${formatDate(data.suspension.overrideUntil)}${data.suspension.overrideByEmail ? ` (${data.suspension.overrideByEmail})` : ""}`} layout="stacked" />
               ) : null}
-              <Button title="Give temporary access" variant="outline" size="sm" leftIcon="key-outline" onPress={() => setExtending(true)} style={styles.alignStart} />
+              <Button
+                title="Give temporary access"
+                variant="outline"
+                size="sm"
+                leftIcon="key-outline"
+                onPress={() => setExtending(true)}
+                style={styles.alignStart}
+                textStyle={styles.shrink}
+              />
             </Card>
           ) : null}
 
@@ -378,6 +386,7 @@ export default function RoomAccessScreen() {
             leftIcon="person-add-outline"
             onPress={() => setAdding(true)}
             fullWidth
+            textStyle={styles.shrink}
           />
 
           {data.requestsError ? <ErrorState compact message={data.requestsError} onRetry={refresh} /> : null}
@@ -784,7 +793,17 @@ function AddPersonSheet({
                 <Banner tone="danger" message={problem.text} />
               )
             ) : null}
-            {!cnicFirst ? <Button title="Use the full form instead" variant="ghost" size="sm" leftIcon="create-outline" onPress={addManually} style={styles.alignStart} /> : null}
+            {!cnicFirst ? (
+              <Button
+                title="Use the full form instead"
+                variant="ghost"
+                size="sm"
+                leftIcon="create-outline"
+                onPress={addManually}
+                style={styles.alignStart}
+                textStyle={styles.shrink}
+              />
+            ) : null}
           </>
         )}
       </BottomSheet>
@@ -814,6 +833,7 @@ function AddPersonSheet({
         onPress={findByCnicInstead}
         disabled={saving}
         style={styles.alignStartTight}
+        textStyle={styles.shrink}
         accessibilityHint="Add an employee the customer added online, by their CNIC"
       />
       <SegmentedControl
@@ -951,6 +971,9 @@ function ExtendAccessSheet({ bookingDetailId, onClose, onDone }: { bookingDetail
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  // Button labels are one line: a long one ("Give temporary access" with large text on a 320dp phone) ends in
+  // "..." instead of being cut at both sides.
+  shrink: { flexShrink: 1 },
   content: { padding: spacing.screen, gap: spacing.md, paddingBottom: spacing.xxl },
   row: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   gapTop: { marginTop: spacing.xs },

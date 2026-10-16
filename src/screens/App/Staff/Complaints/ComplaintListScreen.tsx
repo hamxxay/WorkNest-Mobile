@@ -43,8 +43,11 @@ import { SearchField } from "../shared/SearchField";
 import { StaffScreen } from "../shared/StaffScreen";
 import { useStaffSession } from "../shared/StaffSession";
 import { useDebounced, usePagedList } from "../shared/hooks";
+import { useShortWindow } from "../shared/layout";
 
 const PAGE_SIZE = 20;
+/** AsyncList's default content padding (dp). */
+const LIST_PADDING = 16;
 type Filter = ComplaintStatus | "all";
 
 /**
@@ -81,9 +84,11 @@ export default function ComplaintListScreen() {
     refreshBadges();
   };
 
-  return (
-    <StaffScreen>
-      <AppHeader title="Complaints" subtitle={list.total ? `${list.total} complaints` : undefined} actions={[{ icon: "add", accessibilityLabel: "Record a complaint", onPress: () => setAdding(true) }]} />
+  // A short window (phone in landscape, large text on a small phone): the search and filters scroll away with the
+  // list instead of taking most of the height above it.
+  const short = useShortWindow();
+  const filters = (
+    <>
       <SearchField value={query} onChangeText={setQuery} placeholder="Search number, customer, phone or text" />
       <FilterChips
         value={status}
@@ -103,7 +108,16 @@ export default function ComplaintListScreen() {
           contentContainerStyle={styles.chips}
         />
       ) : null}
+    </>
+  );
+
+  return (
+    <StaffScreen>
+      <AppHeader title="Complaints" subtitle={list.total ? `${list.total} complaints` : undefined} actions={[{ icon: "add", accessibilityLabel: "Record a complaint", onPress: () => setAdding(true) }]} />
+      {short ? null : filters}
       <AsyncList
+        ListHeaderComponent={short ? filters : undefined}
+        ListHeaderComponentStyle={short ? styles.listHeader : undefined}
         data={list.items}
         keyExtractor={(c) => String(c.id)}
         loading={list.loading}
@@ -291,6 +305,8 @@ function NewComplaintSheet({ onClose, onSaved }: { onClose: () => void; onSaved:
 
 const styles = StyleSheet.create({
   chipBar: { flexGrow: 0, flexShrink: 0 },
+  // The filters as the list's header: over the list's padding, so they look as they do pinned above it.
+  listHeader: { marginHorizontal: -LIST_PADDING, marginTop: -LIST_PADDING, paddingBottom: spacing.sm },
   chips: { paddingHorizontal: spacing.screen, paddingTop: spacing.sm },
   row: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   flex: { flex: 1 },
