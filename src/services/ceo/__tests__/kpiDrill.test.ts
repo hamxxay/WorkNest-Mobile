@@ -8,14 +8,16 @@ import {
   agingTarget,
   drillListFormat,
   drillListRowDetail,
+  isOccupiedOnly,
   occupancyTarget,
+  occupiedRowsOnly,
   periodMonths,
   recordsForBreakdownRow,
   recordsForFunnelStage,
   revenueTarget,
 } from "../drill";
 import { normalizeAging } from "../normalize";
-import type { CeoBreakdownRow, CeoDrillList, CeoDrillTarget } from "../types";
+import type { CeoBreakdown, CeoBreakdownRow, CeoDrillList, CeoDrillTarget } from "../types";
 
 const TODAY = new Date(2026, 9, 16); // 16 Oct 2026
 const MONTHS = [
@@ -122,24 +124,55 @@ describe("Occupancy", () => {
     { locationId: 1, name: "I-8", total: 20, occupied: 15 },
     { locationId: 2, name: "F-7", total: 10, occupied: 4 },
     { locationId: 3, name: "Empty", total: 0, occupied: 0 },
+    { locationId: 4, name: "All vacant", total: 8, occupied: 0 },
   ];
+  const occupancyLocation = (period: "month" | "year", locationId: number) => ({
+    kind: "breakdown",
+    query: { metric: "occupancy-location", period, locationId },
+    recordsParams: { occupied: true },
+  });
 
-  it("by location (locations with spaces), each opening that location by space type", () => {
+  it("only the occupied rooms: locations with one, each opening that location by space type", () => {
     const list = listOf(occupancyTarget({ byLocation }, { period: "month" }));
-    expect(list).toMatchObject({ title: "Occupancy by location", valueLabel: "Occupied", value2Label: "Total spaces", unit: "occupancy" });
+    expect(list).toMatchObject({ title: "Occupied rooms by location", valueLabel: "Occupied", value2Label: "Total spaces", unit: "occupancy" });
     expect(list.rows.map((r) => [r.key, r.label, r.value, r.value2])).toEqual([
       ["1", "I-8", 15, 20],
       ["2", "F-7", 4, 10],
     ]);
-    expect(list.rows[1].open).toEqual({ kind: "breakdown", query: { metric: "occupancy-location", period: "month", locationId: 2 } });
+    expect(list.rows[1].open).toEqual(occupancyLocation("month", 2));
     expect(drillListRowDetail(list, list.rows[0])).toBe("75% · 15 of 20 spaces in use");
     expect(drillListFormat(list)(15)).toBe("15");
   });
 
   it("one location chosen on the dashboard: that location by space type straight away", () => {
-    expect(occupancyTarget({ byLocation }, { period: "year", locationId: 2 })).toEqual({
-      kind: "breakdown",
-      query: { metric: "occupancy-location", period: "year", locationId: 2 },
+    expect(occupancyTarget({ byLocation }, { period: "year", locationId: 2 })).toEqual(occupancyLocation("year", 2));
+  });
+
+  it("its space types: only those with an occupied room, each opening records/spaces?occupied=true", () => {
+    const step = occupancyTarget({ byLocation }, { period: "month", locationId: 1 });
+    expect(step.kind).toBe("breakdown");
+    if (step.kind !== "breakdown") return;
+    expect(isOccupiedOnly(step.recordsParams)).toBe(true);
+    const breakdown: CeoBreakdown = {
+      title: "I-8", subtitle: null, valueLabel: "Occupied", value2Label: "Spaces",
+      rows: [
+        { key: "2", label: "Co-Working Space", value: 0, value2: 69, count: null },
+        { key: "1", label: "Private Office", value: 14, value2: 56, count: null },
+      ],
+    };
+    const shown = occupiedRowsOnly(breakdown);
+    expect(shown.rows.map((r) => r.label)).toEqual(["Private Office"]);
+    expect(recordsForBreakdownRow(step.query, shown.rows[0], step.recordsParams)).toEqual({
+      kind: "spaces",
+      params: { locationId: 1, spaceTypeId: 1, occupied: true },
+    });
+  });
+
+  it("the chart drills keep occupied and vacant", () => {
+    expect(isOccupiedOnly(undefined)).toBe(false);
+    expect(recordsForBreakdownRow({ metric: "occupancy-location", period: "month", locationId: 1 }, { key: "1", label: "Private Office", value: 14, value2: 56, count: null })).toEqual({
+      kind: "spaces",
+      params: { locationId: 1, spaceTypeId: 1 },
     });
   });
 });

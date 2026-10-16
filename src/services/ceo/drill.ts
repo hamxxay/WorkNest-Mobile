@@ -1,10 +1,12 @@
 import type { QueryValue } from "../staff/normalize";
 import { count, isMonthKey, money, monthLabel, pct, periodWords, shareOf } from "./format";
 import type {
+  CeoBreakdown,
   CeoBreakdownMetric,
   CeoBreakdownQuery,
   CeoBreakdownRow,
   CeoDrillList,
+  CeoDrillStep,
   CeoDrillTarget,
   CeoMoney,
   CeoOccupancy,
@@ -343,35 +345,51 @@ export function agingTarget(m: Pick<CeoMoney, "aging">, scope: CeoScope): CeoDri
   };
 }
 
+/** What the Occupancy tile's drill adds to its records: only the occupied rooms (records/spaces?occupied=true). */
+export const OCCUPIED_ONLY: CeoRecordParams = { occupied: true };
+
 /**
- * Occupancy: by location (from the dashboard), each opening that location by space type. With one location
- * chosen on the dashboard, its breakdown straight away.
+ * Occupancy: the occupied rooms. By location (from the dashboard; locations without an occupied room left out), each
+ * opening that location by space type, then its occupied rooms. With one location chosen on the dashboard, its
+ * breakdown straight away. The chart drills (occupancy-type / occupancy-location) keep showing occupied and vacant.
  */
 export function occupancyTarget(occupancy: Pick<CeoOccupancy, "byLocation">, scope: CeoScope): CeoDrillTarget {
   const chosen = scopeLocation(scope);
-  const rows = occupancy.byLocation.filter((l) => l.total > 0);
-  const breakdown = (locationId: number): CeoDrillTarget => ({ kind: "breakdown", query: { metric: "occupancy-location", period: scope.period, locationId } });
-  if (chosen && rows.some((l) => l.locationId === chosen)) return breakdown(chosen);
+  const breakdown = (locationId: number): CeoDrillStep => ({
+    kind: "breakdown",
+    query: { metric: "occupancy-location", period: scope.period, locationId },
+    recordsParams: OCCUPIED_ONLY,
+  });
+  if (chosen && occupancy.byLocation.some((l) => l.locationId === chosen && l.total > 0)) return breakdown(chosen);
+  const rows = occupancy.byLocation.filter((l) => l.total > 0 && l.occupied > 0);
   return {
     kind: "list",
     list: {
-      title: "Occupancy by location",
-      subtitle: "Spaces in use today. Tap a location to see it by space type.",
+      title: "Occupied rooms by location",
+      subtitle: "Rooms in use today. Tap a location to see them by space type.",
       valueLabel: "Occupied",
       value2Label: "Total spaces",
       unit: "occupancy",
-      rowHint: "Opens this location by space type",
+      rowHint: "Opens the occupied rooms of this location by space type",
       rows: rows.map((l) => ({
         key: String(l.locationId ?? l.name),
         label: l.name,
         value: l.occupied,
         value2: l.total,
         count: null,
-        open: l.locationId ? { kind: "breakdown", query: { metric: "occupancy-location", period: scope.period, locationId: l.locationId } } : null,
+        open: l.locationId ? breakdown(l.locationId) : null,
       })),
     },
   };
 }
+
+/** A breakdown opened for the occupied rooms only: the rows (space types) without an occupied room left out. */
+export function occupiedRowsOnly(breakdown: CeoBreakdown): CeoBreakdown {
+  return { ...breakdown, rows: breakdown.rows.filter((r) => r.value > 0) };
+}
+
+/** True when the records a breakdown opens are the occupied rooms only (the Occupancy tile). */
+export const isOccupiedOnly = (recordsParams?: CeoRecordParams) => recordsParams?.occupied === true;
 
 /** How a list's values read: PKR, or counts (occupancy: spaces). */
 export const drillListFormat = (list: Pick<CeoDrillList, "unit">) => (list.unit === "money" ? money : (v: number) => count(v));

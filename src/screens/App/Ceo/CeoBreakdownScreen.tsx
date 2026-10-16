@@ -6,7 +6,9 @@ import {
   BREAKDOWN_ROOTS,
   count,
   getCeoBreakdown,
+  isOccupiedOnly,
   metricUnit,
+  occupiedRowsOnly,
   money,
   pct,
   recordsForBreakdownRow,
@@ -42,7 +44,12 @@ export default function CeoBreakdownScreen() {
   const navigation = useNavigation<Nav>();
   const { params } = useRoute<Route>();
   const { query, trail, scopeLabel, recordsParams } = params;
-  const load = useCallback(() => getCeoBreakdown(query), [query]);
+  // From the Occupancy tile: only the space types with an occupied room (their records: the occupied rooms).
+  const occupiedOnly = isOccupiedOnly(recordsParams);
+  const load = useCallback(
+    () => getCeoBreakdown(query).then((b) => (occupiedOnly ? occupiedRowsOnly(b) : b)),
+    [query, occupiedOnly],
+  );
   const format = metricUnit(query.metric) === "money" ? money : (v: number) => count(v);
 
   return (
