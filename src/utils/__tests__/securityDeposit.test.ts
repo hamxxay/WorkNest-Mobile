@@ -23,28 +23,30 @@ describe("security deposit field", () => {
     expect(depositMonthsLabel(1)).toBe("1 month");
   });
 
-  it("private offices: editable, default 2; shared: shown, locked at 0; meeting rooms: hidden, 0", () => {
+  it("private offices and shared spaces: editable, default 2; meeting rooms: hidden, 0 (18 Oct 2026)", () => {
     expect(depositFieldState("private")).toEqual({ visible: true, editable: true });
-    expect(depositFieldState("shared")).toEqual({ visible: true, editable: false });
+    expect(depositFieldState("shared")).toEqual({ visible: true, editable: true });
     expect(depositFieldState("meeting")).toEqual({ visible: false, editable: false });
     expect(defaultDepositMonths("private")).toBe(2);
-    expect(defaultDepositMonths("shared")).toBe(0);
+    expect(defaultDepositMonths("shared")).toBe(2);
     expect(defaultDepositMonths("meeting")).toBe(0);
   });
 
-  it("sends the private choice (0 stays 0) and always 0 for shared spaces and meeting rooms", () => {
+  it("sends the choice for private offices and shared spaces (0 stays 0), always 0 for meeting rooms", () => {
     expect(depositMonthsToSend("private", 0)).toBe(0);
     expect(depositMonthsToSend("private", 3)).toBe(3);
-    expect(depositMonthsToSend("shared", 2)).toBe(0);
+    expect(depositMonthsToSend("shared", 2)).toBe(2);
+    expect(depositMonthsToSend("shared", 0)).toBe(0);
     expect(depositMonthsToSend("meeting", 3)).toBe(0);
     expect(isValidDepositMonths(4)).toBe(false);
     expect(isValidDepositMonths(1.5)).toBe(false);
   });
 
-  it("hint: the locked shared-space note, or the amount the months come to", () => {
+  it("hint: the amount the months come to, for private offices and shared spaces", () => {
     const fmt = (n: number) => `PKR ${n.toLocaleString("en-US")}`;
-    expect(depositHelperText("shared", 0, 0, fmt)).toBe(SHARED_SPACE_DEPOSIT_HINT);
-    expect(SHARED_SPACE_DEPOSIT_HINT).toBe("Shared spaces have no security deposit");
+    expect(depositHelperText("shared", 0, 0, fmt)).toBe("No security deposit.");
+    expect(depositHelperText("meeting", 2, 1000, fmt)).toBeUndefined();
+    expect(SHARED_SPACE_DEPOSIT_HINT).toBe("Meeting rooms have no security deposit");
     expect(depositHelperText("meeting", 0, 0, fmt)).toBeUndefined();
     expect(depositHelperText("private", 0, 0, fmt)).toBe("No security deposit.");
     expect(depositHelperText("private", 2, 126000, fmt)).toBe("PKR 126,000 refundable: 2 months of rent after the discount.");
@@ -92,9 +94,10 @@ describe("a saved quotation / booking", () => {
     expect(savedSecurityDeposit({ ...base, amount: 0, months: 2 })).toBe(126000);
     expect(savedSecurityDeposit({ ...base, amount: 0, months: 0 })).toBe(0);
     expect(savedSecurityDeposit({ ...base, amount: null, months: null })).toBe(0);
-    expect(savedSecurityDeposit({ ...base, amount: 0, months: 2, kind: "shared" })).toBe(0);
-    // Unknown kind counts as shared (as on the API): no deposit from months alone; a stored amount still counts.
-    expect(savedSecurityDeposit({ ...base, amount: 0, months: 2, kind: null })).toBe(0);
+    expect(savedSecurityDeposit({ ...base, amount: 0, months: 2, kind: "shared" })).toBe(126000);
+    expect(savedSecurityDeposit({ ...base, amount: 0, months: 2, kind: "meeting" })).toBe(0);
+    // Unknown kind counts as shared (as on the API), which takes a deposit too since 18 Oct 2026.
+    expect(savedSecurityDeposit({ ...base, amount: 0, months: 2, kind: null })).toBe(126000);
     expect(savedSecurityDeposit({ ...base, amount: 50000, months: 1, kind: null })).toBe(50000);
   });
 
@@ -104,7 +107,8 @@ describe("a saved quotation / booking", () => {
     expect(savedDepositMonths({ ...base, amount: null, months: null })).toBe(0);
     expect(savedDepositMonths({ ...base, amount: 189000, months: null })).toBe(3);
     expect(savedDepositMonths({ ...base, amount: 126000, months: 0 })).toBe(2);
-    expect(savedDepositMonths({ ...base, amount: 63000, months: 3, kind: "shared" })).toBe(0);
+    expect(savedDepositMonths({ ...base, amount: 63000, months: 3, kind: "shared" })).toBe(3);
+    expect(savedDepositMonths({ ...base, amount: 63000, months: 3, kind: "meeting" })).toBe(0);
   });
 
   it("reads a quotation response (percent or PKR discount; category from spaceType)", () => {
@@ -121,7 +125,8 @@ describe("a saved quotation / booking", () => {
     expect(quotationSavedDeposit(q)).toEqual({ amount: 0, months: 2, monthlyRent: 70000, discountPercent: 10, kind: "private" });
     expect(savedSecurityDeposit(quotationSavedDeposit(q))).toBe(126000);
     expect(quotationSavedDeposit({ ...q, discountType: "Percentage", discountPercentage: 5, discountValue: 5 }).discountPercent).toBe(5);
-    expect(savedSecurityDeposit(quotationSavedDeposit({ ...q, spaceType: "SharedSpace" }))).toBe(0);
+    expect(savedSecurityDeposit(quotationSavedDeposit({ ...q, spaceType: "SharedSpace" }))).toBe(126000);
+    expect(savedSecurityDeposit(quotationSavedDeposit({ ...q, spaceType: "MeetingRoom" }))).toBe(0);
   });
 
   it("space kind from the category code or type name", () => {

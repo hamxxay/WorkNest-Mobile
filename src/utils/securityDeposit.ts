@@ -1,6 +1,6 @@
 // Security deposit (months): the owner's rule (16 Oct 2026), the same in the API, the CMS and the app. Pure, unit-tested.
 //
-//   * Months: 0, 1, 2 or 3. Private offices: editable, default 2. Shared spaces: always 0 (the field is shown, locked).
+//   * Months: 0, 1, 2 or 3. Private offices and shared spaces: editable, default 2 (owner, 18 Oct 2026).
 //     Meeting rooms / hourly: always 0 (the field is hidden).
 //   * Amount = months x monthly rent x (1 - rent discount %), 2 decimals: the deposit gets the same discount as the
 //     rent. A PKR discount counts as its percentage of one month's rent (as the API works it out).
@@ -12,7 +12,8 @@ export type DepositSpaceKind = "private" | "shared" | "meeting";
 export const SECURITY_DEPOSIT_MONTHS = [0, 1, 2, 3] as const;
 export const DEFAULT_PRIVATE_DEPOSIT_MONTHS = 2;
 export const SECURITY_DEPOSIT_FIELD_LABEL = "Security deposit (months)";
-export const SHARED_SPACE_DEPOSIT_HINT = "Shared spaces have no security deposit";
+/** Kept for older callers; shared spaces take a deposit since 18 Oct 2026, meeting rooms never. */
+export const SHARED_SPACE_DEPOSIT_HINT = "Meeting rooms have no security deposit";
 export const NO_SECURITY_DEPOSIT = "No security deposit";
 
 /**
@@ -43,21 +44,24 @@ export function depositMonthsLabel(months: number): string {
 
 export const DEPOSIT_MONTH_OPTIONS = SECURITY_DEPOSIT_MONTHS.map((m) => ({ label: depositMonthsLabel(m), value: m as number }));
 
-/** How the form shows the field: private editable, shared shown but locked at 0, meeting rooms hidden. */
+/** Private offices and shared spaces take a deposit (owner's decision, 18 Oct 2026); meeting rooms never. */
+export function takesDeposit(kind: DepositSpaceKind | null | undefined): boolean {
+  return kind === "private" || kind === "shared";
+}
+
+/** How the form shows the field: private offices and shared spaces editable, meeting rooms hidden. */
 export function depositFieldState(kind: DepositSpaceKind): { visible: boolean; editable: boolean } {
-  if (kind === "private") return { visible: true, editable: true };
-  if (kind === "shared") return { visible: true, editable: false };
-  return { visible: false, editable: false };
+  return takesDeposit(kind) ? { visible: true, editable: true } : { visible: false, editable: false };
 }
 
-/** The months a new form starts with: 2 for private offices, 0 otherwise. */
+/** The months a new form starts with: 2 for private offices and shared spaces, 0 for meeting rooms. */
 export function defaultDepositMonths(kind: DepositSpaceKind): number {
-  return kind === "private" ? DEFAULT_PRIVATE_DEPOSIT_MONTHS : 0;
+  return takesDeposit(kind) ? DEFAULT_PRIVATE_DEPOSIT_MONTHS : 0;
 }
 
-/** The months the form sends: the choice for private offices (0-3), always 0 for shared spaces and meeting rooms. */
+/** The months the form sends: the choice (0-3) for private offices and shared spaces, always 0 for meeting rooms. */
 export function depositMonthsToSend(kind: DepositSpaceKind, months: number): number {
-  if (kind !== "private") return 0;
+  if (!takesDeposit(kind)) return 0;
   return isValidDepositMonths(months) ? months : DEFAULT_PRIVATE_DEPOSIT_MONTHS;
 }
 
@@ -92,20 +96,20 @@ export type SavedDeposit = {
   /** The rent's discount percentage (rentDiscountPercent). */
   discountPercent: number;
   /**
-   * The space kind: only a private office gets a deposit worked out from months (unknown counts as shared, as on the
-   * API; an old shared quotation can hold 1 month with no amount).
+   * The space kind: private offices and shared spaces get a deposit worked out from months; meeting rooms never
+   * (unknown counts as shared, as on the API).
    */
   kind?: DepositSpaceKind | null;
 };
 
 /**
  * The deposit of a saved quotation / booking (the API's SecurityDepositRules.Stored): the stored amount; else, for a
- * private office, months x rent x (1 - discount); else 0.
+ * private office or shared space, months x rent x (1 - discount); else 0.
  */
 export function savedSecurityDeposit(saved: SavedDeposit): number {
   const stored = positive(saved.amount);
   if (stored) return round2(stored);
-  if (saved.kind !== "private") return 0;
+  if (!takesDeposit(saved.kind ?? "shared")) return 0;   // unknown counts as shared, as on the API
   const months = isValidDepositMonths(saved.months) ? saved.months : 0;
   return securityDepositAmount(months, saved.monthlyRent, saved.discountPercent);
 }
@@ -115,7 +119,7 @@ export function savedSecurityDeposit(saved: SavedDeposit): number {
  * stored but an amount is, the months that amount stands for (1-3); else 0. Never a default.
  */
 export function savedDepositMonths(saved: SavedDeposit): number {
-  if (saved.kind === "shared" || saved.kind === "meeting") return 0;
+  if (saved.kind === "meeting") return 0;
   if (isValidDepositMonths(saved.months) && saved.months > 0) return saved.months;
   const stored = positive(saved.amount);
   if (!stored) return 0;
@@ -167,15 +171,14 @@ export function depositKindFromCategory(category: string | null | undefined, typ
   return null;
 }
 
-/** The hint under the field: the locked shared-space note, or the amount the chosen months come to. */
+/** The hint under the field: the amount the chosen months come to (private offices and shared spaces). */
 export function depositHelperText(
   kind: DepositSpaceKind,
   months: number,
   amount: number,
   formatAmount: (n: number) => string = (n) => `PKR ${n}`,
 ): string | undefined {
-  if (kind === "shared") return SHARED_SPACE_DEPOSIT_HINT;
-  if (kind !== "private") return undefined;
+  if (!takesDeposit(kind)) return undefined;
   if (!(months > 0)) return `${NO_SECURITY_DEPOSIT}.`;
   if (!(amount > 0)) return `${depositMonthsLabel(months)} of rent after the discount (refundable).`;
   return `${formatAmount(amount)} refundable: ${depositMonthsLabel(months)} of rent after the discount.`;

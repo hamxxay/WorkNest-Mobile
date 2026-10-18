@@ -41,6 +41,7 @@ import {
   SECURITY_DEPOSIT_FIELD_LABEL,
   defaultDepositMonths,
   depositFieldState,
+  takesDeposit,
   depositHelperText,
   depositMonthsLabel,
   depositMonthsToSend,
@@ -199,7 +200,7 @@ export default function QuotationFormScreen() {
       }
       setBillingMonths(q.billingPeriodMonths || (group === "meeting" ? 1 : 3));
       // The quotation's own months (or, from an older API, the months its stored amount stands for); never a default.
-      setDepositMonths(group === "private" ? savedDepositMonths({ ...quotationSavedDeposit(q), kind: group }) : 0);
+      setDepositMonths(takesDeposit(group) ? savedDepositMonths({ ...quotationSavedDeposit(q), kind: group }) : 0);
       if (q.perSeatBasePrice) setBasePrice(String(q.perSeatBasePrice));
       const isAmount = (q.discountType ?? "").toLowerCase().startsWith("amount") || (q.discountType ?? "").toLowerCase() === "fixed";
       setDiscountType(isAmount ? "Amount" : "Percentage");
