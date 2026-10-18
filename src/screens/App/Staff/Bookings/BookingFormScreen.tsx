@@ -100,7 +100,11 @@ export default function BookingFormScreen() {
   const depositMonthsSent = depositMonthsToSend(selection.group, depositMonths);
   const typedPrice = Number(basePrice);
   const perSeatPrice = Number.isFinite(typedPrice) && typedPrice > 0 ? typedPrice : minPrice;
-  const monthlyRentEstimate = isPrivate ? perSeatPrice * Math.max(1, space?.capacity || 1) : 0;
+  // Monthly rent for the deposit estimate, as WN_Bookings_Insert works it out: a private office is per seat x seats,
+  // a shared space its seat price (shared spaces take a deposit too since 18 Oct 2026); meeting rooms none.
+  const monthlyRentEstimate = isPrivate
+    ? perSeatPrice * Math.max(1, space?.capacity || 1)
+    : selection.group === "shared" ? perSeatPrice : 0;
   const depositEstimate = securityDepositAmount(
     depositMonthsSent,
     monthlyRentEstimate,
