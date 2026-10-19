@@ -188,3 +188,31 @@ describe("Sales cards", () => {
     expect(tiles.every((t) => t.accessibilityHint)).toBe(true);
   });
 });
+
+describe("a custom date range", () => {
+  const range = { from: "2026-10-01", to: "2026-10-15" };
+  const customDrill = () => ({ ...makeDrill("custom", 2), range });
+
+  test("Money: worded for the range, compared with the previous 15 days; Invoiced opens the range by location", () => {
+    const drill = customDrill();
+    const money = { ...D.money!, invoicedPrev: 600, collectedPrev: 600 };
+    const tiles = tilesOf(<MoneySection money={money} drill={drill} />);
+    const invoiced = press(tiles, "Invoiced");
+    expect(invoiced).toMatchObject({ sub: "in this range", accessibilityHint: "Opens invoiced in this range by location" });
+    expect(invoiced.trend.label).toBe("50% vs previous 15 days");
+    expect(drill.open.mock.calls[0]).toEqual([
+      { kind: "breakdown", query: { metric: "revenue", period: "custom", range, locationId: 2 }, recordsParams: undefined },
+      ["Money", "Invoiced in this range"],
+    ]);
+  });
+
+  test("Occupancy compares with as many days earlier; New bookings with the previous days", () => {
+    const drill = customDrill();
+    const occupancy = { ...D.occupancy!, occupancyPctPrev: 61.3, newBookingsPrev: 2 };
+    const tiles = tilesOf(<OccupancySection occupancy={occupancy} drill={drill} />);
+    expect(tiles.find((t) => t.label === "Occupancy").trend.label).toBe("2.0 pts vs 15 days earlier");
+    const newBookings = tiles.find((t) => t.label === "New bookings");
+    expect(newBookings).toMatchObject({ sub: "in this range" });
+    expect(newBookings.trend.label).toBe("2 vs previous 15 days");
+  });
+});

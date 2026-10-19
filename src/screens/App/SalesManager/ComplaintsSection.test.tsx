@@ -101,7 +101,7 @@ const DATA = normalizeSalesManagerComplaints({
 });
 
 function query(over: Partial<CeoQuery<SmComplaints>>): CeoQuery<SmComplaints> {
-  return { data: null, error: null, loading: false, refreshing: false, reload: jest.fn(), refresh: jest.fn(), ...over };
+  return { data: null, error: null, loading: false, refreshing: false, loadedAt: null, reload: jest.fn(), refresh: jest.fn(), quietRefresh: jest.fn(), ...over };
 }
 
 function makeDrill(): SmDrill & { records: jest.Mock } {

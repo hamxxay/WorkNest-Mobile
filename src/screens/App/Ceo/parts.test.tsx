@@ -31,7 +31,7 @@ jest.mock("../../../theme", () => {
 });
 
 import { darkColors, lightColors } from "../../../theme/colors";
-import { CeoSection } from "./parts";
+import { CeoSection, useCeoQuery } from "./parts";
 
 const g = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
 g.IS_REACT_ACT_ENVIRONMENT = true;
@@ -83,5 +83,53 @@ describe("CeoSection", () => {
     );
     expect(textOf(root)).toEqual([]);
     expect(byType(root, "Ionicons")).toHaveLength(0);
+  });
+});
+
+describe("useCeoQuery", () => {
+  type Probe = ReturnType<typeof useCeoQuery<string>>;
+  let latest: Probe | undefined;
+  function QueryProbe({ load }: { load: () => Promise<string> }) {
+    latest = useCeoQuery(load);
+    return null;
+  }
+
+  /** A load whose answers the test hands out one by one. */
+  function loader() {
+    const pending: { resolve: (v: string) => void; reject: (e: unknown) => void }[] = [];
+    const load = jest.fn(() => new Promise<string>((resolve, reject) => pending.push({ resolve, reject })));
+    return { load, answer: async (v: string) => act(async () => pending.shift()!.resolve(v)), fail: async (e: unknown) => act(async () => pending.shift()!.reject(e)) };
+  }
+
+  test("the quiet refresh keeps the figures on screen (no skeleton, no spinner) until the new ones arrive", async () => {
+    const { load, answer, fail } = loader();
+    render(<QueryProbe load={load} />);
+    expect(latest).toMatchObject({ data: null, loading: true, refreshing: false, loadedAt: null });
+    await answer("first");
+    expect(latest).toMatchObject({ data: "first", loading: false, refreshing: false });
+    const firstAt = latest!.loadedAt;
+    expect(typeof firstAt).toBe("number");
+
+    act(() => latest!.quietRefresh());
+    expect(load).toHaveBeenCalledTimes(2);
+    expect(latest).toMatchObject({ data: "first", loading: false, refreshing: false, error: null, loadedAt: firstAt });
+    await answer("second");
+    expect(latest).toMatchObject({ data: "second", loading: false, refreshing: false, error: null });
+
+    // A quiet refresh that fails keeps the figures and reports the error (the screen says they are from the last update).
+    act(() => latest!.quietRefresh());
+    await fail(new Error("offline"));
+    expect(latest).toMatchObject({ data: "second", loading: false, refreshing: false });
+    expect((latest!.error as Error).message).toBe("offline");
+  });
+
+  test("pull to refresh still shows its spinner", async () => {
+    const { load, answer } = loader();
+    render(<QueryProbe load={load} />);
+    await answer("first");
+    act(() => latest!.refresh());
+    expect(latest).toMatchObject({ data: "first", refreshing: true });
+    await answer("again");
+    expect(latest).toMatchObject({ data: "again", refreshing: false });
   });
 });

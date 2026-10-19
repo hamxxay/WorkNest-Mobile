@@ -105,7 +105,7 @@ const REPORT = normalizeCeoRooms({
 });
 
 function query(over: Partial<CeoQuery<CeoRooms>>): CeoQuery<CeoRooms> {
-  return { data: null, error: null, loading: false, refreshing: false, reload: jest.fn(), refresh: jest.fn(), ...over };
+  return { data: null, error: null, loading: false, refreshing: false, loadedAt: null, reload: jest.fn(), refresh: jest.fn(), quietRefresh: jest.fn(), ...over };
 }
 
 function makeDrill(): Drill & { focus: jest.Mock; target: jest.Mock } {

@@ -29,22 +29,29 @@ export type CeoQuery<T> = {
   loading: boolean;
   /** Pull to refresh: keep the figures, show the spinner. */
   refreshing: boolean;
+  /** When the figures on screen arrived (ms since epoch); null before the first answer. */
+  loadedAt: number | null;
   /** Load again (after an error). */
   reload: () => void;
   /** Pull to refresh. */
   refresh: () => void;
+  /** The auto refresh: load again without a skeleton or a spinner; the figures stay until the new ones arrive. */
+  quietRefresh: () => void;
 };
+
+type QueryState<T> = { data: T | null; error: unknown; loading: boolean; refreshing: boolean; loadedAt: number | null };
 
 /**
  * Runs `load` now and whenever it changes (a new period / location / drill query: the old figures are cleared,
  * so they are never shown under the new labels). Answers to an older request are ignored.
  */
 export function useCeoQuery<T>(load: () => Promise<T>): CeoQuery<T> {
-  const [state, setState] = useState<{ data: T | null; error: unknown; loading: boolean; refreshing: boolean }>({
+  const [state, setState] = useState<QueryState<T>>({
     data: null,
     error: null,
     loading: true,
     refreshing: false,
+    loadedAt: null,
   });
   const generation = useRef(0);
   const alive = useRef(true);
@@ -56,21 +63,25 @@ export function useCeoQuery<T>(load: () => Promise<T>): CeoQuery<T> {
   }, []);
 
   const run = useCallback(
-    (mode: "new" | "retry" | "refresh") => {
+    (mode: "new" | "retry" | "refresh" | "quiet") => {
       const gen = ++generation.current;
-      setState((prev) => ({
-        data: mode === "new" ? null : prev.data,
-        error: mode === "refresh" ? prev.error : null,
-        loading: mode === "refresh" ? prev.loading : !(mode === "retry" && prev.data),
-        refreshing: mode === "refresh",
-      }));
+      // Quiet (the auto refresh): nothing on screen changes until the answer arrives.
+      if (mode !== "quiet") {
+        setState((prev) => ({
+          data: mode === "new" ? null : prev.data,
+          error: mode === "refresh" ? prev.error : null,
+          loading: mode === "refresh" ? prev.loading : !(mode === "retry" && prev.data),
+          refreshing: mode === "refresh",
+          loadedAt: mode === "new" ? null : prev.loadedAt,
+        }));
+      }
       const current = () => alive.current && generation.current === gen;
       load().then(
         (data) => {
-          if (current()) setState({ data, error: null, loading: false, refreshing: false });
+          if (current()) setState({ data, error: null, loading: false, refreshing: false, loadedAt: Date.now() });
         },
         (error) => {
-          if (current()) setState((prev) => ({ data: prev.data, error, loading: false, refreshing: false }));
+          if (current()) setState((prev) => ({ data: prev.data, error, loading: false, refreshing: false, loadedAt: prev.loadedAt }));
         },
       );
     },
@@ -83,7 +94,8 @@ export function useCeoQuery<T>(load: () => Promise<T>): CeoQuery<T> {
 
   const reload = useCallback(() => run("retry"), [run]);
   const refresh = useCallback(() => run("refresh"), [run]);
-  return { ...state, reload, refresh };
+  const quietRefresh = useCallback(() => run("quiet"), [run]);
+  return { ...state, reload, refresh, quietRefresh };
 }
 
 // ─── States ───────────────────────────────────────────────────────────────────────────────────────────────
