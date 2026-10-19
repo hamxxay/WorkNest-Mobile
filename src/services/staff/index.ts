@@ -5,6 +5,7 @@ export * from "./http";
 export * from "./files";
 export { STAFF_ENDPOINTS } from "./endpoints";
 export * from "./dashboard";
+export * from "./dashboardDetails";
 export * from "./profile";
 export * from "./customers";
 export * from "./kyc";
@@ -21,6 +22,7 @@ export * from "./inquiries";
 export * from "./accessActivity";
 export * from "./users";
 export * from "./challan";
+export * from "./customerOverview";
 export {
   floorLabel,
   filterSpaces,
