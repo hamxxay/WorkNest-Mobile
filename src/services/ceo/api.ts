@@ -4,6 +4,7 @@ import { withQuery } from "../staff/normalize";
 import { breakdownParams, positiveId } from "./drill";
 import { toCeoError } from "./errors";
 import { normalizeCeoBreakdown, normalizeCeoDashboard, normalizeCeoRecords } from "./normalize";
+import { periodQuery } from "./period";
 import { normalizeCeoRooms } from "./rooms";
 import type {
   CeoBreakdown,
@@ -15,6 +16,7 @@ import type {
   CeoRecordsQuery,
   CeoRooms,
   CeoScope,
+  DashRange,
 } from "./types";
 
 // CEO dashboard calls. Same transport as the staff apps (services/staff/http: Bearer JWT, one silent token renewal
@@ -39,13 +41,16 @@ async function ceoGet(path: string): Promise<unknown> {
   }
 }
 
-/** GET api/ceo/dashboard?period=&locationId= — money, occupancy, sales and team for the period. CEO / super admin. */
+/**
+ * GET api/ceo/dashboard?period=&locationId= — money, occupancy, sales and team for the period. CEO / super admin.
+ * A custom period adds &from=&to= (yyyy-MM-dd); before the server's database update CS_01 that answers 503.
+ */
 export async function getCeoDashboard(scope: CeoScope): Promise<CeoDashboard> {
-  const raw = await ceoGet(withQuery(CEO_ENDPOINTS.dashboard, { period: scope.period, locationId: positiveId(scope.locationId) }));
+  const raw = await ceoGet(withQuery(CEO_ENDPOINTS.dashboard, { ...periodQuery(scope.period, scope.range), locationId: positiveId(scope.locationId) }));
   return normalizeCeoDashboard(raw, scope.period);
 }
 
-/** GET api/ceo/breakdown?metric=&<key>=&period=&locationId= — drill level 2. CEO / super admin. */
+/** GET api/ceo/breakdown?metric=&<key>=&period=&locationId= (custom: &periodFrom=&periodTo=) — drill level 2. CEO / super admin. */
 export async function getCeoBreakdown(query: CeoBreakdownQuery): Promise<CeoBreakdown> {
   const raw = await ceoGet(withQuery(CEO_ENDPOINTS.breakdown, breakdownParams(query)));
   return normalizeCeoBreakdown(raw, query.metric);
@@ -62,12 +67,13 @@ export async function getCeoRecords(query: CeoRecordsQuery): Promise<CeoRecords>
 }
 
 /**
- * GET api/ceo/rooms?period=&locationId= — the room report: rooms sold monthly (private offices, shared spaces), how
- * full they are and the price each booking was sold at against the list / shift price. CEO / super admin. Before the
- * server's database update CEO_02 it answers `available: false` with a message (shown instead of the report).
+ * GET api/ceo/rooms?period=&locationId= (custom: &from=&to=) — the room report: rooms sold monthly (private offices,
+ * shared spaces), how full they are and the price each booking was sold at against the list / shift price. CEO /
+ * super admin. Before the server's database update CEO_02 it answers `available: false` with a message (shown
+ * instead of the report).
  */
-export async function getCeoRooms(period: CeoPeriod, locationId?: number | null): Promise<CeoRooms> {
-  const raw = await ceoGet(withQuery(CEO_ENDPOINTS.rooms, { period, locationId: positiveId(locationId) }));
+export async function getCeoRooms(period: CeoPeriod, locationId?: number | null, range?: DashRange | null): Promise<CeoRooms> {
+  const raw = await ceoGet(withQuery(CEO_ENDPOINTS.rooms, { ...periodQuery(period, range), locationId: positiveId(locationId) }));
   return normalizeCeoRooms(raw, period);
 }
 

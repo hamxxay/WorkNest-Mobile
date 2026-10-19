@@ -8,6 +8,7 @@ import type {
   CeoLocation,
   CeoPeriod,
   CeoQuotationRecord,
+  DashRange,
 } from "../ceo";
 import type { InquiryType } from "../../theme/inquiryTypes";
 
@@ -27,11 +28,17 @@ import type { InquiryType } from "../../theme/inquiryTypes";
 // is [], a missing section is null (the screen shows its empty state) and a missing previous-period figure or rate
 // is null (no "vs last period" change is shown). Shapes shared with the CEO dashboard reuse its types.
 
-/** month (default) | quarter | year: this calendar period to date, compared with the previous one. */
+/**
+ * month (default) | quarter | year: this calendar period to date, compared with the previous one; custom: a day range
+ * (`range`, the server's database update CS_01), compared with the same number of days just before it.
+ */
 export type SmPeriod = CeoPeriod;
 
-/** What every call is narrowed to: the period and one of the manager's locations (null / 0 = all of them). */
-export type SmScope = { period: SmPeriod; locationId?: number | null };
+/**
+ * What every call is narrowed to: the period and one of the manager's locations (null / 0 = all of them). `range` is
+ * used only with period custom.
+ */
+export type SmScope = { period: SmPeriod; locationId?: number | null; range?: DashRange | null };
 
 export type SmLocation = CeoLocation;
 
@@ -170,9 +177,12 @@ export type SmRenewals = {
 
 export type SmDashboard = {
   period: SmPeriod;
-  /** e.g. "October 2026" ("" when not sent). */
+  /** e.g. "October 2026", "1 Oct - 15 Oct 2026" ("" when not sent). */
   periodLabel: string;
   generatedAt: string | null;
+  /** A custom period: the range the figures cover, and the one the previous figures cover (set only when sent). */
+  range?: DashRange;
+  previousRange?: DashRange;
   /** The manager's locations (for the location picker). */
   locations: SmLocation[];
   /**
@@ -225,6 +235,8 @@ export type SmActiveComplaint = {
 export type SmComplaints = {
   period: SmPeriod;
   periodLabel: string;
+  /** A custom period: the range the figures cover (set only when sent). */
+  range?: DashRange;
   status: SmComplaintStatusCounts;
   /** Open + in progress. */
   activeTotal: number;
@@ -254,6 +266,8 @@ export type SmBreakdownMetric = "funnel-month" | "staff" | "inquiries-type" | "r
 export type SmBreakdownQuery = {
   metric: SmBreakdownMetric;
   period: SmPeriod;
+  /** period custom: the dashboard's range (sent as periodFrom / periodTo). */
+  range?: DashRange | null;
   /** Dashboard location filter (null = all the manager's locations). */
   locationId?: number | null;
   /** yyyy-MM: funnel-month, renewals-month, desks-month. */

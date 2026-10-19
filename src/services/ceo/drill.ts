@@ -1,5 +1,6 @@
 import type { QueryValue } from "../staff/normalize";
 import { count, isMonthKey, money, monthLabel, pct, periodWords, shareOf } from "./format";
+import { customRangeOf, drillPeriodParams } from "./period";
 import type {
   CeoBreakdown,
   CeoBreakdownMetric,
@@ -14,6 +15,7 @@ import type {
   CeoRecordParams,
   CeoRecordsQuery,
   CeoScope,
+  DashRange,
 } from "./types";
 
 // Drill-down routing of the CEO dashboard (pure, unit-tested in __tests__/drill.test.ts):
@@ -33,6 +35,11 @@ import type {
 // The "No location" row of a location breakdown (key "none": invoices, spaces or bookings not tied to a location)
 // opens its records with locationId=none. Tour inquiries follow the location filter by their branch (one location =
 // only its inquiries); the full list of leases expiring is records/leases.
+//
+// A custom date range (period custom, ./period.ts) goes to every drill-down call as period=custom&periodFrom=&periodTo=
+// (from / to narrow a list on their own there); Invoiced / Collected for a range open the invoices issued in it by
+// location (breakdown revenue with from / to instead of a month), then a location's invoices (from / to). Month /
+// quarter / year drill-downs are sent exactly as before.
 
 /** A positive int, or null (location / space type / user ids, also when they arrive as text). */
 export function positiveId(value: unknown): number | null {
@@ -43,6 +50,31 @@ export function positiveId(value: unknown): number | null {
 
 /** The dashboard's location filter as a query value (null = all locations). */
 const scopeLocation = (scope: { locationId?: number | null }) => positiveId(scope.locationId);
+
+/** What a drill-down knows of the dashboard: its period (with a custom range) and its location filter. */
+export type CeoDrillScope = Partial<CeoScope>;
+
+/**
+ * Records params with the dashboard's custom period added (period=custom, periodFrom, periodTo), so the list covers
+ * the same range; unchanged for month / quarter / year (those requests stay as before).
+ */
+export function withDrillPeriod(params: CeoRecordParams, scope: CeoDrillScope): CeoRecordParams {
+  const period = drillPeriodParams(scope);
+  return period.period ? cleanParams({ ...params, ...period }) : params;
+}
+
+/** A breakdown query of the dashboard's scope: its period (a custom one with its range) and the given location. */
+export function scopedBreakdown(
+  base: Omit<CeoBreakdownQuery, "period" | "range" | "locationId">,
+  scope: CeoDrillScope,
+  locationId: number | null = scopeLocation(scope),
+): CeoBreakdownQuery {
+  const range = customRangeOf(scope);
+  return { ...base, period: scope.period ?? "month", ...(range ? { range } : {}), locationId };
+}
+
+/** The custom range of a breakdown query (period custom with a real range), else null. */
+const queryRange = (query: CeoBreakdownQuery): DashRange | null => customRangeOf(query);
 
 /** Key of the breakdown row for the part not tied to a location ("No location"). */
 export const NO_LOCATION_KEY = "none";
@@ -72,11 +104,22 @@ export function metricUnit(metric: CeoBreakdownMetric): "money" | "count" {
   return metric === "revenue" || metric === "aging" ? "money" : "count";
 }
 
-/** Query string parameters of GET api/ceo/breakdown: metric, its key, period and (when set) locationId. */
+/**
+ * Query string parameters of GET api/ceo/breakdown: metric, its key, period and (when set) locationId. A custom
+ * period adds periodFrom / periodTo; revenue for a range (no month) asks for the invoices issued from / to.
+ */
 export function breakdownParams(query: CeoBreakdownQuery): Record<string, QueryValue> {
   const params: Record<string, QueryValue> = { metric: query.metric };
+  const range = queryRange(query);
   switch (query.metric) {
     case "revenue":
+      if (!isMonthKey(query.month) && range) {
+        params.from = range.from;
+        params.to = range.to;
+      } else {
+        params.month = query.month;
+      }
+      break;
     case "bookings-month":
       params.month = query.month;
       break;
@@ -95,6 +138,10 @@ export function breakdownParams(query: CeoBreakdownQuery): Record<string, QueryV
     // occupancy-location: its key is locationId, sent below.
   }
   params.period = query.period;
+  if (range) {
+    params.periodFrom = range.from;
+    params.periodTo = range.to;
+  }
   params.locationId = positiveId(query.locationId);
   return params;
 }
@@ -103,6 +150,8 @@ export function breakdownParams(query: CeoBreakdownQuery): Record<string, QueryV
 export function isCompleteBreakdown(query: CeoBreakdownQuery): boolean {
   switch (query.metric) {
     case "revenue":
+      // A month, or a custom range (the invoices issued in it).
+      return isMonthKey(query.month) || queryRange(query) != null;
     case "bookings-month":
       return isMonthKey(query.month);
     case "aging":
@@ -133,11 +182,13 @@ export function cleanParams(params: CeoRecordParams): CeoRecordParams {
 /**
  * The records list a breakdown row opens (level 3), or null when the row has no usable key (e.g. "Other").
  * Location-keyed rows replace the dashboard's location filter with the row's location. `extra` filters are added
- * (e.g. status=paid when the breakdown was opened from Collected).
+ * (e.g. status=paid when the breakdown was opened from Collected). A custom period goes along (periodFrom / periodTo).
  */
 export function recordsForBreakdownRow(query: CeoBreakdownQuery, row: CeoBreakdownRow, extra?: CeoRecordParams): CeoRecordsQuery | null {
   const records = recordsForRow(query, row);
-  return records && extra ? { kind: records.kind, params: cleanParams({ ...records.params, ...extra }) } : records;
+  if (!records) return null;
+  const params = extra ? cleanParams({ ...records.params, ...extra }) : records.params;
+  return { kind: records.kind, params: withDrillPeriod(params, query) };
 }
 
 function recordsForRow(query: CeoBreakdownQuery, row: CeoBreakdownRow): CeoRecordsQuery | null {
@@ -146,8 +197,13 @@ function recordsForRow(query: CeoBreakdownQuery, row: CeoBreakdownRow): CeoRecor
   const rowLoc = rowLocation(row.key);
   const rowMonth = isMonthKey(row.key) ? row.key : null;
   switch (query.metric) {
-    case "revenue":
-      return rowLoc && isMonthKey(query.month) ? { kind: "invoices", params: cleanParams({ month: query.month, locationId: rowLoc }) } : null;
+    case "revenue": {
+      if (!rowLoc) return null;
+      if (isMonthKey(query.month)) return { kind: "invoices", params: cleanParams({ month: query.month, locationId: rowLoc }) };
+      // A custom range: the invoices issued in it (from / to).
+      const range = queryRange(query);
+      return range ? { kind: "invoices", params: cleanParams({ from: range.from, to: range.to, locationId: rowLoc }) } : null;
+    }
     case "aging":
       return rowLoc && query.bucket ? { kind: "invoices", params: cleanParams({ bucket: query.bucket, locationId: rowLoc }) } : null;
     case "occupancy-type": {
@@ -192,10 +248,26 @@ export function periodRange(period: CeoPeriod, today: Date = new Date()): { from
 /**
  * Funnel stage -> records of the period (no breakdown level): inquiries -> tour inquiries, quotations / accepted /
  * converted -> quotations?stage=, bookings -> bookings; all with the location filter. null for an unknown stage.
+ * A custom range is sent as periodFrom / periodTo (no from / to: the API turns the range into the times it counts).
  */
 export function recordsForFunnelStage(stage: string, scope: CeoScope, today: Date = new Date()): CeoRecordsQuery | null {
-  const { from, to } = periodRange(scope.period, today);
   const locationId = scopeLocation(scope);
+  if (customRangeOf(scope)) {
+    const params = (extra: CeoRecordParams) => withDrillPeriod(cleanParams({ ...extra, locationId }), scope);
+    switch (stage) {
+      case "inquiries":
+        return { kind: "inquiries", params: params({}) };
+      case "quotations":
+      case "accepted":
+      case "converted":
+        return { kind: "quotations", params: params({ stage }) };
+      case "bookings":
+        return { kind: "bookings", params: params({}) };
+      default:
+        return null;
+    }
+  }
+  const { from, to } = periodRange(scope.period, today);
   switch (stage) {
     case "inquiries":
       return { kind: "inquiries", params: cleanParams({ period: scope.period, from, to, locationId }) };
@@ -213,17 +285,17 @@ export function recordsForFunnelStage(stage: string, scope: CeoScope, today: Dat
 /** A top customer -> that customer's invoices (null without a customer id). */
 export function recordsForCustomer(customerId: number | null | undefined, scope: CeoScope): CeoRecordsQuery | null {
   const id = positiveId(customerId);
-  return id ? { kind: "invoices", params: cleanParams({ customerId: id, locationId: scopeLocation(scope) }) } : null;
+  return id ? { kind: "invoices", params: withDrillPeriod(cleanParams({ customerId: id, locationId: scopeLocation(scope) }), scope) } : null;
 }
 
 /** The Overdue card -> overdue invoices. */
 export function overdueInvoicesRecords(scope: CeoScope): CeoRecordsQuery {
-  return { kind: "invoices", params: cleanParams({ status: "overdue", locationId: scopeLocation(scope) }) };
+  return { kind: "invoices", params: withDrillPeriod(cleanParams({ status: "overdue", locationId: scopeLocation(scope) }), scope) };
 }
 
-/** The New bookings card -> bookings created in the period. */
+/** The New bookings card -> bookings created in the period (a custom range: periodFrom / periodTo). */
 export function newBookingsRecords(scope: CeoScope): CeoRecordsQuery {
-  return { kind: "bookings", params: cleanParams({ period: scope.period, locationId: scopeLocation(scope) }) };
+  return { kind: "bookings", params: withDrillPeriod(cleanParams({ period: scope.period, locationId: scopeLocation(scope) }), scope) };
 }
 
 /**
@@ -233,13 +305,13 @@ export function newBookingsRecords(scope: CeoScope): CeoRecordsQuery {
 export const ALL_TIME_FROM = "2000-01-01";
 
 /** The Active bookings card -> bookings running today (records/bookings?status=active), made at any time. */
-export function activeBookingsRecords(scope: { locationId?: number | null }): CeoRecordsQuery {
-  return { kind: "bookings", params: cleanParams({ status: "active", from: ALL_TIME_FROM, locationId: scopeLocation(scope) }) };
+export function activeBookingsRecords(scope: CeoDrillScope): CeoRecordsQuery {
+  return { kind: "bookings", params: withDrillPeriod(cleanParams({ status: "active", from: ALL_TIME_FROM, locationId: scopeLocation(scope) }), scope) };
 }
 
 /** "Leases expiring" -> every confirmed lease ending in the next 90 days (records/leases, soonest first). */
-export function leasesExpiringRecords(scope: { locationId?: number | null }): CeoRecordsQuery {
-  return { kind: "leases", params: cleanParams({ locationId: scopeLocation(scope) }) };
+export function leasesExpiringRecords(scope: CeoDrillScope): CeoRecordsQuery {
+  return { kind: "leases", params: withDrillPeriod(cleanParams({ locationId: scopeLocation(scope) }), scope) };
 }
 
 /** "Revenue > Oct 2026 > I-8" as pieces; empty pieces dropped. */
@@ -257,7 +329,8 @@ export function trailForSpeech(trail: readonly string[]): string {
 //   card                       level 2                                               level 3
 //   Invoiced / Collected       month: this month by location (breakdown revenue);    invoices of that month and
 //                              quarter / year: the period's months (from the          location (Collected: paid)
-//                              dashboard), then that month by location
+//                              dashboard), then that month by location; a custom      (a range: issued in it)
+//                              range: its invoices by location (from / to)
 //   Outstanding                aging buckets (from the dashboard), then that bucket   open invoices of that bucket
 //                              by location (breakdown aging)                          and location
 //   Occupancy                  by location (from the dashboard), then that location   spaces of that location and
@@ -280,14 +353,14 @@ const MEASURE_LABELS: Record<RevenueMeasure, string> = { invoiced: "Invoiced", c
 
 /**
  * Invoiced or Collected for the period: this month by location (one month), else the months of the period with
- * their invoiced and collected (from the dashboard's 12 months), each opening that month by location. Collected
- * leads to the paid invoices.
+ * their invoiced and collected (from the dashboard's 12 months), each opening that month by location. A custom range:
+ * the invoices issued in it by location (as the CMS). Collected leads to the paid invoices.
  */
 export function revenueTarget(m: Pick<CeoMoney, "months">, measure: RevenueMeasure, scope: CeoScope, today: Date = new Date()): CeoDrillTarget {
-  const locationId = scopeLocation(scope);
   const recordsParams = measure === "collected" ? { status: "paid" } : undefined;
+  if (customRangeOf(scope)) return { kind: "breakdown", query: scopedBreakdown({ metric: "revenue" }, scope), recordsParams };
   const months = periodMonths(scope.period, today);
-  const monthQuery = (month: string): CeoBreakdownQuery => ({ metric: "revenue", month, period: scope.period, locationId });
+  const monthQuery = (month: string): CeoBreakdownQuery => scopedBreakdown({ metric: "revenue", month }, scope);
   if (months.length === 1) return { kind: "breakdown", query: monthQuery(months[0]), recordsParams };
   const label = MEASURE_LABELS[measure];
   const other = MEASURE_LABELS[measure === "invoiced" ? "collected" : "invoiced"];
@@ -322,7 +395,7 @@ export function revenueTarget(m: Pick<CeoMoney, "months">, measure: RevenueMeasu
 export function agingTarget(m: Pick<CeoMoney, "aging">, scope: CeoScope): CeoDrillTarget {
   const locationId = scopeLocation(scope);
   if (!m.aging.length) {
-    return { kind: "records", query: { kind: "invoices", params: cleanParams({ status: "open", locationId }) }, title: "Outstanding invoices" };
+    return { kind: "records", query: { kind: "invoices", params: withDrillPeriod(cleanParams({ status: "open", locationId }), scope) }, title: "Outstanding invoices" };
   }
   return {
     kind: "list",
@@ -339,7 +412,7 @@ export function agingTarget(m: Pick<CeoMoney, "aging">, scope: CeoScope): CeoDri
         value: b.amount,
         value2: null,
         count: b.count,
-        open: b.bucket ? { kind: "breakdown", query: { metric: "aging", bucket: b.bucket, period: scope.period, locationId } } : null,
+        open: b.bucket ? { kind: "breakdown", query: scopedBreakdown({ metric: "aging", bucket: b.bucket }, scope, locationId) } : null,
       })),
     },
   };
@@ -357,7 +430,7 @@ export function occupancyTarget(occupancy: Pick<CeoOccupancy, "byLocation">, sco
   const chosen = scopeLocation(scope);
   const breakdown = (locationId: number): CeoDrillStep => ({
     kind: "breakdown",
-    query: { metric: "occupancy-location", period: scope.period, locationId },
+    query: scopedBreakdown({ metric: "occupancy-location" }, scope, locationId),
     recordsParams: OCCUPIED_ONLY,
   });
   if (chosen && occupancy.byLocation.some((l) => l.locationId === chosen && l.total > 0)) return breakdown(chosen);

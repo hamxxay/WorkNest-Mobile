@@ -7,11 +7,20 @@ import type { InquiryType } from "../../theme/inquiryTypes";
 // list is [], a missing section is null (the screen shows its empty state) and a missing previous-period figure is
 // null (no "vs last period" change is shown).
 
-/** month (default) | quarter | year: this calendar period to date, compared with the previous one. */
-export type CeoPeriod = "month" | "quarter" | "year";
+/**
+ * month (default) | quarter | year: this calendar period to date, compared with the previous one. custom: a day range
+ * (`range`, the server's database update CS_01), compared with the same number of days just before it.
+ */
+export type CeoPeriod = "month" | "quarter" | "year" | "custom";
 
-/** What every CEO call is narrowed to: the period and one location (null / 0 = all locations). */
-export type CeoScope = { period: CeoPeriod; locationId?: number | null };
+/** A custom date range: yyyy-MM-dd, both days included (at most 366 days, not after today, 2000 or later). */
+export type DashRange = { from: string; to: string };
+
+/**
+ * What every CEO call is narrowed to: the period and one location (null / 0 = all locations). `range` is used only
+ * with period custom (a calendar period sends no dates, so those requests stay as they were).
+ */
+export type CeoScope = { period: CeoPeriod; locationId?: number | null; range?: DashRange | null };
 
 export type CeoLocation = { locationId: number; name: string };
 
@@ -139,9 +148,12 @@ export type CeoTeam = { perLocation: CeoTeamLocation[]; people: CeoPerson[] };
 
 export type CeoDashboard = {
   period: CeoPeriod;
-  /** e.g. "October 2026" ("" when not sent). */
+  /** e.g. "October 2026", "1 Oct - 15 Oct 2026" ("" when not sent). */
   periodLabel: string;
   generatedAt: string | null;
+  /** A custom period: the range the figures cover, and the one the previous figures cover (set only when sent). */
+  range?: DashRange;
+  previousRange?: DashRange;
   /** Every location (for the location picker). */
   locations: CeoLocation[];
   money: CeoMoney | null;
@@ -161,10 +173,16 @@ export type CeoBreakdownMetric =
   | "inquiries-type"
   | "staff";
 
-/** A breakdown request: the metric, its key (one of month / bucket / spaceTypeId / locationId / type / userId) and the scope. */
+/**
+ * A breakdown request: the metric, its key (one of month / bucket / spaceTypeId / locationId / type / userId) and the
+ * scope. A custom period carries its `range` (sent as periodFrom / periodTo; revenue without a month: the invoices
+ * issued in the range, sent as from / to).
+ */
 export type CeoBreakdownQuery = {
   metric: CeoBreakdownMetric;
   period: CeoPeriod;
+  /** period custom: the dashboard's range. */
+  range?: DashRange | null;
   /** Dashboard location filter; for "occupancy-location" it is the location that was tapped. */
   locationId?: number | null;
   /** yyyy-MM: revenue, bookings-month. */
@@ -425,6 +443,8 @@ export type CeoRoomReport = {
   /** e.g. "October 2026" ("" when not sent). */
   periodLabel: string;
   generatedAt: string | null;
+  /** A custom period: the range the report covers (set only when sent). */
+  range?: DashRange;
   summary: CeoRoomSummary;
   /** By location, then room code / name (the server's order). */
   rooms: CeoRoom[];

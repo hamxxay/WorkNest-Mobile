@@ -155,3 +155,51 @@ describe("ceoErrorView", () => {
     expect(ceoErrorView(new TypeError("undefined is not a function")).message).toBe("Could not load the figures. Please try again.");
   });
 });
+
+describe("a custom date range (CS_01)", () => {
+  const range = { from: "2026-10-01", to: "2026-10-15" };
+  const CS_01 =
+    "Database update needed: run the script CS_01_ceo_sales_dates_TEST (CS_01_ceo_sales_dates_LIVE on the live database) to use a custom date range.";
+
+  it("dashboard and rooms send from / to; the breakdown sends periodFrom / periodTo", async () => {
+    api.mockResolvedValue({ isSuccessful: true, data: {} });
+    await getCeoDashboard({ period: "custom", locationId: 3, range });
+    expect(lastCall().path).toBe("/ceo/dashboard?period=custom&from=2026-10-01&to=2026-10-15&locationId=3");
+    await getCeoRooms("custom", null, range);
+    expect(lastCall().path).toBe("/ceo/rooms?period=custom&from=2026-10-01&to=2026-10-15");
+    await getCeoBreakdown({ metric: "revenue", period: "custom", range, locationId: null });
+    expect(lastCall().path).toBe(
+      "/ceo/breakdown?metric=revenue&from=2026-10-01&to=2026-10-15&period=custom&periodFrom=2026-10-01&periodTo=2026-10-15",
+    );
+    await getCeoBreakdown({ metric: "inquiries-type", type: "Website", period: "custom", range, locationId: 2 });
+    expect(lastCall().path).toBe("/ceo/breakdown?metric=inquiries-type&type=Website&period=custom&periodFrom=2026-10-01&periodTo=2026-10-15&locationId=2");
+    api.mockReset();
+  });
+
+  it("month / quarter / year requests are unchanged, also with a range kept aside", async () => {
+    api.mockResolvedValue({ isSuccessful: true, data: {} });
+    await getCeoDashboard({ period: "quarter", locationId: 3, range });
+    expect(lastCall().path).toBe("/ceo/dashboard?period=quarter&locationId=3");
+    await getCeoRooms("year", 2, range);
+    expect(lastCall().path).toBe("/ceo/rooms?period=year&locationId=2");
+    await getCeoBreakdown({ metric: "revenue", month: "2026-10", period: "month", range, locationId: null });
+    expect(lastCall().path).toBe("/ceo/breakdown?metric=revenue&month=2026-10&period=month");
+    api.mockReset();
+  });
+
+  it("before CS_01 the 503 shows the API's own message, on the screen and in its drill-downs", async () => {
+    for (const call of [
+      () => getCeoDashboard({ period: "custom", range }),
+      () => getCeoRooms("custom", null, range),
+      () => getCeoBreakdown({ metric: "revenue", period: "custom", range }),
+    ]) {
+      api.mockRejectedValueOnce(new ApiError("The service is temporarily unavailable.", 503, { message: CS_01 }));
+      const error = await call().catch((e) => e);
+      expect(error.status).toBe(503);
+      expect(error.message).toBe(CS_01);
+      expect(ceoErrorView(error)).toEqual({ title: CEO_DB_UPDATE_TITLE, message: CS_01, icon: "construct-outline", databaseUpdate: true });
+    }
+    // The raw error too (e.g. a view of an error that was not thrown by a CEO call).
+    expect(ceoErrorView(new ApiError("Unavailable", 503, { message: CS_01 })).message).toBe(CS_01);
+  });
+});

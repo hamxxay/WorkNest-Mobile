@@ -1,4 +1,5 @@
 import { positiveId } from "../ceo/drill";
+import { periodQuery } from "../ceo/period";
 import { staffGet } from "../staff/http";
 import { withQuery } from "../staff/normalize";
 import { smBreakdownParams } from "./drill";
@@ -43,25 +44,31 @@ async function smGet(path: string, toError: (error: unknown) => unknown = toSale
   }
 }
 
-/** GET api/sales-manager/dashboard?period=&locationId= — funnel, team, inquiries, renewals. Sales Manager / super admin. */
+/**
+ * GET api/sales-manager/dashboard?period=&locationId= (custom: &from=&to=) — funnel, team, inquiries, renewals.
+ * Sales Manager / super admin. A custom period answers 503 until the server's database update CS_01 has run.
+ */
 export async function getSalesManagerDashboard(scope: SmScope): Promise<SmDashboard> {
-  const raw = await smGet(withQuery(SALES_MANAGER_ENDPOINTS.dashboard, { period: scope.period, locationId: positiveId(scope.locationId) }));
+  const raw = await smGet(
+    withQuery(SALES_MANAGER_ENDPOINTS.dashboard, { ...periodQuery(scope.period, scope.range), locationId: positiveId(scope.locationId) }),
+  );
   return normalizeSalesManagerDashboard(raw, scope.period);
 }
 
 /**
- * GET api/sales-manager/complaints?period=&locationId= — the complaints section (current status counts, the period's
- * new / resolved / reopened, by category, by month, oldest open). A 503 names SM_03.
+ * GET api/sales-manager/complaints?period=&locationId= (custom: &from=&to=) — the complaints section (current status
+ * counts, the period's new / resolved / reopened, by category, by month, oldest open). A 503 names SM_03 (a custom
+ * period before CS_01: CS_01).
  */
 export async function getSalesManagerComplaints(scope: SmScope): Promise<SmComplaints> {
   const raw = await smGet(
-    withQuery(SALES_MANAGER_ENDPOINTS.complaints, { period: scope.period, locationId: positiveId(scope.locationId) }),
+    withQuery(SALES_MANAGER_ENDPOINTS.complaints, { ...periodQuery(scope.period, scope.range), locationId: positiveId(scope.locationId) }),
     toSalesManagerComplaintsError,
   );
   return normalizeSalesManagerComplaints(raw, scope.period);
 }
 
-/** GET api/sales-manager/breakdown?metric=&<key>=&period=&locationId= — drill level 2. */
+/** GET api/sales-manager/breakdown?metric=&<key>=&period=&locationId= (custom: &periodFrom=&periodTo=) — drill level 2. */
 export async function getSalesManagerBreakdown(query: SmBreakdownQuery): Promise<SmBreakdown> {
   const raw = await smGet(withQuery(SALES_MANAGER_ENDPOINTS.breakdown, smBreakdownParams(query)));
   return normalizeSalesManagerBreakdown(raw, query.metric);

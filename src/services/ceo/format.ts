@@ -72,15 +72,17 @@ export function shareOf(part: number, whole: number): number {
 
 export const count = (value: number | null | undefined): string => formatNumber(value ?? 0, 0);
 
-export const PERIOD_OPTIONS: { label: string; value: CeoPeriod }[] = [
+/** The period selector: the calendar periods, then Custom (a From / To range, ./period.ts). */
+export const PERIOD_OPTIONS: { label: string; value: CeoPeriod; accessibilityLabel?: string }[] = [
   { label: "This month", value: "month" },
   { label: "Quarter", value: "quarter" },
   { label: "Year", value: "year" },
+  { label: "Custom", value: "custom", accessibilityLabel: "Custom date range" },
 ];
 
-/** "this month" / "this quarter" / "this year". */
+/** "this month" / "this quarter" / "this year"; a custom range: "in this range". */
 export function periodWords(period: CeoPeriod): string {
-  return `this ${period}`;
+  return period === "custom" ? "in this range" : `this ${period}`;
 }
 
 export const AGING_ORDER: readonly CeoAgingBucketKey[] = ["not_due", "1_30", "31_60", "61_90", "90_plus"];

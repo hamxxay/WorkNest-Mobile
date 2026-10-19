@@ -1,5 +1,11 @@
 import { ApiError, serverMessage } from "../apiClient";
-import { dashboardErrorView, needsDatabaseUpdate, withDatabaseUpdateMessage, type CeoErrorView } from "../ceo/errors";
+import {
+  customRangeUpdateMessage,
+  dashboardErrorView,
+  needsDatabaseUpdate,
+  withDatabaseUpdateMessage,
+  type CeoErrorView,
+} from "../ceo/errors";
 
 // Errors of the Sales Manager API, in words a sales manager can act on (the CEO dashboard's error handling with this
 // dashboard's wording).
@@ -8,7 +14,8 @@ import { dashboardErrorView, needsDatabaseUpdate, withDatabaseUpdateMessage, typ
 // its procedures), SM_02 (the procedures that count desks instead of PKR) or SM_03 (the complaints section, loaded
 // on its own from api/sales-manager/complaints and records/complaints). That is not a passing outage, so it gets its
 // own clear message, naming the update the server asked for (SM_02 for the dashboard, SM_03 for complaints, when it
-// named none).
+// named none). A custom date range before CS_01 (the CEO and Sales dashboards' dates update) shows the server's own
+// message, which names the script to run.
 
 /** The newest database update the dashboard (funnel, team, inquiries, renewals) needs: desks instead of PKR. */
 export const SM_LATEST_DB_UPDATE = "SM_02";
@@ -57,7 +64,8 @@ export function smDatabaseUpdateOf(error: unknown, fallback: string = SM_LATEST_
 
 /** The error to throw from a Sales Manager call: a 503 becomes the database update message, anything else is kept. */
 export function toSalesManagerError(error: unknown): unknown {
-  return needsDatabaseUpdate(error) ? withDatabaseUpdateMessage(error, smDatabaseUpdateMessage(smDatabaseUpdateOf(error))) : error;
+  if (!needsDatabaseUpdate(error)) return error;
+  return withDatabaseUpdateMessage(error, customRangeUpdateMessage(error) ?? smDatabaseUpdateMessage(smDatabaseUpdateOf(error)));
 }
 
 /**
@@ -70,19 +78,21 @@ export function smForbiddenMessage(error: unknown): string {
 
 /** Title, message and icon for an error state on a Sales Manager screen. */
 export function salesManagerErrorView(error: unknown, fallback?: string): CeoErrorView {
-  const databaseUpdate = smDatabaseUpdateMessage(smDatabaseUpdateOf(error));
+  const databaseUpdate = customRangeUpdateMessage(error) ?? smDatabaseUpdateMessage(smDatabaseUpdateOf(error));
   return dashboardErrorView(error, { databaseUpdate, forbidden: smForbiddenMessage(error) }, fallback);
 }
 
 /** The error to throw from a complaints call: a 503 becomes the complaints section's database update message. */
 export function toSalesManagerComplaintsError(error: unknown): unknown {
-  return needsDatabaseUpdate(error)
-    ? withDatabaseUpdateMessage(error, smComplaintsDatabaseUpdateMessage(smDatabaseUpdateOf(error, SM_COMPLAINTS_DB_UPDATE)))
-    : error;
+  if (!needsDatabaseUpdate(error)) return error;
+  return withDatabaseUpdateMessage(
+    error,
+    customRangeUpdateMessage(error) ?? smComplaintsDatabaseUpdateMessage(smDatabaseUpdateOf(error, SM_COMPLAINTS_DB_UPDATE)),
+  );
 }
 
 /** Title, message and icon for an error state of the complaints section or a complaints list (503: SM_03). */
 export function salesManagerComplaintsErrorView(error: unknown, fallback = "Could not load the complaints. Please try again."): CeoErrorView {
-  const databaseUpdate = smComplaintsDatabaseUpdateMessage(smDatabaseUpdateOf(error, SM_COMPLAINTS_DB_UPDATE));
+  const databaseUpdate = customRangeUpdateMessage(error) ?? smComplaintsDatabaseUpdateMessage(smDatabaseUpdateOf(error, SM_COMPLAINTS_DB_UPDATE));
   return dashboardErrorView(error, { databaseUpdate, forbidden: smForbiddenMessage(error) }, fallback);
 }

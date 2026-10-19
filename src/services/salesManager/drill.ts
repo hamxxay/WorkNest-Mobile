@@ -1,4 +1,5 @@
-import { cleanParams, periodRange, positiveId } from "../ceo/drill";
+import { cleanParams, periodRange, positiveId, withDrillPeriod } from "../ceo/drill";
+import { customRangeOf } from "../ceo/period";
 import { count, isMonthKey, monthLabel } from "../ceo/format";
 import type { QueryValue } from "../staff/normalize";
 import { desks } from "./format";
@@ -39,6 +40,9 @@ import type {
 //
 // Tour inquiries have a branch (WN_Contacts.LocationId): their lists carry the dashboard's location filter like the
 // rest; with no location chosen ("All my locations") the API adds the inquiries without a branch.
+//
+// A custom date range (period custom) goes to every drill-down call as period=custom&periodFrom=&periodTo= (from / to
+// narrow a list on their own there); month / quarter / year drill-downs are sent exactly as before.
 
 /** The dashboard's location filter as a query value (null = all the manager's locations). */
 const scopeLocation = (scope: { locationId?: number | null }) => positiveId(scope.locationId);
@@ -112,6 +116,11 @@ export function smBreakdownParams(query: SmBreakdownQuery): Record<string, Query
       break;
   }
   params.period = query.period;
+  const range = customRangeOf(query);
+  if (range) {
+    params.periodFrom = range.from;
+    params.periodTo = range.to;
+  }
   params.locationId = positiveId(query.locationId);
   return params;
 }
@@ -163,8 +172,16 @@ const desksMonthRecords = (list: SmDesksMonthList, month: string, locationId: nu
   params: cleanParams({ month, locationId }),
 });
 
-/** The records list a breakdown row opens (level 3), or null when the row has no usable key (e.g. "Other"). */
+/**
+ * The records list a breakdown row opens (level 3), or null when the row has no usable key (e.g. "Other"); a custom
+ * period goes along (periodFrom / periodTo).
+ */
 export function smRecordsForBreakdownRow(query: SmBreakdownQuery, row: SmBreakdownRow, today: Date = new Date()): SmRecordsQuery | null {
+  const records = smRecordsForRow(query, row, today);
+  return records ? { kind: records.kind, params: withDrillPeriod(records.params, query) } : null;
+}
+
+function smRecordsForRow(query: SmBreakdownQuery, row: SmBreakdownRow, today: Date): SmRecordsQuery | null {
   const rowId = positiveId(row.key);
   const rowMonth = isMonthKey(row.key) ? row.key : null;
   const month = isMonthKey(query.month) ? query.month : null;
@@ -204,30 +221,48 @@ export function smSecondaryRecordsForBreakdownRow(
   if (query.metric !== "desks-month" || !rowId || !month) return null;
   const { secondary } = smDesksMonthLists(month, row, today);
   if (!secondary) return null;
+  const records = (list: SmDesksMonthList) => {
+    const q = desksMonthRecords(list, month, rowId);
+    return { kind: q.kind, params: withDrillPeriod(q.params, query) };
+  };
   return secondary === "leases"
-    ? { title: `Leases ending in ${monthLabel(month)}`, subtitle: `${desks(row.value2 ?? 0)} ending`, records: desksMonthRecords("leases", month, rowId) }
-    : { title: `Bookings made in ${monthLabel(month)}`, subtitle: `${desks(row.value)} booked`, records: desksMonthRecords("bookings", month, rowId) };
+    ? { title: `Leases ending in ${monthLabel(month)}`, subtitle: `${desks(row.value2 ?? 0)} ending`, records: records("leases") }
+    : { title: `Bookings made in ${monthLabel(month)}`, subtitle: `${desks(row.value)} booked`, records: records("bookings") };
 }
 
 /**
  * "Leases expiring" (the renewals KPIs, "and N more"): every confirmed lease ending in the next 90 days (no window:
  * the API's default), or in the next `withinDays` days (from today to today + withinDays); location filter.
  */
-export function smExpiringLeasesRecords(scope: { locationId?: number | null } = {}, withinDays?: number, today: Date = new Date()): SmRecordsQuery {
+export function smExpiringLeasesRecords(scope: Partial<SmScope> = {}, withinDays?: number, today: Date = new Date()): SmRecordsQuery {
   const locationId = scopeLocation(scope);
-  if (!withinDays || withinDays <= 0) return { kind: "leases", params: cleanParams({ locationId }) };
+  if (!withinDays || withinDays <= 0) return { kind: "leases", params: withDrillPeriod(cleanParams({ locationId }), scope) };
   const to = new Date(today.getFullYear(), today.getMonth(), today.getDate() + withinDays);
-  return { kind: "leases", params: cleanParams({ from: dayOf(today), to: dayOf(to), locationId }) };
+  return { kind: "leases", params: withDrillPeriod(cleanParams({ from: dayOf(today), to: dayOf(to), locationId }), scope) };
 }
 
 /**
  * Funnel stage -> its records for the period (no breakdown level): inquiries -> tour inquiries,
  * quotations / accepted -> quotations?stage=, bookings -> bookings; all with the location filter. null for an
- * unknown stage.
+ * unknown stage. A custom range is sent as periodFrom / periodTo (no from / to).
  */
 export function smRecordsForFunnelStage(stage: string, scope: SmScope, today: Date = new Date()): SmRecordsQuery | null {
-  const { from, to } = periodRange(scope.period, today);
   const locationId = scopeLocation(scope);
+  if (customRangeOf(scope)) {
+    const params = (extra: Record<string, string>) => withDrillPeriod(cleanParams({ ...extra, locationId }), scope);
+    switch (stage) {
+      case "inquiries":
+        return { kind: "inquiries", params: params({}) };
+      case "quotations":
+      case "accepted":
+        return { kind: "quotations", params: params({ stage }) };
+      case "bookings":
+        return { kind: "bookings", params: params({}) };
+      default:
+        return null;
+    }
+  }
+  const { from, to } = periodRange(scope.period, today);
   switch (stage) {
     case "inquiries":
       return { kind: "inquiries", params: cleanParams({ period: scope.period, from, to, locationId }) };
@@ -245,14 +280,19 @@ export function smRecordsForFunnelStage(stage: string, scope: SmScope, today: Da
 export type SmInquiryOutcome = "followup_due" | "not_interested" | "converted" | "open";
 
 /** "Follow-ups due" -> open future prospects whose follow-up date has come (now, not the period); location filter. */
-export function smFollowUpsDueRecords(scope: { locationId?: number | null } = {}): SmRecordsQuery {
-  return { kind: "inquiries", params: cleanParams({ outcome: "followup_due", locationId: scopeLocation(scope) }) };
+export function smFollowUpsDueRecords(scope: Partial<SmScope> = {}): SmRecordsQuery {
+  return { kind: "inquiries", params: withDrillPeriod(cleanParams({ outcome: "followup_due", locationId: scopeLocation(scope) }), scope) };
 }
 
-/** Inquiries of the period with an outcome (not interested, converted, open), with the location filter. */
+/**
+ * Inquiries of the period with an outcome (not interested, converted, open), with the location filter (a custom range:
+ * periodFrom / periodTo instead of from / to).
+ */
 export function smInquiryOutcomeRecords(outcome: Exclude<SmInquiryOutcome, "followup_due">, scope: SmScope, today: Date = new Date()): SmRecordsQuery {
+  const locationId = scopeLocation(scope);
+  if (customRangeOf(scope)) return { kind: "inquiries", params: withDrillPeriod(cleanParams({ outcome, locationId }), scope) };
   const { from, to } = periodRange(scope.period, today);
-  return { kind: "inquiries", params: cleanParams({ outcome, period: scope.period, from, to, locationId: scopeLocation(scope) }) };
+  return { kind: "inquiries", params: cleanParams({ outcome, period: scope.period, from, to, locationId }) };
 }
 
 /** A not-interested reason -> the not-interested inquiries of the period (with that reason, when the API filters by it). */
@@ -262,8 +302,8 @@ export function smNotInterestedRecords(reason: string | null | undefined, scope:
 }
 
 /** A month of the 12-month inquiries chart -> that month's inquiries (location filter); null without a month. */
-export function smInquiryMonthRecords(month: string | null | undefined, scope: { locationId?: number | null } = {}): SmRecordsQuery | null {
-  return isMonthKey(month) ? { kind: "inquiries", params: cleanParams({ month, locationId: scopeLocation(scope) }) } : null;
+export function smInquiryMonthRecords(month: string | null | undefined, scope: Partial<SmScope> = {}): SmRecordsQuery | null {
+  return isMonthKey(month) ? { kind: "inquiries", params: withDrillPeriod(cleanParams({ month, locationId: scopeLocation(scope) }), scope) } : null;
 }
 
 // ─── Complaints ───────────────────────────────────────────────────────────────────────────────────────────
@@ -290,17 +330,16 @@ export function smComplaintRecords(filter: SmComplaintFilter, scope: SmScope): S
   const month = filter.month ?? null;
   if (month != null && !isMonthKey(month)) return null;
   const branch = filter.branch == null ? null : filter.branch.trim() || "none";
-  return {
-    kind: "complaints",
-    params: cleanParams({
-      status: filter.status ?? null,
-      category: filter.category?.trim() || null,
-      branch,
-      month,
-      locationId: scopeLocation(scope),
-      period: month ? null : scope.period,
-    }),
-  };
+  const params = cleanParams({
+    status: filter.status ?? null,
+    category: filter.category?.trim() || null,
+    branch,
+    month,
+    locationId: scopeLocation(scope),
+    period: month ? null : scope.period,
+  });
+  // A custom range goes with the period (status and category lists); a month list is that month only.
+  return { kind: "complaints", params: month ? params : withDrillPeriod(params, scope) };
 }
 
 /** True for a complaints list of complaints as they are now (open, in progress, ...): not bound to the period. */
