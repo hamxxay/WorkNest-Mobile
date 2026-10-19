@@ -131,8 +131,8 @@ export function DiscountsContent({ report, scope }: { report: CeoDiscountReport;
       sub: s.discounted ? `${pct(s.averageDiscountPct)} off on average` : `none ${words}`,
       icon: "people-outline",
       tone: s.discounted ? "warning" : "success",
-      onPress: s.discounted ? () => open("bookings", {}, "Discounted bookings") : undefined,
-      accessibilityHint: "Opens the discounted bookings",
+      onPress: s.discounted ? () => open("bookings", {}, "Discounted bookings") : s.bookings ? () => open("bookings", { all: true }, "Bookings") : undefined,
+      accessibilityHint: s.discounted ? "Opens the discounted bookings" : "Opens the bookings",
     },
     {
       label: "New deals discounted",
@@ -140,8 +140,8 @@ export function DiscountsContent({ report, scope }: { report: CeoDiscountReport;
       sub: s.newDiscounted ? `${money(s.newDiscountMonthly)} a month off` : s.newBookings ? "all at the price or above" : `no bookings started ${words}`,
       icon: "sparkles-outline",
       tone: s.newDiscounted ? "warning" : "neutral",
-      onPress: s.newDiscounted ? () => open("bookings", { newOnly: true }, "New deals with a discount") : undefined,
-      accessibilityHint: "Opens the new deals with a discount",
+      onPress: s.newBookings ? () => open("bookings", { newOnly: true, all: true }, "New deals") : undefined,
+      accessibilityHint: "Opens the new deals",
     },
     {
       label: "Discount on invoices",
