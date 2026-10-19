@@ -30,6 +30,8 @@ export const STAFF_ENDPOINTS = {
     attendants: (customerId: Id) => `/customers/${seg(customerId)}/attendants`,
     /** Customer's booked spaces with a running booking (to assign attendants). */
     activeSpaces: (customerId: Id) => `/customers/${seg(customerId)}/active-spaces`,
+    /** Customer detail overview (int id): summary, bookings, receipts, payments, agreements, deposits, timeline. */
+    overview: (customerId: Id) => `/customer/${seg(customerId)}/overview`,
   },
   cities: "/city",
   kyc: {

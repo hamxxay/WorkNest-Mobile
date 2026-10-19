@@ -21,6 +21,7 @@ export * from "./inquiries";
 export * from "./accessActivity";
 export * from "./users";
 export * from "./challan";
+export * from "./customerOverview";
 export {
   floorLabel,
   filterSpaces,
