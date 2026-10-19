@@ -16,6 +16,7 @@ import {
   periodWords,
   revenueTarget,
   shareOf,
+  trendForPeriod,
   type CeoAgingBucket,
   type CeoBreakdownQuery,
   type CeoDrillTarget,
@@ -26,6 +27,7 @@ import {
   type CeoSales,
   type CeoScope,
   type CeoTeam,
+  type DashRange,
 } from "../../../services/ceo";
 import { dashboardTrend, type DashboardForecast } from "../../../services/staff/dashboard";
 import { spacing, useInquiryTypeColors, type Tone } from "../../../theme";
@@ -36,8 +38,8 @@ import { ChartCard, ChartGrid, InlineEmpty } from "./parts";
 // The CEO dashboard sections (Money, Occupancy, Sales, Team, 3-month outlook). Read-only: every tappable element
 // drills down (breakdown or records); nothing changes data. Figures stay on screen as text next to every chart.
 
-/** A breakdown request without the scope (the dashboard adds period and location). */
-export type BreakdownTarget = Omit<CeoBreakdownQuery, "period" | "locationId"> & { locationId?: number | null };
+/** A breakdown request without the scope (the dashboard adds period, range and location). */
+export type BreakdownTarget = Omit<CeoBreakdownQuery, "period" | "range" | "locationId"> & { locationId?: number | null };
 
 /** Places on the dashboard a KPI card can scroll to. */
 export type FocusTarget = "leases" | "roomList";
@@ -45,6 +47,8 @@ export type FocusTarget = "leases" | "roomList";
 /** What the sections may do: open a drill screen or scroll to a chart. */
 export type Drill = {
   period: CeoPeriod;
+  /** The custom range (period custom); null or left out for a calendar period. */
+  range?: DashRange | null;
   /** The dashboard's location filter (null = all locations). */
   locationId: number | null;
   breakdown: (target: BreakdownTarget, trail: string[]) => void;
@@ -66,15 +70,22 @@ export type Drill = {
 
 const DONUT_SIZE = 112;
 
-/** The dashboard's period and location, as the drill helpers take them. */
-const scopeOf = (drill: Drill): CeoScope => ({ period: drill.period, locationId: drill.locationId });
+/** The dashboard's period (with a custom range) and location, as the drill helpers take them. */
+const scopeOf = (drill: Drill): CeoScope =>
+  drill.period === "custom" && drill.range
+    ? { period: drill.period, locationId: drill.locationId, range: drill.range }
+    : { period: drill.period, locationId: drill.locationId };
 
-/** "Opens invoiced this month by location" / "Opens invoiced this quarter by month". */
-const revenueHint = (what: string, period: CeoPeriod) => `Opens ${what} ${periodWords(period)} by ${period === "month" ? "location" : "month"}`;
+/** "Opens invoiced this month by location" / "Opens invoiced this quarter by month" / "Opens invoiced in this range by location". */
+const revenueHint = (what: string, period: CeoPeriod) =>
+  `Opens ${what} ${periodWords(period)} by ${period === "month" || period === "custom" ? "location" : "month"}`;
 
-/** "vs last period" change, or undefined when the previous figure was not sent. */
-const trend = (now: number, prev: number | null, unit: "pts" | "n" | "%", upIsGood = true) =>
-  prev == null ? undefined : dashboardTrend(now, prev, unit, upIsGood);
+/**
+ * "vs last period" change ("vs previous 15 days" for a custom range; `which` "ago": "vs 15 days earlier"), or
+ * undefined when the previous figure was not sent.
+ */
+const trendOf = (drill: Drill) => (now: number, prev: number | null, unit: "pts" | "n" | "%", which: "last" | "ago" = "last") =>
+  prev == null ? undefined : trendForPeriod(dashboardTrend(now, prev, unit), drill.period, drill.range, which);
 
 // ─── Money ────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -88,6 +99,7 @@ const AGING_TONES: Record<string, Tone> = {
 
 export function MoneySection({ money: m, drill }: { money: CeoMoney; drill: Drill }) {
   const words = periodWords(drill.period);
+  const trend = trendOf(drill);
   const recent = m.months.slice(-12);
   const rate = m.collectionRate ?? (m.invoiced > 0 ? (m.collected / m.invoiced) * 100 : null);
   const tiles: StatCardProps[] = [
@@ -210,6 +222,7 @@ const LEASES_SHOWN = 8;
 
 export function OccupancySection({ occupancy: o, drill }: { occupancy: CeoOccupancy; drill: Drill }) {
   const words = periodWords(drill.period);
+  const trend = trendOf(drill);
   const [view, setView] = useState<TrendView>("occupancy");
   const recent = o.months.slice(-12);
   // The true number when the server sent it (its list holds the first 50), else what the list holds.
@@ -226,7 +239,8 @@ export function OccupancySection({ occupancy: o, drill }: { occupancy: CeoOccupa
       sub: `${count(o.occupiedSpaces)} of ${count(o.totalSpaces)} spaces in use`,
       icon: "business-outline",
       tone: o.occupancyPct >= 70 ? "success" : o.occupancyPct >= 40 ? "primary" : "warning",
-      trend: trend(o.occupancyPct, o.occupancyPctPrev, "pts"),
+      // Occupancy is taken at a moment: against the same moment one period (a range: as many days) earlier.
+      trend: trend(o.occupancyPct, o.occupancyPctPrev, "pts", "ago"),
       trendSeries: recent.map((x) => x.occupancyPct),
       onPress: () => drill.open(occupancyTarget(o, scopeOf(drill)), ["Occupancy", "Spaces in use"]),
       accessibilityHint: drill.locationId ? "Opens the occupied rooms of this location by space type" : "Opens the occupied rooms by location",

@@ -7,6 +7,7 @@ import {
   normalizeInquiryTypes,
   normalizeLocations,
   normalizePeriod,
+  normalizeRanges,
   quotationsBookedOf,
   recordsPayload,
   recordsTotal,
@@ -216,6 +217,7 @@ export function normalizeSalesManagerDashboard(raw: unknown, requested: SmPeriod
     period,
     periodLabel: str(d, "periodLabel"),
     generatedAt: optStr(d, "generatedAt"),
+    ...normalizeRanges(d, true),
     locations: normalizeLocations(pick(d, "locations")),
     inquiriesAllBranches: bool(d, "inquiriesAllBranches"),
     funnel,
@@ -283,6 +285,7 @@ export function normalizeSalesManagerComplaints(raw: unknown, requested: SmPerio
   return {
     period: pick(d, "period") != null ? normalizePeriod(pick(d, "period")) : requested,
     periodLabel: str(d, "periodLabel"),
+    ...normalizeRanges(d),
     status,
     activeTotal: optNum(d, "activeTotal") ?? status.open + status.inProgress,
     newInPeriod: num(d, "newInPeriod"),

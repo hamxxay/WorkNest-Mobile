@@ -2,7 +2,7 @@ import { Fragment, useMemo, useState, type Ref } from "react";
 import { StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 import { BarChart, Donut, HBarList, type HBarItem } from "../../../components/charts";
 import { AppText, Divider, ListRow, SegmentedControl, StatusPill, type StatCardProps } from "../../../components/ui";
-import { count, monthLabel, monthShort, pct, periodWords, shareOf } from "../../../services/ceo";
+import { count, monthLabel, monthShort, pct, periodWords, shareOf, trendForPeriod } from "../../../services/ceo";
 import {
   countOf,
   deskTrend,
@@ -35,8 +35,8 @@ import { KpiGrid } from "../Staff/Dashboard/parts";
 //
 // No money anywhere: a sales manager sees desks ("91 desks", "1 desk"), quotations, bookings and leases.
 
-/** A breakdown request without the scope (the dashboard adds period and location). */
-export type SmBreakdownTarget = Omit<SmBreakdownQuery, "period" | "locationId">;
+/** A breakdown request without the scope (the dashboard adds period, range and location). */
+export type SmBreakdownTarget = Omit<SmBreakdownQuery, "period" | "range" | "locationId">;
 
 /** Places on the dashboard a KPI card can scroll to. */
 export type SmFocusTarget = "renewalsMonths" | "expiring";
@@ -56,6 +56,9 @@ const DONUT_SIZE = 112;
 /** "vs last period" change, or undefined when the previous figure was not sent. */
 const trend = (now: number, prev: number | null, unit: "pts" | "n" | "%", upIsGood = true) =>
   prev == null ? undefined : dashboardTrend(now, prev, unit, upIsGood);
+
+/** A change worded for the dashboard's period: "vs previous 15 days" for a custom range, else as it is. */
+const forPeriod = <T extends { label: string }>(drill: SmDrill, t: T | undefined) => trendForPeriod(t, drill.scope.period, drill.scope.range);
 
 const plural = countOf;
 
@@ -102,7 +105,7 @@ export function FunnelSection({ funnel: f, drill }: { funnel: SmFunnel; drill: S
       sub: quotations ? `${count(f.quotationsBooked)} of ${count(quotations)} quotations booked` : "No quotations yet",
       icon: "trending-up-outline",
       tone: rate != null && rate >= 30 ? "success" : quotations ? "warning" : "neutral",
-      trend: rate != null ? trend(rate, f.conversionRatePrev, "pts") : undefined,
+      trend: rate != null ? forPeriod(drill, trend(rate, f.conversionRatePrev, "pts")) : undefined,
     },
     {
       label: `Desks quoted ${words}`,
@@ -118,7 +121,7 @@ export function FunnelSection({ funnel: f, drill }: { funnel: SmFunnel; drill: S
       sub: plural(bookings, "booking", "bookings"),
       icon: "calendar-outline",
       tone: "success",
-      trend: deskTrend(f.bookedDesks, f.bookedDesksPrev),
+      trend: forPeriod(drill, deskTrend(f.bookedDesks, f.bookedDesksPrev)),
       trendSeries: recent.map((m) => m.bookedDesks),
       onPress: () => openStage("bookings", "Bookings"),
     },
@@ -279,7 +282,7 @@ export function InquiriesSection({ inquiries: q, drill }: { inquiries: SmInquiri
       value: count(q.total),
       sub: `${count(q.followedUp)} followed up`,
       icon: "walk-outline",
-      trend: trend(q.total, q.totalPrev, "%"),
+      trend: forPeriod(drill, trend(q.total, q.totalPrev, "%")),
       trendSeries: recent.map((m) => INQUIRY_TYPES.reduce((sum, t) => sum + m.counts[t], 0)),
       onPress: () => drill.records(smRecordsForFunnelStage("inquiries", drill.scope), ["Tour inquiries", "All inquiries"], "Tour inquiries"),
     },
@@ -459,7 +462,7 @@ export function RenewalsSection({ renewals: r, drill }: { renewals: SmRenewals; 
       sub: `${count(r.bookedDesks)} booked, ${count(r.endedDesks)} ended`,
       icon: "swap-vertical-outline",
       tone: r.netDesks > 0 ? "success" : r.netDesks < 0 ? "danger" : "neutral",
-      trend: deskTrend(r.netDesks, r.netDesksPrev),
+      trend: forPeriod(drill, deskTrend(r.netDesks, r.netDesksPrev)),
       trendSeries: pastMonths.map((m) => m.bookedDesks - m.endingDesks),
       onPress: () => {
         setView("desks");

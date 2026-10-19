@@ -2,7 +2,7 @@ import type { Tone } from "../../theme/colors";
 import { formatDate, formatNumber } from "../../utils/format";
 import { bool, num, optNum, optStr, pick, str } from "../staff/normalize";
 import { count, moneyFull, money, pct, periodWords, shareOf, clampPct } from "./format";
-import { normalizePeriod } from "./normalize";
+import { normalizePeriod, normalizeRanges } from "./normalize";
 import { isObject, list, optId, payload, section, type Row } from "./readers";
 import type {
   CeoPeriod,
@@ -242,6 +242,7 @@ export function normalizeCeoRooms(raw: unknown, requested: CeoPeriod = "month"):
     period: pick(d, "period") != null ? normalizePeriod(pick(d, "period")) : requested,
     periodLabel: str(d, "periodLabel"),
     generatedAt: optStr(d, "generatedAt"),
+    ...normalizeRanges(d),
     summary: normalizeSummary(section(d, "summary"), rooms),
     rooms,
   };

@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, View } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { BarChart, useChartColors } from "../../../components/charts";
 import { AppText, Card, Divider, KpiSkeleton, ListRow, SectionHeader, StatusPill, type StatCardProps } from "../../../components/ui";
-import { count, monthLabel, monthShort, pct, periodWords, shareOf } from "../../../services/ceo";
+import { count, monthLabel, monthShort, pct, periodWords, shareOf, trendForPeriod } from "../../../services/ceo";
 import {
   SM_COMPLAINT_STATUSES,
   SM_COMPLAINT_STATUS_LABELS,
@@ -137,7 +137,10 @@ export function ComplaintsContent({ complaints: c, drill }: { complaints: SmComp
       icon: "chatbox-ellipses-outline",
       tone: "indigo",
       // More complaints is not good news.
-      trend: c.newInPeriodPrev != null ? dashboardTrend(c.newInPeriod, c.newInPeriodPrev, "n", false) : undefined,
+      trend:
+        c.newInPeriodPrev != null
+          ? trendForPeriod(dashboardTrend(c.newInPeriod, c.newInPeriodPrev, "n", false), drill.scope.period, drill.scope.range)
+          : undefined,
       trendSeries: recent.map((m) => m.created),
       onPress: () => open({ status: "new_period" }, [`New ${words}`], `New complaints ${words}`),
     },

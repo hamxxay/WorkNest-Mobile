@@ -2,6 +2,7 @@ import { INQUIRY_TYPE_LABELS, normalizeInquiryType } from "../../theme/inquiryTy
 import { bool, num, optNum, optStr, pick, str, unwrapEnvelope } from "../staff/normalize";
 import { byMonth, isObject, list, optId, payload, section, type Row } from "./readers";
 import { AGING_LABELS, AGING_ORDER, FUNNEL_LABELS, FUNNEL_ORDER, isMonthKey, monthLabel } from "./format";
+import { rangeOf } from "./period";
 import type {
   CeoAgingBucket,
   CeoAgingBucketKey,
@@ -27,6 +28,7 @@ import type {
   CeoSales,
   CeoSpaceRecord,
   CeoTeam,
+  DashRange,
 } from "./types";
 
 // Normalisers for the CEO API (pure, unit-tested in __tests__/normalize.test.ts). They never throw on a partial
@@ -37,7 +39,17 @@ import type {
 // the same contract style.
 
 export function normalizePeriod(value: unknown): CeoPeriod {
-  return value === "quarter" || value === "year" ? value : "month";
+  return value === "quarter" || value === "year" || value === "custom" ? value : "month";
+}
+
+/**
+ * A custom period's ranges from an answer (from / to, and previousFrom / previousTo when `withPrevious`): set only
+ * when sent, so a calendar period's answer keeps its shape.
+ */
+export function normalizeRanges(d: Row, withPrevious = false): { range?: DashRange; previousRange?: DashRange } {
+  const range = rangeOf(pick(d, "from"), pick(d, "to"));
+  const previous = withPrevious ? rangeOf(pick(d, "previousFrom"), pick(d, "previousTo")) : null;
+  return { ...(range ? { range } : {}), ...(previous ? { previousRange: previous } : {}) };
 }
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────────────────────────────────
@@ -290,6 +302,7 @@ export function normalizeCeoDashboard(raw: unknown, requested: CeoPeriod = "mont
     period,
     periodLabel: str(d, "periodLabel"),
     generatedAt: optStr(d, "generatedAt"),
+    ...normalizeRanges(d, true),
     locations: normalizeLocations(pick(d, "locations")),
     money: normalizeMoney(section(d, "money")),
     occupancy: normalizeOccupancy(section(d, "occupancy")),
