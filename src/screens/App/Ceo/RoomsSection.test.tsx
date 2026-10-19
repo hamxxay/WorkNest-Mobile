@@ -73,9 +73,9 @@ const sale = (bookingId: number, customer: string, shift: string, pricing: strin
   seatsSold: 2,
   listSeatPriceAtSale: 30000,
   shiftDiscountCapPct: shift === "24/7" ? 0 : 20,
-  expectedSeatPrice: 30000,
-  soldSeatPrice: 30000 + varianceMonthly / 2,
-  soldMonthly: 60000 + varianceMonthly,
+  expectedSeatPrice: shift === "24/7" ? 30000 : 24000,
+  soldSeatPrice: (shift === "24/7" ? 30000 : 24000) + varianceMonthly / 2,
+  soldMonthly: 2 * (shift === "24/7" ? 30000 : 24000) + varianceMonthly,
   varianceMonthly,
   pricing,
 });
@@ -135,7 +135,7 @@ describe("RoomsBlock states", () => {
     expect(section(root).props).toMatchObject({
       title: "Rooms",
       subtitle: "Occupancy and the price each room was sold at, this month",
-      note: "Every shift is compared with the room's list price per seat",
+      note: "Morning and Evening bookings are compared with their shift price",
       loading: true,
     });
     expect(byType(root, "KpiGrid")).toHaveLength(0);

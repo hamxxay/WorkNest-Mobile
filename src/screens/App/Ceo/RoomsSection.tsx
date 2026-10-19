@@ -49,7 +49,7 @@ import type { Drill } from "./sections";
 // The Rooms section of the CEO dashboard (GET api/ceo/rooms), loaded on its own: when it fails only this section
 // shows the error and the rest of the dashboard keeps working. Rooms sold monthly (private offices, shared spaces):
 // how full they are now and in the period, and the price each booking was sold at against the expected price (the
-// list price per seat, every shift). A booking on a room without a list price is shown as
+// list price; the shift price for Morning / Evening bookings). A booking on a room without a list price is shown as
 // "No list price" and not compared. Read-only; the tiles and the chart only filter the room list below them. Colours
 // come from the light / dark theme tokens; no emojis.
 
@@ -65,7 +65,7 @@ const FIGURE_MIN_WIDTH = 104;
 /** Card padding + border on each side (dp). */
 const CARD_INSET = 17;
 
-const SHIFT_NOTE = "Every shift is compared with the room's list price per seat";
+const SHIFT_NOTE = "Morning and Evening bookings are compared with their shift price";
 
 /** Text colour of a figure in a tone (the difference: red under, green over). */
 const TONE_TEXT: Partial<Record<Tone, TextColor>> = { danger: "danger", success: "success" };

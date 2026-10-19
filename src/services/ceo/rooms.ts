@@ -17,7 +17,7 @@ import type {
 } from "./types";
 
 // The CEO room report (GET api/ceo/rooms): rooms sold monthly, how full they are and the price each booking was sold
-// at against the list price per seat (every shift). Pure and unit-tested
+// at against the list price (the shift price for Morning / Evening bookings). Pure and unit-tested
 // (__tests__/rooms.test.ts): the normaliser never throws on a partial answer, the list filters and the card texts
 // are built here so the screen only lays them out.
 
@@ -75,8 +75,10 @@ function toSale(r: Row, roomSeats: number, roomSeatPrice: number | null): CeoRoo
   const soldSeatPrice = optNum(r, "soldSeatPrice") ?? (seatsSold > 0 ? soldMonthly / seatsSold : 0);
   const shiftDiscountCapPct = num(r, "shiftDiscountCapPct", "discountCapPct");
   const listSeatPriceAtSale = price(optNum(r, "listSeatPriceAtSale", "listSeatPrice")) ?? roomSeatPrice;
-  // Every shift is compared with the list (base) price per seat; the shift cap is only the most that may be taken off.
-  const expectedSeatPrice = price(optNum(r, "expectedSeatPrice")) ?? listSeatPriceAtSale;
+  // 24/7 is compared with the full list price (a cap stored for it does not apply); a shift with the price less its cap.
+  const expectedSeatPrice =
+    price(optNum(r, "expectedSeatPrice")) ??
+    (listSeatPriceAtSale != null ? (shift === "24/7" ? listSeatPriceAtSale : listSeatPriceAtSale * (1 - shiftDiscountCapPct / 100)) : null);
   const base = {
     bookingId: optId(r, "bookingId", "id"),
     customer: optStr(r, "customer", "customerName", "tenant") ?? "Customer",
@@ -449,11 +451,11 @@ export function roomSaleView(sale: CeoRoomSale, index: number): RoomSaleView {
           tone: sale.pricing === "at" ? undefined : tone,
         },
       ];
-  // The shift cap is information only: the most that may be taken off the list price.
+  // The cap is only applied to Morning / Evening bookings (a 24/7 one may carry a cap that does not apply).
   const note = unpriced
     ? "No list price was set for this room, so this booking is not compared"
-    : sale.shiftDiscountCapPct > 0
-      ? `The ${sale.shift} discount can take up to ${pct(sale.shiftDiscountCapPct)} off the list price`
+    : sale.shift !== "24/7" && sale.shiftDiscountCapPct > 0
+      ? `${sale.shift} price: list less the ${pct(sale.shiftDiscountCapPct)} shift discount`
       : null;
   const detail = joined(sale.shift, seatsText(sale.seatsSold), dateRange(sale.startOn, sale.endOn));
   return {
