@@ -1,5 +1,6 @@
 import type { NavigatorScreenParams } from "@react-navigation/native";
 import type { OverviewDetailRequest, OverviewDetailScope, StaffAgreement, StaffCustomer, StaffInvoice } from "../services/staff";
+import type { StaffUser } from "../services/staff/users";
 
 // Route types for the staff apps (sales executive, admin, super admin). The customer app's routes live in
 // ./types.ts. Each staff role gets its own navigator (see ./staff/StaffNavigator.tsx), built from one shared
@@ -91,6 +92,8 @@ export type StaffStackParamList = {
   AccessActivity: undefined;
   /** Admin / super admin, read-only. */
   Users: undefined;
+  /** Admin / super admin: new user (no `user`) or edit that user (the list row: the API has no fuller GET). */
+  UserForm: { user?: StaffUser } | undefined;
   Locations: undefined;
   Spaces: { locationId?: number } | undefined;
   /** Super admin: find a booking's challan and extend its validity. */
