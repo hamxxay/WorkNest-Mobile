@@ -96,3 +96,13 @@ export function describeTrend(values: readonly number[], format: ValueFormatter 
   const range = lo === hi ? "" : `, low ${format(lo)}, high ${format(hi)}`;
   return `trend ${DIRECTION_WORD[dir]} over ${v.length} periods, from ${format(v[0])} to ${format(v[v.length - 1])}${range}`;
 }
+
+/**
+ * A KPI delta label split for its chip: "12% vs last period" -> figure "12%" (in the chip, with the arrow) and
+ * versus "vs last period" (muted, after the chip). A label without " vs " ("new", "no change") is all figure.
+ */
+export function splitTrendLabel(label: string): { figure: string; versus: string | null } {
+  const at = label.indexOf(" vs ");
+  if (at <= 0) return { figure: label, versus: null };
+  return { figure: label.slice(0, at), versus: label.slice(at + 1) };
+}

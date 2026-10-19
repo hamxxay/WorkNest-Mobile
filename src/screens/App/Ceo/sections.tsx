@@ -120,7 +120,6 @@ export function MoneySection({ money: m, drill }: { money: CeoMoney; drill: Dril
       value: money(m.collected),
       sub: rate != null ? `${pct(rate)} of invoiced` : words,
       icon: "cash-outline",
-      tone: "success",
       trend: trend(m.collected, m.collectedPrev, "%"),
       trendSeries: recent.map((x) => x.collected),
       onPress: () => drill.open(revenueTarget(m, "collected", scopeOf(drill)), ["Money", `Collected ${words}`]),
@@ -199,6 +198,7 @@ export function MoneySection({ money: m, drill }: { money: CeoMoney; drill: Dril
                     title={c.name}
                     subtitle={`${count(c.invoices)} ${c.invoices === 1 ? "invoice" : "invoices"}`}
                     meta={money(c.amount)}
+                    metaVariant="amount"
                     accessibilityHint={query ? "Opens this customer's invoices" : undefined}
                     onPress={query ? () => drill.records(query, ["Top customers", c.name], `${c.name}: invoices`) : undefined}
                   />
@@ -261,7 +261,6 @@ export function OccupancySection({ occupancy: o, drill }: { occupancy: CeoOccupa
       value: count(o.activeBookings),
       sub: "running today",
       icon: "time-outline",
-      tone: "info",
       onPress: () =>
         drill.open({ kind: "records", query: activeBookingsRecords(scopeOf(drill)), title: "Active bookings", keepTitle: true, timeless: true }, [
           "Occupancy",
@@ -374,6 +373,7 @@ export function OccupancySection({ occupancy: o, drill }: { occupancy: CeoOccupa
                       title={b.customer}
                       subtitle={[b.space, b.location, b.endOn ? `ends ${formatDate(b.endOn)}` : null].filter(Boolean).join(" · ")}
                       meta={b.monthlyAmount != null ? `${money(b.monthlyAmount)}/mo` : undefined}
+                      metaVariant="amount"
                     />
                   </Fragment>
                 ))}
@@ -448,7 +448,6 @@ export function SalesSection({ sales: s, drill }: { sales: CeoSales; drill: Dril
       value: money(s.quotationValue),
       sub: `${count(quotations)} quotations ${words}`,
       icon: "document-text-outline",
-      tone: "indigo",
       onPress: () => drill.records(drill.funnelRecords("quotations"), ["Sales", "Quotations"], "Quotations"),
       accessibilityHint: "Opens the quotations",
     },
@@ -457,7 +456,6 @@ export function SalesSection({ sales: s, drill }: { sales: CeoSales; drill: Dril
       value: money(s.bookingValue),
       sub: `${count(bookings)} bookings ${words}`,
       icon: "calendar-outline",
-      tone: "success",
       onPress: () => drill.records(drill.funnelRecords("bookings"), ["Sales", "Bookings"], "Bookings"),
       accessibilityHint: "Opens the bookings",
     },
@@ -581,7 +579,6 @@ export function TeamSection({ team: t, drill }: { team: CeoTeam; drill: Drill })
       value: money(t.revenue),
       sub: `Converted quotations ${words}`,
       icon: "cash-outline",
-      tone: "success",
     },
   ];
   const openRevenue = (_item: HBarItem, i: number) => {
@@ -606,6 +603,7 @@ export function TeamSection({ team: t, drill }: { team: CeoTeam; drill: Drill })
                   title={p.name}
                   subtitle={personSubtitle(p)}
                   meta={money(p.revenue)}
+                  metaVariant="amount"
                   accessibilityLabel={`${p.name}. ${personSubtitle(p)}. Revenue ${money(p.revenue)}`}
                   accessibilityHint={p.userId ? "Opens this person's last 6 months" : undefined}
                   onPress={p.userId ? () => drill.breakdown({ metric: "staff", userId: p.userId as number }, ["Team", p.name]) : undefined}
@@ -683,17 +681,22 @@ export function OutlookSection({ forecast }: { forecast: DashboardForecast }) {
             r.pendingStarting ? ` (${count(r.pendingStarting)} waiting)` : ""
           }`;
           return (
-            <View key={`${r.month || r.label}-${i}`} style={styles.monthRow} accessible accessibilityLabel={`${title}: expected rent ${money(r.expectedRent)}. ${caption}`}>
-              <View style={styles.rowBetween}>
-                <AppText variant="bodySmall" color="textSecondary" style={styles.flex}>
-                  {title}
+            <Fragment key={`${r.month || r.label}-${i}`}>
+              {i > 0 ? <Divider /> : null}
+              <View style={styles.monthRow} accessible accessibilityLabel={`${title}: expected rent ${money(r.expectedRent)}. ${caption}`}>
+                <View style={styles.rowBetween}>
+                  <AppText variant="bodyStrong" style={styles.flex}>
+                    {title}
+                  </AppText>
+                  <AppText variant="amount" align="right">
+                    {money(r.expectedRent)}
+                  </AppText>
+                </View>
+                <AppText variant="caption" color="textMuted">
+                  {caption}
                 </AppText>
-                <AppText variant="bodyStrong">{money(r.expectedRent)}</AppText>
               </View>
-              <AppText variant="caption" color="textMuted">
-                {caption}
-              </AppText>
-            </View>
+            </Fragment>
           );
         })}
       </View>
@@ -708,8 +711,8 @@ const styles = StyleSheet.create({
   donutRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: spacing.lg },
   donutCenter: { alignItems: "center" },
   facts: { flexGrow: 1, flexShrink: 1, flexBasis: 120, gap: spacing.sm },
-  monthList: { gap: spacing.md, marginTop: spacing.md },
-  monthRow: { gap: 4 },
+  monthList: { marginTop: spacing.xs },
+  monthRow: { gap: 2, paddingVertical: spacing.sm + 2 },
   rowBetween: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   flex: { flex: 1 },
 });

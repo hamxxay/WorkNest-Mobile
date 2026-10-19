@@ -279,7 +279,10 @@ Android dialog, which follows the app's light / dark choice. `value` accepts Dat
 ```
 
 Card: `variant` (`elevated | outlined | filled`), `padding` (default 16), `onPress`. ListRow: `title`, `subtitle`,
-`meta`, `leftIcon`, `leftIconTone`, `avatar`, `left`, `right`, `chevron`, `onPress`, `destructive`, `disabled`.
+`meta`, `metaVariant` (`caption` default; `amount` for a right-aligned column of figures: text colour, semibold,
+tabular digits), `leftIcon`, `leftIconTone`, `avatar`, `left`, `right`, `chevron`, `onPress`, `destructive`,
+`disabled`. SectionHeader: `variant` `heading` (default, 16), `overline`, or `section` (dashboard sections: 18
+semibold title over a muted subtitle, above 15 semibold card titles).
 InfoRow: `label`, `value` (text or element), `icon`, `layout` (`inline | stacked`), `emphasize`, `valueColor`.
 
 ### StatCard (alias KpiCard)
@@ -293,6 +296,12 @@ InfoRow: `label`, `value` (text or element), `icon`, `layout` (`inline | stacked
 </ResponsiveGrid>
 <StatCard label="Revenue" value="" loading />
 ```
+
+The tile reads top to bottom: a small muted label (icon well on the right, in the tone), the value (`kpi`, tabular
+figures), the delta chip when `trend` is set (arrow and figure on a soft green / red fill by `upIsGood`, neutral when
+flat; the " vs ..." part of the label follows in muted text), `sub`, then the `trendSeries` sparkline at the bottom.
+Keep `tone` for status (warning / danger / success when the figure itself is good or bad); plain figures stay
+`primary`. `KpiSkeleton` draws the same shape while loading.
 
 ### SegmentedControl, Chip, FilterChips, Badge, Avatar
 

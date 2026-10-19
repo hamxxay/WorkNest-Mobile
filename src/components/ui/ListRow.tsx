@@ -11,6 +11,11 @@ export type ListRowProps = {
   subtitle?: string | null;
   /** Small text on the right (date, amount, count). */
   meta?: string | null;
+  /**
+   * How `meta` looks. "caption" (default): small muted text (dates, counts). "amount": a figure in a list of figures
+   * (dashboard lists): text colour, semibold, tabular digits, right-aligned so the column of figures lines up.
+   */
+  metaVariant?: "caption" | "amount";
   /** Ionicons name shown in a tinted circle on the left. */
   leftIcon?: string;
   /** Tint of the left icon circle. Default "primary". */
@@ -41,6 +46,7 @@ export function ListRow({
   title,
   subtitle,
   meta,
+  metaVariant = "caption",
   leftIcon,
   leftIconTone = "primary",
   avatar,
@@ -68,6 +74,7 @@ export function ListRow({
   const pressable = !!(onPress || onLongPress);
   const showChevron = chevron ?? !!onPress;
   const tone = destructive ? tones.danger : tones[leftIconTone];
+  const amount = metaVariant === "amount";
 
   const leading =
     left ??
@@ -95,14 +102,24 @@ export function ListRow({
           </Text>
         ) : null}
         {metaBelow ? (
-          <Text numberOfLines={2} style={[typography.caption, { color: colors.textMuted }]}>
+          <Text
+            numberOfLines={2}
+            style={amount ? [typography.amount, { color: colors.text }] : [typography.caption, { color: colors.textMuted }]}
+          >
             {meta}
           </Text>
         ) : null}
         {rightBelow ? <View style={styles.rightBelow}>{right}</View> : null}
       </View>
       {meta && !metaBelow ? (
-        <Text numberOfLines={1} style={[typography.caption, styles.meta, { color: colors.textMuted }]}>
+        <Text
+          numberOfLines={1}
+          style={
+            amount
+              ? [typography.amount, styles.meta, styles.metaAmount, { color: colors.text }]
+              : [typography.caption, styles.meta, { color: colors.textMuted }]
+          }
+        >
           {meta}
         </Text>
       ) : null}
@@ -150,6 +167,7 @@ const styles = StyleSheet.create({
   body: { flex: 1, gap: 2 },
   iconWell: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   meta: { maxWidth: "35%", flexShrink: 1, textAlign: "right" },
+  metaAmount: { maxWidth: "42%" },
   rightBelow: { alignSelf: "flex-start", marginTop: 2 },
   disabled: { opacity: 0.5 },
 });

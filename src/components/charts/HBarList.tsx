@@ -198,7 +198,8 @@ const styles = StyleSheet.create({
   row: { gap: 4 },
   top: { flexDirection: "row", alignItems: "center", gap: 8 },
   label: { flex: 1 },
-  value: { flexShrink: 0, maxWidth: "60%" },
+  // Figures line up down the list (tabular digits), right-aligned at the row end.
+  value: { flexShrink: 0, maxWidth: "60%", textAlign: "right", fontVariant: ["tabular-nums"] },
   // A tappable row is at least 44 dp tall (touch target).
   pressableRow: { minHeight: 44, justifyContent: "center", paddingVertical: 4 },
   pressed: { opacity: 0.7 },
