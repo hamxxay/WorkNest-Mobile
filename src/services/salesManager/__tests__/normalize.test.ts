@@ -42,7 +42,7 @@ const FULL = {
     team: {
       people: [
         { userId: 5, name: "Sara", role: "Sales Executive", locations: "I-8", inquiriesHandled: 6, quotations: 6, accepted: 3, converted: 2, desksSold: 7, conversionRate: 33.3, followUpsDue: 2 },
-        { userId: 6, name: "Omar", role: "Admin", locations: "F-7", inquiriesHandled: 1, quotations: 4, accepted: 2, converted: 2, desksSold: 9, conversionRate: 50, followUpsDue: 0 },
+        { userId: 6, name: "Omar", role: "Sales Executive", locations: "F-7", inquiriesHandled: 1, quotations: 4, accepted: 2, converted: 2, desksSold: 9, conversionRate: 50, followUpsDue: 0 },
       ],
       perLocation: [{ locationId: 1, name: "I-8", salesExecutives: 2, quotations: 6, converted: 2, desksSold: 7 }],
     },

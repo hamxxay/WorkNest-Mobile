@@ -282,6 +282,17 @@ export function recordsForFunnelStage(stage: string, scope: CeoScope, today: Dat
   }
 }
 
+/**
+ * A sales executive's revenue (Team section) -> the quotations they created in the period that were converted
+ * (records/quotations?stage=converted&userId=), with the location filter: the list behind the revenue figure.
+ * null without a user id.
+ */
+export function recordsForPersonRevenue(userId: number | null | undefined, scope: CeoScope, today: Date = new Date()): CeoRecordsQuery | null {
+  const id = positiveId(userId);
+  const converted = id ? recordsForFunnelStage("converted", scope, today) : null;
+  return converted && id ? { ...converted, params: { ...converted.params, userId: id } } : null;
+}
+
 /** A top customer -> that customer's invoices (null without a customer id). */
 export function recordsForCustomer(customerId: number | null | undefined, scope: CeoScope): CeoRecordsQuery | null {
   const id = positiveId(customerId);

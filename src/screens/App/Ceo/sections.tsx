@@ -14,6 +14,7 @@ import {
   occupancyTarget,
   pct,
   periodWords,
+  recordsForPersonRevenue,
   revenueTarget,
   shareOf,
   trendForPeriod,
@@ -23,6 +24,7 @@ import {
   type CeoMoney,
   type CeoOccupancy,
   type CeoPeriod,
+  type CeoPerson,
   type CeoRecordsQuery,
   type CeoSales,
   type CeoScope,
@@ -552,31 +554,49 @@ export function SalesSection({ sales: s, drill }: { sales: CeoSales; drill: Dril
 
 const plural = (n: number, one: string, many: string) => `${count(n)} ${n === 1 ? one : many}`;
 
+/** "I-8 · 6 quotes · 2 won (33.3%)" */
+function personSubtitle(p: CeoPerson): string {
+  const rate = p.quotations > 0 ? ` (${pct((p.converted / p.quotations) * 100)})` : "";
+  return [p.locations, `${count(p.quotations)} quotes · ${count(p.converted)} won${rate}`].filter(Boolean).join(" · ");
+}
+
+/**
+ * Team: the sales executives only (the API sends no other role), each with their revenue = the value of the
+ * quotations they created in the period that were converted to bookings. A person opens their last 6 months; a
+ * revenue bar opens the converted quotations behind it.
+ */
 export function TeamSection({ team: t, drill }: { team: CeoTeam; drill: Drill }) {
   const words = periodWords(drill.period);
+  const scope = scopeOf(drill);
+  const earners = t.people.filter((p) => p.revenue > 0);
+  const tiles: StatCardProps[] = [
+    {
+      label: "Sales executives",
+      value: count(t.salesExecutives),
+      sub: drill.locationId ? "At this location" : "All locations",
+      icon: "people-outline",
+    },
+    {
+      label: "Revenue",
+      value: money(t.revenue),
+      sub: `Converted quotations ${words}`,
+      icon: "cash-outline",
+      tone: "success",
+    },
+  ];
+  const openRevenue = (_item: HBarItem, i: number) => {
+    const p = earners[i];
+    if (p) drill.records(recordsForPersonRevenue(p.userId, scope), ["Team", p.name, "Revenue"], `${p.name}: converted quotations`);
+  };
   return (
     <>
+      <KpiGrid tiles={tiles} />
       <ChartGrid>
-        <ChartCard title="Per location" caption={`Staff and quotations ${words}`} padding={0}>
-          {t.perLocation.length ? (
-            t.perLocation.map((l, i) => (
-              <Fragment key={`${l.locationId ?? l.name}-${i}`}>
-                {i > 0 ? <Divider inset={16} /> : null}
-                <ListRow
-                  leftIcon="location-outline"
-                  title={l.name}
-                  subtitle={`${plural(l.admins, "admin", "admins")} · ${plural(l.salesExecutives, "sales executive", "sales executives")}`}
-                  meta={`${count(l.quotations)} quotes · ${count(l.converted)} won`}
-                />
-              </Fragment>
-            ))
-          ) : (
-            <View style={styles.padded}>
-              <InlineEmpty text="No locations with staff." />
-            </View>
-          )}
-        </ChartCard>
-        <ChartCard title="People" caption={`Quotations and conversions ${words}. Tap a person for the last 6 months.`} padding={0}>
+        <ChartCard
+          title="Sales executives"
+          caption={`Revenue ${words}: their quotations converted to bookings. Tap a person for the last 6 months.`}
+          padding={0}
+        >
           {t.people.length ? (
             t.people.map((p, i) => (
               <Fragment key={`${p.userId ?? p.name}-${i}`}>
@@ -584,8 +604,9 @@ export function TeamSection({ team: t, drill }: { team: CeoTeam; drill: Drill })
                 <ListRow
                   avatar={{ name: p.name }}
                   title={p.name}
-                  subtitle={[p.role, p.locations, p.convertedValue ? `${money(p.convertedValue)} won` : null].filter(Boolean).join(" · ")}
-                  meta={`${count(p.quotations)} quotes · ${count(p.converted)} won`}
+                  subtitle={personSubtitle(p)}
+                  meta={money(p.revenue)}
+                  accessibilityLabel={`${p.name}. ${personSubtitle(p)}. Revenue ${money(p.revenue)}`}
                   accessibilityHint={p.userId ? "Opens this person's last 6 months" : undefined}
                   onPress={p.userId ? () => drill.breakdown({ metric: "staff", userId: p.userId as number }, ["Team", p.name]) : undefined}
                 />
@@ -593,7 +614,39 @@ export function TeamSection({ team: t, drill }: { team: CeoTeam; drill: Drill })
             ))
           ) : (
             <View style={styles.padded}>
-              <InlineEmpty text="No admins or sales executives yet." />
+              <InlineEmpty text="No sales executives yet." />
+            </View>
+          )}
+        </ChartCard>
+        <ChartCard title="Revenue by sales executive" caption={`Converted quotations ${words}. Tap a bar for the quotations.`}>
+          {earners.length ? (
+            <HBarList
+              label={`Revenue by sales executive ${words}`}
+              items={earners.map((p, i): HBarItem => ({ key: p.userId ?? `${p.name}-${i}`, label: p.name, value: p.revenue, valueLabel: money(p.revenue) }))}
+              formatValue={money}
+              itemAccessibilityHint="Opens the converted quotations"
+              onPressItem={openRevenue}
+            />
+          ) : (
+            <InlineEmpty text={`No converted quotations by sales executives ${words}.`} />
+          )}
+        </ChartCard>
+        <ChartCard title="Per location" caption={`Sales executives and the quotations made at each location ${words}`} padding={0}>
+          {t.perLocation.length ? (
+            t.perLocation.map((l, i) => (
+              <Fragment key={`${l.locationId ?? l.name}-${i}`}>
+                {i > 0 ? <Divider inset={16} /> : null}
+                <ListRow
+                  leftIcon="location-outline"
+                  title={l.name}
+                  subtitle={plural(l.salesExecutives, "sales executive", "sales executives")}
+                  meta={`${count(l.quotations)} quotes · ${count(l.converted)} won`}
+                />
+              </Fragment>
+            ))
+          ) : (
+            <View style={styles.padded}>
+              <InlineEmpty text="No locations with sales executives." />
             </View>
           )}
         </ChartCard>

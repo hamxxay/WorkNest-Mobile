@@ -233,7 +233,7 @@ export default function SalesManagerDashboardScreen() {
 
               <CeoSection
                 title="Team performance"
-                subtitle="Sales executives and admins at your locations"
+                subtitle="The sales executives at your locations"
                 loading={loading}
                 empty={!d?.team}
                 emptyMessage="No team figures were sent for this period."

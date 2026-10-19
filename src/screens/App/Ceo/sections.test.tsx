@@ -34,7 +34,7 @@ jest.mock("./parts", () => {
 });
 
 import { normalizeCeoDashboard, recordsForFunnelStage, type CeoPeriod } from "../../../services/ceo";
-import { MoneySection, OccupancySection, SalesSection, type Drill } from "./sections";
+import { MoneySection, OccupancySection, SalesSection, TeamSection, type Drill } from "./sections";
 
 const g = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
 g.IS_REACT_ACT_ENVIRONMENT = true;
@@ -214,5 +214,61 @@ describe("a custom date range", () => {
     const newBookings = tiles.find((t) => t.label === "New bookings");
     expect(newBookings).toMatchObject({ sub: "in this range" });
     expect(newBookings.trend.label).toBe("2 vs previous 15 days");
+  });
+});
+
+describe("Team section (sales executives only, with their revenue)", () => {
+  const team = normalizeCeoDashboard({
+    team: {
+      perLocation: [{ locationId: 1, name: "I-8", salesExecutives: 1, quotations: 6, converted: 2 }],
+      people: [
+        { userId: 5, name: "Sara", role: "Sales Executive", locations: "I-8", quotations: 6, converted: 2, revenue: 300000 },
+        { userId: 6, name: "Omar", role: "Sales Executive", locations: "F-7", quotations: 1, converted: 0, revenue: 0 },
+      ],
+      salesExecutives: 2,
+      revenue: 300000,
+    },
+  }).team!;
+
+  function render(drill: Drill) {
+    let renderer: TestRenderer.ReactTestRenderer | undefined;
+    act(() => {
+      renderer = TestRenderer.create(<TeamSection team={team} drill={drill} />);
+    });
+    return renderer!.root;
+  }
+
+  test("totals, people with revenue and no role labels; a person opens their last 6 months", () => {
+    const drill = makeDrill("month", null);
+    const root = render(drill);
+    const tiles = root.findAll((n) => n.type === ("KpiGrid" as unknown))[0].props.tiles;
+    expect(tiles.map((t: any) => [t.label, t.value])).toEqual([
+      ["Sales executives", "2"],
+      ["Revenue", tiles[1].value],
+    ]);
+    expect(tiles[1].value).toMatch(/300/);
+    const rows = root.findAll((n) => n.type === ("ListRow" as unknown)).map((n) => n.props);
+    const people = rows.filter((r) => r.avatar);
+    expect(people.map((r) => r.title)).toEqual(["Sara", "Omar"]);
+    expect(people[0].subtitle).toBe("I-8 · 6 quotes · 2 won (33.3%)");
+    expect(people.every((r) => !/admin|sales executive/i.test(r.subtitle))).toBe(true);
+    expect(people[0].meta).toMatch(/300/);
+    act(() => people[0].onPress());
+    expect(drill.breakdown).toHaveBeenCalledWith({ metric: "staff", userId: 5 }, ["Team", "Sara"]);
+    // Per location: the sales executives only, no admin count.
+    const location = rows.find((r) => r.title === "I-8" && !r.avatar);
+    expect(location?.subtitle).toBe("1 sales executive");
+  });
+
+  test("the revenue bars list only those with revenue; a bar opens the quotations they converted", () => {
+    const drill = makeDrill("quarter", 2);
+    const root = render(drill);
+    const bars = root.findAll((n) => n.type === ("HBarList" as unknown))[0].props;
+    expect(bars.items.map((i: any) => [i.label, i.value])).toEqual([["Sara", 300000]]);
+    act(() => bars.onPressItem(bars.items[0], 0));
+    const [query, trail, title] = (drill.records as jest.Mock).mock.calls[0];
+    expect(query).toMatchObject({ kind: "quotations", params: { stage: "converted", period: "quarter", locationId: 2, userId: 5 } });
+    expect(trail).toEqual(["Team", "Sara", "Revenue"]);
+    expect(title).toBe("Sara: converted quotations");
   });
 });

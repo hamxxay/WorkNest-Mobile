@@ -258,26 +258,35 @@ function normalizeSales(raw: Row | null): CeoSales | null {
   };
 }
 
+/**
+ * Team section: the sales executives only (the API leaves every other role out), highest revenue first (then
+ * converted, quotations; ties keep the server's order). Revenue = their converted value (an older API: convertedValue).
+ */
 function normalizeTeam(raw: Row | null): CeoTeam | null {
   if (!raw) return null;
+  const people = list(raw, "people", (p) => ({
+    userId: optId(p, "userId"),
+    name: optStr(p, "name") ?? "Team member",
+    role: str(p, "role").replace(/_/g, " "),
+    locations: optStr(p, "locations"),
+    quotations: num(p, "quotations"),
+    converted: num(p, "converted"),
+    revenue: optNum(p, "revenue") ?? num(p, "convertedValue"),
+  }))
+    .map((p, i) => ({ p, i }))
+    .sort((a, b) => b.p.revenue - a.p.revenue || b.p.converted - a.p.converted || b.p.quotations - a.p.quotations || a.i - b.i)
+    .map(({ p }) => p);
   return {
     perLocation: list(raw, "perLocation", (l) => ({
       locationId: optId(l, "locationId"),
       name: optStr(l, "name") ?? "Location",
-      admins: num(l, "admins"),
       salesExecutives: num(l, "salesExecutives"),
       quotations: num(l, "quotations"),
       converted: num(l, "converted"),
     })),
-    people: list(raw, "people", (p) => ({
-      userId: optId(p, "userId"),
-      name: optStr(p, "name") ?? "Team member",
-      role: str(p, "role").replace(/_/g, " "),
-      locations: optStr(p, "locations"),
-      quotations: num(p, "quotations"),
-      converted: num(p, "converted"),
-      convertedValue: num(p, "convertedValue"),
-    })),
+    people,
+    salesExecutives: optNum(raw, "salesExecutives") ?? people.length,
+    revenue: optNum(raw, "revenue") ?? people.reduce((sum, p) => sum + p.revenue, 0),
   };
 }
 
