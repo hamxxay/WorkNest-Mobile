@@ -339,7 +339,7 @@ export type CeoRecords =
 /** A booking's shift (the API's ShiftType normalised): "24/7" for full-time and anything unknown. */
 export type CeoRoomShift = "24/7" | "Morning" | "Evening";
 
-/** Sold per seat against the expected price (the list price per seat, every shift), 0.5% either way is "at". */
+/** Sold per seat against the expected price (list price; shift price for Morning / Evening), 0.5% either way is "at". */
 export type CeoRoomPricing = "under" | "at" | "over";
 
 /** A sale's pricing: under / at / over, or "unpriced" when no list price is known (not compared). */
@@ -357,9 +357,12 @@ export type CeoRoomSale = {
   endOn: string | null;
   /** List price per seat when it was sold (the booking's own price row, else today's); null when none is known. */
   listSeatPriceAtSale: number | null;
-  /** The shift's discount cap stored for this location, percent: the most that may be taken off the list (information only). */
+  /**
+   * The shift's discount cap stored for this location, percent. Only Morning / Evening bookings are compared with
+   * the price less this cap; a 24/7 booking may carry a cap that does not apply to it.
+   */
   shiftDiscountCapPct: number;
-  /** What a seat should sell for: the list price per seat, every shift; null when unpriced. */
+  /** What a seat should sell for: the list price (24/7) or the list price less the shift cap; null when unpriced. */
   expectedSeatPrice: number | null;
   expectedMonthly: number | null;
   soldMonthly: number;
@@ -419,7 +422,7 @@ export type CeoRoomSummary = {
   over: number;
   /** Sales without a list price (not compared). */
   unpriced: number;
-  /** Expected monthly of the priced sales (list price x seats). */
+  /** Expected monthly of the priced sales (list or shift price x seats). */
   listMonthly: number;
   /** Sold monthly of every sale. */
   soldMonthly: number;
