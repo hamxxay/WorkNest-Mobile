@@ -32,6 +32,7 @@ import SpaceListScreen from "../../screens/App/Staff/Directory/SpaceListScreen";
 import ChallanValidityScreen from "../../screens/App/Staff/SuperAdmin/ChallanValidityScreen";
 import StaffNotificationsScreen from "../../screens/App/Staff/Notifications/StaffNotificationsScreen";
 import StaffDashboardScreen from "../../screens/App/Staff/Dashboard/StaffDashboardScreen";
+import DashboardDetailsScreen from "../../screens/App/Staff/Dashboard/DashboardDetailsScreen";
 
 // Route name -> screen for the staff navigators. Every staff screen draws its own AppHeader (back button,
 // title, actions), so the navigators render no header of their own.
@@ -65,6 +66,7 @@ export const STAFF_SCREENS: Record<StaffRouteName, ComponentType<any>> = {
   ChallanValidity: ChallanValidityScreen,
   StaffNotifications: StaffNotificationsScreen,
   StaffProfile: StaffProfileScreen,
+  DashboardDetails: DashboardDetailsScreen,
 };
 
 export type StaffTabDef = {

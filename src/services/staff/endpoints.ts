@@ -17,6 +17,8 @@ export const STAFF_ENDPOINTS = {
     navBadges: "/admin/nav-badges",
     navBadgesRead: "/admin/nav-badges/read",
     accessOverview: "/access-suspensions/overview",
+    /** GET chart drill-down of the overview: the records behind one bar / slice / point (kind = revenue-month, ...). */
+    overviewDetails: (kind: string) => `/dashboard/overview-details/${seg(kind)}`,
   },
   customers: {
     list: "/customer",
