@@ -580,6 +580,7 @@ const styles = StyleSheet.create({
   donutCenter: { alignItems: "center" },
   summary: { flexDirection: "row", flexWrap: "wrap", columnGap: spacing.xl, rowGap: spacing.sm },
   summaryItem: { gap: 2 },
-  summaryPadded: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md },
+  // Under the list card's heading hairline (ChartCard padding 0): room above as well as below.
+  summaryPadded: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
   tabular: { fontVariant: ["tabular-nums"] },
 });

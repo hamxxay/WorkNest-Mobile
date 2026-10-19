@@ -5,6 +5,7 @@ import {
   AppText,
   Banner,
   Card,
+  Divider,
   EmptyState,
   ErrorState,
   KpiSkeleton,
@@ -140,12 +141,15 @@ export function SectionEmpty({ title = "No figures yet", message }: { title?: st
   );
 }
 
-/** Placeholder for a chart card while it loads. */
+/** Placeholder for a chart card while it loads: the card's title and caption lines, then the plot. */
 export function ChartSkeleton({ height = 160 }: { height?: number }) {
   return (
     <Card>
-      <SkeletonGroup style={styles.skeleton}>
-        <SkeletonBlock width="45%" height={14} radius={5} />
+      <SkeletonGroup>
+        <View style={styles.skeletonHead}>
+          <SkeletonBlock width="45%" height={14} radius={5} />
+          <SkeletonBlock width="70%" height={10} radius={5} />
+        </View>
         <SkeletonBlock width="100%" height={height} radius={8} />
       </SkeletonGroup>
     </Card>
@@ -171,6 +175,57 @@ export function SectionNote({ text }: { text: string }) {
   );
 }
 
+/**
+ * The line under a dashboard's period and location pickers: the period shown ("October 2026") on the left, when the
+ * figures arrived on the right with a dot (green: up to date; amber: the last refresh failed, the figures are older).
+ * A placeholder of the same height while the first answer loads, so the sections below do not move when it arrives.
+ */
+export function ScopeLine({
+  text,
+  updated,
+  loading = false,
+  stale = false,
+}: {
+  /** The period (and anything else) shown, e.g. "October 2026". */
+  text?: string;
+  /** "Updated 2 min ago" (empty before the first answer). */
+  updated?: string;
+  loading?: boolean;
+  /** The last refresh failed: the figures on screen are from an earlier update. */
+  stale?: boolean;
+}) {
+  const colors = useThemeColors();
+  if (loading && !updated) {
+    return (
+      <SkeletonGroup style={styles.scope}>
+        <SkeletonBlock width="40%" height={12} radius={5} />
+        <SkeletonBlock width="28%" height={12} radius={5} />
+      </SkeletonGroup>
+    );
+  }
+  if (!text && !updated) return null;
+  return (
+    <View style={styles.scope} accessible accessibilityLabel={[text, updated].filter(Boolean).join(". ")}>
+      {text ? (
+        <View style={styles.scopeSide}>
+          <Ionicons name="calendar-outline" size={14} color={colors.textMuted} />
+          <AppText variant="captionStrong" color="textSecondary" numberOfLines={1} style={styles.flexShrink}>
+            {text}
+          </AppText>
+        </View>
+      ) : null}
+      {updated ? (
+        <View style={[styles.scopeSide, styles.scopeEnd]}>
+          <View style={[styles.dot, { backgroundColor: stale ? colors.warning : colors.success }]} />
+          <AppText variant="caption" color="textMuted" numberOfLines={1} style={styles.flexShrink}>
+            {updated}
+          </AppText>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 /** A dashboard section: heading (and note), then skeletons while loading, the content, or the empty state. */
 export function CeoSection({
   title,
@@ -179,6 +234,7 @@ export function CeoSection({
   loading,
   empty,
   emptyMessage,
+  skeletonTiles = 4,
   children,
   style,
 }: {
@@ -190,16 +246,18 @@ export function CeoSection({
   /** True when the server sent nothing for this section. */
   empty: boolean;
   emptyMessage: string;
+  /** KPI tiles the loading skeleton shows (the section's own tile count, so nothing moves when they arrive). Default 4. */
+  skeletonTiles?: number;
   children?: ReactNode;
   style?: StyleProp<ViewStyle>;
 }) {
   return (
     <View style={[styles.section, style]}>
-      <SectionHeader title={title} subtitle={subtitle} />
+      <SectionHeader variant="section" title={title} subtitle={subtitle} />
       {note ? <SectionNote text={note} /> : null}
       {loading ? (
         <>
-          <KpiSkeleton count={4} />
+          <KpiSkeleton count={skeletonTiles} />
           <ChartSkeleton />
         </>
       ) : empty ? (
@@ -211,7 +269,10 @@ export function CeoSection({
   );
 }
 
-/** A card with a title (and optional caption) above a chart or list. */
+/**
+ * A card with a title (and optional caption) above a chart or list. The title is one step below the section heading
+ * (15 semibold); a list card (`padding={0}`) gets a hairline under its heading, so its rows read as a table.
+ */
 export function ChartCard({
   title,
   caption,
@@ -223,10 +284,11 @@ export function ChartCard({
   children: ReactNode;
   padding?: number;
 }) {
+  const list = padding === 0;
   return (
-    <Card padding={padding}>
-      <View style={padding === 0 ? styles.cardHeadPadded : styles.cardHead}>
-        <AppText variant="subheading" accessibilityRole="header">
+    <Card padding={padding} style={styles.chartCard}>
+      <View style={list ? styles.cardHeadPadded : styles.cardHead}>
+        <AppText variant="bodyStrong" accessibilityRole="header">
           {title}
         </AppText>
         {caption ? (
@@ -235,6 +297,7 @@ export function ChartCard({
           </AppText>
         ) : null}
       </View>
+      {list ? <Divider /> : null}
       {children}
     </Card>
   );
@@ -249,18 +312,22 @@ const CHART_CARD_MIN_WIDTH = 420;
  */
 export function ChartGrid({ children }: { children: ReactNode }) {
   return (
-    <ResponsiveGrid minItemWidth={CHART_CARD_MIN_WIDTH} maxColumns={2} balanced={false} fontWeight={0.25} gap={spacing.sm}>
+    <ResponsiveGrid minItemWidth={CHART_CARD_MIN_WIDTH} maxColumns={2} balanced={false} fontWeight={0.25} gap={spacing.md}>
       {children}
     </ResponsiveGrid>
   );
 }
 
-/** Muted line inside a card when one chart or list of a section is empty. */
+/** Muted line inside a card when one chart or list of a section is empty: centred, with a small icon. */
 export function InlineEmpty({ text }: { text: string }) {
+  const colors = useThemeColors();
   return (
-    <AppText variant="bodySmall" color="textMuted" style={styles.inlineEmpty}>
-      {text}
-    </AppText>
+    <View style={styles.inlineEmpty} accessible accessibilityLabel={text}>
+      <Ionicons name="remove-circle-outline" size={16} color={colors.textMuted} />
+      <AppText variant="bodySmall" color="textMuted" align="center" style={styles.flexShrink}>
+        {text}
+      </AppText>
+    </View>
   );
 }
 
@@ -300,14 +367,21 @@ export function Breadcrumb({ trail, scopeLabel }: { trail: readonly string[]; sc
 }
 
 const styles = StyleSheet.create({
-  section: { gap: spacing.sm },
-  skeleton: { gap: spacing.md },
-  cardHead: { gap: 2, marginBottom: spacing.md },
-  cardHeadPadded: { gap: 2, paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.sm },
-  inlineEmpty: { paddingVertical: spacing.sm },
+  section: { gap: spacing.md },
+  skeletonHead: { gap: 6, marginBottom: spacing.lg },
+  // Side by side on a wide window: both cards of a row take its full height.
+  chartCard: { flexGrow: 1 },
+  cardHead: { gap: 2, marginBottom: spacing.lg },
+  cardHeadPadded: { gap: 2, paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.md },
+  inlineEmpty: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: spacing.lg },
   crumbs: { gap: 2 },
   crumbRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", columnGap: 4, rowGap: 2 },
   crumb: { flexShrink: 1 },
   note: { flexDirection: "row", alignItems: "center", gap: 4 },
+  // Wraps on a narrow phone or with large text: "Updated ..." goes under the period, still at the end.
+  scope: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", columnGap: spacing.md, rowGap: 4, minHeight: 20 },
+  scopeSide: { flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 },
+  scopeEnd: { marginLeft: "auto" },
+  dot: { width: 7, height: 7, borderRadius: 4 },
   flexShrink: { flexShrink: 1 },
 });

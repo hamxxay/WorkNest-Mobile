@@ -100,6 +100,7 @@ export function RoomsBlock({ query, drill }: { query: CeoQuery<CeoRooms>; drill:
       subtitle={`Occupancy and the price each room was sold at, ${words}`}
       note={r && !r.available ? undefined : SHIFT_NOTE}
       loading={query.loading}
+      skeletonTiles={7}
       empty={false}
       emptyMessage=""
     >
@@ -157,7 +158,6 @@ export function RoomsContent({ report, drill }: { report: CeoRoomReport; drill: 
       value: pct(s.periodOccupancyPct),
       sub: "of days with a booking",
       icon: "calendar-outline",
-      tone: "info",
     },
     {
       label: "Sold under price",

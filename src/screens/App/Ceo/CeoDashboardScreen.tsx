@@ -2,7 +2,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { AppHeader, AppText, Banner, Card, Screen, SectionHeader, SelectField, greeting } from "../../../components/ui";
+import { AppHeader, Banner, Card, Screen, SectionHeader, SelectField, greeting } from "../../../components/ui";
 import { useAuth } from "../../../context/AuthContext";
 import { useReduceMotion } from "../../../hooks/useReduceMotion";
 import type { CeoStackParamList } from "../../../navigation/ceoTypes";
@@ -30,8 +30,9 @@ import {
   type DashRange,
 } from "../../../services/ceo";
 import { spacing } from "../../../theme";
+import { formatDate } from "../../../utils/format";
 import { useRefreshColors } from "../Staff/shared/refresh";
-import { CeoErrorState, CeoSection, ChartSkeleton, useCeoQuery } from "./parts";
+import { CeoErrorState, CeoSection, ChartSkeleton, ScopeLine, useCeoQuery } from "./parts";
 import { PeriodControl } from "./PeriodControl";
 import { RoomsBlock } from "./RoomsSection";
 import { useAutoRefresh } from "./useAutoRefresh";
@@ -203,6 +204,7 @@ export default function CeoDashboardScreen() {
         variant="dashboard"
         overline={roleDisplayLabel}
         title={firstName ? `${greeting()}, ${firstName}` : "CEO dashboard"}
+        subtitle={formatDate(now, { weekday: true, year: false })}
         actions={[{ icon: "person-circle-outline", accessibilityLabel: "Profile", onPress: () => navigation.navigate("CeoProfile") }]}
       />
       <ScrollView
@@ -222,11 +224,8 @@ export default function CeoDashboardScreen() {
               accessibilityLabel="Location shown"
               sheetTitle="Show location"
             />
-            {d ? (
-              <AppText variant="caption" color="textMuted">
-                {[scopeLabel, updatedAgo(dashboard.loadedAt, now)].filter(Boolean).join(" · ")}
-              </AppText>
-            ) : null}
+            {/* The location is in the picker above: the line names the period and when the figures arrived. */}
+            <ScopeLine text={d ? periodText : undefined} updated={d ? updatedAgo(dashboard.loadedAt, now) : ""} loading={loading} stale={staleError} />
           </View>
 
           {staleError ? (
@@ -281,7 +280,7 @@ export default function CeoDashboardScreen() {
           )}
 
           <View style={styles.section}>
-            <SectionHeader title="Outlook" subtitle="The next 3 months, from current leases" />
+            <SectionHeader variant="section" title="Outlook" subtitle="The next 3 months, from current leases" />
             {forecast.loading ? (
               <ChartSkeleton height={130} />
             ) : forecast.data ? (
@@ -303,8 +302,9 @@ export default function CeoDashboardScreen() {
 
 const styles = StyleSheet.create({
   content: { padding: spacing.screen, paddingBottom: spacing.xxxl },
-  stack: { gap: spacing.xl },
+  // Sections breathe apart (32); inside a section the heading, tiles and cards sit 12 apart.
+  stack: { gap: spacing.xxl },
   // The period / location pickers keep a form width on a wide dashboard instead of stretching across it.
   controls: { gap: spacing.md, width: "100%", maxWidth: MAX_CONTENT_WIDTH },
-  section: { gap: spacing.sm },
+  section: { gap: spacing.md },
 });
