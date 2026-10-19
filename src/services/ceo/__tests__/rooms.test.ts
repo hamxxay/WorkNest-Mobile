@@ -12,6 +12,10 @@ import {
   normalizeRoomShift,
   pricingFor,
   roomCardView,
+  roomCategoryFilters,
+  roomCategoryLabel,
+  roomCategoryOf,
+  roomCategoryTile,
   roomFilterCounts,
   roomPricingFilters,
   roomSaleView,
@@ -19,6 +23,7 @@ import {
   signedMoney,
   signedMoneyCompact,
   signedPct,
+  summarizeRoomCategories,
   summarizeRooms,
 } from "../rooms";
 import type { CeoRoom, CeoRoomReport, CeoRooms } from "../types";
@@ -457,6 +462,8 @@ describe("filters", () => {
       pricing: { all: 4, under: 1, at: 1, over: 1, unpriced: 0, vacant: 1 },
       // Office 1 and Shared A (3 bookings) are in use; Office 2 is not.
       now: { all: 4, occupied: 3, vacant: 1 },
+      // Office 1 (1 booking) and Office 2 (vacant) are private offices; Shared A (2 bookings) a shared space.
+      category: { all: 4, PrivateOffice: 2, SharedSpace: 2 },
     });
     expect(roomFilterCounts(rooms, { ...ALL_ROOMS, shift: "Morning", pricing: "all" }).pricing).toEqual({ all: 1, under: 0, at: 0, over: 1, unpriced: 0, vacant: 0 });
     expect(roomFilterCounts(rooms, { ...ALL_ROOMS, shift: "all", pricing: "under" }).shift).toEqual({ all: 1, "24/7": 1, Morning: 0, Evening: 0 });
@@ -540,5 +547,90 @@ describe("card texts", () => {
       "1 room",
       "0 rooms",
     ]);
+  });
+});
+
+describe("room categories (private offices and shared spaces apart)", () => {
+  it("reads the server's byCategory with its labels (the database's), in its order", () => {
+    const byCategory = [
+      { categoryCode: "PrivateOffice", label: "Private Suites", rooms: 2, occupiedNow: 1, vacantNow: 1, occupancyNowPct: 50, periodOccupancyPct: 50 },
+      { CategoryCode: "SharedSpace", Label: "Co-working", Rooms: 1, OccupiedNow: 1, VacantNow: 0, OccupancyNowPct: 100, PeriodOccupancyPct: 65.6 },
+    ];
+    const r = report({ ...ANSWER, data: { ...ANSWER.data, summary: { ...SUMMARY, byCategory } } });
+    expect(r.summary.byCategory).toEqual([
+      { categoryCode: "PrivateOffice", label: "Private Suites", rooms: 2, occupiedNow: 1, vacantNow: 1, occupancyNowPct: 50, periodOccupancyPct: 50 },
+      { categoryCode: "SharedSpace", label: "Co-working", rooms: 1, occupiedNow: 1, vacantNow: 0, occupancyNowPct: 100, periodOccupancyPct: 65.6 },
+    ]);
+    // A figure the server left out comes from the rooms; a label it left out from the code.
+    const partial = report({ ...ANSWER, data: { ...ANSWER.data, summary: { ...SUMMARY, byCategory: [{ categoryCode: "SharedSpace", rooms: 1 }] } } });
+    expect(partial.summary.byCategory).toEqual([
+      { categoryCode: "SharedSpace", label: "Shared Space", rooms: 1, occupiedNow: 1, vacantNow: 0, occupancyNowPct: 100, periodOccupancyPct: 65.6 },
+    ]);
+  });
+
+  it("an older server without byCategory: worked out from the rooms by the same rule, adding up to the totals", () => {
+    const r = report();
+    expect(r.summary.byCategory).toEqual([
+      // Office 1 (in use, 100% of days) and Office 2 (vacant, 0%): every room has the same days, so the mean.
+      { categoryCode: "PrivateOffice", label: "Private Office", rooms: 2, occupiedNow: 1, vacantNow: 1, occupancyNowPct: 50, periodOccupancyPct: 50 },
+      { categoryCode: "SharedSpace", label: "Shared Space", rooms: 1, occupiedNow: 1, vacantNow: 0, occupancyNowPct: 100, periodOccupancyPct: 65.6 },
+    ]);
+    const sum = (k: "rooms" | "occupiedNow" | "vacantNow") => r.summary.byCategory.reduce((t, c) => t + c[k], 0);
+    expect([sum("rooms"), sum("occupiedNow"), sum("vacantNow")]).toEqual([r.summary.rooms, r.summary.occupiedNow, r.summary.vacantNow]);
+    expect(report({ ...ANSWER.data, summary: undefined }).summary.byCategory).toEqual(r.summary.byCategory);
+  });
+
+  it("room-days when the rooms carry their days; both categories always, then other codes (any case) and Other", () => {
+    const rooms = report({
+      rooms: [
+        { spaceId: 1, categoryCode: "PrivateOffice", occupiedNow: true, occupiedDays: 19, periodDays: 19 },
+        { spaceId: 2, categoryCode: "privateoffice", occupiedDays: 1, periodDays: 19 },
+        { spaceId: 3, categoryCode: "MeetingRoom", occupiedNow: true, occupiedDays: 2, periodDays: 19 },
+        { spaceId: 4 },
+      ],
+    }).rooms;
+    expect(rooms[1].periodOccupancyPct).toBe(5.3);
+    expect(summarizeRoomCategories(rooms).map((c) => [c.categoryCode, c.label, c.rooms, c.occupiedNow, c.periodOccupancyPct])).toEqual([
+      ["PrivateOffice", "Private Office", 2, 1, 52.6], // (19 + 1) / 38 room-days
+      ["SharedSpace", "Shared Space", 0, 0, 0],
+      ["MeetingRoom", "Meeting Room", 1, 1, 10.5],
+      ["", "Other", 1, 0, 0],
+    ]);
+    expect(summarizeRooms([]).byCategory.map((c) => [c.categoryCode, c.rooms])).toEqual([
+      ["PrivateOffice", 0],
+      ["SharedSpace", 0],
+    ]);
+    expect([roomCategoryOf({ categoryCode: "sharedSPACE" }), roomCategoryOf({ categoryCode: null }), roomCategoryLabel("hot_desk")]).toEqual(["SharedSpace", "", "Hot desk"]);
+  });
+
+  it("the category filter, its chips and a category tile's texts", () => {
+    const r = report();
+    const names = (category: string, now: "all" | "occupied" = "all") =>
+      filterRooms(r.rooms, { ...ALL_ROOMS, category, now }).map((i) => i.room.name);
+    expect(names("PrivateOffice")).toEqual(["Office 1", "Office 2"]);
+    expect(names("PrivateOffice", "occupied")).toEqual(["Office 1"]);
+    expect(names("SharedSpace")).toEqual(["Shared A"]);
+    expect(names("all")).toEqual(["Office 1", "Shared A", "Office 2"]);
+    expect(roomCategoryFilters(r.summary.byCategory)).toEqual([
+      { value: "all", label: "All" },
+      { value: "PrivateOffice", label: "Private Office" },
+      { value: "SharedSpace", label: "Shared Space" },
+    ]);
+    // Only one category with rooms: nothing to choose.
+    expect(roomCategoryFilters([r.summary.byCategory[0], { ...r.summary.byCategory[1], rooms: 0 }])).toEqual([]);
+
+    // TEST on 19 Oct 2026: 11 of 56 private offices in use, none of 69 shared spaces.
+    expect(roomCategoryTile({ categoryCode: "PrivateOffice", label: "Private Office", rooms: 56, occupiedNow: 11, vacantNow: 45, occupancyNowPct: 19.6, periodOccupancyPct: 9.2 })).toEqual({
+      label: "Private Office",
+      value: "11 of 56",
+      sub: "19.6% now · 45 vacant · 9.2% days occupied",
+      tone: "warning",
+      hint: "Shows the Private Office rooms in use now in the list below",
+    });
+    expect(roomCategoryTile({ categoryCode: "SharedSpace", label: "Shared Space", rooms: 0, occupiedNow: 0, vacantNow: 0, occupancyNowPct: 0, periodOccupancyPct: 0 })).toMatchObject({
+      value: "0 of 0",
+      sub: "No rooms",
+      hint: null,
+    });
   });
 });

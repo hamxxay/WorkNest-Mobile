@@ -404,8 +404,26 @@ export type CeoRoom = {
   occupiedNow: boolean;
   /** Days of the period so far with a confirmed booking, percent (0..100). */
   periodOccupancyPct: number;
+  /** The days behind periodOccupancyPct (null when the server does not send them). */
+  occupiedDays: number | null;
+  periodDays: number | null;
   /** [] = no booking in the period (shown as vacant). */
   sales: CeoRoomSale[];
+};
+
+/** Occupancy of one room category (private offices, shared spaces): the server's summary.byCategory. */
+export type CeoRoomCategory = {
+  /** WN_SpaceCategories.Code: "PrivateOffice" | "SharedSpace" ("" = rooms without one). */
+  categoryCode: string;
+  /** The category's label from the database (e.g. "Private Office"). */
+  label: string;
+  rooms: number;
+  occupiedNow: number;
+  vacantNow: number;
+  /** Occupied now / rooms, percent. */
+  occupancyNowPct: number;
+  /** Days occupied: room-days with a confirmed booking / room-days of the period so far, percent. */
+  periodOccupancyPct: number;
 };
 
 export type CeoRoomShiftSummary = {
@@ -447,6 +465,11 @@ export type CeoRoomSummary = {
   overMonthly: number;
   /** Always 24/7, Morning, Evening in that order (a shift without sales as zeros). */
   byShift: CeoRoomShiftSummary[];
+  /**
+   * Always Private Office then Shared Space (zeros when there are none), then any other category the rooms carry;
+   * the same rooms as the totals above, so they add up to them.
+   */
+  byCategory: CeoRoomCategory[];
 };
 
 /** The room report (available: the server's database update CEO_02 has run). */
