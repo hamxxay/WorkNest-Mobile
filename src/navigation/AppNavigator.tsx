@@ -28,6 +28,7 @@ import PrivacyPolicyScreen from "../screens/App/General/PrivacyPolicyScreen";
 import UserManualScreen from "../screens/App/General/UserManualScreen";
 import AccessRequestScreen from "../screens/App/General/AccessRequestScreen";
 import UnlockDoorScreen from "../screens/App/General/UnlockDoorScreen";
+import MyMeetingRoomsScreen from "../screens/App/General/MyMeetingRoomsScreen";
 import SignupScreen from "../screens/Auth/SignupScreen";
 import SplashScreen from "../screens/Auth/SplashScreen";
 import LoginScreen from "../screens/Auth/LoginScreen";
@@ -140,6 +141,7 @@ function AppStackNavigator() {
       <AppStack.Screen name="UserManual" component={UserManualScreen} />
       <AppStack.Screen name="AccessRequest" component={AccessRequestScreen} />
       <AppStack.Screen name="UnlockDoor" component={UnlockDoorScreen} />
+      <AppStack.Screen name="MyMeetingRooms" component={MyMeetingRoomsScreen} />
       <AppStack.Screen name="Login" component={LoginScreen} />
       <AppStack.Screen name="Signup" component={SignupScreen} />
       <AppStack.Screen name="VerifyEmail" component={VerifyEmailScreen} />
