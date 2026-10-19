@@ -68,12 +68,12 @@ const SALE_GAMMA = {
   endOn: "2027-03-14",
   listSeatPriceAtSale: 17500,
   shiftDiscountCapPct: 20,
-  expectedSeatPrice: 14000,
-  expectedMonthly: 56000,
-  soldMonthly: 68000,
-  soldSeatPrice: 17000,
-  varianceMonthly: 12000,
-  variancePct: 21.43,
+  expectedSeatPrice: 17500,
+  expectedMonthly: 70000,
+  soldMonthly: 72000,
+  soldSeatPrice: 18000,
+  varianceMonthly: 2000,
+  variancePct: 2.86,
   pricing: "over",
 };
 
@@ -136,14 +136,14 @@ const SUMMARY = {
   at: 1,
   over: 1,
   unpriced: 0,
-  listMonthly: 283500,
-  soldMonthly: 275500,
-  varianceMonthly: -8000,
+  listMonthly: 297500,
+  soldMonthly: 279500,
+  varianceMonthly: -18000,
   underMonthly: -20000,
-  overMonthly: 12000,
+  overMonthly: 2000,
   byShift: [
     { shift: "24/7", sales: 2, under: 1, at: 1, over: 0, unpriced: 0, expectedMonthly: 227500, soldMonthly: 207500, varianceMonthly: -20000 },
-    { shift: "Morning", sales: 1, under: 0, at: 0, over: 1, unpriced: 0, expectedMonthly: 56000, soldMonthly: 68000, varianceMonthly: 12000 },
+    { shift: "Morning", sales: 1, under: 0, at: 0, over: 1, unpriced: 0, expectedMonthly: 70000, soldMonthly: 72000, varianceMonthly: 2000 },
     { shift: "Evening", sales: 0, under: 0, at: 0, over: 0, unpriced: 0, expectedMonthly: 0, soldMonthly: 0, varianceMonthly: 0 },
   ],
 };
@@ -174,16 +174,16 @@ describe("normalizeCeoRooms: the contract", () => {
       under: 1,
       at: 1,
       over: 1,
-      listMonthly: 283500,
-      soldMonthly: 275500,
-      varianceMonthly: -8000,
+      listMonthly: 297500,
+      soldMonthly: 279500,
+      varianceMonthly: -18000,
       unpriced: 0,
       underMonthly: -20000,
-      overMonthly: 12000,
+      overMonthly: 2000,
     });
     expect(r.summary.byShift.map((s) => [s.shift, s.sales, s.under, s.at, s.over, s.varianceMonthly])).toEqual([
       ["24/7", 2, 1, 1, 0, -20000],
-      ["Morning", 1, 0, 0, 1, 12000],
+      ["Morning", 1, 0, 0, 1, 2000],
       ["Evening", 0, 0, 0, 0, 0],
     ]);
   });
@@ -226,13 +226,13 @@ describe("normalizeCeoRooms: the contract", () => {
   it("works the summary out from the rooms when the server sent none (the same figures)", () => {
     const worked = report({ ...ANSWER.data, summary: undefined }).summary;
     expect(worked).toMatchObject({ rooms: 3, occupiedNow: 2, vacantNow: 1, sales: 3, under: 1, at: 1, over: 1 });
-    expect(worked.listMonthly).toBe(283500);
-    expect(worked.soldMonthly).toBe(275500);
-    expect(worked.varianceMonthly).toBe(-8000);
+    expect(worked.listMonthly).toBe(297500);
+    expect(worked.soldMonthly).toBe(279500);
+    expect(worked.varianceMonthly).toBe(-18000);
     expect(worked.occupancyNowPct).toBe(66.7);
     expect(worked.periodOccupancyPct).toBe(55.2);
     // The gap of the under-priced sales and the premium of the over-priced ones.
-    expect([worked.underMonthly, worked.overMonthly, worked.unpriced]).toEqual([-20000, 12000, 0]);
+    expect([worked.underMonthly, worked.overMonthly, worked.unpriced]).toEqual([-20000, 2000, 0]);
     expect(worked.byShift).toEqual(report().summary.byShift);
     expect(summarizeRooms([]).byShift.map((s) => s.shift)).toEqual(["24/7", "Morning", "Evening"]);
   });
@@ -285,7 +285,7 @@ describe("normalizeCeoRooms: tolerant reading", () => {
           listSeatPrice: 35000,
           sales: [
             { customer: "Shift tenant", shift: "Evening", seatsSold: 2, listSeatPriceAtSale: 30000, shiftDiscountCapPct: 25, soldMonthly: 46000 },
-            // A cap stored for 24/7 does not apply to it: compared with the full list price.
+            // No shift: 24/7, compared with the full list price.
             { customer: "Full time", shift: null, shiftDiscountCapPct: 10, soldMonthly: 140000 },
             // The server's percent (two decimals) wins when sent.
             { customer: "Server percent", shift: "24/7", seatsSold: 1, soldMonthly: 33250, expectedSeatPrice: 35000, variancePct: -5 },
@@ -294,14 +294,15 @@ describe("normalizeCeoRooms: tolerant reading", () => {
       ],
     });
     const [shift, full, sent] = r.rooms[0].sales;
+    // An Evening booking is compared with the list price too (the 25% cap is only the most that may be taken off).
     expect(shift).toMatchObject({
-      expectedSeatPrice: 22500,
-      expectedMonthly: 45000,
+      expectedSeatPrice: 30000,
+      expectedMonthly: 60000,
       soldSeatPrice: 23000,
-      varianceMonthly: 1000,
-      pricing: "over",
+      varianceMonthly: -14000,
+      pricing: "under",
     });
-    expect(shift.variancePct).toBeCloseTo(2.222, 2);
+    expect(shift.variancePct).toBeCloseTo(-23.333, 2);
     // No seats and no list price at sale: the room's.
     expect(full).toMatchObject({ shift: "24/7", seatsSold: 4, listSeatPriceAtSale: 35000, expectedSeatPrice: 35000, soldSeatPrice: 35000, varianceMonthly: 0, pricing: "at" });
     expect(sent).toMatchObject({ variancePct: -5, pricing: "under" });
@@ -374,13 +375,18 @@ describe("sales without a list price", () => {
       note: "No list price was set for this room, so this booking is not compared",
     });
     expect(sale.accessibilityLabel).toContain("Epsilon, Evening · 3 seats, No list price, Sold per seat PKR 15,000");
-    expect(atSale.note).toBe("Evening price: list less the 15% shift discount");
+    expect(atSale.note).toBe("The Evening discount can take up to 15% off the list price");
   });
 
-  it("a 24/7 booking never says a shift discount applies", () => {
+  it("every shift is compared with the list price; the cap is only shown as the most that may be taken off", () => {
     const sale = report({ rooms: [{ name: "R", seats: 1, listSeatPrice: 30000, sales: [{ shift: "24/7", shiftDiscountCapPct: 10, soldMonthly: 30000 }] }] }).rooms[0].sales[0];
     expect(sale).toMatchObject({ expectedSeatPrice: 30000, pricing: "at" });
-    expect(roomSaleView(sale, 0).note).toBeNull();
+    expect(roomSaleView(sale, 0).note).toBe("The 24/7 discount can take up to 10% off the list price");
+    // Office 310: Evening, 5 seats at the full 35,000 a seat is at the price, not over a "shift price".
+    const evening = report({ rooms: [{ name: "Office 310", seats: 5, listSeatPrice: 35000, sales: [{ shift: "Evening", seatsSold: 5, shiftDiscountCapPct: 40, soldMonthly: 175000 }] }] }).rooms[0].sales[0];
+    expect(evening).toMatchObject({ expectedSeatPrice: 35000, varianceMonthly: 0, pricing: "at" });
+    const none = report({ rooms: [{ name: "R", seats: 1, listSeatPrice: 30000, sales: [{ shift: "24/7", soldMonthly: 30000 }] }] }).rooms[0].sales[0];
+    expect(roomSaleView(none, 0).note).toBeNull();
   });
 });
 
@@ -507,12 +513,12 @@ describe("card texts", () => {
     expect(sale.accessibilityLabel).toContain("Acme Traders, 24/7 · 4 seats · 1 Jan 2026 to 31 Dec 2026, Under the expected price, List per seat PKR 35,000");
   });
 
-  it("a shift booking over its shift price says how the expected price was worked out", () => {
+  it("a shift booking over the list price says how far the shift discount could go", () => {
     const sale = roomSaleView(rooms[1].sales[1], 1);
-    expect(sale).toMatchObject({ pricingLabel: "Over price", tone: "success", note: "Morning price: list less the 20% shift discount" });
+    expect(sale).toMatchObject({ pricingLabel: "Over price", tone: "success", note: "The Morning discount can take up to 20% off the list price" });
     expect(sale.detail).toBe("Morning · 4 seats · 15 Sep 2026 to 14 Mar 2027");
-    expect(sale.figures[1]).toEqual({ label: "Expected per seat", value: "PKR 14,000" });
-    expect(sale.figures[3]).toEqual({ label: "Difference a month", value: "+PKR 12,000 (+21.4%)", tone: "success" });
+    expect(sale.figures[1]).toEqual({ label: "Expected per seat", value: "PKR 17,500" });
+    expect(sale.figures[3]).toEqual({ label: "Difference a month", value: "+PKR 2,000 (+2.9%)", tone: "success" });
     const at = roomSaleView(rooms[1].sales[0], 0);
     expect(at).toMatchObject({ pricingLabel: "At price", tone: "neutral", detail: "24/7 · 5 seats · from 1 Oct 2026" });
     expect(at.figures[3]).toEqual({ label: "Difference a month", value: "PKR 0 (0%)" });

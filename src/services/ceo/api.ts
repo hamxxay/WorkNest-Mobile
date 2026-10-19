@@ -68,7 +68,7 @@ export async function getCeoRecords(query: CeoRecordsQuery): Promise<CeoRecords>
 
 /**
  * GET api/ceo/rooms?period=&locationId= (custom: &from=&to=) — the room report: rooms sold monthly (private offices,
- * shared spaces), how full they are and the price each booking was sold at against the list / shift price. CEO /
+ * shared spaces), how full they are and the price each booking was sold at against the list price per seat. CEO /
  * super admin. Before the server's database update CEO_02 it answers `available: false` with a message (shown
  * instead of the report).
  */
