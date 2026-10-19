@@ -56,7 +56,7 @@ type Nav = NativeStackNavigationProp<CeoStackParamList, "CeoDashboard">;
  * The CEO dashboard (GET api/ceo/dashboard + GET api/dashboard/forecast + GET api/ceo/rooms): Money, Occupancy, Sales
  * and Team for this month / quarter / year or a custom date range (against the same number of days just before it),
  * for all locations or one, the 3-month outlook and the Rooms report (occupancy and the price each room was sold at
- * against its list / shift price).
+ * against its list price per seat).
  * Read-only. Tapping a KPI card, a chart element or a row drills down: a breakdown screen (by location / space type /
  * month) or a list built from the dashboard (the period's months, aging buckets, locations), then a records list;
  * some open their records directly; every drill-down uses the dashboard's period and range. Pull to refresh reloads
