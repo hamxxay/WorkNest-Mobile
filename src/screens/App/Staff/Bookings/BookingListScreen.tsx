@@ -7,6 +7,7 @@ import type { StaffStackParamList } from "../../../../navigation/staffTypes";
 import { listBookings, type StaffBooking } from "../../../../services/staff";
 import { spacing } from "../../../../theme";
 import { formatDateRange, formatMoney } from "../../../../utils/format";
+import { ActiveFilterChips, ListFilterSheet, filteredEmpty, useListFilters } from "../shared/ListFilters";
 import { SearchField } from "../shared/SearchField";
 import { StaffScreen, useInTabs } from "../shared/StaffScreen";
 import { useDebounced, usePagedList } from "../shared/hooks";
@@ -16,15 +17,18 @@ type Nav = NativeStackNavigationProp<StaffStackParamList>;
 const PAGE_SIZE = 15;
 
 /**
- * Bookings (GET booking?page=&limit=&search=): newest first, admins and sales executives see their own
- * locations. Search by customer, email, space or challan number (the API has no status / date filter).
+ * Bookings (GET booking?page=&limit=&search=&locationId=&status=&from=&to=): newest first, admins and sales
+ * executives see their own locations. Search by customer, email, space or challan number; filter by location,
+ * status and start date (on the server, ../shared/ListFilters).
  */
 export default function BookingListScreen() {
   const inTabs = useInTabs();
   const navigation = useNavigation<Nav>();
   const [query, setQuery] = useState("");
   const search = useDebounced(query.trim());
-  const fetchPage = useCallback((page: number) => listBookings({ page, limit: PAGE_SIZE, search }), [search]);
+  const filter = useListFilters("bookings");
+  const { filters } = filter;
+  const fetchPage = useCallback((page: number) => listBookings({ page, limit: PAGE_SIZE, search, ...filters }), [search, filters]);
   const list = usePagedList(fetchPage);
 
   return (
@@ -33,9 +37,10 @@ export default function BookingListScreen() {
         showBack={inTabs ? false : undefined}
         title="Bookings"
         subtitle={list.total ? `${list.total} in total` : undefined}
-        actions={[{ icon: "add", accessibilityLabel: "New booking", onPress: () => navigation.navigate("BookingForm") }]}
+        actions={[filter.headerAction, { icon: "add", accessibilityLabel: "New booking", onPress: () => navigation.navigate("BookingForm") }]}
       />
       <SearchField value={query} onChangeText={setQuery} placeholder="Search customer, space or challan" />
+      <ActiveFilterChips state={filter} />
       <AsyncList
         data={list.items}
         keyExtractor={(b) => String(b.bookingId)}
@@ -48,11 +53,18 @@ export default function BookingListScreen() {
         onEndReached={list.loadMore}
         gap={8}
         keyboardShouldPersistTaps="handled"
-        empty={{ illustration: search ? "search" : "calendar", title: search ? "No bookings found" : "No bookings yet", message: search ? `Nothing matches "${search}".` : undefined }}
+        empty={
+          filteredEmpty(filter, "bookings", search) ?? {
+            illustration: search ? "search" : "calendar",
+            title: search ? "No bookings found" : "No bookings yet",
+            message: search ? `Nothing matches "${search}".` : undefined,
+          }
+        }
         renderItem={({ item }) => (
           <BookingCard booking={item} onPress={() => navigation.navigate("BookingDetail", { bookingId: item.bookingId })} />
         )}
       />
+      <ListFilterSheet state={filter} />
     </StaffScreen>
   );
 }

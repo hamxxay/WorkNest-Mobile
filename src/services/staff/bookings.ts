@@ -9,6 +9,7 @@ import {
   type ActionResult,
   type DownloadedFile,
 } from "./http";
+import { listFilterQuery, type ListFilters } from "./listFilters";
 import { num, optNum, optStr, pick, str, toList, toPage, unwrapEnvelope, withQuery, type Page } from "./normalize";
 
 // Bookings (CMS admin.service.ts getBookings / updateBookingStatus / reassignBooking / createAdminBooking,
@@ -17,7 +18,8 @@ import { num, optNum, optStr, pick, str, toList, toPage, unwrapEnvelope, withQue
 // Admins / sales executives only get bookings at their locations ([RecordScope]: 404 for others).
 //
 // API facts the screens rely on:
-//   - The list is { data, total }; filters are only search + locationId (status / date filtering is on the device).
+//   - The list is { data, total }; search, locationId and the list filters (status = a WN_BookingStatuses id from
+//     GET booking/statuses, from / to = start date; ./listFilters) are applied on the server.
 //   - Status arrives as bookingStatusCode / bookingStatusLabel strings (no numeric id in the row).
 //   - Staff change status with PATCH booking/{id}/status { statusId }; any status can go to any other.
 //     Staff cancel = status 86. PATCH booking/{id}/cancel is the customer's own cancel (the API checks the
@@ -150,7 +152,7 @@ export function normalizeBooking(raw: any): StaffBooking {
 
 /** GET booking?page=&limit=&search=&locationId= — search: customer / user name or email, space, challan number. */
 export async function listBookings(
-  query: { page?: number; limit?: number; search?: string; locationId?: number | null } = {},
+  query: { page?: number; limit?: number; search?: string } & Partial<ListFilters> = {},
 ): Promise<Page<StaffBooking>> {
   const page = query.page ?? 1;
   const limit = query.limit ?? 10;
@@ -159,7 +161,7 @@ export async function listBookings(
       page,
       limit,
       search: query.search?.trim(),
-      locationId: query.locationId && query.locationId > 0 ? query.locationId : undefined,
+      ...listFilterQuery(query),
     }),
   );
   return toPage(raw, normalizeBooking, { page, limit });

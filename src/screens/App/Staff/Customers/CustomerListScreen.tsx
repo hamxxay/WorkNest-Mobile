@@ -5,6 +5,7 @@ import { AppHeader, AsyncList, Card, ListRow, StatusPill } from "../../../../com
 import type { StaffStackParamList } from "../../../../navigation/staffTypes";
 import { listCustomers, type StaffCustomer } from "../../../../services/staff";
 import { useResponsive } from "../../../../utils/responsive";
+import { ActiveFilterChips, ListFilterSheet, filteredEmpty, useListFilters } from "../shared/ListFilters";
 import { SearchField } from "../shared/SearchField";
 import { StaffScreen, useInTabs } from "../shared/StaffScreen";
 import { useDebounced, usePagedList } from "../shared/hooks";
@@ -13,18 +14,21 @@ type Nav = NativeStackNavigationProp<StaffStackParamList>;
 const PAGE_SIZE = 20;
 
 /**
- * Customers (GET customer?page=&limit=&search=): newest first, search by name, company, email, code or phone.
- * The API sends no total, so more pages load while full pages come back.
+ * Customers (GET customer?page=&limit=&search=&locationId=&status=&from=&to=): newest first, search by name,
+ * company, email, code or phone; filter by location, active / inactive and created date (on the server,
+ * ../shared/ListFilters). Unfiltered the API sends no total, so more pages load while full pages come back.
  */
 export default function CustomerListScreen() {
   const inTabs = useInTabs();
   const navigation = useNavigation<Nav>();
   const [query, setQuery] = useState("");
   const search = useDebounced(query.trim());
+  const filter = useListFilters("customers");
+  const { filters } = filter;
 
   const fetchPage = useCallback(
-    (page: number) => listCustomers({ page, limit: PAGE_SIZE, search }),
-    [search],
+    (page: number) => listCustomers({ page, limit: PAGE_SIZE, search, ...filters }),
+    [search, filters],
   );
   const list = usePagedList(fetchPage);
 
@@ -33,11 +37,14 @@ export default function CustomerListScreen() {
       <AppHeader
         showBack={inTabs ? false : undefined}
         title="Customers"
+        subtitle={filter.active && list.total ? `${list.total} found` : undefined}
         actions={[
+          filter.headerAction,
           { icon: "person-add-outline", accessibilityLabel: "New customer", onPress: () => navigation.navigate("CustomerForm") },
         ]}
       />
       <SearchField value={query} onChangeText={setQuery} placeholder="Search name, email, phone or code" />
+      <ActiveFilterChips state={filter} />
       <AsyncList
         data={list.items}
         keyExtractor={(c) => String(c.id)}
@@ -50,15 +57,18 @@ export default function CustomerListScreen() {
         onEndReached={list.loadMore}
         gap={8}
         keyboardShouldPersistTaps="handled"
-        empty={{
-          illustration: search ? "search" : "people",
-          title: search ? "No customers found" : "No customers yet",
-          message: search ? `Nothing matches "${search}".` : "Add a customer to quote or book a space for them.",
-          actionLabel: search ? undefined : "New customer",
-          onAction: search ? undefined : () => navigation.navigate("CustomerForm"),
-        }}
+        empty={
+          filteredEmpty(filter, "customers", search) ?? {
+            illustration: search ? "search" : "people",
+            title: search ? "No customers found" : "No customers yet",
+            message: search ? `Nothing matches "${search}".` : "Add a customer to quote or book a space for them.",
+            actionLabel: search ? undefined : "New customer",
+            onAction: search ? undefined : () => navigation.navigate("CustomerForm"),
+          }
+        }
         renderItem={({ item }) => <CustomerRow customer={item} onPress={() => navigation.navigate("CustomerDetail", { customerId: item.id, customer: item })} />}
       />
+      <ListFilterSheet state={filter} />
     </StaffScreen>
   );
 }

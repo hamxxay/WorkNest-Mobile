@@ -194,4 +194,12 @@ export const STAFF_ENDPOINTS = {
     /** WHT rate options (dbo.WN_WHTaxRate): [{ id, description, rate }] (staff roles). */
     whtRates: "/amount-fields/wht-rates",
   },
+  /** Status filter choices of the filtered lists (LST_01): GET -> ApiResponse of [{ value, label }] (staff roles). */
+  listStatuses: {
+    bookings: "/booking/statuses",
+    quotations: "/quotation/statuses",
+    invoices: "/invoice/statuses",
+    payments: "/payment/statuses",
+    customers: "/customer/statuses",
+  },
 } as const;
