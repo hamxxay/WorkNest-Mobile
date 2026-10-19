@@ -25,6 +25,12 @@ describe("route access (mirrors the CMS)", () => {
     }
   });
 
+  it("the Users form (create / edit) is admin and super admin only", () => {
+    expect(canOpenRoute("sales_executive", "UserForm")).toBe(false);
+    expect(canOpenRoute("admin", "UserForm")).toBe(true);
+    expect(canOpenRoute("super_admin", "UserForm")).toBe(true);
+  });
+
   it("Challan Validity is super admin only", () => {
     expect(canOpenRoute("sales_executive", "ChallanValidity")).toBe(false);
     expect(canOpenRoute("admin", "ChallanValidity")).toBe(false);

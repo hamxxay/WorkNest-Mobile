@@ -1,16 +1,30 @@
 import { useCallback, useState } from "react";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { AppHeader, AsyncList, Card, ListRow, StatusPill } from "../../../../components/ui";
+import { useAuth } from "../../../../context/AuthContext";
 import { normalizeRoleName, roleLabel } from "../../../../context/roles";
-import { listUsers, type StaffUser } from "../../../../services/staff";
+import type { StaffStackParamList } from "../../../../navigation/staffTypes";
+import { canEditUser, canManageUsers, listUsers, type StaffUser, type UserCaller } from "../../../../services/staff";
 import { useResponsive } from "../../../../utils/responsive";
 import { SearchField } from "../shared/SearchField";
 import { StaffScreen } from "../shared/StaffScreen";
+import { useStaffSession } from "../shared/StaffSession";
 import { useDebounced, usePagedList } from "../shared/hooks";
 
+type Nav = NativeStackNavigationProp<StaffStackParamList>;
 const PAGE_SIZE = 20;
 
-/** Users, read-only (GET user?page=&limit=&search=): admins see the users of their locations. */
+/**
+ * Users (GET user?page=&limit=&search=): admins see the users of their locations, super admins everyone. Admins and
+ * super admins add users and open the ones they may edit (CMS canEditUser); any other role gets the list read-only.
+ */
 export default function UserListScreen() {
+  const navigation = useNavigation<Nav>();
+  const { role, profile } = useStaffSession();
+  const { user: me } = useAuth();
+  const caller: UserCaller = { role, email: profile?.email || me?.email };
+  const manage = canManageUsers(role);
   const [query, setQuery] = useState("");
   const search = useDebounced(query.trim());
   const fetchPage = useCallback((page: number) => listUsers({ page, limit: PAGE_SIZE, search }), [search]);
@@ -18,7 +32,15 @@ export default function UserListScreen() {
 
   return (
     <StaffScreen>
-      <AppHeader title="Users" subtitle={list.total ? `${list.total} users` : undefined} />
+      <AppHeader
+        title="Users"
+        subtitle={list.total ? `${list.total} users` : undefined}
+        actions={
+          manage
+            ? [{ icon: "person-add-outline", accessibilityLabel: "New user", onPress: () => navigation.navigate("UserForm") }]
+            : undefined
+        }
+      />
       <SearchField value={query} onChangeText={setQuery} placeholder="Search name or email" />
       <AsyncList
         data={list.items}
@@ -32,14 +54,24 @@ export default function UserListScreen() {
         onEndReached={list.loadMore}
         gap={8}
         keyboardShouldPersistTaps="handled"
-        empty={{ illustration: search ? "search" : "people", title: search ? "No users found" : "No users" }}
-        renderItem={({ item }) => <UserRow user={item} />}
+        empty={{
+          illustration: search ? "search" : "people",
+          title: search ? "No users found" : "No users",
+          actionLabel: manage && !search ? "New user" : undefined,
+          onAction: manage && !search ? () => navigation.navigate("UserForm") : undefined,
+        }}
+        renderItem={({ item }) => (
+          <UserRow
+            user={item}
+            onPress={canEditUser(caller, item) ? () => navigation.navigate("UserForm", { user: item }) : undefined}
+          />
+        )}
       />
     </StaffScreen>
   );
 }
 
-function UserRow({ user }: { user: StaffUser }) {
+function UserRow({ user, onPress }: { user: StaffUser; onPress?: () => void }) {
   const role = normalizeRoleName(user.role) ?? "general";
   // Name and role as stored in the database (WN_Users.Name, WN_Roles.DisplayName); the app's own role label only
   // when an older API sends no display name.
@@ -59,6 +91,8 @@ function UserRow({ user }: { user: StaffUser }) {
         subtitleLines={locationBeside ? 2 : 3}
         meta={locationBeside ? user.locationName ?? undefined : undefined}
         right={user.isActive ? <StatusPill tone={role === "general" ? "neutral" : "primary"} label={label} /> : <StatusPill status="Inactive" />}
+        onPress={onPress}
+        accessibilityHint={onPress ? "Opens the user to edit" : undefined}
       />
     </Card>
   );

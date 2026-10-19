@@ -46,9 +46,11 @@ export const STAFF_ROUTE_ROLES: Record<StaffRouteName, readonly StaffRole[]> = {
   CapacityRequests: ADMIN_UP,
   AccessActivity: ADMIN_UP,
   Users: ADMIN_UP,
+  UserForm: ADMIN_UP,
   Locations: ADMIN_UP,
   Spaces: ADMIN_UP,
   ChallanValidity: SUPER_ONLY,
+  DashboardDetails: ALL_STAFF,
 };
 
 /** Bottom tabs per role, in display order. */
