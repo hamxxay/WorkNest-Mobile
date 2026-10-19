@@ -49,6 +49,8 @@ export const STAFF_ROUTE_ROLES: Record<StaffRouteName, readonly StaffRole[]> = {
   Locations: ADMIN_UP,
   Spaces: ADMIN_UP,
   ChallanValidity: SUPER_ONLY,
+  // CMS /admin/payments: not in SALES_EXECUTIVE_ROUTES, so admins and super admins only.
+  PaymentList: ADMIN_UP,
 };
 
 /** Bottom tabs per role, in display order. */
@@ -87,6 +89,7 @@ const ITEM = {
   spaces: { route: "Spaces", label: "Spaces", icon: "business-outline" },
   users: { route: "Users", label: "Users", icon: "person-outline" },
   profile: { route: "StaffProfile", label: "Profile", icon: "person-circle-outline" },
+  payments: { route: "PaymentList", label: "Payments", icon: "card-outline" },
 } as const satisfies Record<string, StaffMenuItem>;
 
 /** Label and icon of every menu screen, by route (also for routes that are tabs for some roles). */
@@ -104,7 +107,7 @@ export const STAFF_MORE_MENU: Record<StaffRole, readonly StaffMenuSection[]> = {
   ],
   admin: [
     { title: "Sales", items: [ITEM.quotations, ITEM.inquiries, ITEM.agreements, ITEM.kyc, ITEM.complaints] },
-    { title: "Finance", items: [ITEM.invoices] },
+    { title: "Finance", items: [ITEM.payments, ITEM.invoices] },
     { title: "Access Control", items: [ITEM.attendants, ITEM.accessActivity] },
     { title: "Spaces", items: [ITEM.locations, ITEM.spaces] },
     { title: "Administration", items: [ITEM.users] },
@@ -112,7 +115,7 @@ export const STAFF_MORE_MENU: Record<StaffRole, readonly StaffMenuSection[]> = {
   ],
   super_admin: [
     { title: "Sales", items: [ITEM.quotations, ITEM.inquiries, ITEM.agreements, ITEM.kyc, ITEM.complaints] },
-    { title: "Finance", items: [ITEM.invoices, ITEM.challanValidity] },
+    { title: "Finance", items: [ITEM.payments, ITEM.invoices, ITEM.challanValidity] },
     { title: "Access Control", items: [ITEM.attendants, ITEM.accessActivity] },
     { title: "Spaces", items: [ITEM.locations, ITEM.spaces] },
     { title: "Administration", items: [ITEM.users] },

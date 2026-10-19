@@ -97,6 +97,8 @@ export type StaffStackParamList = {
   ChallanValidity: undefined;
   StaffNotifications: undefined;
   StaffProfile: undefined;
+  /** Admin / super admin (the CMS Payments page), read-only. */
+  PaymentList: undefined;
 };
 
 export type StaffRouteName = Exclude<keyof StaffStackParamList, "StaffTabs">;

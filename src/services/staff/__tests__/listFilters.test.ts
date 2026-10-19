@@ -1,5 +1,6 @@
-// List filters of the staff lists (Bookings, Quotations, Invoices, Payments, Customers; API LST_01): the query each
-// list sends (only the filters that are set), the filter helpers the screens use and the Status choices.
+// List filters of the staff lists (Bookings, Quotations, Invoices, Payments, Customers; API LST_01) and the
+// Payments list: the query each list sends (only the filters that are set), the filter helpers the screens use,
+// the Status choices and the payment rows.
 // apiClient / config / authStorage are mocked so React Native is never loaded.
 
 jest.mock("../../../config/api", () => ({ API_BASE_URL: "https://api.test/api" }));
@@ -45,6 +46,7 @@ import {
   withoutFilter,
   type ListFilters,
 } from "../listFilters";
+import { PAYMENTS_MAX_PAGE_SIZE, listPayments, normalizeStaffPayment } from "../payments";
 import { listQuotations } from "../quotations";
 
 const api = apiRequest as jest.Mock;
@@ -213,5 +215,72 @@ describe("filtered lists", () => {
     const message = "Database update needed: run the script LST_01_list_filters_TEST (LST_01_list_filters_LIVE on the live database).";
     api.mockRejectedValueOnce(new ApiError(message, 503, { isSuccessful: false, message }));
     await expect(listBookings({ status: "33" })).rejects.toMatchObject({ status: 503, message });
+  });
+});
+
+describe("payments", () => {
+  const row = {
+    id: 12,
+    publicId: "6f1c",
+    invoiceId: 88,
+    bookingId: 41,
+    userId: 7,
+    userName: "Sana Malik",
+    userEmail: "sana@x.pk",
+    paymentMethodLabel: "Bank Transfer / Challan",
+    amount: 52000,
+    currencyCode: "PKR",
+    transactionRef: "TR-9",
+    gatewayRef: null,
+    statusId: 2,
+    paymentStatus: "Paid",
+    paidOn: "2026-10-05T07:00:00Z",
+    createdOn: "2026-10-01T07:00:00Z",
+    notes: null,
+    spaceNumber: "Office 4",
+    challanNumber: "CH-1001",
+    totalCount: 3,
+  };
+
+  it("GET payment with paging, search and the filters; rows normalised", async () => {
+    api.mockResolvedValueOnce({ data: [row], total: 30 });
+    const page = await listPayments({ page: 1, limit: 20, search: " sana ", locationId: 2, status: "2", from: "2026-10-01" });
+    expect(lastPath()).toBe("/payment?page=1&limit=20&search=sana&locationId=2&status=2&from=2026-10-01");
+    expect(page).toMatchObject({ total: 30, hasMore: true });
+    expect(page.items[0]).toMatchObject({
+      id: 12,
+      invoiceId: 88,
+      bookingId: 41,
+      customerName: "Sana Malik",
+      customerEmail: "sana@x.pk",
+      amount: 52000,
+      methodLabel: "Bank Transfer / Challan",
+      status: "Paid",
+      statusId: 2,
+      paymentDate: "2026-10-05T07:00:00Z",
+      spaceName: "Office 4",
+      challanNumber: "CH-1001",
+    });
+  });
+
+  it("an unfiltered request is the old list; the page size stays within the API's 100", async () => {
+    api.mockResolvedValueOnce({ data: [], total: 0 });
+    await listPayments({ page: 3, limit: 500 });
+    expect(lastPath()).toBe(`/payment?page=3&limit=${PAYMENTS_MAX_PAGE_SIZE}`);
+  });
+
+  it("falls back to the email, created date and Pending; a 0 invoice / booking id is none", () => {
+    const p = normalizeStaffPayment({ Id: 3, UserEmail: "a@x.pk", Amount: "100", InvoiceId: 0, BookingId: null, CreatedOn: "2026-10-01T07:00:00Z" });
+    expect(p).toMatchObject({
+      id: 3,
+      customerName: "a@x.pk",
+      amount: 100,
+      invoiceId: null,
+      bookingId: null,
+      status: "Pending",
+      currencyCode: "PKR",
+      paidOn: null,
+      paymentDate: "2026-10-01T07:00:00Z",
+    });
   });
 });

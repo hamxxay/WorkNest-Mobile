@@ -202,4 +202,8 @@ export const STAFF_ENDPOINTS = {
     payments: "/payment/statuses",
     customers: "/customer/statuses",
   },
+  payments: {
+    /** Paged { data, total }: ?page=&limit= (at most 100)&search=&locationId=&status=&from=&to= (admin, super admin in the CMS). */
+    list: "/payment",
+  },
 } as const;

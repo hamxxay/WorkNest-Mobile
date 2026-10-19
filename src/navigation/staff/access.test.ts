@@ -25,6 +25,12 @@ describe("route access (mirrors the CMS)", () => {
     }
   });
 
+  it("Payments is for admins and super admins (CMS /admin/payments is not a sales executive page)", () => {
+    expect(canOpenRoute("sales_executive", "PaymentList")).toBe(false);
+    expect(canOpenRoute("admin", "PaymentList")).toBe(true);
+    expect(canOpenRoute("super_admin", "PaymentList")).toBe(true);
+  });
+
   it("Challan Validity is super admin only", () => {
     expect(canOpenRoute("sales_executive", "ChallanValidity")).toBe(false);
     expect(canOpenRoute("admin", "ChallanValidity")).toBe(false);
@@ -93,6 +99,7 @@ describe("More menu", () => {
       "AgreementList",
       "KycList",
       "Complaints",
+      "PaymentList",
       "InvoiceList",
       "Attendants",
       "AccessActivity",
@@ -102,6 +109,8 @@ describe("More menu", () => {
       "StaffProfile",
     ]);
     expect(routes("super_admin")).toContain("ChallanValidity");
+    expect(routes("super_admin")).toContain("PaymentList");
+    expect(routes("sales_executive")).not.toContain("PaymentList");
     expect(routes("admin")).not.toContain("ChallanValidity");
   });
 
