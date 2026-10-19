@@ -26,11 +26,14 @@ import RoomAccessScreen from "../../screens/App/Staff/Attendants/RoomAccessScree
 import CapacityRequestsScreen from "../../screens/App/Staff/Approvals/CapacityRequestsScreen";
 import AccessActivityScreen from "../../screens/App/Staff/Access/AccessActivityScreen";
 import UserListScreen from "../../screens/App/Staff/Directory/UserListScreen";
+import UserFormScreen from "../../screens/App/Staff/Directory/UserFormScreen";
 import LocationListScreen from "../../screens/App/Staff/Directory/LocationListScreen";
 import SpaceListScreen from "../../screens/App/Staff/Directory/SpaceListScreen";
 import ChallanValidityScreen from "../../screens/App/Staff/SuperAdmin/ChallanValidityScreen";
 import StaffNotificationsScreen from "../../screens/App/Staff/Notifications/StaffNotificationsScreen";
 import StaffDashboardScreen from "../../screens/App/Staff/Dashboard/StaffDashboardScreen";
+import PaymentListScreen from "../../screens/App/Staff/Payments/PaymentListScreen";
+import DashboardDetailsScreen from "../../screens/App/Staff/Dashboard/DashboardDetailsScreen";
 
 // Route name -> screen for the staff navigators. Every staff screen draws its own AppHeader (back button,
 // title, actions), so the navigators render no header of their own.
@@ -58,11 +61,14 @@ export const STAFF_SCREENS: Record<StaffRouteName, ComponentType<any>> = {
   Complaints: ComplaintListScreen,
   AccessActivity: AccessActivityScreen,
   Users: UserListScreen,
+  UserForm: UserFormScreen,
   Locations: LocationListScreen,
   Spaces: SpaceListScreen,
   ChallanValidity: ChallanValidityScreen,
   StaffNotifications: StaffNotificationsScreen,
   StaffProfile: StaffProfileScreen,
+  PaymentList: PaymentListScreen,
+  DashboardDetails: DashboardDetailsScreen,
 };
 
 export type StaffTabDef = {

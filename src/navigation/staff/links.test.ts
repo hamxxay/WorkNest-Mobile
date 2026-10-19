@@ -34,7 +34,12 @@ describe("staff deep links / tapped pushes", () => {
 
   it("maps the customer app's push paths to staff screens", () => {
     expect(staffLinkTarget("notifications", "admin")).toMatchObject({ route: "StaffNotifications" });
-    expect(staffLinkTarget("payments", "admin")).toMatchObject({ route: "InvoiceList" });
+    expect(staffLinkTarget("payments", "admin")).toMatchObject({ route: "PaymentList" });
+    expect(staffLinkTarget("/admin/payments", "super_admin")).toMatchObject({ route: "PaymentList" });
+    // Sales executives cannot open Payments (as in the CMS): they keep the invoices.
+    expect(staffLinkTarget("payment", "sales_executive")).toMatchObject({ route: "InvoiceList" });
+    expect(staffLinkTarget("challan", "admin")).toMatchObject({ route: "InvoiceList" });
+    expect(staffLinkTarget("my-payments", "admin")).toMatchObject({ route: "InvoiceList" });
     expect(staffLinkTarget("invoice/411", "admin")).toMatchObject({ route: "InvoiceDetail", params: { invoiceId: 411 } });
     expect(staffLinkTarget("agreements", "super_admin")).toMatchObject({ route: "AgreementList" });
     expect(staffLinkTarget("booking/558", "sales_executive")).toMatchObject({ route: "BookingDetail", params: { bookingId: 558 } });

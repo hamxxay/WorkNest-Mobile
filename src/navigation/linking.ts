@@ -98,6 +98,7 @@ export const linking: LinkingOptions<RootStackParamList> = {
           PrivacyPolicy: "privacy",
           UserManual: "manual",
           Notifications: "notifications",
+          MyMeetingRooms: "my-meeting-rooms",
         },
       },
     },

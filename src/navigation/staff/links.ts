@@ -72,6 +72,9 @@ export function staffLinkTarget(path: string, role: StaffRole): StaffLinkTarget 
       return id ? screen("InvoiceDetail", { invoiceId: id }) : screen("InvoiceList");
     case "payments":
     case "payment":
+      // The Payments list for the roles that may open it (CMS /admin/payments: admins, super admins); others
+      // (sales executives) keep the invoices, where they record and follow payments.
+      return screen("PaymentList") ?? screen("InvoiceList");
     case "my-payments":
     case "challan":
       return screen("InvoiceList");
