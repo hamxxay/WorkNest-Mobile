@@ -124,6 +124,8 @@ export type CeoDiscountFilter = {
   sellerId?: number | "none" | null;
   shift?: CeoRoomShift | null;
   newOnly?: boolean;
+  /** Every booking, not only the discounted ones (e.g. "0 of 11 new deals discounted" still lists its 11). */
+  all?: boolean;
 };
 
 export type CeoDiscountRecords = {
@@ -326,6 +328,7 @@ export function discountRecordsParams(scope: CeoScope, filter: CeoDiscountFilter
     sellerId: seller,
     shift: filter.shift ?? null,
     newOnly: filter.newOnly ? true : null,
+    all: filter.all ? true : null,
   };
 }
 

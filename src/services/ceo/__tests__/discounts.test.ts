@@ -158,7 +158,9 @@ describe("records", () => {
   });
 
   it("asks for the dashboard's period and location, a custom range as periodFrom / periodTo", () => {
-    expect(discountRecordsParams({ period: "month", locationId: 3 })).toEqual({ period: "month", locationId: 3, sellerId: null, shift: null, newOnly: null });
+    expect(discountRecordsParams({ period: "month", locationId: 3 })).toEqual({ period: "month", locationId: 3, sellerId: null, shift: null, newOnly: null, all: null });
+    // "0 of 11 new deals discounted" still opens its 11: every new deal, not only the discounted ones.
+    expect(discountRecordsParams({ period: "month" }, { newOnly: true, all: true })).toMatchObject({ newOnly: true, all: true });
     const custom = discountRecordsParams({ period: "custom", range: { from: "2026-10-01", to: "2026-10-15" } }, { sellerId: "none", shift: "Morning", newOnly: true });
     expect(custom).toMatchObject({ period: "custom", periodFrom: "2026-10-01", periodTo: "2026-10-15", locationId: null, sellerId: "none", shift: "Morning", newOnly: true });
     expect(discountRecordsParams({ period: "year", locationId: 3 }, { locationId: "none" }).locationId).toBe("none");
