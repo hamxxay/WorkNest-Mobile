@@ -34,6 +34,7 @@ import {
   TeamSection,
 } from "./sections";
 import { useRefreshColors } from "../shared/refresh";
+import type { DrillTarget } from "./drill";
 import { MAX_CONTENT_WIDTH } from "../../../../utils/responsive";
 
 /** Coming back to the dashboard reloads it when the figures are older than this. */
@@ -150,6 +151,25 @@ export default function StaffDashboardScreen() {
   const allLabel = role === "super_admin" ? "All locations" : "All my locations";
   const r = roleDash.data;
 
+  // Chart drill-down: the records behind a bar / ring / type, for the dashboard's current period and locations
+  // (sent as the overview call sends them). The location shown under the list's breadcrumb comes from the API's names.
+  const drillScopeLabel = locationId
+    ? locations.find((l) => l.id === locationId)?.name ?? allLabel
+    : role !== "super_admin" && locations.length === 1
+      ? locations[0].name
+      : allLabel;
+  const openDrill = useCallback(
+    (target: DrillTarget) =>
+      navigation.navigate("DashboardDetails", {
+        request: target.request,
+        scope: { period, locationIds: [...locationIds] },
+        trail: target.trail,
+        scopeLabel: drillScopeLabel,
+        title: target.title,
+      }),
+    [navigation, period, locationIds, drillScopeLabel],
+  );
+
   return (
     <StaffScreen width="wide">
       <AppHeader
@@ -191,7 +211,7 @@ export default function StaffDashboardScreen() {
           </Section>
         ) : (
           <Section title="Overview" subtitle={`Occupancy, bookings and money ${periodWord}`} loading={overview.loading} error={overview.error} onRetry={loadOverview}>
-            {overview.data ? <OverviewSection data={overview.data} periodWord={periodWord} /> : null}
+            {overview.data ? <OverviewSection data={overview.data} periodWord={periodWord} onDrill={openDrill} /> : null}
           </Section>
         )}
 

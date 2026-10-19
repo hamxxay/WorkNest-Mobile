@@ -1,4 +1,5 @@
 import { FlatList, RefreshControl, StyleSheet, View, useWindowDimensions } from "react-native";
+import Ionicons from "react-native-vector-icons/Ionicons";
 import {
   AppHeader,
   AppText,
@@ -11,7 +12,7 @@ import {
   useScreenColumnWidth,
 } from "../../../components/ui";
 import { ceoErrorView, showingText, type CeoRecordCard } from "../../../services/ceo";
-import { spacing } from "../../../theme";
+import { spacing, useThemeColors } from "../../../theme";
 import { scaledMinWidth } from "../../../utils/responsive";
 import { useRefreshColors } from "../Staff/shared/refresh";
 import { Breadcrumb, CeoErrorState, StaleBanner, useCeoQuery, type DescribeError } from "./parts";
@@ -31,17 +32,19 @@ const FIELD_MIN_WIDTH = 115;
 const CARD_INSET = 17;
 
 /**
- * One read-only record: title, status, amount and its details. Not pressable (the viewer only views).
+ * One read-only record: title, status, amount and its details. Not pressable (the viewer only views), except when
+ * `onPress` is given (the staff dashboard drill-down opens the record's booking or invoice; a chevron shows it).
  * The status and amount sit beside the title while it keeps TITLE_MIN_WIDTH; otherwise (320dp phone, a long
  * amount, large text) they move to their own line, right-aligned, so an amount is never cut. The details are in
  * as many columns as fit (2 on a phone, 1 with large text, up to 3 on a tablet).
  */
-export function RecordCard({ item }: { item: CeoRecordCard }) {
+export function RecordCard({ item, onPress, accessibilityHint }: { item: CeoRecordCard; onPress?: () => void; accessibilityHint?: string }) {
   const { fontScale } = useWindowDimensions();
   const columnWidth = useScreenColumnWidth();
+  const colors = useThemeColors();
   const titleMin = { flexBasis: scaledMinWidth(TITLE_MIN_WIDTH, fontScale) };
   return (
-    <Card accessible accessibilityLabel={item.accessibilityLabel}>
+    <Card accessible accessibilityLabel={item.accessibilityLabel} accessibilityHint={onPress ? accessibilityHint : undefined} onPress={onPress}>
       <View style={styles.head}>
         <View style={[styles.titleBlock, titleMin]}>
           <AppText variant="bodyStrong" numberOfLines={2}>
@@ -63,6 +66,7 @@ export function RecordCard({ item }: { item: CeoRecordCard }) {
             ) : null}
           </View>
         ) : null}
+        {onPress ? <Ionicons name="chevron-forward" size={16} color={colors.textMuted} style={styles.chevron} /> : null}
       </View>
       {item.fields.length ? (
         <ResponsiveGrid
@@ -160,6 +164,7 @@ const styles = StyleSheet.create({
   titleBlock: { flexGrow: 1, flexShrink: 1, gap: 2 },
   side: { alignItems: "flex-end", gap: spacing.xs, flexShrink: 1, marginLeft: "auto" },
   amount: { fontVariant: ["tabular-nums"], textAlign: "right" },
+  chevron: { alignSelf: "center" },
   fields: { marginTop: spacing.md },
   field: { gap: 2 },
 });

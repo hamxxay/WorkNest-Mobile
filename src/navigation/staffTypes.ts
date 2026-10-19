@@ -1,5 +1,5 @@
 import type { NavigatorScreenParams } from "@react-navigation/native";
-import type { StaffAgreement, StaffCustomer, StaffInvoice } from "../services/staff";
+import type { OverviewDetailRequest, OverviewDetailScope, StaffAgreement, StaffCustomer, StaffInvoice } from "../services/staff";
 
 // Route types for the staff apps (sales executive, admin, super admin). The customer app's routes live in
 // ./types.ts. Each staff role gets its own navigator (see ./staff/StaffNavigator.tsx), built from one shared
@@ -97,6 +97,19 @@ export type StaffStackParamList = {
   ChallanValidity: undefined;
   StaffNotifications: undefined;
   StaffProfile: undefined;
+  /**
+   * Dashboard chart drill-down (GET dashboard/overview-details/{kind}): the records behind one bar / slice / point.
+   * `scope`: the dashboard's period and locations. `trail`: chart > element. `related`: opened from another list's
+   * link (offers no further link).
+   */
+  DashboardDetails: {
+    request: OverviewDetailRequest;
+    scope: OverviewDetailScope;
+    trail: string[];
+    scopeLabel?: string;
+    title?: string;
+    related?: boolean;
+  };
 };
 
 export type StaffRouteName = Exclude<keyof StaffStackParamList, "StaffTabs">;
