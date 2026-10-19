@@ -100,6 +100,8 @@ export type StaffStackParamList = {
   ChallanValidity: undefined;
   StaffNotifications: undefined;
   StaffProfile: undefined;
+  /** Admin / super admin (the CMS Payments page), read-only. */
+  PaymentList: undefined;
   /**
    * Dashboard chart drill-down (GET dashboard/overview-details/{kind}): the records behind one bar / slice / point.
    * `scope`: the dashboard's period and locations. `trail`: chart > element. `related`: opened from another list's

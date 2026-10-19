@@ -2,6 +2,7 @@ import { cnicError } from "../../utils/cnic";
 import { phoneError } from "../../utils/phone";
 import { STAFF_ENDPOINTS } from "./endpoints";
 import { actionResult, staffGet, staffPost, staffPut, type ActionResult } from "./http";
+import { listFilterQuery, type ListFilters } from "./listFilters";
 import { bool, num, optNum, optStr, str, toList, toPage, unwrapEnvelope, withQuery, type Page } from "./normalize";
 
 // Customers (CMS admin.service.ts getCustomers / searchCustomers / getCustomerById / createCustomer /
@@ -9,7 +10,8 @@ import { bool, num, optNum, optStr, str, toList, toPage, unwrapEnvelope, withQue
 //
 // API facts the screens rely on:
 //   - GET customer returns a bare array (no total), newest first, inactive customers included; the list and
-//     search are NOT location-filtered. GET/PUT customer/{id} are: a location-bound admin / sales executive gets
+//     search are NOT location-filtered. With a list filter (locationId, status "1" active / "0" inactive from
+//     GET customer/statuses, from / to = created date; ./listFilters) the answer is { data, total } instead. GET/PUT customer/{id} are: a location-bound admin / sales executive gets
 //     404 "Customer not found." for a customer of another location.
 //   - POST answers HTTP 201 even when it fails (isSuccessful: false); apiClient turns that into an ApiError.
 //   - PUT must send the whole customer: firstName and email are required, and null means "leave unchanged"
@@ -84,11 +86,13 @@ export function normalizeCustomer(raw: any): StaffCustomer {
  * The API sends no total: `hasMore` is true while full pages come back.
  */
 export async function listCustomers(
-  query: { page?: number; limit?: number; search?: string } = {},
+  query: { page?: number; limit?: number; search?: string } & Partial<ListFilters> = {},
 ): Promise<Page<StaffCustomer>> {
   const page = query.page ?? 1;
   const limit = query.limit ?? 20;
-  const raw = await staffGet(withQuery(STAFF_ENDPOINTS.customers.list, { page, limit, search: query.search?.trim() }));
+  const raw = await staffGet(
+    withQuery(STAFF_ENDPOINTS.customers.list, { page, limit, search: query.search?.trim(), ...listFilterQuery(query) }),
+  );
   return toPage(raw, normalizeCustomer, { page, limit });
 }
 
