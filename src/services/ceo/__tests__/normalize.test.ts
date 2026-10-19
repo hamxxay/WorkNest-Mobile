@@ -72,8 +72,13 @@ const FULL = {
       bookingValue: 600000,
     },
     team: {
-      perLocation: [{ locationId: 1, name: "I-8", admins: 1, salesExecutives: 2, quotations: 6, converted: 2 }],
-      people: [{ userId: 5, name: "Sara", role: "Sales Executive", locations: "I-8", quotations: 6, converted: 2, convertedValue: 300000 }],
+      perLocation: [{ locationId: 1, name: "I-8", salesExecutives: 2, quotations: 6, converted: 2 }],
+      people: [
+        { userId: 5, name: "Sara", role: "Sales Executive", locations: "I-8", quotations: 6, converted: 2, revenue: 300000, convertedValue: 300000 },
+        { userId: 7, name: "Bilal", role: "Sales Executive", locations: "F-7", quotations: 3, converted: 1, revenue: 900000, convertedValue: 900000 },
+      ],
+      salesExecutives: 2,
+      revenue: 1200000,
     },
   },
 };
@@ -103,7 +108,29 @@ describe("normalizeCeoDashboard", () => {
     // Conversion = this period's quotations that were booked / its quotations (2 of 10), not bookings / quotations.
     expect(d.sales?.conversionRate).toBe(20);
     expect(d.sales?.quotationsBooked).toBe(2);
-    expect(d.team?.people[0]).toMatchObject({ userId: 5, name: "Sara", convertedValue: 300000 });
+    // Team: the sales executives with their revenue, highest first, and the totals as sent.
+    expect(d.team?.people.map((p) => [p.name, p.revenue])).toEqual([
+      ["Bilal", 900000],
+      ["Sara", 300000],
+    ]);
+    expect(d.team?.people[1]).toEqual({ userId: 5, name: "Sara", role: "Sales Executive", locations: "I-8", quotations: 6, converted: 2, revenue: 300000 });
+    expect(d.team).toMatchObject({ salesExecutives: 2, revenue: 1200000 });
+    expect(d.team?.perLocation).toEqual([{ locationId: 1, name: "I-8", salesExecutives: 2, quotations: 6, converted: 2 }]);
+  });
+
+  it("team from an older API: revenue from convertedValue, totals worked out, no admin count kept", () => {
+    const d = normalizeCeoDashboard({
+      team: {
+        perLocation: [{ locationId: 1, name: "I-8", admins: 4, salesExecutives: 1, quotations: 2, converted: 1 }],
+        people: [
+          { userId: 5, name: "Sara", quotations: 2, converted: 1, convertedValue: 250000 },
+          { userId: 6, name: "Omar", quotations: 4, converted: 0, convertedValue: 0 },
+        ],
+      },
+    });
+    expect(d.team?.people.map((p) => p.revenue)).toEqual([250000, 0]);
+    expect(d.team).toMatchObject({ salesExecutives: 2, revenue: 250000 });
+    expect(d.team?.perLocation[0]).not.toHaveProperty("admins");
   });
 
   it("turns an empty or broken answer into empty sections, never an error", () => {
@@ -144,7 +171,7 @@ describe("normalizeCeoDashboard", () => {
     expect(d.sales?.funnel).toEqual([]);
     expect(d.sales?.conversionRate).toBeNull();
     expect(d.sales?.quotationsBooked).toBe(0);
-    expect(d.team).toEqual({ perLocation: [], people: [] });
+    expect(d.team).toEqual({ perLocation: [], people: [], salesExecutives: 0, revenue: 0 });
   });
 
   it("conversion never passes 100%: an older API (all bookings / quotations, no quotationsBooked) is capped", () => {

@@ -185,10 +185,9 @@ export function FunnelSection({ funnel: f, drill }: { funnel: SmFunnel; drill: S
 
 // ─── Team performance ─────────────────────────────────────────────────────────────────────────────────────
 
-/** "Sales Executive · I-8 · 6 quotes · 2 won (33%) · 2 follow-ups due" */
+/** "I-8 · 6 quotes · 2 won (33%) · 6 inquiries" (every person is a sales executive: no role label). */
 function personSubtitle(p: SmPerson): string {
   return [
-    p.role || null,
     p.locations,
     `${count(p.quotations)} quotes · ${count(p.converted)} won${p.conversionRate != null ? ` (${pct(p.conversionRate)})` : ""}`,
     p.inquiriesHandled ? plural(p.inquiriesHandled, "inquiry", "inquiries") : null,
@@ -202,7 +201,7 @@ export function TeamSection({ team: t, drill }: { team: SmTeam; drill: SmDrill }
   return (
     <>
       <ChartGrid>
-        <ChartCard title="People" caption={`Ranked by desks sold ${words}. Tap a person for the last 6 months.`} padding={0}>
+        <ChartCard title="Sales executives" caption={`Ranked by desks sold ${words}. Tap a person for the last 6 months.`} padding={0}>
           {t.people.length ? (
             t.people.map((p, i) => (
               <Fragment key={`${p.userId ?? p.name}-${i}`}>
@@ -229,7 +228,7 @@ export function TeamSection({ team: t, drill }: { team: SmTeam; drill: SmDrill }
             ))
           ) : (
             <View style={styles.padded}>
-              <InlineEmpty text="No sales executives or admins at your locations yet." />
+              <InlineEmpty text="No sales executives at your locations yet." />
             </View>
           )}
         </ChartCard>

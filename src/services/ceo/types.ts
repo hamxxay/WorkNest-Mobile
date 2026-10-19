@@ -124,27 +124,40 @@ export type CeoSales = {
   inquiriesAllLocations: boolean;
 };
 
+/** A location: its sales executives and the quotations made on its spaces in the period (by anyone, as the funnel). */
 export type CeoTeamLocation = {
   locationId: number | null;
   name: string;
-  admins: number;
   salesExecutives: number;
   quotations: number;
   converted: number;
 };
 
+/** A sales executive: the API sends no other role on the Team section. */
 export type CeoPerson = {
   userId: number | null;
   name: string;
-  /** "Admin" | "Sales Executive" (as sent). */
+  /** WN_Roles.DisplayName of their role, as sent ("" when not sent). */
   role: string;
   locations: string | null;
   quotations: number;
   converted: number;
-  convertedValue: number;
+  /**
+   * Revenue (PKR): the value of the quotations they created in the period that were converted to a booking (the
+   * dashboard's converted value; an older API sends it as convertedValue).
+   */
+  revenue: number;
 };
 
-export type CeoTeam = { perLocation: CeoTeamLocation[]; people: CeoPerson[] };
+/** Team section: only the sales executives (filtered by the API), highest revenue first, and their totals. */
+export type CeoTeam = {
+  perLocation: CeoTeamLocation[];
+  people: CeoPerson[];
+  /** How many sales executives `people` lists. */
+  salesExecutives: number;
+  /** Their revenue together (PKR). */
+  revenue: number;
+};
 
 export type CeoDashboard = {
   period: CeoPeriod;

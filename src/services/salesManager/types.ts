@@ -80,10 +80,14 @@ export type SmFunnel = {
   months: SmFunnelMonth[];
 };
 
+/**
+ * A sales executive under the manager: the API sends only the sales executives working at the manager's assigned
+ * locations (or the chosen one), never admins or other roles.
+ */
 export type SmPerson = {
   userId: number | null;
   name: string;
-  /** "Sales Executive" | "Admin" (as sent). */
+  /** WN_Roles.DisplayName of their role, as sent. */
   role: string;
   locations: string | null;
   inquiriesHandled: number;

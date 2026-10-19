@@ -11,6 +11,7 @@ import {
   recordsForBreakdownRow,
   recordsForCustomer,
   recordsForFunnelStage,
+  recordsForPersonRevenue,
   rowLocation,
   trailForSpeech,
   trailOf,
@@ -183,6 +184,26 @@ describe("records straight from the dashboard", () => {
     });
     expect(recordsForFunnelStage("bookings", scope, TODAY)).toEqual({ kind: "bookings", params: { period: "quarter", locationId: 2 } });
     expect(recordsForFunnelStage("lost", scope, TODAY)).toBeNull();
+  });
+
+  it("a sales executive's revenue opens the quotations they converted in the period (Team section)", () => {
+    expect(recordsForPersonRevenue(5, { period: "quarter", locationId: 2 }, TODAY)).toEqual({
+      kind: "quotations",
+      params: { stage: "converted", period: "quarter", from: "2026-10-01", to: "2026-10-14", locationId: 2, userId: 5 },
+    });
+    expect(recordsForPersonRevenue(7, { period: "month", locationId: null }, TODAY)?.params).toEqual({
+      stage: "converted",
+      period: "month",
+      from: "2026-10-01",
+      to: "2026-10-14",
+      userId: 7,
+    });
+    // A custom range goes as periodFrom / periodTo, as every drill-down of that range.
+    expect(
+      recordsForPersonRevenue(5, { period: "custom", locationId: null, range: { from: "2026-09-01", to: "2026-09-30" } }, TODAY)?.params,
+    ).toMatchObject({ stage: "converted", period: "custom", periodFrom: "2026-09-01", periodTo: "2026-09-30", userId: 5 });
+    expect(recordsForPersonRevenue(null, { period: "month" }, TODAY)).toBeNull();
+    expect(recordsForPersonRevenue(0, { period: "month" }, TODAY)).toBeNull();
   });
 
   it("top customer, overdue and new bookings cards", () => {

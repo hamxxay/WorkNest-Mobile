@@ -270,7 +270,7 @@ export default function CeoDashboardScreen() {
 
               <CeoSection
                 title="Team"
-                subtitle="Admins and sales executives per location"
+                subtitle={`Sales executives and their revenue ${words}`}
                 loading={loading}
                 empty={!d?.team}
                 emptyMessage="No team figures were sent for this period."
