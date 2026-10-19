@@ -35,6 +35,7 @@ import { useRefreshColors } from "../Staff/shared/refresh";
 import { CeoErrorState, CeoSection, ChartSkeleton, ScopeLine, useCeoQuery } from "./parts";
 import { PeriodControl } from "./PeriodControl";
 import { RoomsBlock } from "./RoomsSection";
+import { DiscountsBlock } from "./DiscountsSection";
 import { SeatsBlock } from "./SeatsSection";
 import { useAutoRefresh } from "./useAutoRefresh";
 import {
@@ -246,6 +247,8 @@ export default function CeoDashboardScreen() {
               >
                 {d?.money ? <MoneySection money={d.money} drill={drill} /> : null}
               </CeoSection>
+
+              <DiscountsBlock scope={scope} reloadKey={dashboard.loadedAt} />
 
               <CeoSection
                 title="Occupancy"
