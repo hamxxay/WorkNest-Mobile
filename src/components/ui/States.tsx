@@ -82,19 +82,30 @@ export type KpiSkeletonProps = {
   style?: StyleProp<ViewStyle>;
 };
 
-/** Placeholder grid for StatCards (same columns as the tiles it stands in for). */
+/**
+ * Placeholder grid for StatCards (same columns, padding, border and shadow as the tiles it stands in for): label and
+ * icon, value, delta chip and the secondary line, so the tiles arrive in place.
+ */
 export function KpiSkeleton({ count = 4, columns, style }: KpiSkeletonProps) {
-  const { colors, radii } = useTheme();
+  const { colors, radii, shadows } = useTheme();
   return (
     <SkeletonGroup style={style}>
       <ResponsiveGrid minItemWidth={STAT_CARD_MIN_WIDTH} columns={columns} gap={12}>
         {Array.from({ length: count }, (_, i) => (
           <View
             key={i}
-            style={[styles.kpiTile, { backgroundColor: colors.surface, borderRadius: radii.card, borderColor: colors.border }]}
+            style={[
+              styles.kpiTile,
+              { backgroundColor: colors.surface, borderRadius: radii.card, borderColor: colors.border },
+              shadows.sm,
+            ]}
           >
-            <SkeletonBlock width="60%" height={12} radius={5} />
-            <SkeletonBlock width="45%" height={24} radius={6} />
+            <View style={styles.kpiTop}>
+              <SkeletonBlock width="55%" height={12} radius={5} />
+              <SkeletonBlock width={28} height={28} radius={8} />
+            </View>
+            <SkeletonBlock width="50%" height={26} radius={6} />
+            <SkeletonBlock width="40%" height={18} radius={9} />
             <SkeletonBlock width="70%" height={10} radius={5} />
           </View>
         ))}
@@ -256,5 +267,6 @@ const styles = StyleSheet.create({
   skFlat: { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth },
   gap12: { gap: 12 },
   skBody: { flex: 1, gap: 8 },
-  kpiTile: { borderWidth: 1, padding: 14, gap: 10 },
+  kpiTile: { flex: 1, borderWidth: 1, padding: 16, gap: 10 },
+  kpiTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
 });

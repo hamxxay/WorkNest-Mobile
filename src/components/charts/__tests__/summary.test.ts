@@ -1,5 +1,5 @@
 import { formatMoney } from "../../../utils/format";
-import { defaultFormat, describeTrend, sentences, summarizeBars, summarizeDonut, summarizeList } from "../summary";
+import { defaultFormat, describeTrend, sentences, splitTrendLabel, summarizeBars, summarizeDonut, summarizeList } from "../summary";
 
 const money = (v: number) => formatMoney(v, { compact: true });
 
@@ -89,5 +89,18 @@ describe("describeTrend", () => {
   });
   it("is empty for fewer than two points", () => {
     expect(describeTrend([4])).toBe("");
+  });
+});
+
+describe("splitTrendLabel", () => {
+  it("puts the change in the chip and the comparison after it", () => {
+    expect(splitTrendLabel("12% vs last period")).toEqual({ figure: "12%", versus: "vs last period" });
+    expect(splitTrendLabel("4.0 pts vs previous 15 days")).toEqual({ figure: "4.0 pts", versus: "vs previous 15 days" });
+    expect(splitTrendLabel("+8% vs last month")).toEqual({ figure: "+8%", versus: "vs last month" });
+  });
+  it("keeps a label without a comparison whole", () => {
+    expect(splitTrendLabel("new")).toEqual({ figure: "new", versus: null });
+    expect(splitTrendLabel("no change")).toEqual({ figure: "no change", versus: null });
+    expect(splitTrendLabel("vs last period")).toEqual({ figure: "vs last period", versus: null });
   });
 });

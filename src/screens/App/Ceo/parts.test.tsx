@@ -31,7 +31,7 @@ jest.mock("../../../theme", () => {
 });
 
 import { darkColors, lightColors } from "../../../theme/colors";
-import { CeoSection, useCeoQuery } from "./parts";
+import { CeoSection, ScopeLine, useCeoQuery } from "./parts";
 
 const g = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
 g.IS_REACT_ACT_ENVIRONMENT = true;
@@ -83,6 +83,40 @@ describe("CeoSection", () => {
     );
     expect(textOf(root)).toEqual([]);
     expect(byType(root, "Ionicons")).toHaveLength(0);
+  });
+});
+
+describe("ScopeLine", () => {
+  test("first load: a placeholder of the same height, so the sections do not move when the figures arrive", () => {
+    const root = render(<ScopeLine loading />);
+    expect(byType(root, "SkeletonGroup")).toHaveLength(1);
+    expect(byType(root, "SkeletonBlock")).toHaveLength(2);
+    expect(textOf(root)).toEqual([]);
+  });
+
+  test.each([
+    ["light", false],
+    ["dark", true],
+  ])("the period, then when the figures arrived with a green dot; amber when the last refresh failed (%s)", (_name, dark) => {
+    mockDark = dark;
+    const colors = dark ? darkColors : lightColors;
+    const dot = (root: ReactTestInstance) =>
+      byType(root, "View").find((n) => n.props.style?.some?.((s: any) => s && s.backgroundColor))!.props.style.find((s: any) => s && s.backgroundColor)
+        .backgroundColor;
+
+    const fresh = render(<ScopeLine text="October 2026" updated="Updated just now" />);
+    expect(textOf(fresh)).toEqual(["October 2026", "Updated just now"]);
+    expect(byType(fresh, "View").filter((n) => n.props.accessible)[0].props.accessibilityLabel).toBe("October 2026. Updated just now");
+    expect(byType(fresh, "Ionicons")[0].props).toMatchObject({ name: "calendar-outline", color: colors.textMuted });
+    expect(dot(fresh)).toBe(colors.success);
+
+    const stale = render(<ScopeLine text="October 2026" updated="Updated 12 min ago" stale />);
+    expect(dot(stale)).toBe(colors.warning);
+  });
+
+  test("nothing to say (the dashboard failed before its first answer): nothing drawn", () => {
+    const root = render(<ScopeLine text={undefined} updated="" />);
+    expect(root.children).toHaveLength(0);
   });
 });
 

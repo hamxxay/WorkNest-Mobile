@@ -174,7 +174,7 @@ describe("RoomsContent", () => {
     expect(tiles.map((t: any) => [t.label, t.value, t.sub, t.tone])).toEqual([
       ["Occupied now", "2 of 3", "66.7% of rooms", "primary"],
       ["Vacant now", "1", "rooms free to sell today", "warning"],
-      ["Occupancy this month", "58.5%", "of days with a booking", "info"],
+      ["Occupancy this month", "58.5%", "of days with a booking", undefined],
       ["Sold under price", "1", "PKR 10K a month below", "danger"],
       ["At price", "1", "within 0.5% of expected", "neutral"],
       ["Sold over price", "1", "PKR 2K a month above", "success"],
