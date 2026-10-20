@@ -150,7 +150,7 @@ describe("Money cards", () => {
     const tiles = tilesOf(<MoneySection money={money} drill={drill} />);
     expect(tiles.map((t) => t.label)).toEqual(["Invoiced", "Collected", "Outstanding", "Overdue", "Billed in advance"]);
     const tile = press(tiles, "Billed in advance");
-    expect(tile).toMatchObject({ value: "PKR 180K", sub: "2 unpaid, for months not started yet", accessibilityHint: "Opens the unpaid invoices for months not started yet" });
+    expect(tile).toMatchObject({ value: "PKR 180K", sub: "2 unpaid, for billing periods not started yet", accessibilityHint: "Opens the unpaid invoices for billing periods not started yet" });
     expect(drill.open).toHaveBeenCalledWith(
       {
         kind: "records",
@@ -167,7 +167,7 @@ describe("Money cards", () => {
     const zero = normalizeCeoDashboard({ money: { ...RAW_MONEY, billedInAdvance: 0 } }).money!;
     expect(tilesOf(<MoneySection money={zero} drill={makeDrill()} />).find((t) => t.label === "Billed in advance")).toMatchObject({
       value: "PKR 0",
-      sub: "0 unpaid, for months not started yet",
+      sub: "0 unpaid, for billing periods not started yet",
     });
     expect(tilesOf(<MoneySection money={D.money!} drill={makeDrill()} />).map((t) => t.label)).not.toContain("Billed in advance");
   });
@@ -250,6 +250,42 @@ describe("a custom date range", () => {
     const newBookings = tiles.find((t) => t.label === "New bookings");
     expect(newBookings).toMatchObject({ sub: "in this range" });
     expect(newBookings.trend.label).toBe("2 vs previous 15 days");
+  });
+});
+
+describe("CP_02 wording and drills (same rules as the CMS)", () => {
+  function rootOf(element: React.ReactElement) {
+    let renderer: TestRenderer.ReactTestRenderer | undefined;
+    act(() => {
+      renderer = TestRenderer.create(element);
+    });
+    return renderer!.root;
+  }
+
+  test("the funnel shows each stage's share of the stage before it, never above 100%", () => {
+    const root = rootOf(<SalesSection sales={D.sales!} drill={makeDrill()} />);
+    const funnel = root.findAll((n) => n.type === ("HBarList" as unknown))[0].props;
+    expect(funnel.items.map((i: any) => i.valueLabel)).toEqual(["10", "6 · 60% of tour inquiries", "3 · 50% of quotations", "2 · 66.7% of accepted"]);
+    const bigger = { ...D.sales!, funnel: [{ stage: "inquiries", label: "Tour inquiries", count: 2 }, { stage: "quotations", label: "Quotations", count: 5 }] };
+    const items = rootOf(<SalesSection sales={bigger} drill={makeDrill()} />).findAll((n) => n.type === ("HBarList" as unknown))[0].props.items;
+    expect(items.map((i: any) => i.valueLabel)).toEqual(["2", "5"]);
+  });
+
+  test("occupancy figures say now; the 'Other' space type (id 0) opens like the CMS", () => {
+    const occupancy = { ...D.occupancy!, byType: [{ spaceTypeId: 0, name: "Other", total: 2, occupied: 1 }] };
+    const drill = makeDrill();
+    const root = rootOf(<OccupancySection occupancy={occupancy} drill={drill} />);
+    const tiles = root.findAll((n) => n.type === ("KpiGrid" as unknown))[0].props.tiles;
+    expect(tiles[0].sub).toBe("19 of 30 spaces in use now");
+    const byType = root.findAll((n) => n.type === ("HBarList" as unknown)).find((n) => n.props.label === "Occupancy by space type")!.props;
+    act(() => byType.onPressItem(byType.items[0], 0));
+    expect(drill.breakdown).toHaveBeenCalledWith({ metric: "occupancy-type", spaceTypeId: 0 }, ["Occupancy", "Other"]);
+  });
+
+  test("Outstanding says billed in advance is not inside it (when the server sends that figure)", () => {
+    const tiles = tilesOf(<MoneySection money={{ ...D.money!, billedInAdvance: 10, billedInAdvanceCount: 1 }} drill={makeDrill()} />);
+    expect(tiles.find((t) => t.label === "Outstanding").sub).toBe("3 open, not billed in advance");
+    expect(tilesOf(<MoneySection money={D.money!} drill={makeDrill()} />).find((t) => t.label === "Outstanding").sub).toBe("3 open invoices");
   });
 });
 

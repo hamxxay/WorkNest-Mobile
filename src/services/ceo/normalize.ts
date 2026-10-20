@@ -165,7 +165,8 @@ function normalizeOccupancy(raw: Row | null): CeoOccupancy | null {
       list(raw, "months", (m) => ({ month: str(m, "month"), occupancyPct: num(m, "occupancyPct"), newBookings: num(m, "newBookings") })),
     ),
     byType: list(raw, "byType", (t) => ({
-      spaceTypeId: optId(t, "spaceTypeId"),
+      // 0 = "Other" (spaces without a type): kept, so the row opens like any other (as on the CMS).
+      spaceTypeId: optNum(t, "spaceTypeId") === 0 ? 0 : optId(t, "spaceTypeId"),
       name: optStr(t, "name", "spaceType") ?? "Other",
       total: num(t, "total"),
       occupied: num(t, "occupied"),

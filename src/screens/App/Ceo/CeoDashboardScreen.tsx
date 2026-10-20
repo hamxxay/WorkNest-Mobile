@@ -252,7 +252,7 @@ export default function CeoDashboardScreen() {
 
               <CeoSection
                 title="Occupancy"
-                subtitle="Spaces in use, new bookings and leases ending"
+                subtitle={`Spaces in use now, new bookings ${words} and leases ending`}
                 loading={loading}
                 empty={!d?.occupancy}
                 emptyMessage="No occupancy figures were sent for this period."

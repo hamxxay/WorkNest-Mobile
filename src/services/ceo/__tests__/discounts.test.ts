@@ -169,10 +169,18 @@ describe("records", () => {
 
   it("a breakdown row opens its filter (none for no location / no salesperson)", () => {
     const g = { key: null, name: "No salesperson recorded", role: null, bookings: 1, discounted: 0, baseMonthly: 0, discountMonthly: 0, discountPct: 0, largestMonthly: 0, invoiceDiscount: 0, invoicesDiscounted: 0 };
-    expect(groupFilter("seller", g)).toEqual({ sellerId: "none" });
-    expect(groupFilter("location", g)).toEqual({ locationId: "none" });
-    expect(groupFilter("location", { ...g, key: "2" })).toEqual({ locationId: 2 });
-    expect(groupFilter("shift", { ...g, key: "Evening", name: "Evening" })).toEqual({ shift: "Evening" });
+    const d = { ...g, discounted: 1 };
+    expect(groupFilter("seller", d)).toEqual({ sellerId: "none" });
+    expect(groupFilter("location", d)).toEqual({ locationId: "none" });
+    expect(groupFilter("location", { ...d, key: "2" })).toEqual({ locationId: 2 });
+    expect(groupFilter("shift", { ...d, key: "Evening", name: "Evening" })).toEqual({ shift: "Evening" });
+  });
+
+  it("a row with none discounted opens all its bookings, not an empty list", () => {
+    const g = { key: "2", name: "ADMIN I8", role: null, bookings: 2, discounted: 0, baseMonthly: 0, discountMonthly: 0, discountPct: 0, largestMonthly: 0, invoiceDiscount: 0, invoicesDiscounted: 0 };
+    expect(groupFilter("seller", g)).toEqual({ sellerId: 2, all: true });
+    expect(groupFilter("location", g)).toEqual({ locationId: 2, all: true });
+    expect(groupFilter("shift", { ...g, key: "Morning", name: "Morning" })).toEqual({ shift: "Morning", all: true });
   });
 });
 

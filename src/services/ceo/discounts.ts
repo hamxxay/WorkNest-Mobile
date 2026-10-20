@@ -351,11 +351,15 @@ export function groupDetail(g: CeoDiscountGroup): string {
   return parts.join(" · ");
 }
 
-/** The filter a breakdown row opens (key null: no location / no salesperson recorded). */
+/**
+ * The filter a breakdown row opens (key null: no location / no salesperson recorded). A row with none discounted
+ * opens all its bookings (expected against sold), as the KPI tiles do, instead of an empty list.
+ */
 export function groupFilter(by: "location" | "seller" | "shift", g: CeoDiscountGroup): CeoDiscountFilter {
-  if (by === "location") return { locationId: positiveId(g.key) ?? "none" };
-  if (by === "seller") return { sellerId: positiveId(g.key) ?? "none" };
-  return { shift: normalizeRoomShift(g.key ?? g.name) };
+  const all = g.discounted > 0 ? {} : { all: true };
+  if (by === "location") return { locationId: positiveId(g.key) ?? "none", ...all };
+  if (by === "seller") return { sellerId: positiveId(g.key) ?? "none", ...all };
+  return { shift: normalizeRoomShift(g.key ?? g.name), ...all };
 }
 
 /** "Office 309 · 24/7 · 3 seats · I-8" under a booking. */

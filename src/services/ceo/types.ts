@@ -195,7 +195,7 @@ export type CeoBreakdownMetric =
 /**
  * A breakdown request: the metric, its key (one of month / bucket / spaceTypeId / locationId / type / userId) and the
  * scope. A custom period carries its `range` (sent as periodFrom / periodTo; revenue without a month: the invoices
- * issued in the range, sent as from / to).
+ * whose billing period starts in the range, sent as from / to).
  */
 export type CeoBreakdownQuery = {
   metric: CeoBreakdownMetric;

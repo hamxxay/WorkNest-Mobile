@@ -337,7 +337,7 @@ export function normalizeCeoRooms(raw: unknown, requested: CeoPeriod = "month"):
 // ─── Filters ──────────────────────────────────────────────────────────────────────────────────────────────
 
 export type RoomShiftFilter = "all" | CeoRoomShift;
-/** "vacant": rooms without a booking in the period. */
+/** "vacant": rooms without a booking in the period (labelled "Not let", so it is not read as "Vacant now"). */
 export type RoomPricingFilter = "all" | CeoRoomSalePricing | "vacant";
 /** Whether a booking covers this moment (a category tile shows the rooms in use now). */
 export type RoomNowFilter = "all" | "occupied" | "vacant";
@@ -377,7 +377,8 @@ const FILTER_LABELS: Record<RoomShiftFilter | RoomPricingFilter, string> = {
   at: "At",
   over: "Over",
   unpriced: "No list price",
-  vacant: "Vacant",
+  // Not let in the period (the CMS word): "Vacant" sat next to "Vacant now" and read the same.
+  vacant: "Not let",
 };
 
 export const roomFilterLabel = (value: RoomShiftFilter | RoomPricingFilter): string => FILTER_LABELS[value];
@@ -538,7 +539,7 @@ export type RoomCardView = {
   /** "List PKR 35,000 a seat · PKR 140,000 a room · 72% occupied this month". */
   facts: string;
   vacant: boolean;
-  /** "No booking this month" for a vacant room. */
+  /** "No booking this month" for a room not let in the period. */
   vacantText: string;
   sales: RoomSaleView[];
   /** The room's own part (title to facts) for screen readers. */

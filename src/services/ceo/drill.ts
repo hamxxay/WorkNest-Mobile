@@ -37,7 +37,7 @@ import type {
 // only its inquiries); the full list of leases expiring is records/leases.
 //
 // A custom date range (period custom, ./period.ts) goes to every drill-down call as period=custom&periodFrom=&periodTo=
-// (from / to narrow a list on their own there); Invoiced / Collected for a range open the invoices issued in it by
+// (from / to narrow a list on their own there); Invoiced / Collected for a range open the invoices billed for it by
 // location (breakdown revenue with from / to instead of a month), then a location's invoices (from / to). Month /
 // quarter / year drill-downs are sent exactly as before.
 
@@ -46,6 +46,12 @@ export function positiveId(value: unknown): number | null {
   if (value == null || value === "") return null;
   const n = typeof value === "number" ? value : /^\d+$/.test(String(value).trim()) ? Number(String(value).trim()) : NaN;
   return Number.isSafeInteger(n) && n > 0 ? n : null;
+}
+
+/** A space type id: positive, or 0 = "Other" (spaces without a type; the API accepts spaceTypeId=0); else null. */
+export function spaceTypeKey(value: unknown): number | null {
+  if (value === 0 || (typeof value === "string" && value.trim() === "0")) return 0;
+  return positiveId(value);
 }
 
 /** The dashboard's location filter as a query value (null = all locations). */
@@ -106,7 +112,7 @@ export function metricUnit(metric: CeoBreakdownMetric): "money" | "count" {
 
 /**
  * Query string parameters of GET api/ceo/breakdown: metric, its key, period and (when set) locationId. A custom
- * period adds periodFrom / periodTo; revenue for a range (no month) asks for the invoices issued from / to.
+ * period adds periodFrom / periodTo; revenue for a range (no month) asks for the invoices billed for from / to (billing period start).
  */
 export function breakdownParams(query: CeoBreakdownQuery): Record<string, QueryValue> {
   const params: Record<string, QueryValue> = { metric: query.metric };
@@ -127,7 +133,7 @@ export function breakdownParams(query: CeoBreakdownQuery): Record<string, QueryV
       params.bucket = query.bucket;
       break;
     case "occupancy-type":
-      params.spaceTypeId = positiveId(query.spaceTypeId);
+      params.spaceTypeId = spaceTypeKey(query.spaceTypeId);
       break;
     case "inquiries-type":
       params.type = query.type;
@@ -150,14 +156,14 @@ export function breakdownParams(query: CeoBreakdownQuery): Record<string, QueryV
 export function isCompleteBreakdown(query: CeoBreakdownQuery): boolean {
   switch (query.metric) {
     case "revenue":
-      // A month, or a custom range (the invoices issued in it).
+      // A month, or a custom range (the invoices billed for it).
       return isMonthKey(query.month) || queryRange(query) != null;
     case "bookings-month":
       return isMonthKey(query.month);
     case "aging":
       return !!query.bucket;
     case "occupancy-type":
-      return positiveId(query.spaceTypeId) != null;
+      return spaceTypeKey(query.spaceTypeId) != null;
     case "occupancy-location":
       return positiveId(query.locationId) != null;
     case "inquiries-type":
@@ -192,7 +198,6 @@ export function recordsForBreakdownRow(query: CeoBreakdownQuery, row: CeoBreakdo
 }
 
 function recordsForRow(query: CeoBreakdownQuery, row: CeoBreakdownRow): CeoRecordsQuery | null {
-  const rowId = positiveId(row.key);
   // Location rows: a location id or the "No location" row.
   const rowLoc = rowLocation(row.key);
   const rowMonth = isMonthKey(row.key) ? row.key : null;
@@ -200,19 +205,20 @@ function recordsForRow(query: CeoBreakdownQuery, row: CeoBreakdownRow): CeoRecor
     case "revenue": {
       if (!rowLoc) return null;
       if (isMonthKey(query.month)) return { kind: "invoices", params: cleanParams({ month: query.month, locationId: rowLoc }) };
-      // A custom range: the invoices issued in it (from / to).
+      // A custom range: the invoices billed for it (from / to).
       const range = queryRange(query);
       return range ? { kind: "invoices", params: cleanParams({ from: range.from, to: range.to, locationId: rowLoc }) } : null;
     }
     case "aging":
       return rowLoc && query.bucket ? { kind: "invoices", params: cleanParams({ bucket: query.bucket, locationId: rowLoc }) } : null;
     case "occupancy-type": {
-      const typeId = positiveId(query.spaceTypeId);
-      return rowLoc && typeId ? { kind: "spaces", params: cleanParams({ spaceTypeId: typeId, locationId: rowLoc }) } : null;
+      const typeId = spaceTypeKey(query.spaceTypeId);
+      return rowLoc && typeId != null ? { kind: "spaces", params: cleanParams({ spaceTypeId: typeId, locationId: rowLoc }) } : null;
     }
     case "occupancy-location": {
       const locationId = positiveId(query.locationId);
-      return rowId && locationId ? { kind: "spaces", params: cleanParams({ locationId, spaceTypeId: rowId }) } : null;
+      const typeId = spaceTypeKey(row.key);
+      return typeId != null && locationId ? { kind: "spaces", params: cleanParams({ locationId, spaceTypeId: typeId }) } : null;
     }
     case "bookings-month":
       return rowLoc && isMonthKey(query.month) ? { kind: "bookings", params: cleanParams({ month: query.month, locationId: rowLoc }) } : null;
@@ -355,7 +361,7 @@ export function trailForSpeech(trail: readonly string[]): string {
 //   card                       level 2                                               level 3
 //   Invoiced / Collected       month: this month by location (breakdown revenue);    invoices of that month and
 //                              quarter / year: the period's months (from the          location (Collected: paid)
-//                              dashboard), then that month by location; a custom      (a range: issued in it)
+//                              dashboard), then that month by location; a custom      (a range: billed for it)
 //                              range: its invoices by location (from / to)
 //   Outstanding                aging buckets (from the dashboard), then that bucket   open invoices of that bucket
 //                              by location (breakdown aging)                          and location
@@ -382,7 +388,7 @@ const MEASURE_LABELS: Record<RevenueMeasure, string> = { invoiced: "Invoiced", c
 /**
  * Invoiced or Collected for the period: this month by location (one month), else the months of the period with
  * their invoiced and collected (from the dashboard's 12 months), each opening that month by location. A custom range:
- * the invoices issued in it by location (as the CMS). Collected leads to the paid invoices.
+ * the invoices billed for it by location (as the CMS). Collected leads to the paid invoices.
  */
 export function revenueTarget(m: Pick<CeoMoney, "months">, measure: RevenueMeasure, scope: CeoScope, today: Date = new Date()): CeoDrillTarget {
   const recordsParams = measure === "collected" ? { status: "paid" } : undefined;

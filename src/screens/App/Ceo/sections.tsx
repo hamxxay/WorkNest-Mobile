@@ -8,6 +8,7 @@ import {
   billedInAdvanceTarget,
   clampPct,
   count,
+  funnelStepText,
   inquiriesCountAllLocations,
   monthLabel,
   monthShort,
@@ -130,7 +131,8 @@ export function MoneySection({ money: m, drill }: { money: CeoMoney; drill: Dril
     {
       label: "Outstanding",
       value: money(m.outstanding),
-      sub: `${count(m.outstandingCount)} open invoices`,
+      // Billed in advance is not inside it (the CMS hint "Not counting invoices billed in advance").
+      sub: m.billedInAdvance != null ? `${count(m.outstandingCount)} open, not billed in advance` : `${count(m.outstandingCount)} open invoices`,
       icon: "wallet-outline",
       tone: m.outstanding ? "warning" : "success",
       onPress: () => drill.open(agingTarget(m, scopeOf(drill)), ["Money", "Outstanding"]),
@@ -146,17 +148,17 @@ export function MoneySection({ money: m, drill }: { money: CeoMoney; drill: Dril
       accessibilityHint: "Opens the overdue invoices",
     },
   ];
-  // Unpaid invoices for months not started yet (not inside Outstanding). Hidden when the server does not send it (an
+  // Unpaid invoices for billing periods not started yet (not inside Outstanding). Hidden when the server does not send it (an
   // API older than the database update CP_01); PKR 0 is shown. Under Outstanding in the two-column grid.
   if (m.billedInAdvance != null) {
     tiles.push({
       label: "Billed in advance",
       value: money(m.billedInAdvance),
-      sub: `${count(m.billedInAdvanceCount)} unpaid, for months not started yet`,
+      sub: `${count(m.billedInAdvanceCount)} unpaid, for billing periods not started yet`,
       icon: "calendar-outline",
       tone: "info",
       onPress: () => drill.open(billedInAdvanceTarget(scopeOf(drill)), ["Money", "Billed in advance"]),
-      accessibilityHint: "Opens the unpaid invoices for months not started yet",
+      accessibilityHint: "Opens the unpaid invoices for billing periods not started yet",
     });
   }
   const agingItems: HBarItem[] = m.aging.map((b: CeoAgingBucket) => ({
@@ -253,7 +255,7 @@ export function OccupancySection({ occupancy: o, drill }: { occupancy: CeoOccupa
     {
       label: "Occupancy",
       value: pct(o.occupancyPct),
-      sub: `${count(o.occupiedSpaces)} of ${count(o.totalSpaces)} spaces in use`,
+      sub: `${count(o.occupiedSpaces)} of ${count(o.totalSpaces)} spaces in use now`,
       icon: "business-outline",
       tone: o.occupancyPct >= 70 ? "success" : o.occupancyPct >= 40 ? "primary" : "warning",
       // Occupancy is taken at a moment: against the same moment one period (a range: as many days) earlier.
@@ -302,7 +304,7 @@ export function OccupancySection({ occupancy: o, drill }: { occupancy: CeoOccupa
     <>
       <KpiGrid tiles={tiles} />
       <ChartGrid>
-        <ChartCard title="Occupancy trend" caption="Last 12 months. Tap a month for its new bookings by location.">
+        <ChartCard title="Occupancy trend" caption="Last 12 months: occupancy at each month end (this month: now), new bookings in each month. Tap a month for its new bookings by location.">
           <SegmentedControl
             accessibilityLabel="Trend shows"
             options={[
@@ -333,7 +335,7 @@ export function OccupancySection({ occupancy: o, drill }: { occupancy: CeoOccupa
             <InlineEmpty text="No occupancy history yet." />
           )}
         </ChartCard>
-        <ChartCard title="By space type" caption="Spaces in use today. Tap a type to see it by location.">
+        <ChartCard title="By space type" caption="Spaces in use now. Tap a type to see it by location.">
           {byType.length ? (
             <HBarList
               label="Occupancy by space type"
@@ -345,14 +347,15 @@ export function OccupancySection({ occupancy: o, drill }: { occupancy: CeoOccupa
               itemAccessibilityHint="Opens this space type by location"
               onPressItem={(_item, i) => {
                 const t = byType[i];
-                if (t.spaceTypeId) drill.breakdown({ metric: "occupancy-type", spaceTypeId: t.spaceTypeId }, ["Occupancy", t.name]);
+                // "Other" (id 0, spaces without a type) opens too, as on the CMS.
+                if (t.spaceTypeId != null) drill.breakdown({ metric: "occupancy-type", spaceTypeId: t.spaceTypeId }, ["Occupancy", t.name]);
               }}
             />
           ) : (
             <InlineEmpty text="No spaces set up." />
           )}
         </ChartCard>
-        <ChartCard title="By location" caption="Spaces in use today. Tap a location to see it by space type.">
+        <ChartCard title="By location" caption="Spaces in use now. Tap a location to see it by space type.">
           {byLocation.length ? (
             <HBarList
               label="Occupancy by location"
@@ -438,7 +441,6 @@ export function SalesSection({ sales: s, drill }: { sales: CeoSales; drill: Dril
   // Conversion: of this period's quotations, the ones booked (never above 100%; quotationsBooked <= quotations).
   const rate = s.conversionRate ?? (quotations > 0 ? (s.quotationsBooked / quotations) * 100 : null);
   const bookedText = `${count(s.quotationsBooked)} of ${count(quotations)} quotations booked`;
-  const top = s.funnel[0]?.count ?? 0;
   const typeTotal = s.inquiriesByType.reduce((sum, t) => sum + t.count, 0);
   const tiles: StatCardProps[] = [
     {
@@ -512,13 +514,16 @@ export function SalesSection({ sales: s, drill }: { sales: CeoSales; drill: Dril
               <HBarList
                 style={styles.gapTop}
                 label={`Sales funnel ${words}`}
-                items={s.funnel.map((f) => ({
-                  key: f.stage,
-                  label: f.stage === "inquiries" && inquiriesEverywhere ? `${f.label} (all locations)` : f.label,
-                  value: f.count,
-                  // No share over 100% (most quotations don't start as tour inquiries): just the count then.
-                  valueLabel: top > 0 && f.stage !== s.funnel[0]?.stage && f.count <= top ? `${count(f.count)} · ${pct(shareOf(f.count, top))}` : count(f.count),
-                }))}
+                items={s.funnel.map((f, i) => {
+                  // Share of the stage before it, as the CMS (none for the first stage or above 100%).
+                  const step = funnelStepText(s.funnel, i);
+                  return {
+                    key: f.stage,
+                    label: f.stage === "inquiries" && inquiriesEverywhere ? `${f.label} (all locations)` : f.label,
+                    value: f.count,
+                    valueLabel: step ? `${count(f.count)} · ${step}` : count(f.count),
+                  };
+                })}
                 itemAccessibilityHint="Opens the list"
                 onPressItem={(item) => {
                   const f = s.funnel.find((x) => x.stage === item.key);

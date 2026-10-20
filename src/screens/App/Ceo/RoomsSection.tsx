@@ -351,11 +351,11 @@ export function RoomCard({ view }: { view: RoomCardView }) {
       {view.vacant ? (
         <>
           <Divider spacing={spacing.md} />
-          <View style={styles.head} accessible accessibilityLabel={`Vacant: ${view.vacantText}`}>
+          <View style={styles.head} accessible accessibilityLabel={`Not let: ${view.vacantText}`}>
             <AppText variant="bodySmall" color="textMuted" style={[styles.titleBlock, titleMin]}>
               {view.vacantText}
             </AppText>
-            <StatusPill label="Vacant" tone="neutral" style={styles.pill} />
+            <StatusPill label="Not let" tone="neutral" style={styles.pill} />
           </View>
         </>
       ) : (
