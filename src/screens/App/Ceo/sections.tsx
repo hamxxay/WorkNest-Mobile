@@ -5,6 +5,7 @@ import { AppText, Divider, ListRow, SegmentedControl, type StatCardProps } from 
 import {
   activeBookingsRecords,
   agingTarget,
+  billedInAdvanceTarget,
   clampPct,
   count,
   inquiriesCountAllLocations,
@@ -108,7 +109,8 @@ export function MoneySection({ money: m, drill }: { money: CeoMoney; drill: Dril
     {
       label: "Invoiced",
       value: money(m.invoiced),
-      sub: words,
+      // An invoice counts in the month its billing period starts, not the month it was issued.
+      sub: `${words}, by billing period`,
       icon: "receipt-outline",
       trend: trend(m.invoiced, m.invoicedPrev, "%"),
       trendSeries: recent.map((x) => x.invoiced),
@@ -118,7 +120,7 @@ export function MoneySection({ money: m, drill }: { money: CeoMoney; drill: Dril
     {
       label: "Collected",
       value: money(m.collected),
-      sub: rate != null ? `${pct(rate)} of invoiced` : words,
+      sub: rate != null ? `${pct(rate)} of invoiced` : `${words}, by billing period`,
       icon: "cash-outline",
       trend: trend(m.collected, m.collectedPrev, "%"),
       trendSeries: recent.map((x) => x.collected),
@@ -144,6 +146,19 @@ export function MoneySection({ money: m, drill }: { money: CeoMoney; drill: Dril
       accessibilityHint: "Opens the overdue invoices",
     },
   ];
+  // Unpaid invoices for months not started yet (not inside Outstanding). Hidden when the server does not send it (an
+  // API older than the database update CP_01); PKR 0 is shown. Under Outstanding in the two-column grid.
+  if (m.billedInAdvance != null) {
+    tiles.push({
+      label: "Billed in advance",
+      value: money(m.billedInAdvance),
+      sub: `${count(m.billedInAdvanceCount)} unpaid, for months not started yet`,
+      icon: "calendar-outline",
+      tone: "info",
+      onPress: () => drill.open(billedInAdvanceTarget(scopeOf(drill)), ["Money", "Billed in advance"]),
+      accessibilityHint: "Opens the unpaid invoices for months not started yet",
+    });
+  }
   const agingItems: HBarItem[] = m.aging.map((b: CeoAgingBucket) => ({
     key: b.bucket,
     label: b.label,
@@ -155,7 +170,7 @@ export function MoneySection({ money: m, drill }: { money: CeoMoney; drill: Dril
     <>
       <KpiGrid tiles={tiles} />
       <ChartGrid>
-        <ChartCard title="Revenue and collections" caption="Last 12 months. Tap a month to see it by location.">
+        <ChartCard title="Revenue and collections" caption="Last 12 months, by billing period. Tap a month to see it by location.">
           {recent.length ? (
             <BarChart
               label="Invoiced and collected by month"

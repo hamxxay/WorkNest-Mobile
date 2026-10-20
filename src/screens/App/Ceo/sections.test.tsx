@@ -39,18 +39,20 @@ import { MoneySection, OccupancySection, SalesSection, TeamSection, type Drill }
 const g = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
 g.IS_REACT_ACT_ENVIRONMENT = true;
 
+const RAW_MONEY = {
+  invoiced: 900,
+  collected: 600,
+  outstanding: 500,
+  outstandingCount: 3,
+  overdue: 200,
+  overdueCount: 1,
+  months: [{ month: "2026-10", invoiced: 900, collected: 600 }],
+  aging: [{ bucket: "1_30", amount: 300, count: 2 }],
+};
+
 const D = normalizeCeoDashboard({
   period: "month",
-  money: {
-    invoiced: 900,
-    collected: 600,
-    outstanding: 500,
-    outstandingCount: 3,
-    overdue: 200,
-    overdueCount: 1,
-    months: [{ month: "2026-10", invoiced: 900, collected: 600 }],
-    aging: [{ bucket: "1_30", amount: 300, count: 2 }],
-  },
+  money: RAW_MONEY,
   occupancy: {
     totalSpaces: 30,
     occupiedSpaces: 19,
@@ -135,6 +137,40 @@ describe("Money cards", () => {
     press(tiles, "Overdue");
     expect(drill.records).toHaveBeenCalledWith({ kind: "invoices", params: { status: "overdue" } }, ["Money", "Overdue invoices"], "Overdue invoices");
   });
+
+  test("Invoiced and its chart say they are by billing period", () => {
+    const drill = makeDrill("month");
+    const tiles = tilesOf(<MoneySection money={D.money!} drill={drill} />);
+    expect(tiles.find((t) => t.label === "Invoiced").sub).toBe("this month, by billing period");
+  });
+
+  test("Billed in advance: after Outstanding and Overdue (under Outstanding), opens the advance invoices of any period", () => {
+    const money = normalizeCeoDashboard({ money: { ...RAW_MONEY, billedInAdvance: 180000, billedInAdvanceCount: 2 } }).money!;
+    const drill = makeDrill("quarter", 4);
+    const tiles = tilesOf(<MoneySection money={money} drill={drill} />);
+    expect(tiles.map((t) => t.label)).toEqual(["Invoiced", "Collected", "Outstanding", "Overdue", "Billed in advance"]);
+    const tile = press(tiles, "Billed in advance");
+    expect(tile).toMatchObject({ value: "PKR 180K", sub: "2 unpaid, for months not started yet", accessibilityHint: "Opens the unpaid invoices for months not started yet" });
+    expect(drill.open).toHaveBeenCalledWith(
+      {
+        kind: "records",
+        query: { kind: "invoices", params: { status: "advance", locationId: 4 } },
+        title: "Billed in advance",
+        keepTitle: true,
+        timeless: true,
+      },
+      ["Money", "Billed in advance"],
+    );
+  });
+
+  test("Billed in advance: PKR 0 is shown; hidden when an older API does not send it", () => {
+    const zero = normalizeCeoDashboard({ money: { ...RAW_MONEY, billedInAdvance: 0 } }).money!;
+    expect(tilesOf(<MoneySection money={zero} drill={makeDrill()} />).find((t) => t.label === "Billed in advance")).toMatchObject({
+      value: "PKR 0",
+      sub: "0 unpaid, for months not started yet",
+    });
+    expect(tilesOf(<MoneySection money={D.money!} drill={makeDrill()} />).map((t) => t.label)).not.toContain("Billed in advance");
+  });
 });
 
 describe("Occupancy cards", () => {
@@ -198,7 +234,7 @@ describe("a custom date range", () => {
     const money = { ...D.money!, invoicedPrev: 600, collectedPrev: 600 };
     const tiles = tilesOf(<MoneySection money={money} drill={drill} />);
     const invoiced = press(tiles, "Invoiced");
-    expect(invoiced).toMatchObject({ sub: "in this range", accessibilityHint: "Opens invoiced in this range by location" });
+    expect(invoiced).toMatchObject({ sub: "in this range, by billing period", accessibilityHint: "Opens invoiced in this range by location" });
     expect(invoiced.trend.label).toBe("50% vs previous 15 days");
     expect(drill.open.mock.calls[0]).toEqual([
       { kind: "breakdown", query: { metric: "revenue", period: "custom", range, locationId: 2 }, recordsParams: undefined },

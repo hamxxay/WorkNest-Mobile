@@ -1,8 +1,8 @@
 import type { Tone } from "../../theme/colors";
 import { INQUIRY_TYPE_LABELS } from "../../theme/inquiryTypes";
-import { formatDate, formatDateTime, formatNumber } from "../../utils/format";
+import { formatDate, formatDateTime, formatNumber, parseDate } from "../../utils/format";
 import { moneyFull } from "./format";
-import type { CeoBookingRecord, CeoInquiryRecord, CeoLeaseRecord, CeoQuotationRecord, CeoRecords } from "./types";
+import type { CeoBookingRecord, CeoInquiryRecord, CeoInvoiceRecord, CeoLeaseRecord, CeoQuotationRecord, CeoRecords } from "./types";
 
 // Records (drill level 3) as read-only cards: one shape for every list, so the Records screen renders them the
 // same way. Pure, unit-tested. The card builders are shared with the Sales Manager records lists.
@@ -12,6 +12,11 @@ export type CeoRecordField = { label: string; value: string };
 export type CeoRecordCard = {
   key: string;
   title: string;
+  /**
+   * Lines right under the title, before the subtitle: `text`, then `note` in muted text (an invoice's billing period,
+   * then "Issued 17 Oct 2026"). Left out on the other lists.
+   */
+  headline?: { text: string; note: string | null } | null;
   subtitle: string | null;
   /** Status text for a StatusPill (its tone comes from statusTone()). */
   status: string | null;
@@ -31,6 +36,30 @@ export const joinParts = (...parts: (string | null | undefined)[]): string | nul
 };
 
 const date = (value: string | null) => (value ? formatDate(value) : null);
+
+/**
+ * An invoice's billing period: "1 Nov - 30 Nov 2026", "21 Oct 2026 - 31 Jan 2027" across years, "From 1 Nov 2026"
+ * without an end; null without a (valid) start.
+ */
+export function billingPeriodText(start: string | null | undefined, end: string | null | undefined): string | null {
+  const from = parseDate(start);
+  if (!from) return null;
+  const to = parseDate(end);
+  if (!to) return `From ${formatDate(from)}`;
+  return `${formatDate(from, { year: from.getFullYear() !== to.getFullYear() })} - ${formatDate(to)}`;
+}
+
+/**
+ * The lines under an invoice number: its billing period with "Issued <date>" under it; an older API (no period):
+ * the issue date alone. Null when neither is known.
+ */
+export function invoiceHeadline(r: Pick<CeoInvoiceRecord, "periodStart" | "periodEnd" | "issuedOn">): CeoRecordCard["headline"] {
+  const issued = date(r.issuedOn);
+  const issuedText = issued ? `Issued ${issued}` : null;
+  const period = billingPeriodText(r.periodStart, r.periodEnd);
+  if (period) return { text: period, note: issuedText };
+  return issuedText ? { text: issuedText, note: null } : null;
+}
 
 /** "12 days", "1 day", "Today", "Ended 3 days ago"; null when not sent (lease cards, CEO and Sales Manager). */
 export function daysLeftText(days: number | null | undefined): string | null {
@@ -54,9 +83,14 @@ export function recordCard(
   status: string | null,
   amount: string | null,
   list: CeoRecordField[],
+  headline?: CeoRecordCard["headline"],
 ): CeoRecordCard {
-  const accessibilityLabel = [title, subtitle, status, amount, ...list.map((f) => `${f.label} ${f.value}`)].filter(Boolean).join(", ");
-  return { key, title, subtitle, status, amount, fields: list, accessibilityLabel };
+  const accessibilityLabel = [title, headline?.text, headline?.note, subtitle, status, amount, ...list.map((f) => `${f.label} ${f.value}`)]
+    .filter(Boolean)
+    .join(", ");
+  const card: CeoRecordCard = { key, title, subtitle, status, amount, fields: list, accessibilityLabel };
+  if (headline) card.headline = headline;
+  return card;
 }
 
 /** A booking as a card (CEO and Sales Manager bookings lists). */
@@ -121,7 +155,9 @@ export function recordCards(records: CeoRecords): CeoRecordCard[] {
           joinParts(r.customer, r.location),
           r.status,
           moneyFull(r.total),
-          recordFields(["Issued", date(r.issuedOn)], ["Due", date(r.dueOn)], ["Paid", moneyFull(r.paid)], ["Balance", moneyFull(r.balance)]),
+          // The issue date is under the invoice number (./invoiceHeadline), with the billing period.
+          recordFields(["Due", date(r.dueOn)], ["Paid", moneyFull(r.paid)], ["Balance", moneyFull(r.balance)]),
+          invoiceHeadline(r),
         ),
       );
     case "spaces":

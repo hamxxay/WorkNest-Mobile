@@ -1,6 +1,7 @@
 // Drill-down routing: each chart element opens the breakdown / records the contract names, with the right keys.
 
 import {
+  billedInAdvanceTarget,
   breakdownParams,
   isCompleteBreakdown,
   leasesExpiringRecords,
@@ -212,6 +213,17 @@ describe("records straight from the dashboard", () => {
     expect(overdueInvoicesRecords({ period: "year", locationId: 3 })).toEqual({ kind: "invoices", params: { status: "overdue", locationId: 3 } });
     expect(overdueInvoicesRecords({ period: "year", locationId: null })).toEqual({ kind: "invoices", params: { status: "overdue" } });
     expect(newBookingsRecords({ period: "month" })).toEqual({ kind: "bookings", params: { period: "month" } });
+  });
+
+  it("billed in advance -> the advance invoices, any period, with the location filter and its own title", () => {
+    expect(billedInAdvanceTarget({ period: "custom", range: { from: "2026-10-01", to: "2026-10-15" }, locationId: 3 })).toEqual({
+      kind: "records",
+      query: { kind: "invoices", params: { status: "advance", locationId: 3 } },
+      title: "Billed in advance",
+      keepTitle: true,
+      timeless: true,
+    });
+    expect(billedInAdvanceTarget({ period: "month", locationId: null })).toMatchObject({ query: { kind: "invoices", params: { status: "advance" } } });
   });
 
   it("leases expiring -> every lease ending in the next 90 days (no window), with the location filter", () => {

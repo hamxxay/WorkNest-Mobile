@@ -1,6 +1,6 @@
 // Records (drill level 3) as read-only cards, and the "Showing x of total" line.
 
-import { daysLeftText, recordCards, showingText } from "../records";
+import { billingPeriodText, daysLeftText, invoiceHeadline, recordCards, showingText } from "../records";
 
 describe("recordCards", () => {
   it("builds an invoice card with its figures, leaving out missing fields", () => {
@@ -15,6 +15,8 @@ describe("recordCards", () => {
           customer: "Acme",
           location: "I-8",
           issuedOn: "2026-10-01",
+          periodStart: null,
+          periodEnd: null,
           dueOn: null,
           total: 100000,
           paid: 40000,
@@ -25,16 +27,70 @@ describe("recordCards", () => {
     });
     expect(card).toMatchObject({
       title: "INV-5",
+      // No billing period sent (an older API): the issue date alone under the number.
+      headline: { text: "Issued 1 Oct 2026", note: null },
       subtitle: "Acme · I-8",
       status: "Overdue",
       amount: "PKR 100,000",
       fields: [
-        { label: "Issued", value: "1 Oct 2026" },
         { label: "Paid", value: "PKR 40,000" },
         { label: "Balance", value: "PKR 60,000" },
       ],
     });
-    expect(card.accessibilityLabel).toContain("INV-5, Acme · I-8, Overdue, PKR 100,000");
+    expect(card.accessibilityLabel).toContain("INV-5, Issued 1 Oct 2026, Acme · I-8, Overdue, PKR 100,000");
+  });
+
+  it("shows an invoice's billing period under its number, with the issue date under it", () => {
+    const [card] = recordCards({
+      kind: "invoices",
+      title: "Billed in advance",
+      total: 1,
+      rows: [
+        {
+          invoiceId: 58,
+          invoiceNumber: "INV-REC-58-20261101",
+          customer: "Acme",
+          location: "I-8",
+          issuedOn: "2026-10-17",
+          periodStart: "2026-11-01",
+          periodEnd: "2026-11-30",
+          dueOn: "2026-11-05",
+          total: 90000,
+          paid: 0,
+          balance: 90000,
+          status: "Unpaid",
+        },
+      ],
+    });
+    expect(card.headline).toEqual({ text: "1 Nov - 30 Nov 2026", note: "Issued 17 Oct 2026" });
+    expect(card.fields.map((f) => f.label)).toEqual(["Due", "Paid", "Balance"]);
+    expect(card.accessibilityLabel).toContain("INV-REC-58-20261101, 1 Nov - 30 Nov 2026, Issued 17 Oct 2026, Acme · I-8");
+  });
+
+  it("other lists have no headline", () => {
+    const [card] = recordCards({
+      kind: "leases",
+      title: "Leases",
+      total: 1,
+      rows: [{ bookingId: 7, customer: "Acme", space: "Office 4", location: "I-8", endOn: "2026-11-02", monthlyAmount: 50000, daysLeft: 18 }],
+    });
+    expect(card.headline).toBeUndefined();
+  });
+});
+
+describe("billingPeriodText / invoiceHeadline", () => {
+  it("one year, across years, without an end, without a start", () => {
+    expect(billingPeriodText("2026-11-01", "2026-11-30")).toBe("1 Nov - 30 Nov 2026");
+    expect(billingPeriodText("2026-10-21", "2027-01-31")).toBe("21 Oct 2026 - 31 Jan 2027");
+    expect(billingPeriodText("2026-11-01T00:00:00", null)).toBe("From 1 Nov 2026");
+    expect(billingPeriodText(null, "2026-11-30")).toBeNull();
+    expect(billingPeriodText("not a date", "2026-11-30")).toBeNull();
+  });
+
+  it("falls back to the issue date, or nothing", () => {
+    expect(invoiceHeadline({ periodStart: "2026-11-01", periodEnd: "2026-11-30", issuedOn: null })).toEqual({ text: "1 Nov - 30 Nov 2026", note: null });
+    expect(invoiceHeadline({ periodStart: null, periodEnd: null, issuedOn: "2026-10-17" })).toEqual({ text: "Issued 17 Oct 2026", note: null });
+    expect(invoiceHeadline({ periodStart: null, periodEnd: null, issuedOn: null })).toBeNull();
   });
 
   it("shows a free space without a customer", () => {
