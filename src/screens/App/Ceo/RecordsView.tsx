@@ -32,7 +32,7 @@ const FIELD_MIN_WIDTH = 115;
 const CARD_INSET = 17;
 
 /**
- * One read-only record: title, status, amount and its details. Not pressable (the viewer only views), except when
+ * One read-only record: title (an invoice's billing period and issue date under it), status, amount and its details. Not pressable (the viewer only views), except when
  * `onPress` is given (the staff dashboard drill-down opens the record's booking or invoice; a chevron shows it).
  * The status and amount sit beside the title while it keeps TITLE_MIN_WIDTH; otherwise (320dp phone, a long
  * amount, large text) they move to their own line, right-aligned, so an amount is never cut. The details are in
@@ -50,6 +50,18 @@ export function RecordCard({ item, onPress, accessibilityHint }: { item: CeoReco
           <AppText variant="bodyStrong" numberOfLines={2}>
             {item.title}
           </AppText>
+          {item.headline ? (
+            <>
+              <AppText variant="bodySmall" color="textSecondary" numberOfLines={2}>
+                {item.headline.text}
+              </AppText>
+              {item.headline.note ? (
+                <AppText variant="caption" color="textMuted" numberOfLines={1}>
+                  {item.headline.note}
+                </AppText>
+              ) : null}
+            </>
+          ) : null}
           {item.subtitle ? (
             <AppText variant="caption" color="textMuted" numberOfLines={2}>
               {item.subtitle}

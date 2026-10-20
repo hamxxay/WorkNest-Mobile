@@ -31,6 +31,8 @@ const FULL = {
       outstandingCount: 7,
       overdue: 200000,
       overdueCount: 3,
+      billedInAdvance: 180000,
+      billedInAdvanceCount: 2,
       collectionRate: 75,
       months: [
         { month: "2026-10", invoiced: 300, collected: 200 },
@@ -92,7 +94,7 @@ describe("normalizeCeoDashboard", () => {
       { locationId: 1, name: "I-8" },
       { locationId: 2, name: "F-7" },
     ]);
-    expect(d.money).toMatchObject({ invoiced: 1200000, invoicedPrev: 1000000, collectionRate: 75, overdueCount: 3 });
+    expect(d.money).toMatchObject({ invoiced: 1200000, invoicedPrev: 1000000, collectionRate: 75, overdueCount: 3, billedInAdvance: 180000, billedInAdvanceCount: 2 });
     // Months are put oldest first.
     expect(d.money?.months.map((m) => m.month)).toEqual(["2025-11", "2026-10"]);
     expect(d.money?.topCustomers).toEqual([{ customerId: 9, name: "Acme", amount: 400000, invoices: 4 }]);
@@ -160,6 +162,9 @@ describe("normalizeCeoDashboard", () => {
       outstandingCount: 0,
       overdue: 0,
       overdueCount: 0,
+      // Not sent (an API older than CP_01): null, so the Billed in advance card is hidden.
+      billedInAdvance: null,
+      billedInAdvanceCount: null,
       collectionRate: null,
       months: [],
       aging: [],
@@ -362,6 +367,23 @@ describe("normalizeCeoRecords", () => {
     expect(r.title).toBe("Overdue invoices");
     expect(r.total).toBe(340);
     expect(r.rows[0]).toMatchObject({ invoiceId: 5, invoiceNumber: "INV-5", balance: 60, status: "Overdue", dueOn: null });
+  });
+
+  it("reads billed in advance (0 is kept, a missing count is 0) and an invoice's billing period", () => {
+    expect(normalizeCeoDashboard({ money: { billedInAdvance: 0 } }).money).toMatchObject({ billedInAdvance: 0, billedInAdvanceCount: 0 });
+    expect(normalizeCeoDashboard({ money: { billedInAdvance: "2500", billedInAdvanceCount: "1" } }).money).toMatchObject({
+      billedInAdvance: 2500,
+      billedInAdvanceCount: 1,
+    });
+    const r = normalizeCeoRecords("invoices", {
+      rows: [
+        { invoiceId: 58, issuedOn: "2026-10-17", periodStart: "2026-11-01", periodEnd: "2026-11-30" },
+        { invoiceId: 59, issuedOn: "2026-10-17" },
+      ],
+    });
+    if (r.kind !== "invoices") throw new Error("kind");
+    expect(r.rows[0]).toMatchObject({ issuedOn: "2026-10-17", periodStart: "2026-11-01", periodEnd: "2026-11-30" });
+    expect(r.rows[1]).toMatchObject({ periodStart: null, periodEnd: null });
   });
 
   it("uses a default title, counts the rows when no total is sent, and never reports fewer than shown", () => {

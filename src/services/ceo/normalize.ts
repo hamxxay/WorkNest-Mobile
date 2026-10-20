@@ -106,6 +106,12 @@ export function normalizeAging(value: unknown): CeoAgingBucket[] {
   return [...ordered, ...extra];
 }
 
+/** Billed in advance: both null when the amount is not sent (an older API), else the count defaults to 0. */
+function normalizeBilledInAdvance(raw: Row): Pick<CeoMoney, "billedInAdvance" | "billedInAdvanceCount"> {
+  const amount = optNum(raw, "billedInAdvance");
+  return amount == null ? { billedInAdvance: null, billedInAdvanceCount: null } : { billedInAdvance: amount, billedInAdvanceCount: num(raw, "billedInAdvanceCount") };
+}
+
 function normalizeMoney(raw: Row | null): CeoMoney | null {
   if (!raw) return null;
   return {
@@ -117,6 +123,7 @@ function normalizeMoney(raw: Row | null): CeoMoney | null {
     outstandingCount: num(raw, "outstandingCount"),
     overdue: num(raw, "overdue"),
     overdueCount: num(raw, "overdueCount"),
+    ...normalizeBilledInAdvance(raw),
     collectionRate: optNum(raw, "collectionRate"),
     months: byMonth(
       list(raw, "months", (m) => ({ month: str(m, "month"), invoiced: num(m, "invoiced"), collected: num(m, "collected", "paid") })),
@@ -391,6 +398,8 @@ const toInvoice = (r: Row): CeoInvoiceRecord => ({
   customer: optStr(r, "customer", "customerName"),
   location: optStr(r, "location", "locationName"),
   issuedOn: optStr(r, "issuedOn", "invoiceDate"),
+  periodStart: optStr(r, "periodStart", "billingPeriodStart"),
+  periodEnd: optStr(r, "periodEnd", "billingPeriodEnd"),
   dueOn: optStr(r, "dueOn", "dueDate"),
   total: num(r, "total", "totalAmount"),
   paid: num(r, "paid", "paidAmount"),

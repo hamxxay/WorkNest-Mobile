@@ -304,6 +304,21 @@ export function overdueInvoicesRecords(scope: CeoScope): CeoRecordsQuery {
   return { kind: "invoices", params: withDrillPeriod(cleanParams({ status: "overdue", locationId: scopeLocation(scope) }), scope) };
 }
 
+/**
+ * The Billed in advance card -> the unpaid invoices for a billing period that has not started yet
+ * (records/invoices?status=advance). Not bound to the dashboard's period (their periods are still to come): only the
+ * location goes along, and the list keeps the title "Billed in advance".
+ */
+export function billedInAdvanceTarget(scope: CeoDrillScope): CeoDrillStep {
+  return {
+    kind: "records",
+    query: { kind: "invoices", params: cleanParams({ status: "advance", locationId: scopeLocation(scope) }) },
+    title: "Billed in advance",
+    keepTitle: true,
+    timeless: true,
+  };
+}
+
 /** The New bookings card -> bookings created in the period (a custom range: periodFrom / periodTo). */
 export function newBookingsRecords(scope: CeoScope): CeoRecordsQuery {
   return { kind: "bookings", params: withDrillPeriod(cleanParams({ period: scope.period, locationId: scopeLocation(scope) }), scope) };
@@ -344,6 +359,8 @@ export function trailForSpeech(trail: readonly string[]): string {
 //                              range: its invoices by location (from / to)
 //   Outstanding                aging buckets (from the dashboard), then that bucket   open invoices of that bucket
 //                              by location (breakdown aging)                          and location
+//   Billed in advance          -                                                      unpaid invoices for periods
+//                                                                                     not started yet (any period)
 //   Occupancy                  by location (from the dashboard), then that location   spaces of that location and
 //                              by space type (breakdown occupancy-location)           type
 //   Active bookings            -                                                      bookings running today

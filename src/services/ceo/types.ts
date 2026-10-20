@@ -44,6 +44,12 @@ export type CeoMoney = {
   outstandingCount: number;
   overdue: number;
   overdueCount: number;
+  /**
+   * Unpaid invoices for a billing period that has not started yet (not inside Outstanding), PKR and count; null when
+   * the server does not send them (an API older than the database update CP_01): the card is hidden.
+   */
+  billedInAdvance: number | null;
+  billedInAdvanceCount: number | null;
   /** Collected / invoiced in the period, percent; null when not sent. */
   collectionRate: number | null;
   /** Last 12 months, oldest first. */
@@ -272,6 +278,9 @@ export type CeoInvoiceRecord = {
   customer: string | null;
   location: string | null;
   issuedOn: string | null;
+  /** Billing period, yyyy-MM-dd; null when not sent (an older API: the card shows the issue date instead). */
+  periodStart: string | null;
+  periodEnd: string | null;
   dueOn: string | null;
   total: number;
   paid: number;
