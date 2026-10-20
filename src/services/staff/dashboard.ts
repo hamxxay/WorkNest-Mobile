@@ -368,6 +368,11 @@ export type ForecastMonth = {
   leasesEnding: number;
   leasesStarting: number;
   pendingStarting: number;
+  /**
+   * Rent of the bookings waiting for confirmation (expectedRent - confirmedRent); null when the server does not send it
+   * (before the CEO update CP_02).
+   */
+  pendingRent: number | null;
 };
 
 export type DashboardForecast = {
@@ -390,6 +395,7 @@ const toForecastMonth = (m: any): ForecastMonth => ({
   leasesEnding: num(m, "leasesEnding"),
   leasesStarting: num(m, "leasesStarting"),
   pendingStarting: num(m, "pendingStarting"),
+  pendingRent: optNum(m, "pendingRent"),
 });
 
 export function normalizeDashboardForecast(raw: any): DashboardForecast {

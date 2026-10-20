@@ -150,6 +150,19 @@ describe("recordsForBreakdownRow (the contract's next-level column)", () => {
     });
   });
 
+  it("the 'Other' space type (id 0) opens like any other type (as the CMS)", () => {
+    expect(isCompleteBreakdown({ metric: "occupancy-type", spaceTypeId: 0, period: "month" })).toBe(true);
+    expect(breakdownParams({ metric: "occupancy-type", spaceTypeId: 0, period: "month" })).toMatchObject({ spaceTypeId: 0 });
+    expect(recordsForBreakdownRow({ metric: "occupancy-type", spaceTypeId: 0, period: "month" }, row("1", "I-8"))).toEqual({
+      kind: "spaces",
+      params: { spaceTypeId: 0, locationId: 1 },
+    });
+    expect(recordsForBreakdownRow({ metric: "occupancy-location", locationId: 1, period: "month" }, row("0", "Other"))).toEqual({
+      kind: "spaces",
+      params: { locationId: 1, spaceTypeId: 0 },
+    });
+  });
+
   it("is null for a row without a usable key (e.g. 'Other') or a query without its key", () => {
     expect(recordsForBreakdownRow({ metric: "revenue", month: "2026-10", period: "month" }, row("", "Other"))).toBeNull();
     expect(recordsForBreakdownRow({ metric: "inquiries-type", type: "Website", period: "month" }, row("7"))).toBeNull();

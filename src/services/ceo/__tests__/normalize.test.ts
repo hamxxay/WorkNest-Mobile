@@ -115,9 +115,11 @@ describe("normalizeCeoDashboard", () => {
       ["Bilal", 900000],
       ["Sara", 300000],
     ]);
-    expect(d.team?.people[1]).toEqual({ userId: 5, name: "Sara", role: "Sales Executive", locations: "I-8", quotations: 6, converted: 2, revenue: 300000 });
+    expect(d.team?.people[1]).toEqual({ userId: 5, name: "Sara", role: "Sales Executive", locations: "I-8", quotations: 6, converted: 2, revenue: 300000, bookings: null });
     expect(d.team).toMatchObject({ salesExecutives: 2, revenue: 1200000 });
-    expect(d.team?.perLocation).toEqual([{ locationId: 1, name: "I-8", salesExecutives: 2, quotations: 6, converted: 2 }]);
+    expect(d.team?.perLocation).toEqual([{ locationId: 1, name: "I-8", salesExecutives: 2, quotations: 6, converted: 2, salesExecutivesOnly: false }]);
+    // Not sent (before CP_02): revenue is the converted quotations' value.
+    expect(d.team?.revenueBasis).toBe("quotations");
   });
 
   it("team from an older API: revenue from convertedValue, totals worked out, no admin count kept", () => {
@@ -169,14 +171,24 @@ describe("normalizeCeoDashboard", () => {
       months: [],
       aging: [],
       topCustomers: [],
+      // Not sent (before CP_02): null / [], so the Received and Security deposits cards and the chart series are hidden.
+      securityDeposits: null,
+      securityDepositsPrev: null,
+      securityDepositsCount: null,
+      received: null,
+      receivedPrev: null,
+      receivedCount: null,
+      receivedSeries: [],
     });
     expect(d.occupancy?.occupancyPct).toBe(61.5);
+    expect(d.occupancy).toMatchObject({ categories: [], totalSeats: null, seatsSold: null, seatOccupancyPct: null });
+    expect(d.sales).toMatchObject({ bookingValueBasis: null, bookingsFromQuotations: null, inquiriesNoBranch: null });
     expect(d.occupancy?.occupancyPctPrev).toBeNull();
     expect(d.occupancy?.months).toEqual([]);
     expect(d.sales?.funnel).toEqual([]);
     expect(d.sales?.conversionRate).toBeNull();
     expect(d.sales?.quotationsBooked).toBe(0);
-    expect(d.team).toEqual({ perLocation: [], people: [], salesExecutives: 0, revenue: 0 });
+    expect(d.team).toEqual({ perLocation: [], people: [], salesExecutives: 0, revenue: 0, revenueBasis: "quotations" });
   });
 
   it("conversion never passes 100%: an older API (all bookings / quotations, no quotationsBooked) is capped", () => {

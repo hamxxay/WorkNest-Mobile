@@ -277,6 +277,36 @@ describe("DiscountsBlock figures", () => {
     expect(marked[1].props.right.props.label).toBe("Selected");
   });
 
+  test("nothing discounted: Discount a month and a 0-discounted row still open their bookings (all of them)", async () => {
+    const none = { ...ANSWER, summary: { ...ANSWER.summary, discountMonthly: 0, discounted: 0, discountPct: 0 }, byLocation: [{ key: "1", name: "I-8", bookings: 4, discounted: 0 }] };
+    api.mockResolvedValueOnce(ok(none));
+    const root = await render(<DiscountsBlock scope={{ period: "month" }} />);
+    const tile = byType(root, "KpiGrid")[0].props.tiles[0];
+    expect(tile.accessibilityHint).toBe("Opens the bookings");
+    api.mockResolvedValueOnce(ok({ rows: [], total: 0 }));
+    await act(async () => tile.onPress());
+    await flush();
+    expect(lastPath()).toBe("/ceo/discounts/records/bookings?period=month&all=true");
+    api.mockResolvedValueOnce(ok({ rows: [], total: 0 }));
+    await act(async () => bars(root, "By location").props.onPressItem({}, 0));
+    await flush();
+    expect(lastPath()).toBe("/ceo/discounts/records/bookings?period=month&locationId=1&all=true");
+  });
+
+  test("a quarter: Discount a month is labelled combined and says what it adds up", async () => {
+    api.mockResolvedValueOnce(ok(ANSWER));
+    const root = await render(<DiscountsBlock scope={{ period: "quarter" }} />);
+    const tile = byType(root, "KpiGrid")[0].props.tiles[0];
+    expect(tile.label).toBe("Discount a month, combined");
+    expect(tile.accessibilityHint).toBe("The discount a month of every booking running in the period, added up. Opens the discounted bookings");
+  });
+
+  test("no invoice discounts: the tile says so", async () => {
+    api.mockResolvedValueOnce(ok({ ...ANSWER, summary: { ...ANSWER.summary, invoiceDiscount: 0, invoicesDiscounted: 0, invoiceDiscountPaid: 0 } }));
+    const root = await render(<DiscountsBlock scope={{ period: "month" }} />);
+    expect(byType(root, "KpiGrid")[0].props.tiles[3].sub).toBe("no discounted invoices this month");
+  });
+
   test("the dashboard's reload reloads the section quietly, not right after its own answer", async () => {
     api.mockResolvedValue(ok(ANSWER));
     const scope = { period: "month" as const };

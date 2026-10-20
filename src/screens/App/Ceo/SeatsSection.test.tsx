@@ -264,7 +264,7 @@ describe("SeatsContent", () => {
       ["Rent not earned a month", "PKR 280K", "plus 2 empty seats with no list price", "warning"],
       ["Seats this month", "38.5%", "of seat-days sold, rooms 70.1%", "info"],
     ]);
-    expect(tiles.filter((t: any) => t.onPress).map((t: any) => t.label)).toEqual(["Empty seats", "Rent not earned a month"]);
+    expect(tiles.filter((t: any) => t.onPress).map((t: any) => t.label)).toEqual(["Empty seats", "Revenue per seat a month", "Rent not earned a month"]);
   });
 
   test("the 12-month chart (seats and rooms), seats by shift and the one-shift line", async () => {
@@ -309,7 +309,7 @@ describe("SeatsContent", () => {
     expect(sheet(root).props).toMatchObject({ visible: true, title: "I-8", overline: "Seats by location" });
     expect(sheet(root).props.subtitle).toBe("69.2% of seats sold now (rooms 100%). Most rent not earned first.");
     expect(listed(root)).toEqual(["PO-2", "PO-1"]);
-    expect(texts(root)).toContain("Total: 2 rooms, 13 seats, 9 sold, 4 empty, PKR 120,000 a month not earned");
+    expect(texts(root)).toContain("Total: 2 rooms, 13 seats, 9 sold, 4 empty, PKR 240,000 a month sold (PKR 26,667 a seat), PKR 120,000 a month not earned");
     const office = root.findAll((n) => typeof n.type === "function" && (n.type as { name?: string }).name === "SeatRoomRow")[0];
     expect(office.props.view.shifts).toBe("24/7 2 · Morning 3 · Evening 1 · 2 seats have one shift free to sell");
     expect(byType(office, "StatusPill")[0].props).toMatchObject({ label: "Partly filled", tone: "warning" });

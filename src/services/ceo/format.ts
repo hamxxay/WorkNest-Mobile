@@ -1,5 +1,5 @@
 import { formatMoney, formatNumber } from "../../utils/format";
-import type { CeoAgingBucketKey, CeoFunnelStageKey, CeoPeriod, CeoSales } from "./types";
+import type { CeoAgingBucketKey, CeoFunnelStage, CeoFunnelStageKey, CeoPeriod, CeoSales } from "./types";
 
 // Display helpers for the CEO screens (pure, unit-tested).
 
@@ -103,6 +103,24 @@ export const FUNNEL_LABELS: Record<CeoFunnelStageKey, string> = {
   accepted: "Accepted",
   bookings: "Bookings",
 };
+
+/**
+ * A funnel stage's share of the stage before it, as the CMS ("62.5% of quotations"): none for the first stage, none when
+ * the previous stage is 0, and none when this stage is bigger than the one before it (most quotations don't start as
+ * tour inquiries, so a share over 100% would only confuse). The bookings stage gets no share (it includes direct
+ * bookings, CP_02): "5 from quotations" when the server says how many came from a quotation, else nothing.
+ */
+export function funnelStepText(
+  funnel: readonly Pick<CeoFunnelStage, "stage" | "count" | "label">[],
+  index: number,
+  bookingsFromQuotations: number | null = null,
+): string | null {
+  const here = funnel[index];
+  if (here?.stage === "bookings") return bookingsFromQuotations != null ? `${count(bookingsFromQuotations)} from quotations` : null;
+  const before = index > 0 ? funnel[index - 1] : undefined;
+  if (!here || !before || !(before.count > 0) || here.count > before.count) return null;
+  return `${pct(shareOf(here.count, before.count))} of ${before.label.toLowerCase()}`;
+}
 
 /**
  * True when one location is chosen but the tour inquiry figures still count every location (the server's database

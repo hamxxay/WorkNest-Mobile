@@ -21,6 +21,7 @@ import {
   groupDetail,
   groupFilter,
   invoiceDetail,
+  isMultiMonth,
   priceLine,
   recordsSummary,
   sellerText,
@@ -39,8 +40,8 @@ import { CeoErrorState, CeoSection, ChartCard, ChartGrid, InlineEmpty, SectionEm
 // The Discounts section of the CEO dashboard (GET api/ceo/discounts, database update DD_01), loaded on its own: an
 // error stays in this section. The discount a month on the rooms' bookings running in the period (below the expected
 // price as the Rooms section sees it: 24/7 against the room price, Morning / Evening against the shift price; plus
-// fixed PKR discounts), by location, salesperson and shift, the biggest ones, and the discount on the invoices issued
-// in the period. A tile, bar or row opens its records in a sheet (GET api/ceo/discounts/records/{kind}). Read-only;
+// fixed PKR discounts), by location, salesperson and shift, the biggest ones, and the discount on the invoices whose
+// billing period starts in the period. A tile, bar or row opens its records in a sheet (GET api/ceo/discounts/records/{kind}). Read-only;
 // colours come from the light / dark theme tokens; no emojis.
 
 /** Biggest discounts shown in the section (the sheet lists them all). */
@@ -114,16 +115,20 @@ export function DiscountsContent({ report, scope }: { report: CeoDiscountReport;
   const open = (kind: CeoDiscountRecordKind, filter: CeoDiscountFilter, title: string, highlight?: number | null) =>
     setSheet({ kind, filter, title, highlight });
   const many = report.byLocation.length > 1;
+  // A quarter, year or long range: the monthly discounts of every booking running in it, added up (as the CMS).
+  const combined = isMultiMonth(scope);
+  const opensDiscount = s.discounted ? "Opens the discounted bookings" : "Opens the bookings";
 
   const tiles: StatCardProps[] = [
     {
-      label: "Discount a month",
+      label: combined ? "Discount a month, combined" : "Discount a month",
       value: money(s.discountMonthly),
       sub: s.baseMonthly ? `${pct(s.discountPct)} of the expected rent` : "no bookings to compare",
       icon: "pricetag-outline",
       tone: s.discountMonthly > 0 ? "danger" : "success",
-      onPress: s.discounted ? () => open("bookings", {}, "Discounted bookings") : undefined,
-      accessibilityHint: "Opens the discounted bookings",
+      // At 0 it still opens the bookings behind it (expected against sold), as the CMS opens its details.
+      onPress: s.discounted ? () => open("bookings", {}, "Discounted bookings") : s.bookings ? () => open("bookings", { all: true }, "Bookings") : undefined,
+      accessibilityHint: combined ? `The discount a month of every booking running in the period, added up. ${opensDiscount}` : opensDiscount,
     },
     {
       label: "Bookings discounted",
@@ -146,7 +151,7 @@ export function DiscountsContent({ report, scope }: { report: CeoDiscountReport;
     {
       label: "Discount on invoices",
       value: money(s.invoiceDiscount),
-      sub: s.invoicesDiscounted ? `${count(s.invoicesDiscounted)} invoice${s.invoicesDiscounted === 1 ? "" : "s"}, ${money(s.invoiceDiscountPaid)} on paid` : `none issued ${words}`,
+      sub: s.invoicesDiscounted ? `${count(s.invoicesDiscounted)} invoice${s.invoicesDiscounted === 1 ? "" : "s"}, ${money(s.invoiceDiscountPaid)} on paid` : `no discounted invoices ${words}`,
       icon: "receipt-outline",
       tone: "info",
       onPress: s.invoicesDiscounted ? () => open("invoices", {}, "Invoices with a discount") : undefined,
@@ -179,7 +184,7 @@ export function DiscountsContent({ report, scope }: { report: CeoDiscountReport;
             items={bars(report.byLocation)}
             formatValue={money}
             emptyText="No locations."
-            itemAccessibilityHint="Opens the discounted bookings"
+            itemAccessibilityHint="Opens its bookings"
             onPressItem={openGroup("location", report.byLocation)}
           />
         </ChartCard>
@@ -189,7 +194,7 @@ export function DiscountsContent({ report, scope }: { report: CeoDiscountReport;
             items={bars(report.bySeller, true)}
             formatValue={money}
             emptyText={`No bookings ${words}.`}
-            itemAccessibilityHint="Opens the discounted bookings"
+            itemAccessibilityHint="Opens their bookings"
             onPressItem={openGroup("seller", report.bySeller)}
           />
         </ChartCard>
@@ -198,7 +203,7 @@ export function DiscountsContent({ report, scope }: { report: CeoDiscountReport;
             label={`Discount a month by shift ${words}`}
             items={bars(report.byShift)}
             formatValue={money}
-            itemAccessibilityHint="Opens the discounted bookings"
+            itemAccessibilityHint="Opens its bookings"
             onPressItem={openGroup("shift", report.byShift)}
           />
         </ChartCard>

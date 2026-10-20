@@ -35,6 +35,7 @@ import {
   groupDetail,
   groupFilter,
   invoiceDetail,
+  isMultiMonth,
   normalizeCeoDiscounts,
   normalizeDiscountRecords,
   priceLine,
@@ -144,6 +145,17 @@ describe("normalizeCeoDiscounts", () => {
   });
 });
 
+describe("Discount a month over more than a month", () => {
+  it("is combined for a quarter, a year or a range longer than 31 days", () => {
+    expect(isMultiMonth({ period: "month" })).toBe(false);
+    expect(isMultiMonth({ period: "quarter" })).toBe(true);
+    expect(isMultiMonth({ period: "year" })).toBe(true);
+    expect(isMultiMonth({ period: "custom", range: { from: "2026-10-01", to: "2026-10-31" } })).toBe(false);
+    expect(isMultiMonth({ period: "custom", range: { from: "2026-09-01", to: "2026-10-15" } })).toBe(true);
+    expect(isMultiMonth({ period: "custom", range: null })).toBe(false);
+  });
+});
+
 describe("records", () => {
   it("reads bookings and invoices lists", () => {
     const r = normalizeDiscountRecords("bookings", { isSuccessful: true, data: { title: "Discounted bookings: running in October 2026", total: 2, discountTotal: 11500, baseTotal: 175000, discountPct: 6.6, rows: [BOOKING] } });
@@ -154,6 +166,10 @@ describe("records", () => {
     const inv = normalizeDiscountRecords("invoices", { isSuccessful: true, data: { total: 1, discountTotal: 3000, baseTotal: 252428.57, discountPct: 1.2, rows: [{ invoiceId: 395, invoiceNumber: "INV-2026-00395", customer: "Beta", room: "Office 351", location: "I-8", issuedOn: "2026-10-07", subTotal: 252428.57, discount: 3000, total: 386348.57, status: "Paid", paid: true }] } });
     expect(inv.invoices[0]).toMatchObject({ invoiceId: 395, paid: true, discount: 3000 });
     expect(invoiceDetail(inv.invoices[0])).toBe("Issued 7 Oct 2026 · Office 351 · I-8");
+    expect(inv.invoices[0]).toMatchObject({ periodStart: null, periodEnd: null });
+    // CP_02: the billing period places the invoice in the period; shown instead of the issue date.
+    const withPeriod = normalizeDiscountRecords("invoices", { isSuccessful: true, data: { rows: [{ invoiceNumber: "INV-1", room: "Office 351", issuedOn: "2026-10-02", periodStart: "2026-10-24", periodEnd: "2027-01-23" }, { invoiceNumber: "INV-2", periodStart: "2026-11-01" }] } });
+    expect(withPeriod.invoices.map(invoiceDetail)).toEqual(["Period 24 Oct 2026 - 23 Jan 2027 · Office 351", "Period 1 Nov 2026"]);
     expect(recordsSummary(inv)).toBe("1 invoice · PKR 3,000 off PKR 252,429 (1.2%)");
   });
 
@@ -169,10 +185,18 @@ describe("records", () => {
 
   it("a breakdown row opens its filter (none for no location / no salesperson)", () => {
     const g = { key: null, name: "No salesperson recorded", role: null, bookings: 1, discounted: 0, baseMonthly: 0, discountMonthly: 0, discountPct: 0, largestMonthly: 0, invoiceDiscount: 0, invoicesDiscounted: 0 };
-    expect(groupFilter("seller", g)).toEqual({ sellerId: "none" });
-    expect(groupFilter("location", g)).toEqual({ locationId: "none" });
-    expect(groupFilter("location", { ...g, key: "2" })).toEqual({ locationId: 2 });
-    expect(groupFilter("shift", { ...g, key: "Evening", name: "Evening" })).toEqual({ shift: "Evening" });
+    const d = { ...g, discounted: 1 };
+    expect(groupFilter("seller", d)).toEqual({ sellerId: "none" });
+    expect(groupFilter("location", d)).toEqual({ locationId: "none" });
+    expect(groupFilter("location", { ...d, key: "2" })).toEqual({ locationId: 2 });
+    expect(groupFilter("shift", { ...d, key: "Evening", name: "Evening" })).toEqual({ shift: "Evening" });
+  });
+
+  it("a row with none discounted opens all its bookings, not an empty list", () => {
+    const g = { key: "2", name: "ADMIN I8", role: null, bookings: 2, discounted: 0, baseMonthly: 0, discountMonthly: 0, discountPct: 0, largestMonthly: 0, invoiceDiscount: 0, invoicesDiscounted: 0 };
+    expect(groupFilter("seller", g)).toEqual({ sellerId: 2, all: true });
+    expect(groupFilter("location", g)).toEqual({ locationId: 2, all: true });
+    expect(groupFilter("shift", { ...g, key: "Morning", name: "Morning" })).toEqual({ shift: "Morning", all: true });
   });
 });
 

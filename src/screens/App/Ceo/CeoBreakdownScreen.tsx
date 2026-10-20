@@ -4,6 +4,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { CeoStackParamList } from "../../../navigation/ceoTypes";
 import {
   BREAKDOWN_ROOTS,
+  categoryKey,
   count,
   getCeoBreakdown,
   isOccupiedOnly,
@@ -22,13 +23,16 @@ import { BreakdownView } from "./BreakdownView";
 type Nav = NativeStackNavigationProp<CeoStackParamList, "CeoBreakdown">;
 type Route = RouteProp<CeoStackParamList, "CeoBreakdown">;
 
-/** Occupancy breakdowns show occupied of total spaces. */
-const isOccupancy = (query: CeoBreakdownQuery) => query.metric === "occupancy-type" || query.metric === "occupancy-location";
+/** Occupancy breakdowns show occupied of total spaces (CP_02 room categories: rooms). */
+const isOccupancy = (query: CeoBreakdownQuery) =>
+  query.metric === "occupancy-type" || query.metric === "occupancy-location" || query.metric === "occupancy-category";
 
 /** "Invoiced PKR 1.2M · Collected PKR 900K · 4 invoices" (occupancy: "72% · 18 of 25 spaces"). */
 function rowDetail(query: CeoBreakdownQuery, b: CeoBreakdown, row: CeoBreakdownRow, format: (v: number) => string): string {
   if (isOccupancy(query) && row.value2 != null) {
-    return `${pct(shareOf(row.value, row.value2))} · ${count(row.value)} of ${count(row.value2)} spaces in use`;
+    // Room categories (CP_02) count rooms; space types count spaces.
+    const noun = query.metric === "occupancy-category" || (query.metric === "occupancy-location" && categoryKey(row.key)) ? "rooms" : "spaces";
+    return `${pct(shareOf(row.value, row.value2))} · ${count(row.value)} of ${count(row.value2)} ${noun} in use`;
   }
   const parts = [`${b.valueLabel} ${format(row.value)}`];
   if (row.value2 != null && b.value2Label) parts.push(`${b.value2Label} ${format(row.value2)}`);

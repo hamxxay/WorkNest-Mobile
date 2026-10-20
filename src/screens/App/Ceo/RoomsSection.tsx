@@ -351,11 +351,22 @@ export function RoomCard({ view }: { view: RoomCardView }) {
       {view.vacant ? (
         <>
           <Divider spacing={spacing.md} />
-          <View style={styles.head} accessible accessibilityLabel={`Vacant: ${view.vacantText}`}>
-            <AppText variant="bodySmall" color="textMuted" style={[styles.titleBlock, titleMin]}>
-              {view.vacantText}
-            </AppText>
-            <StatusPill label="Vacant" tone="neutral" style={styles.pill} />
+          <View
+            style={styles.head}
+            accessible
+            accessibilityLabel={[`Not let: ${view.vacantText}`, view.upcomingText].filter(Boolean).join(". ")}
+          >
+            <View style={[styles.titleBlock, titleMin]}>
+              <AppText variant="bodySmall" color="textMuted">
+                {view.vacantText}
+              </AppText>
+              {view.upcomingText ? (
+                <AppText variant="caption" color="textSecondary">
+                  {view.upcomingText}
+                </AppText>
+              ) : null}
+            </View>
+            <StatusPill label="Not let" tone="neutral" style={styles.pill} />
           </View>
         </>
       ) : (
@@ -379,7 +390,7 @@ function SaleBlock({ sale, titleMin, figuresWidth }: { sale: RoomSaleView; title
           <AppText variant="bodyStrong" numberOfLines={2}>
             {sale.tenant}
           </AppText>
-          <AppText variant="caption" color="textMuted" numberOfLines={2}>
+          <AppText variant="caption" color="textMuted" numberOfLines={3}>
             {sale.detail}
           </AppText>
         </View>

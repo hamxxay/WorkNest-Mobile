@@ -76,6 +76,8 @@ function toSale(r: Row, roomSeats: number, roomSeatPrice: number | null): CeoRoo
   const soldSeatPrice = optNum(r, "soldSeatPrice") ?? (seatsSold > 0 ? soldMonthly / seatsSold : 0);
   const shiftDiscountCapPct = num(r, "shiftDiscountCapPct", "discountCapPct");
   const listSeatPriceAtSale = price(optNum(r, "listSeatPriceAtSale", "listSeatPrice")) ?? roomSeatPrice;
+  // CP_02: the fixed PKR discount a month (already off soldMonthly); 0 / false from an older API.
+  const fixedMonthly = Math.max(0, num(r, "fixedMonthly"));
   // 24/7 is compared with the full list price (a cap stored for it does not apply); a shift with the price less its cap.
   const expectedSeatPrice =
     price(optNum(r, "expectedSeatPrice")) ??
@@ -91,6 +93,8 @@ function toSale(r: Row, roomSeats: number, roomSeatPrice: number | null): CeoRoo
     shiftDiscountCapPct,
     soldMonthly,
     soldSeatPrice,
+    fixedMonthly,
+    fixedDiscount: bool(r, "fixedDiscount") || fixedMonthly > 0,
   };
   if (expectedSeatPrice == null) {
     // No list price known: shown as "No list price", not compared (as the server does).
@@ -133,6 +137,7 @@ function toRoom(r: Row): CeoRoom {
     occupiedDays,
     periodDays,
     sales: list(r, "sales", (s) => toSale(s, seats, listSeatPrice)),
+    upcomingStartOn: optStr(r, "upcomingStartOn"),
   };
 }
 
@@ -337,7 +342,7 @@ export function normalizeCeoRooms(raw: unknown, requested: CeoPeriod = "month"):
 // ─── Filters ──────────────────────────────────────────────────────────────────────────────────────────────
 
 export type RoomShiftFilter = "all" | CeoRoomShift;
-/** "vacant": rooms without a booking in the period. */
+/** "vacant": rooms without a booking in the period (labelled "Not let", so it is not read as "Vacant now"). */
 export type RoomPricingFilter = "all" | CeoRoomSalePricing | "vacant";
 /** Whether a booking covers this moment (a category tile shows the rooms in use now). */
 export type RoomNowFilter = "all" | "occupied" | "vacant";
@@ -377,7 +382,8 @@ const FILTER_LABELS: Record<RoomShiftFilter | RoomPricingFilter, string> = {
   at: "At",
   over: "Over",
   unpriced: "No list price",
-  vacant: "Vacant",
+  // Not let in the period (the CMS word): "Vacant" sat next to "Vacant now" and read the same.
+  vacant: "Not let",
 };
 
 export const roomFilterLabel = (value: RoomShiftFilter | RoomPricingFilter): string => FILTER_LABELS[value];
@@ -538,8 +544,10 @@ export type RoomCardView = {
   /** "List PKR 35,000 a seat · PKR 140,000 a room · 72% occupied this month". */
   facts: string;
   vacant: boolean;
-  /** "No booking this month" for a vacant room. */
+  /** "No booking this month" for a room not let in the period. */
   vacantText: string;
+  /** "Starts 5 Nov 2026": the next confirmed booking, starting after the period (CP_02); null when none / not sent. */
+  upcomingText: string | null;
   sales: RoomSaleView[];
   /** The room's own part (title to facts) for screen readers. */
   accessibilityLabel: string;
@@ -571,7 +579,13 @@ export function roomSaleView(sale: CeoRoomSale, index: number): RoomSaleView {
     : sale.shift !== "24/7" && sale.shiftDiscountCapPct > 0
       ? `${sale.shift} price: list less the ${pct(sale.shiftDiscountCapPct)} shift discount`
       : null;
-  const detail = joined(sale.shift, seatsText(sale.seatsSold), dateRange(sale.startOn, sale.endOn));
+  const detail = joined(
+    sale.shift,
+    seatsText(sale.seatsSold),
+    dateRange(sale.startOn, sale.endOn),
+    // CP_02: a fixed PKR discount (already off the sold price), as the CMS sale line.
+    (sale.fixedMonthly ?? 0) > 0 && `fixed discount ${moneyFull(sale.fixedMonthly ?? 0)} a month`,
+  );
   return {
     key: `sale-${sale.bookingId ?? "x"}-${index}`,
     tenant: sale.customer,
@@ -612,6 +626,7 @@ export function roomCardView(item: RoomListItem, period: CeoPeriod, index = 0): 
     facts,
     vacant: item.vacant,
     vacantText: `No booking ${words}`,
+    upcomingText: room.upcomingStartOn ? `Starts ${formatDate(room.upcomingStartOn)}` : null,
     sales: item.sales.map(roomSaleView),
     accessibilityLabel: [room.name, subtitle, now.label, facts].filter(Boolean).join(", "),
   };

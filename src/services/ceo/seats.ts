@@ -101,6 +101,11 @@ export type CeoSeatRoom = {
   listSeatPrice: number | null;
   soldMonthly: number;
   revenuePerSeat: number;
+  /**
+   * CP_02: rent of the bookings running now at the list price (24/7 at list, Morning / Evening at list less the shift
+   * cap); null without a list price or from an older API.
+   */
+  expectedMonthly: number | null;
   /** null when the room has no list price. */
   rentNotEarned: number | null;
   periodSeatOccupancyPct: number;
@@ -229,6 +234,7 @@ function toRoom(r: Row): CeoSeatRoom {
     listSeatPrice,
     soldMonthly,
     revenuePerSeat: optNum(r, "revenuePerSeat") ?? (seatsSold > 0 ? soldMonthly / seatsSold : 0),
+    expectedMonthly: optNum(r, "expectedMonthly"),
     // The server's figure; else worked out from the list price (none without one).
     rentNotEarned: rent != null ? Math.max(0, rent) : listSeatPrice != null ? emptySeats * listSeatPrice : null,
     periodSeatOccupancyPct: clampPct(num(r, "periodSeatOccupancyPct")),
@@ -568,7 +574,8 @@ export function seatGroupItem(group: CeoSeatGroup, kind: SeatGroupKind, index = 
     label: seatGroupName(group, kind),
     value: group.seatOccupancyPct,
     valueLabel: `${pct(group.seatOccupancyPct)} · ${count(group.seatsSold)}/${count(group.seats)} seats`,
-    detail: joined(`rooms ${pct(group.roomOccupancyPct)}`, rent),
+    // Revenue per seat sold, so the Revenue per seat tile adds up by location / space type (as the CMS).
+    detail: joined(`rooms ${pct(group.roomOccupancyPct)}`, group.seatsSold > 0 ? `${money(group.revenuePerSeat)} a seat` : null, rent),
   };
 }
 
@@ -616,6 +623,13 @@ export function seatRoomView(room: CeoSeatRoom, kind: SeatDrill["kind"], index =
       value: room.rentNotEarned != null ? moneyFull(room.rentNotEarned) : "Not priced",
       tone: room.rentNotEarned != null && room.rentNotEarned > 0 ? "warning" : undefined,
     },
+    // What the sold seats bring a month and per seat (as the CMS drawer), only when a seat is sold.
+    ...(room.seatsSold > 0
+      ? [
+          { label: "Sold a month", value: moneyFull(room.soldMonthly) },
+          { label: "Per seat", value: moneyFull(Math.round(room.revenuePerSeat)) },
+        ]
+      : []),
   ];
   const shifts =
     room.seatsMorning + room.seatsEvening > 0
@@ -653,6 +667,7 @@ export function seatTotalsText(rooms: readonly CeoSeatRoom[]): string {
     seatsText(t.seats),
     `${count(t.seatsSold)} sold`,
     `${count(t.emptySeats)} empty`,
+    t.seatsSold > 0 ? `${moneyFull(t.soldMonthly)} a month sold (${moneyFull(Math.round(t.revenuePerSeat))} a seat)` : null,
     `${moneyFull(t.rentNotEarned)} a month not earned`,
     t.emptySeatsUnpriced > 0 ? unpricedText(t.emptySeatsUnpriced) : null,
   ];

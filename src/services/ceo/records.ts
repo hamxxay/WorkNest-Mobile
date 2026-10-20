@@ -2,7 +2,15 @@ import type { Tone } from "../../theme/colors";
 import { INQUIRY_TYPE_LABELS } from "../../theme/inquiryTypes";
 import { formatDate, formatDateTime, formatNumber, parseDate } from "../../utils/format";
 import { moneyFull } from "./format";
-import type { CeoBookingRecord, CeoInquiryRecord, CeoInvoiceRecord, CeoLeaseRecord, CeoQuotationRecord, CeoRecords } from "./types";
+import type {
+  CeoBookingRecord,
+  CeoInquiryRecord,
+  CeoInvoiceRecord,
+  CeoLeaseRecord,
+  CeoQuotationRecord,
+  CeoReceiptRecord,
+  CeoRecords,
+} from "./types";
 
 // Records (drill level 3) as read-only cards: one shape for every list, so the Records screen renders them the
 // same way. Pure, unit-tested. The card builders are shared with the Sales Manager records lists.
@@ -93,7 +101,10 @@ export function recordCard(
   return card;
 }
 
-/** A booking as a card (CEO and Sales Manager bookings lists). */
+/** "From a quotation" / "Direct booking"; null when not sent (CP_02 sales lists only). */
+const bookingSource = (fromQuotation: boolean | null | undefined) => (fromQuotation == null ? null : fromQuotation ? "From a quotation" : "Direct booking");
+
+/** A booking as a card (CEO and Sales Manager bookings lists); a CP_02 sales list adds who sold it and how. */
 export function bookingCard(r: CeoBookingRecord, i: number): CeoRecordCard {
   return recordCard(
     `booking-${r.bookingId ?? i}-${i}`,
@@ -101,9 +112,31 @@ export function bookingCard(r: CeoBookingRecord, i: number): CeoRecordCard {
     joinParts(r.space, r.location),
     r.status,
     r.totalAmount != null ? moneyFull(r.totalAmount) : null,
-    recordFields(["Starts", date(r.startOn)], ["Ends", date(r.endOn)], ["Booking", r.bookingId ? `#${r.bookingId}` : null]),
+    recordFields(
+      ["Starts", date(r.startOn)],
+      ["Ends", date(r.endOn)],
+      ["Booking", r.bookingId ? `#${r.bookingId}` : null],
+      ["Sold by", r.seller],
+      ["Made", bookingSource(r.fromQuotation)],
+    ),
   );
 }
+
+/** Money received (CP_02 records/receipts): reference and customer, amount, date, method and invoice. */
+export function receiptCard(r: CeoReceiptRecord, i: number): CeoRecordCard {
+  const kind = r.kind === "payment" ? "Payment" : "Receipt";
+  return recordCard(
+    `${r.kind}-${r.refId ?? i}-${i}`,
+    r.reference ?? (r.refId ? `${kind} ${r.refId}` : kind),
+    joinParts(r.customer, r.location),
+    kind,
+    moneyFull(r.amount),
+    recordFields(["Received", date(r.receivedOn)], ["Method", r.method], ["Invoice", r.invoiceNumber], ["Booking", r.bookingId ? `#${r.bookingId}` : null]),
+  );
+}
+
+/** An amount only when it is more than zero (WHT, security deposit). */
+const positive = (value: number | null | undefined) => (value != null && value > 0 ? moneyFull(value) : null);
 
 /**
  * A tour inquiry as a card. `extra` fields (e.g. the Sales Manager's follow-up date) are listed after "Received".
@@ -155,8 +188,15 @@ export function recordCards(records: CeoRecords): CeoRecordCard[] {
           joinParts(r.customer, r.location),
           r.status,
           moneyFull(r.total),
-          // The issue date is under the invoice number (./invoiceHeadline), with the billing period.
-          recordFields(["Due", date(r.dueOn)], ["Paid", moneyFull(r.paid)], ["Balance", moneyFull(r.balance)]),
+          // The issue date is under the invoice number (./invoiceHeadline), with the billing period. CP_02: the
+          // security deposit inside the total and the WHT withheld (the balance already leaves the WHT out).
+          recordFields(
+            ["Due", date(r.dueOn)],
+            ["Paid", moneyFull(r.paid)],
+            ["Balance", moneyFull(r.balance)],
+            ["Security deposit", positive(r.deposit) ? `incl. ${positive(r.deposit)}` : null],
+            ["WHT", positive(r.wht)],
+          ),
           invoiceHeadline(r),
         ),
       );
@@ -169,7 +209,9 @@ export function recordCards(records: CeoRecords): CeoRecordCard[] {
           r.occupied ? "Occupied" : "Available",
           null,
           recordFields(
+            ["Category", r.category],
             ["Capacity", r.capacity != null ? `${formatNumber(r.capacity, 0)} ${r.capacity === 1 ? "person" : "people"}` : null],
+            ["Seats sold", r.occupied && r.seatsSold != null ? formatNumber(r.seatsSold, 0) : null],
             ["Customer", r.occupied ? r.customer : null],
             ["Booked until", r.occupied ? date(r.bookingEndOn) : null],
           ),
@@ -181,10 +223,25 @@ export function recordCards(records: CeoRecords): CeoRecordCard[] {
       return records.rows.map((r, i) => inquiryCard(r, i));
     case "leases":
       return records.rows.map((r, i) => ceoLeaseCard(r, i));
+    case "receipts":
+      return records.rows.map((r, i) => receiptCard(r, i));
     case "quotations":
     default:
       return records.rows.map((r, i) => quotationCard(r, i));
   }
+}
+
+/**
+ * The totals line above a list, when the server sends them (CP_02): invoices "Billed PKR x · Collected PKR y · Owed
+ * PKR z, without security deposits"; money received "PKR x received in all". Null otherwise.
+ */
+export function recordsSummaryText(records: CeoRecords): string | null {
+  if (records.kind === "invoices" && records.invoiceTotals) {
+    const t = records.invoiceTotals;
+    return `Billed ${moneyFull(t.billed)} · Collected ${moneyFull(t.collected)} · Owed ${moneyFull(t.balance)}, without security deposits`;
+  }
+  if (records.kind === "receipts" && records.amount != null) return `${moneyFull(records.amount)} received in all`;
+  return null;
 }
 
 /** "Showing 200 of 340" (the API sends at most 200 rows), or "" when there is nothing. */

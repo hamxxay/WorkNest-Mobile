@@ -131,7 +131,8 @@ export function SeatsContent({ report, period }: { report: CeoSeatReport; period
     sub: t.sub,
     tone: t.tone,
     icon: t.icon,
-    ...((t.key === "empty" || t.key === "rent") && report.rooms.length
+    // Revenue per seat opens the rooms too: the sheet shows each room's sold a month and per seat (CP_02).
+    ...((t.key === "empty" || t.key === "rent" || t.key === "revenue") && report.rooms.length
       ? { onPress: () => openSheet(EVERY_ROOM), accessibilityHint: OPENS_ROOMS_HINT }
       : {}),
   }));
@@ -145,7 +146,7 @@ export function SeatsContent({ report, period }: { report: CeoSeatReport; period
       <ChartGrid>
         <ChartCard
           title="Seats vs rooms, 12 months"
-          caption="Seat and room occupancy at each month end (this month: now). Rooms look fuller than seats when offices are part let."
+          caption="Seat and room occupancy at each month end (this month: now), of the rooms that existed then. Rooms look fuller than seats when offices are part let."
         >
           {report.months.length ? (
             <>

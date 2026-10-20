@@ -85,6 +85,8 @@ const ROOM_305 = {
   listSeatPrice: 35000.0,
   soldMonthly: 175000.0,
   revenuePerSeat: 35000.0,
+  // CP_02: rent of its running bookings at the list price.
+  expectedMonthly: 175000.0,
   rentNotEarned: 0.0,
   periodSeatOccupancyPct: 26.3,
   periodRoomOccupancyPct: 26.3,
@@ -268,6 +270,8 @@ describe("normalizeCeoSeats", () => {
     expect(r.rooms.map((x) => x.name)).toEqual(["305", "Office 9", "Shared 10", "Desk Pool"]);
     expect(r.rooms[0]).toEqual({ ...ROOM_305 });
     expect(r.rooms[3]).toMatchObject({ locationId: null, location: null, listSeatPrice: null, rentNotEarned: null, seatsMorning: 0, seatsEvening: 0 });
+    // Not sent (an older API): null.
+    expect(r.rooms[3].expectedMonthly).toBeNull();
   });
 
   test("a bare object (no envelope), a custom range and PascalCase keys", () => {
@@ -482,9 +486,9 @@ describe("drill-down", () => {
     expect(seatDrillOverline({ kind: "spaceType", spaceTypeId: 3, name: "Private Office" })).toBe("Seats by space type");
     expect(seatDrillOverline({ kind: "all", name: "Every room" })).toBe("Seats in every room");
     expect(seatDrillSubtitle(rooms)).toBe("71.4% of seats sold now (rooms 100%). Most rent not earned first.");
-    expect(seatTotalsText(rooms)).toBe("Total: 2 rooms, 14 seats, 10 sold, 4 empty, PKR 120,000 a month not earned");
+    expect(seatTotalsText(rooms)).toBe("Total: 2 rooms, 14 seats, 10 sold, 4 empty, PKR 315,000 a month sold (PKR 31,500 a seat), PKR 120,000 a month not earned");
     expect(seatTotalsText(r.rooms)).toBe(
-      "Total: 4 rooms, 25 seats, 11 sold, 14 empty, PKR 280,000 a month not earned, 2 empty seats have no list price",
+      "Total: 4 rooms, 25 seats, 11 sold, 14 empty, PKR 330,000 a month sold (PKR 30,000 a seat), PKR 280,000 a month not earned, 2 empty seats have no list price",
     );
     expect(seatTotalsText([])).toBe("Total: 0 rooms, 0 seats, 0 sold, 0 empty, PKR 0 a month not earned");
   });
@@ -577,11 +581,11 @@ describe("texts", () => {
     const r = report();
     expect(seatGroupItems(r.byLocation, "location").map((x) => x.item)).toEqual([
       { key: "location-2-0", label: "F-7", value: 0, valueLabel: "0% · 0/8 seats", detail: "rooms 0% · PKR 160K a month not earned" },
-      { key: "location-1-1", label: "I-8", value: 71.4, valueLabel: "71.4% · 10/14 seats", detail: "rooms 100% · PKR 120K a month not earned" },
-      { key: "location-none-2", label: "No location", value: 33.3, valueLabel: "33.3% · 1/3 seats", detail: "rooms 100% · 2 empty seats have no list price" },
+      { key: "location-1-1", label: "I-8", value: 71.4, valueLabel: "71.4% · 10/14 seats", detail: "rooms 100% · PKR 35K a seat · PKR 120K a month not earned" },
+      { key: "location-none-2", label: "No location", value: 33.3, valueLabel: "33.3% · 1/3 seats", detail: "rooms 100% · PKR 35K a seat · 2 empty seats have no list price" },
     ]);
     const full = { ...r.byLocation[1], emptySeats: 0, rentNotEarned: 0, emptySeatsUnpriced: 0 };
-    expect(seatGroupItem(full, "location").detail).toBe("rooms 100% · every seat sold");
+    expect(seatGroupItem(full, "location").detail).toBe("rooms 100% · PKR 35K a seat · every seat sold");
     expect(seatGroupItem({ ...r.bySpaceType[0], name: "" }, "spaceType").label).toBe("Space type 3");
     // A group without rooms or seats is left out.
     expect(seatGroupItems([{ ...r.byLocation[0], seats: 0, rooms: 0 }], "location")).toEqual([]);
@@ -603,6 +607,8 @@ describe("texts", () => {
       ["Empty", "4", undefined],
       ["List a seat", "PKR 30,000", undefined],
       ["Rent not earned", "PKR 120,000", "warning"],
+      ["Sold a month", "PKR 140,000", undefined],
+      ["Per seat", "PKR 28,000", undefined],
     ]);
     expect(office9.accessibilityLabel).toContain("Office 9, PO-9 · Private Office, Partly filled, Seats 9, Sold 5, Empty 4");
 
@@ -610,7 +616,7 @@ describe("texts", () => {
     expect(room305).toMatchObject({ subtitle: "I-8", status: { label: "Full", tone: "success" }, shifts: null });
     const pool = seatRoomView(r.rooms[3], "all");
     expect(pool.subtitle).toBe("DP-1 · No location · Shared Space");
-    expect(pool.figures.slice(3).map((f) => f.value)).toEqual(["No list price", "Not priced"]);
+    expect(pool.figures.slice(3, 5).map((f) => f.value)).toEqual(["No list price", "Not priced"]);
     expect(seatRoomView(r.rooms[2], "location").status).toEqual({ label: "Vacant now", tone: "neutral" });
   });
 

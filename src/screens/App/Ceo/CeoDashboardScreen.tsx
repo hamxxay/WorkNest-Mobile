@@ -252,7 +252,11 @@ export default function CeoDashboardScreen() {
 
               <CeoSection
                 title="Occupancy"
-                subtitle="Spaces in use, new bookings and leases ending"
+                subtitle={
+                  d?.occupancy?.categories.length
+                    ? `Rooms in use now (confirmed bookings), new bookings ${words} and leases ending`
+                    : `Spaces in use now, new bookings ${words} and leases ending`
+                }
                 loading={loading}
                 empty={!d?.occupancy}
                 emptyMessage="No occupancy figures were sent for this period."
@@ -285,7 +289,7 @@ export default function CeoDashboardScreen() {
           )}
 
           <View style={styles.section}>
-            <SectionHeader variant="section" title="Outlook" subtitle="The next 3 months, from current leases" />
+            <SectionHeader variant="section" title="Outlook" subtitle="The next 3 months, from confirmed leases" />
             {forecast.loading ? (
               <ChartSkeleton height={130} />
             ) : forecast.data ? (

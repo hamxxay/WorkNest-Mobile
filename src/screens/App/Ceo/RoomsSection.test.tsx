@@ -100,7 +100,7 @@ const REPORT = normalizeCeoRooms({
         periodOccupancyPct: 75.5,
         sales: [sale(12, "Beta", "24/7", "at", 0), sale(13, "Gamma", "Morning", "over", 2000)],
       },
-      { spaceId: 3, name: "Office 2", location: "F-7", categoryCode: "PrivateOffice", seats: 2, listSeatPrice: 30000, occupiedNow: false, periodOccupancyPct: 0, sales: [] },
+      { spaceId: 3, name: "Office 2", location: "F-7", categoryCode: "PrivateOffice", seats: 2, listSeatPrice: 30000, occupiedNow: false, periodOccupancyPct: 0, sales: [], upcomingStartOn: "2026-11-05" },
     ],
   },
 });
@@ -207,8 +207,10 @@ describe("RoomsContent", () => {
   test("the room list: every room, a vacant one as vacant; chips carry their counts and filter the list", () => {
     const root = render(<RoomsBlock query={query({ data: REPORT })} drill={makeDrill()} />);
     expect(listed(root)).toEqual([["Office 1", "Acme"], ["Shared A", "Beta", "Gamma"], ["Office 2"]]);
-    const vacant = root.findAll((n) => n.type === ("StatusPill" as unknown) && n.props.label === "Vacant");
+    const vacant = root.findAll((n) => n.type === ("StatusPill" as unknown) && n.props.label === "Not let");
     expect(vacant).toHaveLength(1);
+    // CP_02: a room not let in the period says when its next booking starts.
+    expect(byType(root, "AppText").some((n) => n.props.children === "Starts 5 Nov 2026")).toBe(true);
     expect(chips(root, "Category").props.options.map((o: any) => [o.label, o.value, o.count])).toEqual([
       ["All", "all", 4],
       ["Private Office", "PrivateOffice", 2],
@@ -230,7 +232,7 @@ describe("RoomsContent", () => {
       ["Under", 1],
       ["At", 1],
       ["Over", 1],
-      ["Vacant", 1],
+      ["Not let", 1],
     ]);
 
     act(() => chips(root, "Shift").props.onChange("Morning"));
@@ -348,7 +350,7 @@ describe("RoomsContent", () => {
       ["At", 0],
       ["Over", 0],
       ["No list price", 1],
-      ["Vacant", 0],
+      ["Not let", 0],
     ]);
     expect(root.findAll((n) => n.type === ("StatusPill" as unknown) && n.props.label === "No list price")[0].props.tone).toBe("warning");
   });

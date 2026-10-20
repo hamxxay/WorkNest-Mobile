@@ -13,8 +13,8 @@ import type { CeoPeriod, CeoRoomShift, CeoScope, DashRange } from "./types";
 // The CEO dashboard's Discounts section (GET api/ceo/discounts and api/ceo/discounts/records/{kind}; database update
 // DD_01). Discount a month of a booking = how far it was sold below its expected price (24/7: the room's list price x
 // seats; Morning / Evening: that price less the location's shift discount; only what the Rooms section calls "under")
-// plus its fixed PKR discount a month. Invoices: the discount on the invoices issued in the period, the same discounts
-// as billed (shown on its own). Pure and unit-tested (__tests__/discounts.test.ts) apart from the two GETs: the
+// plus its fixed PKR discount a month. Invoices: the discount on the invoices whose billing period starts in the
+// period (shown on its own). Pure and unit-tested (__tests__/discounts.test.ts) apart from the two GETs: the
 // normalisers never throw on a partial answer, and the texts the section shows are built here.
 
 // ─── Types ────────────────────────────────────────────────────────────────────────────────────────────────
@@ -91,6 +91,12 @@ export type CeoDiscountInvoice = {
   room: string | null;
   location: string | null;
   issuedOn: string | null;
+  /**
+   * CP_02: the billing period (yyyy-MM-dd) that places the invoice in the period, and its last day; null before CP_02
+   * (the issue date is shown then) / when the invoice has no end.
+   */
+  periodStart: string | null;
+  periodEnd: string | null;
   subTotal: number;
   discount: number;
   total: number;
@@ -217,6 +223,8 @@ export function toDiscountInvoice(r: Row): CeoDiscountInvoice {
     room: optStr(r, "room"),
     location: optStr(r, "location"),
     issuedOn: optStr(r, "issuedOn"),
+    periodStart: optStr(r, "periodStart"),
+    periodEnd: optStr(r, "periodEnd"),
     subTotal: num(r, "subTotal"),
     discount: num(r, "discount"),
     total: num(r, "total"),
@@ -351,11 +359,15 @@ export function groupDetail(g: CeoDiscountGroup): string {
   return parts.join(" · ");
 }
 
-/** The filter a breakdown row opens (key null: no location / no salesperson recorded). */
+/**
+ * The filter a breakdown row opens (key null: no location / no salesperson recorded). A row with none discounted
+ * opens all its bookings (expected against sold), as the KPI tiles do, instead of an empty list.
+ */
 export function groupFilter(by: "location" | "seller" | "shift", g: CeoDiscountGroup): CeoDiscountFilter {
-  if (by === "location") return { locationId: positiveId(g.key) ?? "none" };
-  if (by === "seller") return { sellerId: positiveId(g.key) ?? "none" };
-  return { shift: normalizeRoomShift(g.key ?? g.name) };
+  const all = g.discounted > 0 ? {} : { all: true };
+  if (by === "location") return { locationId: positiveId(g.key) ?? "none", ...all };
+  if (by === "seller") return { sellerId: positiveId(g.key) ?? "none", ...all };
+  return { shift: normalizeRoomShift(g.key ?? g.name), ...all };
 }
 
 /** "Office 309 · 24/7 · 3 seats · I-8" under a booking. */
@@ -395,9 +407,29 @@ export function bookingSpeech(b: CeoDiscountBooking): string {
   ].join(". ");
 }
 
-/** "Issued 7 Oct 2026 · Office 351 · I-8" under an invoice. */
+/**
+ * "Period 24 Oct 2026 - 23 Jan 2027 · Office 351 · I-8" under an invoice (its billing period places it in the period,
+ * as the CMS); "Issued 7 Oct 2026 · ..." from an API before CP_02.
+ */
 export function invoiceDetail(i: CeoDiscountInvoice): string {
-  return [i.issuedOn ? `Issued ${formatDate(i.issuedOn)}` : null, i.room, i.location].filter(Boolean).join(" · ");
+  const when = i.periodStart
+    ? `Period ${formatDate(i.periodStart)}${i.periodEnd ? ` - ${formatDate(i.periodEnd)}` : ""}`
+    : i.issuedOn
+      ? `Issued ${formatDate(i.issuedOn)}`
+      : null;
+  return [when, i.room, i.location].filter(Boolean).join(" · ");
+}
+
+/**
+ * Longer than a month (quarter, year, a custom range of more than 31 days): "Discount a month" then adds up the
+ * monthly discount of every booking running in the period, also of bookings that did not run at the same time.
+ */
+export function isMultiMonth(scope: Pick<CeoScope, "period" | "range">): boolean {
+  if (scope.period === "quarter" || scope.period === "year") return true;
+  const r = scope.range;
+  if (scope.period !== "custom" || !r?.from || !r?.to) return false;
+  const days = (Date.parse(r.to) - Date.parse(r.from)) / 86_400_000 + 1;
+  return Number.isFinite(days) && days > 31;
 }
 
 /** The line under a records list's title: "4 bookings · PKR 49,000 a month off PKR 650,000 (7.5%)". */
