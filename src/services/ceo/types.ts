@@ -57,11 +57,70 @@ export type CeoMoney = {
   aging: CeoAgingBucket[];
   /** Top 5 by amount invoiced over the last 12 months. */
   topCustomers: CeoTopCustomer[];
+  /**
+   * CP_02 (money slice): security deposits billed on the period's invoices (left out of invoiced), the same one period
+   * earlier, and how many invoices carry one. null before the database update CP_02: then invoiced / collected still
+   * include deposits and collected is the paid invoices only; the deposits card is hidden.
+   */
+  securityDeposits: number | null;
+  securityDepositsPrev: number | null;
+  securityDepositsCount: number | null;
+  /**
+   * CP_02: money actually received in the period (fee receipts by receipt date + payments by paid date, whatever invoice
+   * it was for), the same one period earlier and how many receipts / payments; null before CP_02 (card hidden).
+   */
+  received: number | null;
+  receivedPrev: number | null;
+  receivedCount: number | null;
+  /** Received by month (last 12 months, oldest first); [] when not sent. */
+  receivedSeries: CeoReceivedMonth[];
 };
 
-export type CeoOccupancyMonth = { month: string; occupancyPct: number; newBookings: number };
+export type CeoReceivedMonth = { month: string; received: number; count: number };
+
+/** Room categories occupancy is measured on (WN_SpaceCategories.Code), in this order. */
+export type CeoRoomCategoryCode = "PrivateOffice" | "SharedSpace";
+
+/** One room category at one moment (CP_02): rooms with a confirmed booking of the rooms that existed then. */
+export type CeoCategoryOccupancyPoint = {
+  categoryCode: string;
+  /** WN_SpaceCategories.Label as sent ("Private Office"). */
+  label: string;
+  rooms: number;
+  occupied: number;
+  occupancyPct: number;
+};
+
+/** A room category now (CP_02): rooms and seats, and the rooms one period ago (rooms that existed then). */
+export type CeoCategoryOccupancy = CeoCategoryOccupancyPoint & {
+  roomsPrev: number | null;
+  occupiedPrev: number | null;
+  occupancyPctPrev: number | null;
+  seats: number;
+  seatsSold: number;
+  seatOccupancyPct: number;
+};
+
+export type CeoOccupancyMonth = {
+  month: string;
+  occupancyPct: number;
+  newBookings: number;
+  /** CP_02: each room category at that month end (this month: now); [] before it. */
+  categories: CeoCategoryOccupancyPoint[];
+};
 export type CeoSpaceTypeOccupancy = { spaceTypeId: number | null; name: string; total: number; occupied: number };
-export type CeoLocationOccupancy = { locationId: number | null; name: string; total: number; occupied: number };
+export type CeoLocationOccupancy = {
+  /** 0 = the "No location" row (rooms not tied to a shown location; its records ask locationId=none). */
+  locationId: number | null;
+  name: string;
+  total: number;
+  occupied: number;
+  /** CP_02: seats of the location's rooms and seats sold now (null before it). */
+  seats?: number | null;
+  seatsSold?: number | null;
+  /** CP_02: each room category at this location now; [] / left out before it. */
+  categories?: CeoCategoryOccupancy[];
+};
 export type CeoLeaseExpiring = {
   bookingId: number | null;
   customer: string;
@@ -92,6 +151,15 @@ export type CeoOccupancy = {
    */
   leasesExpiringCount: number | null;
   leasesExpiringMonthly: number | null;
+  /**
+   * CP_02 (occupancy slice): occupancy shown apart for Private Office and Shared Space (confirmed bookings, rooms only),
+   * with seats; [] before the database update (then the old single figure and by space type are shown).
+   */
+  categories: CeoCategoryOccupancy[];
+  /** CP_02: seats of both room categories and the seats sold now; null before it. */
+  totalSeats: number | null;
+  seatsSold: number | null;
+  seatOccupancyPct: number | null;
 };
 
 /** Funnel stages, in this order (created in the period). */
@@ -128,6 +196,15 @@ export type CeoSales = {
    * has not run, or an older API that never narrowed them): the screen then says "all locations".
    */
   inquiriesAllLocations: boolean;
+  /**
+   * What bookingValue is (CP_02): "contract" = the contract value of the period's new bookings, "firstInvoice" = the
+   * first invoice of each (before CP_02); null when not sent (an older API: first invoices).
+   */
+  bookingValueBasis: "contract" | "firstInvoice" | null;
+  /** CP_02: of the Bookings stage, those made from a converted quotation (the rest are direct); null before it. */
+  bookingsFromQuotations: number | null;
+  /** CP_02, one location chosen: the period's inquiries with no branch (not counted); null otherwise. */
+  inquiriesNoBranch: number | null;
 };
 
 /** A location: its sales executives and the quotations made on its spaces in the period (by anyone, as the funnel). */
@@ -137,6 +214,8 @@ export type CeoTeamLocation = {
   salesExecutives: number;
   quotations: number;
   converted: number;
+  /** CP_02: quotations / converted count only quotations made by sales executives (before it: anyone's). */
+  salesExecutivesOnly: boolean;
 };
 
 /** A sales executive: the API sends no other role on the Team section. */
@@ -153,6 +232,8 @@ export type CeoPerson = {
    * dashboard's converted value; an older API sends it as convertedValue).
    */
   revenue: number;
+  /** CP_02: how many new bookings make up the revenue (null before it). */
+  bookings: number | null;
 };
 
 /** Team section: only the sales executives (filtered by the API), highest revenue first, and their totals. */
@@ -163,6 +244,11 @@ export type CeoTeam = {
   salesExecutives: number;
   /** Their revenue together (PKR). */
   revenue: number;
+  /**
+   * What revenue is: "bookings" (CP_02) = contract value of the new live bookings each sold (their quotation, else the
+   * booking they made); "quotations" = value of their converted quotations (before CP_02, or not sent).
+   */
+  revenueBasis: "bookings" | "quotations";
 };
 
 export type CeoDashboard = {
@@ -188,6 +274,7 @@ export type CeoBreakdownMetric =
   | "aging"
   | "occupancy-type"
   | "occupancy-location"
+  | "occupancy-category"
   | "bookings-month"
   | "inquiries-type"
   | "staff";
@@ -210,6 +297,8 @@ export type CeoBreakdownQuery = {
   bucket?: string;
   /** occupancy-type */
   spaceTypeId?: number;
+  /** occupancy-category: "PrivateOffice" | "SharedSpace" (CP_02). */
+  category?: string;
   /** inquiries-type */
   type?: string;
   /** staff */
@@ -265,7 +354,7 @@ export type CeoDrillTarget = CeoDrillStep | { kind: "list"; list: CeoDrillList }
 
 // ─── GET api/ceo/records/* (drill level 3) ───────────────────────────────────────────────────────────────
 
-export type CeoRecordKind = "invoices" | "spaces" | "bookings" | "inquiries" | "quotations" | "leases";
+export type CeoRecordKind = "invoices" | "spaces" | "bookings" | "inquiries" | "quotations" | "leases" | "receipts";
 
 export type CeoRecordParams = Record<string, string | number | boolean | null | undefined>;
 
@@ -284,8 +373,34 @@ export type CeoInvoiceRecord = {
   dueOn: string | null;
   total: number;
   paid: number;
+  /** GrandTotal - WHT - paid; 0 for a Paid invoice (CP_02; before it GrandTotal - paid). */
   balance: number;
   status: string | null;
+  /** CP_02 (null before it): WHT withheld, the security deposit inside total, what Invoiced / Collected count of it. */
+  wht?: number | null;
+  deposit?: number | null;
+  billed?: number | null;
+  collected?: number | null;
+};
+
+/** CP_02: totals of every matching invoice (the list holds at most 200); balance = the positive balances. */
+export type CeoInvoiceTotals = { billed: number; collected: number; balance: number };
+
+/** records/receipts (CP_02): money received, a fee receipt or a payment, newest first. */
+export type CeoReceiptRecord = {
+  kind: "receipt" | "payment";
+  refId: number | null;
+  /** Receipt code (FR-...), or the payment's transaction reference. */
+  reference: string | null;
+  receivedOn: string | null;
+  customer: string | null;
+  location: string | null;
+  invoiceId: number | null;
+  invoiceNumber: string | null;
+  bookingId: number | null;
+  amount: number;
+  /** Cash / Bank / Cheque / Online Payment ... */
+  method: string | null;
 };
 
 export type CeoSpaceRecord = {
@@ -297,6 +412,10 @@ export type CeoSpaceRecord = {
   occupied: boolean;
   customer: string | null;
   bookingEndOn: string | null;
+  /** CP_02: the room category's label / code and the seats sold now (null before it). */
+  category?: string | null;
+  categoryCode?: string | null;
+  seatsSold?: number | null;
 };
 
 export type CeoBookingRecord = {
@@ -308,6 +427,10 @@ export type CeoBookingRecord = {
   endOn: string | null;
   status: string | null;
   totalAmount: number | null;
+  /** CP_02 sales lists (records/bookings?sales=true / sellerId=): who sold it and whether it came from a quotation. */
+  sellerId?: number | null;
+  seller?: string | null;
+  fromQuotation?: boolean | null;
 };
 
 export type CeoInquiryRecord = {
@@ -349,7 +472,8 @@ type RecordsOf<K extends CeoRecordKind, Row> = {
 };
 
 export type CeoRecords =
-  | RecordsOf<"invoices", CeoInvoiceRecord>
+  | (RecordsOf<"invoices", CeoInvoiceRecord> & { invoiceTotals?: CeoInvoiceTotals | null })
+  | (RecordsOf<"receipts", CeoReceiptRecord> & { amount?: number | null })
   | RecordsOf<"spaces", CeoSpaceRecord>
   | RecordsOf<"bookings", CeoBookingRecord>
   | RecordsOf<"inquiries", CeoInquiryRecord>

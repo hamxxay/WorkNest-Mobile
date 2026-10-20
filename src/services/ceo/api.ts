@@ -31,7 +31,7 @@ export const CEO_ENDPOINTS = {
   rooms: "/ceo/rooms",
 } as const;
 
-const RECORD_KINDS: readonly CeoRecordKind[] = ["invoices", "spaces", "bookings", "inquiries", "quotations", "leases"];
+const RECORD_KINDS: readonly CeoRecordKind[] = ["invoices", "spaces", "bookings", "inquiries", "quotations", "leases", "receipts"];
 
 async function ceoGet(path: string): Promise<unknown> {
   try {

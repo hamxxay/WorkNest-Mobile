@@ -22,7 +22,13 @@ import { Breadcrumb, CeoErrorState, StaleBanner, useCeoQuery, type DescribeError
 // No actions. The screens (CeoRecordsScreen, SalesManagerRecordsScreen) pass how to load the list as cards.
 
 /** A records list ready to show: the server's title, its full count and one card per row. */
-export type RecordCardList = { title: string; total: number; cards: CeoRecordCard[] };
+export type RecordCardList = {
+  title: string;
+  total: number;
+  cards: CeoRecordCard[];
+  /** Totals of every matching record when the server sends them (e.g. "Billed PKR x · Collected PKR y"). */
+  summary?: string | null;
+};
 
 /** Narrowest the title gets beside the status / amount before they go under it (font scale 1, dp). */
 const TITLE_MIN_WIDTH = 140;
@@ -125,6 +131,11 @@ export function RecordsView({ fallbackTitle, fixedTitle, trail, scopeLabel, load
   const header = (
     <View style={styles.header}>
       <Breadcrumb trail={trail} scopeLabel={scopeLabel} />
+      {q.data?.summary ? (
+        <AppText variant="bodySmall" color="textSecondary">
+          {q.data.summary}
+        </AppText>
+      ) : null}
       {showing ? (
         <AppText variant="captionStrong" color="textSecondary" accessibilityLiveRegion="polite">
           {showing}

@@ -54,6 +54,12 @@ export function spaceTypeKey(value: unknown): number | null {
   return positiveId(value);
 }
 
+/** A room category code (CP_02: "PrivateOffice", "SharedSpace"): a word, not an id or "none"; else null. */
+export function categoryKey(value: unknown): string | null {
+  const text = typeof value === "string" ? value.trim() : "";
+  return /^[A-Za-z][A-Za-z_]*$/.test(text) && text.toLowerCase() !== NO_LOCATION_KEY ? text : null;
+}
+
 /** The dashboard's location filter as a query value (null = all locations). */
 const scopeLocation = (scope: { locationId?: number | null }) => positiveId(scope.locationId);
 
@@ -100,6 +106,7 @@ export const BREAKDOWN_ROOTS: Record<CeoBreakdownMetric, string> = {
   aging: "Receivables",
   "occupancy-type": "Occupancy",
   "occupancy-location": "Occupancy",
+  "occupancy-category": "Occupancy",
   "bookings-month": "New bookings",
   "inquiries-type": "Inquiries",
   staff: "Team",
@@ -135,6 +142,9 @@ export function breakdownParams(query: CeoBreakdownQuery): Record<string, QueryV
     case "occupancy-type":
       params.spaceTypeId = spaceTypeKey(query.spaceTypeId);
       break;
+    case "occupancy-category":
+      params.category = query.category;
+      break;
     case "inquiries-type":
       params.type = query.type;
       break;
@@ -166,6 +176,8 @@ export function isCompleteBreakdown(query: CeoBreakdownQuery): boolean {
       return spaceTypeKey(query.spaceTypeId) != null;
     case "occupancy-location":
       return positiveId(query.locationId) != null;
+    case "occupancy-category":
+      return !!query.category;
     case "inquiries-type":
       return !!query.type;
     case "staff":
@@ -217,9 +229,15 @@ function recordsForRow(query: CeoBreakdownQuery, row: CeoBreakdownRow): CeoRecor
     }
     case "occupancy-location": {
       const locationId = positiveId(query.locationId);
+      if (!locationId) return null;
+      // CP_02: rows are room categories (key PrivateOffice / SharedSpace); before it, space types (numeric keys).
+      const category = categoryKey(row.key);
+      if (category) return { kind: "spaces", params: cleanParams({ locationId, category }) };
       const typeId = spaceTypeKey(row.key);
-      return typeId != null && locationId ? { kind: "spaces", params: cleanParams({ locationId, spaceTypeId: typeId }) } : null;
+      return typeId != null ? { kind: "spaces", params: cleanParams({ locationId, spaceTypeId: typeId }) } : null;
     }
+    case "occupancy-category":
+      return rowLoc && query.category ? { kind: "spaces", params: cleanParams({ category: query.category, locationId: rowLoc }) } : null;
     case "bookings-month":
       return rowLoc && isMonthKey(query.month) ? { kind: "bookings", params: cleanParams({ month: query.month, locationId: rowLoc }) } : null;
     case "inquiries-type":
@@ -325,6 +343,48 @@ export function billedInAdvanceTarget(scope: CeoDrillScope): CeoDrillStep {
   };
 }
 
+/**
+ * The Received card (CP_02) -> the fee receipts and payments received in the period to date (records/receipts, the
+ * dashboard's period and location; a custom range: periodFrom / periodTo).
+ */
+export function receivedRecords(scope: CeoScope): CeoRecordsQuery {
+  return { kind: "receipts", params: withDrillPeriod(cleanParams({ period: scope.period, locationId: scopeLocation(scope) }), scope) };
+}
+
+/** Last day of this month, yyyy-MM-dd. */
+const monthEnd = (d: Date) => ymd(new Date(d.getFullYear(), d.getMonth() + 1, 0));
+
+/**
+ * The Security deposits card (CP_02) -> the invoices with a deposit whose billing period starts in the invoice window
+ * the card counts: this month (whole month); a quarter / year from its first day to the end of this month; a custom
+ * range: the range (as the CMS).
+ */
+export function depositRecords(scope: CeoScope, today: Date = new Date()): CeoRecordsQuery {
+  const range = customRangeOf(scope);
+  const from = range ? range.from : periodRange(scope.period, today).from;
+  const to = range ? range.to : monthEnd(today);
+  return { kind: "invoices", params: withDrillPeriod(cleanParams({ status: "deposit", from, to, locationId: scopeLocation(scope) }), scope) };
+}
+
+/**
+ * The new bookings behind the Bookings stage / Booked value with their seller and contract value (CP_02:
+ * records/bookings?sales=true): the bookings stage's records plus sales=true.
+ */
+export function salesBookingsRecords(scope: CeoScope, today: Date = new Date()): CeoRecordsQuery | null {
+  const q = recordsForFunnelStage("bookings", scope, today);
+  return q ? { ...q, params: { ...q.params, sales: true } } : null;
+}
+
+/**
+ * A sales executive's revenue when it counts bookings (CP_02) -> the new bookings they sold in the period
+ * (records/bookings?sellerId=), with the location filter. null without a user id.
+ */
+export function recordsForPersonBookings(userId: number | null | undefined, scope: CeoScope, today: Date = new Date()): CeoRecordsQuery | null {
+  const id = positiveId(userId);
+  const q = id ? recordsForFunnelStage("bookings", scope, today) : null;
+  return q && id ? { ...q, params: { ...q.params, sellerId: id } } : null;
+}
+
 /** The New bookings card -> bookings created in the period (a custom range: periodFrom / periodTo). */
 export function newBookingsRecords(scope: CeoScope): CeoRecordsQuery {
   return { kind: "bookings", params: withDrillPeriod(cleanParams({ period: scope.period, locationId: scopeLocation(scope) }), scope) };
@@ -390,8 +450,15 @@ const MEASURE_LABELS: Record<RevenueMeasure, string> = { invoiced: "Invoiced", c
  * their invoiced and collected (from the dashboard's 12 months), each opening that month by location. A custom range:
  * the invoices billed for it by location (as the CMS). Collected leads to the paid invoices.
  */
-export function revenueTarget(m: Pick<CeoMoney, "months">, measure: RevenueMeasure, scope: CeoScope, today: Date = new Date()): CeoDrillTarget {
-  const recordsParams = measure === "collected" ? { status: "paid" } : undefined;
+export function revenueTarget(
+  m: Pick<CeoMoney, "months"> & Partial<Pick<CeoMoney, "securityDeposits">>,
+  measure: RevenueMeasure,
+  scope: CeoScope,
+  today: Date = new Date(),
+): CeoDrillTarget {
+  // CP_02 (deposits sent): Collected = paid so far, so its invoices are the ones with a payment (status collected);
+  // an older API: the paid invoices.
+  const recordsParams = measure === "collected" ? { status: m.securityDeposits != null ? "collected" : "paid" } : undefined;
   if (customRangeOf(scope)) return { kind: "breakdown", query: scopedBreakdown({ metric: "revenue" }, scope), recordsParams };
   const months = periodMonths(scope.period, today);
   const monthQuery = (month: string): CeoBreakdownQuery => scopedBreakdown({ metric: "revenue", month }, scope);
@@ -488,6 +555,20 @@ export function occupancyTarget(occupancy: Pick<CeoOccupancy, "byLocation">, sco
       })),
     },
   };
+}
+
+/**
+ * A room category's occupancy card (CP_02) -> that category by location (breakdown occupancy-category; the occupied
+ * rooms only), then a location's occupied rooms of the category.
+ */
+export function occupancyCategoryTarget(categoryCode: string, scope: CeoScope): CeoDrillStep {
+  return { kind: "breakdown", query: scopedBreakdown({ metric: "occupancy-category", category: categoryCode }, scope), recordsParams: OCCUPIED_ONLY };
+}
+
+/** A location's rooms of one category (CP_02 By location rows): records/spaces; location 0 = the "No location" row. */
+export function categorySpacesRecords(locationId: number | null, categoryCode: string): CeoRecordsQuery | null {
+  const loc = locationId === 0 ? NO_LOCATION_KEY : positiveId(locationId);
+  return loc && categoryCode ? { kind: "spaces", params: cleanParams({ locationId: loc, category: categoryCode }) } : null;
 }
 
 /** A breakdown opened for the occupied rooms only: the rows (space types) without an occupied room left out. */
