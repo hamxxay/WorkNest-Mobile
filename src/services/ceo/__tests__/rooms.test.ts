@@ -537,6 +537,26 @@ describe("card texts", () => {
     });
   });
 
+  it("CP_02: a fixed PKR discount on the sale line; a not-let room says when its next booking starts", () => {
+    const raw = {
+      available: true,
+      rooms: [
+        { spaceId: 5, name: "Office 5", seats: 5, listSeatPrice: 35000, upcomingStartOn: "2026-11-05", sales: [] },
+        { spaceId: 6, name: "Office 6", seats: 5, listSeatPrice: 35000, sales: [{ ...SALE_ACME, fixedMonthly: 10000, fixedDiscount: true }] },
+      ],
+    };
+    const [notLet, let6] = (normalizeCeoRooms(raw) as CeoRoomReport).rooms;
+    expect(notLet.upcomingStartOn).toBe("2026-11-05");
+    expect(let6.sales[0]).toMatchObject({ fixedMonthly: 10000, fixedDiscount: true });
+    const card = roomCardView({ room: notLet, sales: [], vacant: true }, "month");
+    expect(card).toMatchObject({ vacantText: "No booking this month", upcomingText: "Starts 5 Nov 2026" });
+    expect(roomSaleView(let6.sales[0], 0).detail).toBe("24/7 · 4 seats · 1 Jan 2026 to 31 Dec 2026 · fixed discount PKR 10,000 a month");
+    // An older API: nothing extra.
+    expect(rooms[0].upcomingStartOn).toBeNull();
+    expect(rooms[0].sales[0]).toMatchObject({ fixedMonthly: 0, fixedDiscount: false });
+    expect(roomCardView(filterRooms(rooms, { ...ALL_ROOMS, pricing: "vacant" })[0], "month").upcomingText).toBeNull();
+  });
+
   it("signed amounts and the shown line", () => {
     expect([signedMoney(1500), signedMoney(-1500.5), signedMoney(0), signedMoney(-0.001)]).toEqual(["+PKR 1,500", "-PKR 1,500.50", "PKR 0", "PKR 0"]);
     expect([signedMoneyCompact(125000), signedMoneyCompact(-1250000), signedMoneyCompact(0)]).toEqual(["+PKR 125K", "-PKR 1.25M", "PKR 0"]);

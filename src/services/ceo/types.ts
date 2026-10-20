@@ -394,6 +394,10 @@ export type CeoRoomSale = {
   /** Sold per seat against expected, percent (-12.5 = 12.5% under); null when unpriced. */
   variancePct: number | null;
   pricing: CeoRoomSalePricing;
+  /** CP_02: the booking's fixed PKR discount a month, already off soldMonthly (0 / left out when none or an older API). */
+  fixedMonthly?: number;
+  /** CP_02: the booking's discount is a fixed PKR amount (false / left out otherwise). */
+  fixedDiscount?: boolean;
 };
 
 /** A room sold monthly (private office or shared space) and its sales in the period, in the server's order. */
@@ -416,8 +420,13 @@ export type CeoRoom = {
   /** The days behind periodOccupancyPct (null when the server does not send them). */
   occupiedDays: number | null;
   periodDays: number | null;
-  /** [] = no booking in the period (shown as vacant). */
+  /** [] = no booking in the period (shown as not let). */
   sales: CeoRoomSale[];
+  /**
+   * CP_02: start (yyyy-MM-dd) of the next confirmed booking that starts after the period; null / left out when none
+   * or an older API.
+   */
+  upcomingStartOn?: string | null;
 };
 
 /** Occupancy of one room category (private offices, shared spaces): the server's summary.byCategory. */
