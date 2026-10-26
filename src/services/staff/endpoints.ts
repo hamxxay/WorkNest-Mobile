@@ -159,6 +159,20 @@ export const STAFF_ENDPOINTS = {
     /** PATCH { locationId } — set / change the complaint's branch (location-bound staff: one of their locations). */
     branch: (id: Id) => `/complaints/${seg(id)}/branch`,
   },
+  whatsappInbox: {
+    /**
+     * GET ?page=&limit= (1-100)&search= -> { data: conversations, total }: unread first, then the latest message
+     * (WhatsAppInboxController; admin, super admin, receptionist, sales executive). Search matches the number, name,
+     * tags and last message.
+     */
+    conversations: "/whatsapp/conversations",
+    /**
+     * GET ?beforeId=&limit= (1-200) -> ApiResponse of messages, oldest first; 404 when the conversation is gone.
+     * Without beforeId (the newest page) the API marks the conversation read (unreadCount 0). Sending
+     * (POST, admin / super admin) is not used by the app.
+     */
+    messages: (conversationId: Id) => `/whatsapp/conversations/${seg(conversationId)}/messages`,
+  },
   inquiries: {
     /**
      * PATCH { statusId } (1 New, 2 In progress, 3 Resolved, 4 Closed) by public id. List / feedback and the path for a

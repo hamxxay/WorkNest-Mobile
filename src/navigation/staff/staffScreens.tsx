@@ -21,6 +21,8 @@ import InvoiceListScreen from "../../screens/App/Staff/Invoices/InvoiceListScree
 import InvoiceDetailScreen from "../../screens/App/Staff/Invoices/InvoiceDetailScreen";
 import InquiryListScreen from "../../screens/App/Staff/Inquiries/InquiryListScreen";
 import ComplaintListScreen from "../../screens/App/Staff/Complaints/ComplaintListScreen";
+import WhatsAppInboxScreen from "../../screens/App/Staff/WhatsAppInbox/WhatsAppInboxScreen";
+import WhatsAppConversationScreen from "../../screens/App/Staff/WhatsAppInbox/WhatsAppConversationScreen";
 import AttendantsScreen from "../../screens/App/Staff/Attendants/AttendantsScreen";
 import RoomAccessScreen from "../../screens/App/Staff/Attendants/RoomAccessScreen";
 import CapacityRequestsScreen from "../../screens/App/Staff/Approvals/CapacityRequestsScreen";
@@ -59,6 +61,8 @@ export const STAFF_SCREENS: Record<StaffRouteName, ComponentType<any>> = {
   RoomAccess: RoomAccessScreen,
   CapacityRequests: CapacityRequestsScreen,
   Complaints: ComplaintListScreen,
+  WhatsAppInbox: WhatsAppInboxScreen,
+  WhatsAppConversation: WhatsAppConversationScreen,
   AccessActivity: AccessActivityScreen,
   Users: UserListScreen,
   UserForm: UserFormScreen,

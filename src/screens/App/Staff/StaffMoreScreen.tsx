@@ -7,11 +7,12 @@ import { SignOutButton } from "../../../components/account/SignOutButton";
 import { useTabBarSpace } from "../../../components/ui/TabBar";
 import { useAuth } from "../../../context/AuthContext";
 import { userRoleLabel } from "../../../context/userDisplay";
-import { moreMenuFor } from "../../../navigation/staff/access";
+import { canOpenRoute, moreMenuFor } from "../../../navigation/staff/access";
 import type { StaffStackParamList } from "../../../navigation/staffTypes";
 import { spacing } from "../../../theme";
 import { StaffScreen, useInTabs } from "./shared/StaffScreen";
 import { useStaffSession } from "./shared/StaffSession";
+import { useWhatsAppUnread } from "./shared/useWhatsAppUnread";
 
 type Nav = NativeStackNavigationProp<StaffStackParamList>;
 
@@ -24,6 +25,8 @@ export default function StaffMoreScreen() {
   const { user } = useAuth();
   const { role, badges, badgeTotal, profile } = useStaffSession();
   const sections = moreMenuFor(role);
+  // WhatsApp Inbox: conversations with unread messages, from the inbox itself (not admin/nav-badges).
+  const whatsAppUnread = useWhatsAppUnread(canOpenRoute(role, "WhatsAppInbox"));
   const name = profile?.name || (typeof user?.name === "string" ? user.name : "") || user?.email || "Staff";
 
   return (
@@ -60,16 +63,17 @@ export default function StaffMoreScreen() {
               <SectionHeader title={section.title} variant="overline" />
               <Card padding={0}>
                 {section.items.map((item, index) => {
-                  const count = badges[item.route] ?? 0;
+                  const count = item.route === "WhatsAppInbox" ? whatsAppUnread : (badges[item.route] ?? 0);
+                  const waiting = item.route === "WhatsAppInbox" ? "unread" : "waiting";
                   return (
                     <Fragment key={item.route}>
                       {index > 0 ? <Divider inset={68} /> : null}
                       <ListRow
                         leftIcon={item.icon}
                         title={item.label}
-                        right={count > 0 ? <Badge count={count} accessibilityLabel={`${count} waiting`} /> : undefined}
+                        right={count > 0 ? <Badge count={count} tone={item.badgeTone} accessibilityLabel={`${count} ${waiting}`} /> : undefined}
                         onPress={() => navigation.navigate(item.route as never)}
-                        accessibilityLabel={count > 0 ? `${item.label}, ${count} waiting` : item.label}
+                        accessibilityLabel={count > 0 ? `${item.label}, ${count} ${waiting}` : item.label}
                       />
                     </Fragment>
                   );

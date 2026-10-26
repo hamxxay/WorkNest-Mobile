@@ -399,7 +399,7 @@ export function TeamSection({ team }: { team: TeamDashboard }) {
           { label: "KYC to review", value: t.kycPending, sub: "customers with pending documents", icon: "id-card-outline", tone: t.kycPending ? "warning" : "success", onPress: () => navigation.navigate("KycList") },
           { label: "Access suspended", value: t.accessSuspended, sub: "bookings locked for unpaid challans", icon: "lock-closed-outline", tone: t.accessSuspended ? "danger" : "success", onPress: () => navigation.navigate("Attendants") },
           { label: "Machines offline", value: `${t.machinesOffline}/${t.machines}`, sub: t.machinesOffline ? "door machines not reachable" : "all door machines online", icon: "hardware-chip-outline", tone: t.machinesOffline ? "danger" : "success", onPress: () => navigation.navigate("AccessActivity") },
-          { label: "WhatsApp unread", value: t.unreadWhatsApp, sub: "chats waiting (web portal)", icon: "logo-whatsapp", tone: t.unreadWhatsApp ? "warning" : "success" },
+          { label: "WhatsApp unread", value: t.unreadWhatsApp, sub: "chats with unread messages", icon: "logo-whatsapp", tone: t.unreadWhatsApp ? "warning" : "success", onPress: () => navigation.navigate("WhatsAppInbox") },
         ]}
       />
       {t.offlineMachines.length ? (

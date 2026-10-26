@@ -60,6 +60,8 @@ describe("route access (mirrors the CMS)", () => {
       "InvoiceDetail",
       "Attendants",
       "Complaints",
+      "WhatsAppInbox",
+      "WhatsAppConversation",
       "StaffProfile",
     ] as const;
     for (const role of STAFF_ROLES) {
@@ -95,6 +97,7 @@ describe("More menu", () => {
       "AgreementList",
       "KycList",
       "Complaints",
+      "WhatsAppInbox",
       "InvoiceList",
       "Attendants",
       "StaffProfile",
@@ -105,6 +108,7 @@ describe("More menu", () => {
       "AgreementList",
       "KycList",
       "Complaints",
+      "WhatsAppInbox",
       "PaymentList",
       "InvoiceList",
       "Attendants",
@@ -118,6 +122,19 @@ describe("More menu", () => {
     expect(routes("super_admin")).toContain("PaymentList");
     expect(routes("sales_executive")).not.toContain("PaymentList");
     expect(routes("admin")).not.toContain("ChallanValidity");
+    expect(routes("super_admin")).toContain("WhatsAppInbox");
+  });
+
+  it("lists WhatsApp Inbox under Sales for every role, with the WhatsApp icon and a green badge", () => {
+    for (const role of STAFF_ROLES) {
+      const sales = moreMenuFor(role).find((s) => s.title === "Sales");
+      expect(sales?.items.find((i) => i.route === "WhatsAppInbox")).toEqual({
+        route: "WhatsAppInbox",
+        label: "WhatsApp Inbox",
+        icon: "logo-whatsapp",
+        badgeTone: "success",
+      });
+    }
   });
 
   it("has no empty sections and no duplicate items", () => {

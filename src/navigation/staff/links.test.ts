@@ -45,6 +45,8 @@ describe("staff deep links / tapped pushes", () => {
     expect(staffLinkTarget("booking/558", "sales_executive")).toMatchObject({ route: "BookingDetail", params: { bookingId: 558 } });
     expect(staffLinkTarget("home", "admin")).toEqual({ kind: "tab", tab: "Dashboard" });
     expect(staffLinkTarget("profile", "admin")).toMatchObject({ route: "StaffProfile" });
+    expect(staffLinkTarget("/admin/whatsapp", "sales_executive")).toMatchObject({ route: "WhatsAppInbox" });
+    expect(staffLinkTarget("whatsapp-inbox", "super_admin")).toMatchObject({ route: "WhatsAppInbox" });
   });
 
   it("never opens a screen the role may not open, nor an unknown path", () => {

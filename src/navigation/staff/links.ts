@@ -95,6 +95,9 @@ export function staffLinkTarget(path: string, role: StaffRole): StaffLinkTarget 
     case "complaints":
     case "complaint":
       return screen("Complaints");
+    case "whatsapp":
+    case "whatsapp-inbox":
+      return screen("WhatsAppInbox");
     case "approvals":
     case "capacity-requests":
       return tabOr("Approvals", "CapacityRequests");

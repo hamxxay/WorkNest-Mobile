@@ -1,5 +1,6 @@
 import type { NavigatorScreenParams } from "@react-navigation/native";
 import type { OverviewDetailRequest, OverviewDetailScope, StaffAgreement, StaffCustomer, StaffInvoice } from "../services/staff";
+import type { WaConversation } from "../services/staff/whatsappInbox";
 import type { StaffUser } from "../services/staff/users";
 
 // Route types for the staff apps (sales executive, admin, super admin). The customer app's routes live in
@@ -88,6 +89,10 @@ export type StaffStackParamList = {
   CapacityRequests: undefined;
 
   Complaints: undefined;
+  /** WhatsApp Inbox (read only): conversations with the WorkNest WhatsApp number. */
+  WhatsAppInbox: undefined;
+  /** One WhatsApp conversation's messages. The API has no GET conversation/{id}: the list row is passed in. */
+  WhatsAppConversation: { conversation: WaConversation };
   /** Admin / super admin: door access activity log. */
   AccessActivity: undefined;
   /** Admin / super admin, read-only. */
