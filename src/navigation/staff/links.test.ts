@@ -32,6 +32,21 @@ describe("staff deep links / tapped pushes", () => {
     expect(staffLinkTarget("inquiries", "admin")).toMatchObject({ kind: "screen", route: "TourInquiries" });
   });
 
+  it("opens the Simple inquiries sub-tab from simple-inquiries or ?category=general", () => {
+    expect(staffStateFromPath("/admin/contacts?category=general", "sales_executive")).toEqual({
+      routes: [{ name: "StaffTabs", state: { routes: [{ name: "Inquiries", params: { category: "general" } }] } }],
+    });
+    expect(staffLinkTarget("simple-inquiries", "sales_executive")).toEqual({ kind: "tab", tab: "Inquiries", params: { category: "general" } });
+    expect(staffLinkTarget("inquiries?category=GENERAL", "admin")).toEqual({ kind: "screen", route: "TourInquiries", params: { category: "general" } });
+    expect(staffStateFromPath("simple-inquiries", "admin")).toEqual({
+      index: 1,
+      routes: [{ name: "StaffTabs" }, { name: "TourInquiries", params: { category: "general" } }],
+    });
+    // No category / tour: the list as before.
+    expect(staffLinkTarget("/admin/contacts", "sales_executive")).toEqual({ kind: "tab", tab: "Inquiries" });
+    expect(staffLinkTarget("contacts?category=tour", "sales_executive")).toEqual({ kind: "tab", tab: "Inquiries" });
+  });
+
   it("maps the customer app's push paths to staff screens", () => {
     expect(staffLinkTarget("notifications", "admin")).toMatchObject({ route: "StaffNotifications" });
     expect(staffLinkTarget("payments", "admin")).toMatchObject({ route: "PaymentList" });

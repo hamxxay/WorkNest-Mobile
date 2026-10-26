@@ -116,13 +116,15 @@ export const API_ENDPOINTS = {
     bookTour: "/book-tour",
     // Staff (admin / sales executive): tour inquiries with their latest feedback. The API scopes them to the
     // user's locations (plus inquiries with no branch); locationId narrows the list to one of those locations.
-    list: (page: number, limit: number, search?: string, locationId?: number) => {
+    // category: "general" = the Simple inquiries (WhatsApp free text); omitted = tour inquiries (the API's default).
+    list: (page: number, limit: number, search?: string, locationId?: number, category?: "tour" | "general") => {
       const params = new URLSearchParams();
       params.set("page", String(page));
       params.set("limit", String(limit));
       if (search) params.set("search", search);
       // 0 = only the inquiries with no branch.
       if (locationId != null && Number.isInteger(locationId) && locationId >= 0) params.set("locationId", String(locationId));
+      if (category === "general") params.set("category", "general");
       return `/contact?${params.toString()}`;
     },
     feedback: (id: number | string) => `/contact/${encodeURIComponent(String(id))}/feedback`,

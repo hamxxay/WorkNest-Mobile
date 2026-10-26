@@ -9,12 +9,12 @@
 
 import type { NavigationState, PartialState } from "@react-navigation/native";
 import type { StaffRole } from "../../context/roles";
-import type { StaffRouteName, StaffStackParamList, StaffTabName } from "../staffTypes";
+import type { StaffRouteName, StaffStackParamList, StaffTabName, StaffTabParamList } from "../staffTypes";
 import { canOpenRoute, tabsFor } from "./access";
 import { APP_LINK_PREFIXES } from "../appLinks";
 
 export type StaffLinkTarget =
-  | { kind: "tab"; tab: StaffTabName }
+  | { kind: "tab"; tab: StaffTabName; params?: StaffTabParamList[StaffTabName] }
   | { kind: "screen"; route: StaffRouteName; params?: StaffStackParamList[StaffRouteName] };
 
 /** A positive int id from a path segment, else null (quotation numbers like QUO-1001 are not ids). */
@@ -37,6 +37,17 @@ export function linkSegments(path: string): string[] {
   const clean = (path ?? "").split(/[?#]/)[0];
   const segments = clean.split("/").filter(Boolean).map(decode);
   return segments[0]?.toLowerCase() === "admin" ? segments.slice(1) : segments;
+}
+
+/** A query parameter of a link path (the first one with that name), or null. */
+function queryParam(path: string, name: string): string | null {
+  const query = (path ?? "").split("#")[0].split("?")[1];
+  if (!query) return null;
+  for (const pair of query.split("&")) {
+    const [k, v = ""] = pair.split("=");
+    if (decode(k) === name) return decode(v.replace(/\+/g, " "));
+  }
+  return null;
 }
 
 /** The staff screen a link path opens for this role, or null when it opens none. */
@@ -91,7 +102,13 @@ export function staffLinkTarget(path: string, role: StaffRole): StaffLinkTarget 
     case "inquiry":
     case "contacts":
     case "tour-inquiries":
-      return tabOr("Inquiries", "TourInquiries");
+    case "simple-inquiries": {
+      // The Simple inquiries sub-tab: simple-inquiries, or ?category=general (the CMS's /admin/contacts?category=general).
+      const general = key === "simple-inquiries" || queryParam(path, "category")?.toLowerCase() === "general";
+      if (!general) return tabOr("Inquiries", "TourInquiries");
+      const params = { category: "general" as const };
+      return tabs.includes("Inquiries") ? { kind: "tab", tab: "Inquiries", params } : screen("TourInquiries", params);
+    }
     case "complaints":
     case "complaint":
       return screen("Complaints");
@@ -123,7 +140,8 @@ export function staffStateFromPath(path: string, role: StaffRole): PartialState<
   const target = staffLinkTarget(path, role);
   if (!target) return undefined;
   if (target.kind === "tab") {
-    return { routes: [{ name: "StaffTabs", state: { routes: [{ name: target.tab }] } }] };
+    const route = target.params ? { name: target.tab, params: target.params } : { name: target.tab };
+    return { routes: [{ name: "StaffTabs", state: { routes: [route] } }] };
   }
   return {
     index: 1,

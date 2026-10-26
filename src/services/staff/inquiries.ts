@@ -12,10 +12,12 @@ import { optStr, str, unwrapEnvelope } from "./normalize";
 export {
   createTourInquiry,
   getTourInquiries,
+  inquiryCategory,
   inquiryPath,
   inquirySource,
   normalizeInquiry,
   saveInquiryFeedback,
+  type InquiryCategory,
   type InquiryFeedbackRequest,
   type InquiryOutcome,
   type InquirySource,

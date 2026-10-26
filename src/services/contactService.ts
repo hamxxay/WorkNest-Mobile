@@ -37,6 +37,17 @@ export type InquiryOutcome = "not_interested" | "future_prospect" | "converted";
  */
 export type InquirySource = "contact" | "booktour";
 
+/**
+ * Tour inquiries ("tour", every row before Simple inquiries) or Simple inquiries ("general": a WhatsApp customer who
+ * typed free text instead of using the bot menu). Same table, actions and statuses.
+ */
+export type InquiryCategory = "tour" | "general";
+
+/** "general" only when the API says so (any case); anything else, or an older API that sends nothing, = "tour". */
+export function inquiryCategory(value: unknown): InquiryCategory {
+  return text(value).toLowerCase() === "general" ? "general" : "tour";
+}
+
 export type TourInquiry = {
   id: number | null;
   publicId: string | null;
@@ -47,6 +58,8 @@ export type TourInquiry = {
   canChangeBranch: boolean;
   /** Status New: the same rule as the dashboard "New inquiries" figure and the badge (the API's isNew). */
   isNew: boolean;
+  /** Tour inquiry or Simple inquiry (WhatsApp free text). */
+  inquiryCategory: InquiryCategory;
   /** Website | WhatsApp | WalkIn | Reference (null = not set). */
   inquiryType: string | null;
   /** Type Reference: who referred the visitor. */
@@ -124,6 +137,7 @@ export function normalizeInquiry(raw: any): TourInquiry {
     canChangeBranch: flag(c.canChangeBranch ?? c.CanChangeBranch) ?? source === "contact",
     // An older API sends no isNew: New = status New and no feedback yet (as before).
     isNew: flag(c.isNew ?? c.IsNew) ?? (!feedbackOutcome && normalizedStatus === 1),
+    inquiryCategory: inquiryCategory(c.inquiryCategory ?? c.InquiryCategory),
     inquiryType: text(c.inquiryType ?? c.InquiryType) || null,
     referenceName: text(c.referenceName ?? c.ReferenceName) || null,
     fullName: text(c.fullName ?? c.FullName ?? c.name ?? c.Name ?? c.customerName),
@@ -144,7 +158,7 @@ export function normalizeInquiry(raw: any): TourInquiry {
 }
 
 /**
- * GET /api/contact?page=&limit=&search=&locationId= — inquiries with their latest feedback ({ data, total }).
+ * GET /api/contact?page=&limit=&search=&locationId=&category= — inquiries with their latest feedback ({ data, total }).
  * The API returns the user's locations (plus inquiries with no branch); locationId narrows it to one location.
  */
 export async function getTourInquiries(
@@ -152,11 +166,13 @@ export async function getTourInquiries(
   limit = 100,
   search?: string,
   locationId?: number | null,
+  /** "general" = Simple inquiries; omitted / "tour" = tour inquiries (the API's default). */
+  category?: InquiryCategory,
 ): Promise<TourInquiryPage> {
   const query = search ? sanitizeSearchInput(search) : "";
   // 0 = only the inquiries with no branch (the "No branch" filter); a positive id = that branch; otherwise all.
   const branch = locationId === 0 ? 0 : positiveId(locationId) ?? undefined;
-  const path = API_ENDPOINTS.contact.list(page, limit, query || undefined, branch);
+  const path = API_ENDPOINTS.contact.list(page, limit, query || undefined, branch, category);
   const response = await apiRequest<any>(path, {
     method: "GET",
     requiresAuth: true,

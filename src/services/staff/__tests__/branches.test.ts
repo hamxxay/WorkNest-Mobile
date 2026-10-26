@@ -26,7 +26,8 @@ import {
   toBranchId,
 } from "../branches";
 import { createComplaint, listComplaints, normalizeComplaint, updateComplaintBranch } from "../complaints";
-import { createTourInquiry, getTourInquiries, normalizeInquiry, updateInquiryLocation } from "../inquiries";
+import { createTourInquiry, getTourInquiries, inquiryCategory, normalizeInquiry, updateInquiryLocation } from "../inquiries";
+import { INQUIRY_CATEGORY_BADGE_ROUTES, inquiryCategoryOptions, inquiryCategoryParam } from "../../../utils/inquiry";
 
 const api = apiRequest as jest.Mock;
 beforeEach(() => api.mockReset());
@@ -214,5 +215,60 @@ describe("branch calls", () => {
     await updateComplaintBranch(7, 1);
     expect(lastCall()).toMatchObject({ path: "/complaints/7/branch", method: "PATCH", body: { locationId: 1 } });
     await expect(updateComplaintBranch(7, 0)).rejects.toThrow(/Choose the branch/);
+  });
+});
+
+describe("simple inquiries (category)", () => {
+  it("builds the list path with category only for general (omitted = tour, the API default)", () => {
+    expect(API_ENDPOINTS.contact.list(1, 50, undefined, undefined, "general")).toBe("/contact?page=1&limit=50&category=general");
+    expect(API_ENDPOINTS.contact.list(2, 50, "ali", 3, "general")).toBe("/contact?page=2&limit=50&search=ali&locationId=3&category=general");
+    expect(API_ENDPOINTS.contact.list(1, 50, undefined, undefined, "tour")).toBe("/contact?page=1&limit=50");
+  });
+
+  it("passes the category to GET contact and reads inquiryCategory", async () => {
+    api.mockResolvedValueOnce({
+      data: [
+        { id: 9, publicId: "g", inquiryCategory: "general", phone: "923001234567", message: "Do you have a desk?" },
+        { id: 10, publicId: "h", InquiryCategory: "General" },
+      ],
+      total: 2,
+    });
+    const page = await getTourInquiries(1, 50, undefined, null, "general");
+    expect(lastCall()).toMatchObject({ path: "/contact?page=1&limit=50&category=general", method: "GET" });
+    expect(page.items.map((i) => i.inquiryCategory)).toEqual(["general", "general"]);
+    api.mockResolvedValueOnce({ data: [{ id: 1, inquiryCategory: "tour" }, { id: 2 }], total: 2 });
+    const tour = await getTourInquiries(1, 50, undefined, null, "tour");
+    expect(lastCall().path).toBe("/contact?page=1&limit=50");
+    expect(tour.items.map((i) => i.inquiryCategory)).toEqual(["tour", "tour"]);
+  });
+
+  it("reads the category tolerantly (anything but general = tour)", () => {
+    expect(inquiryCategory("general")).toBe("general");
+    expect(inquiryCategory(" GENERAL ")).toBe("general");
+    expect(inquiryCategory("tour")).toBe("tour");
+    expect(inquiryCategory(undefined)).toBe("tour");
+    expect(inquiryCategory("other")).toBe("tour");
+    expect(normalizeInquiry(null).inquiryCategory).toBe("tour");
+  });
+
+  it("sub-tab options carry each category's New count from the nav badges", () => {
+    expect(INQUIRY_CATEGORY_BADGE_ROUTES).toEqual({ tour: "/admin/contacts", general: "/admin/contacts?category=general" });
+    expect(inquiryCategoryOptions({ "/admin/contacts": 3, "/admin/contacts?category=general": 2 })).toEqual([
+      { label: "Tour Inquiries (3)", value: "tour", accessibilityLabel: "Tour Inquiries, 3 new" },
+      { label: "Simple Inquiries (2)", value: "general", accessibilityLabel: "Simple Inquiries, 2 new" },
+    ]);
+    expect(inquiryCategoryOptions({ "/admin/bookings": 4 }).map((o) => o.label)).toEqual(["Tour Inquiries", "Simple Inquiries"]);
+    expect(inquiryCategoryOptions({ "/admin/contacts": 0, "/admin/contacts?category=general": -1 }).map((o) => o.label)).toEqual([
+      "Tour Inquiries",
+      "Simple Inquiries",
+    ]);
+  });
+
+  it("reads the sub-tab route param", () => {
+    expect(inquiryCategoryParam("general")).toBe("general");
+    expect(inquiryCategoryParam("Simple")).toBe("general");
+    expect(inquiryCategoryParam("tour")).toBe("tour");
+    expect(inquiryCategoryParam(undefined)).toBe("tour");
+    expect(inquiryCategoryParam(5)).toBe("tour");
   });
 });

@@ -10,6 +10,9 @@ import type { StaffUser } from "../services/staff/users";
 /** Tour-inquiry list filter. */
 export type InquiryFilter = "all" | "new" | "due";
 
+/** Tour-inquiry list params: the filter and the sub-tab ("general" = Simple inquiries; default tour). */
+export type InquiryListParams = { filter?: InquiryFilter; category?: "tour" | "general" };
+
 /** A tour inquiry being turned into a quotation (prefills the customer search; feedback "converted" after saving). */
 export type InquiryPrefill = {
   inquiryId: number | null;
@@ -24,7 +27,7 @@ export type InquiryPrefill = {
 /** Bottom tabs. Which of them a role gets is in STAFF_TABS (./staff/access.ts). */
 export type StaffTabParamList = {
   Dashboard: undefined;
-  Inquiries: { filter?: InquiryFilter } | undefined;
+  Inquiries: InquiryListParams | undefined;
   Quotations: undefined;
   Customers: undefined;
   /** Admin / super admin: capacity requests (sales executives asking to add people to full rooms). */
@@ -69,7 +72,7 @@ export type StaffStackParamList = {
   BookingDetail: { bookingId: number; offerInitialInvoice?: { issuedOn?: string | null } };
   BookingForm: { customerId?: number } | undefined;
 
-  TourInquiries: { filter?: InquiryFilter } | undefined;
+  TourInquiries: InquiryListParams | undefined;
 
   AgreementList: { status?: string } | undefined;
   /** The API has no GET agreement/{id}: the list row is passed in. */
