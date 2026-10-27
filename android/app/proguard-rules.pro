@@ -23,6 +23,9 @@
 -keep class fr.greweb.reactnativeviewshot.** { *; }
 -keep class com.oblador.vectoricons.** { *; }
 
+# PDFBox optionally uses this decoder for JPEG 2000 images; it is not packaged in the app.
+-dontwarn com.gemalto.jp2.JP2Decoder
+
 # Line numbers in crash stack traces. Class and method names are obfuscated: deobfuscate with
 # android/app/build/outputs/mapping/release/mapping.txt from the same build (an AAB carries it to Play
 # Console automatically; keep a copy for every APK you hand out).

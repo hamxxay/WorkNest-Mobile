@@ -12,6 +12,10 @@ type RequestOptions = {
    * slow on purpose, e.g. a door machine capturing a face or fingerprint (Access Officer enrolment, ~90 s).
    */
   timeoutMs?: number;
+  /** Firebase ID token to use directly instead of reading from Keychain (avoids race condition on fresh sign-in). */
+  idToken?: string;
+  /** Force refresh of the token (used with idToken for fresh sign-in). */
+  forceRefresh?: boolean;
 };
 
 export class ApiError extends Error {
@@ -166,7 +170,7 @@ async function buildHeaders(
   // The API identifies the user from the JWT only: no other identity header is sent (it would only expose the
   // email address to proxies and logs).
   if (options.requiresAuth) {
-    const token = await getToken();
+    const token = options.idToken || await getToken();
     if (token) headers.Authorization = `Bearer ${token}`;
   }
   return headers;

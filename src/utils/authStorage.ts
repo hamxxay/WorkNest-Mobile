@@ -16,6 +16,9 @@ export type StoredUser = {
   userRole?: string;
   isAdmin?: boolean | string;
   customerCode?: string;
+  customerId?: string;
+  roleDisplayName?: string;
+  signInMethod?: string;
   [key: string]: unknown;
 };
 

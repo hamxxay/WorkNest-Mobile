@@ -1,9 +1,13 @@
 import {
-  default as auth,
   FirebaseAuthTypes,
   GoogleAuthProvider,
   getIdToken,
+  getAuth,
+  onIdTokenChanged,
+  signInWithCredential,
+  signOut,
 } from "@react-native-firebase/auth";
+import { getApp } from "@react-native-firebase/app";
 import {
   GoogleSignin,
   isCancelledResponse,
@@ -125,7 +129,7 @@ let googleSigninConfigured = false;
 
 function getFirebaseAuth() {
   try {
-    return auth();
+    return getAuth(getApp());
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Firebase Auth native module is unavailable.";
@@ -292,9 +296,9 @@ function roleDisplayNameOf(profile: { roleDisplayName?: unknown; RoleDisplayName
 /**
  * Refreshes the stored profile from GET /auth/me: name (WN_Users.Name, shown as it is), role, role display name
  * (WN_Roles.DisplayName) and customer id. Never throws: the app keeps the cached profile when the API can't be
- * reached.
+ * reached. Pass idToken directly to avoid Keychain race condition on fresh sign-in.
  */
-export async function triggerBackgroundSync(currentUser: StoredUser) {
+export async function triggerBackgroundSync(currentUser: StoredUser, idToken?: string) {
   if (!currentUser.email) return;
   try {
     const profile = await apiRequest<{
@@ -312,6 +316,8 @@ export async function triggerBackgroundSync(currentUser: StoredUser) {
       CustomerId?: string | number;
     }>(buildApiPath("auth/me"), {
       requiresAuth: true,
+      forceRefresh: true,
+      idToken,
     });
     if (profile) {
       const activeUser = await getUser();
@@ -348,8 +354,8 @@ export async function triggerBackgroundSync(currentUser: StoredUser) {
 }
 
 /** Starts the auth/me refresh without waiting for it (name and role display name from the database). */
-function refreshProfileInBackground(user: StoredUser): void {
-  triggerBackgroundSync(user).catch((err) => {
+function refreshProfileInBackground(user: StoredUser, idToken?: string): void {
+  triggerBackgroundSync(user, idToken).catch((err) => {
     warnDev("[Auth] background sync failed", err);
   });
 }
@@ -436,22 +442,20 @@ async function postTokenExchange(
   let response: { token?: string; id?: string; roles?: string[]; role?: string } | null;
   try {
     const idToken = await getIdToken(user, forceRefresh);
+    if (__DEV__) console.log("[Auth] Firebase ID Token:", idToken?.substring(0, 50) + "...");
     const displayName = options.name ?? user.displayName ?? "";
     response = await apiRequest<{ token?: string; id?: string; roles?: string[]; role?: string }>(
-      buildApiPath("auth/google-login"),
+      buildApiPath("auth/login"),
       {
         method: "POST",
         body: {
-          // The field the API verifies (GoogleLoginRequest.FirebaseIdToken); idToken is kept for older servers.
           firebaseIdToken: idToken,
-          idToken,
           email: user.email,
           name: displayName || undefined,
-          // A real button press; start-up and token refreshes send false.
-          interactive: options.interactive,
         },
       }
     );
+    if (__DEV__) console.log("[Auth] google-login response:", response);
   } catch (err) {
     debugAuth("jwt exchange failed", {
       status: err instanceof ApiError ? err.status : "unknown",
@@ -472,7 +476,7 @@ async function postTokenExchange(
     throw new ApiError("Couldn't sign you in to WorkNest. Please try again.", 0, err);
   }
   if (!response?.token) {
-    debugAuth("jwt exchange failed", { reason: "no token in response" });
+    debugAuth("jwt exchange failed", { reason: "no token in response", response });
     throw new ApiError("Couldn't sign you in to WorkNest. Please try again.", 500);
   }
   const roles = response.roles ?? (response.role ? [response.role] : null);
@@ -651,7 +655,7 @@ async function persistFirebaseSession(
         }
         await Promise.allSettled([
           GoogleSignin.signOut(),
-          getFirebaseAuth().signOut(),
+          signOut(getFirebaseAuth()),
           removeToken(),
           removeUser(),
         ]);
@@ -732,7 +736,7 @@ export async function logoutUser(): Promise<void> {
   tasks.push(GoogleSignin.signOut());
 
   try {
-    tasks.push(getFirebaseAuth().signOut());
+    tasks.push(signOut(getFirebaseAuth()));
   } catch (error) {
     debugAuth("logout skipped firebase signOut", {
       message: error instanceof Error ? error.message : "unknown",
@@ -754,7 +758,7 @@ export async function endExpiredSession(): Promise<void> {
   pendingVerification = null;
   const tasks: Promise<unknown>[] = [GoogleSignin.signOut()];
   try {
-    tasks.push(getFirebaseAuth().signOut());
+    tasks.push(signOut(getFirebaseAuth()));
   } catch {
     // Firebase not available: the stored session is still cleared below.
   }
@@ -842,7 +846,9 @@ export async function hydrateSessionUser(): Promise<StoredUser | null> {
   }
 
   // Non-blocking refresh of the profile (name, role, customer id).
-  refreshProfileInBackground(session.user);
+  // Pass the fresh idToken to avoid Keychain race condition.
+  const freshIdToken = await currentFirebaseIdToken().catch(() => undefined);
+  refreshProfileInBackground(session.user, freshIdToken);
 
   return session.user;
 }
@@ -854,7 +860,7 @@ export function subscribeToAuthChanges(
 
   let firebaseUnsubscribe = () => { };
   try {
-    firebaseUnsubscribe = getFirebaseAuth().onIdTokenChanged(async (firebaseUser) => {
+    firebaseUnsubscribe = onIdTokenChanged(getFirebaseAuth(), async (firebaseUser) => {
       if (!firebaseUser) {
         pendingVerification = null;
         // Signed in with the WorkNest password (no Firebase account): that session is not Firebase's to end.
@@ -881,7 +887,9 @@ export function subscribeToAuthChanges(
         notifyAuthListeners(session.user);
 
         // Non-blocking refresh of the profile (name, role, customer id).
-        refreshProfileInBackground(session.user);
+        // Pass the fresh idToken to avoid Keychain race condition.
+        const freshIdToken = await currentFirebaseIdToken().catch(() => undefined);
+        refreshProfileInBackground(session.user, freshIdToken);
       } catch (err) {
         warnDev("[Auth] token change not saved", err);
       }
@@ -1230,7 +1238,7 @@ export async function cancelEmailVerification(): Promise<void> {
   pendingVerification = null;
   const tasks: Promise<unknown>[] = [GoogleSignin.signOut()];
   try {
-    tasks.push(getFirebaseAuth().signOut());
+    tasks.push(signOut(getFirebaseAuth()));
   } catch {
     // Firebase not available: the stored session is still cleared below.
   }
@@ -1312,7 +1320,7 @@ async function signInWithGoogleCredential(idToken: string): Promise<GoogleAuthRe
   let credentialResult: FirebaseAuthTypes.UserCredential;
   try {
     const googleCredential = GoogleAuthProvider.credential(idToken);
-    credentialResult = await getFirebaseAuth().signInWithCredential(googleCredential);
+    credentialResult = await signInWithCredential(getFirebaseAuth(), googleCredential);
   } catch (error) {
     debugAuth("google firebase sign-in error", { code: errorCode(error) });
     throw mapFirebaseError(error, "Google sign-in didn't work. Please try again.");
@@ -1344,7 +1352,7 @@ export async function signInWithGoogle(): Promise<StoredUser> {
 async function rejectExistingGoogleAccount(): Promise<never> {
   await Promise.allSettled([
     GoogleSignin.signOut(),
-    getFirebaseAuth().signOut(),
+    signOut(getFirebaseAuth()),
     removeToken(),
     removeUser(),
   ]);
