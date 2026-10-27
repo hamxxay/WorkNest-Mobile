@@ -2,11 +2,11 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { AppHeader, AppText, Screen, SegmentedControl, SelectField, StatusPill, greeting } from "../../../components/ui";
+import { AppHeader, AppText, Screen, SelectField, StatusPill, greeting } from "../../../components/ui";
 import { useAuth } from "../../../context/AuthContext";
 import { useReduceMotion } from "../../../hooks/useReduceMotion";
 import type { SalesManagerStackParamList } from "../../../navigation/salesManagerTypes";
-import { PERIOD_OPTIONS, periodWords, type CeoPeriod } from "../../../services/ceo";
+import { PERIOD_OPTIONS, periodWords, rangeLabel, updatedAgo, type CeoPeriod, type DashRange } from "../../../services/ceo";
 import {
   SM_ALL_MY_LOCATIONS,
   getSalesManagerComplaints,
@@ -21,8 +21,9 @@ import {
   type SmScope,
 } from "../../../services/salesManager";
 import { spacing } from "../../../theme";
-import { formatTime } from "../../../utils/format";
 import { CeoErrorState, CeoSection, StaleBanner, useCeoQuery } from "../Ceo/parts";
+import { PeriodControl } from "../Ceo/PeriodControl";
+import { useAutoRefresh } from "../Ceo/useAutoRefresh";
 import { useRefreshColors } from "../Staff/shared/refresh";
 import { ComplaintsBlock } from "./ComplaintsSection";
 import {
@@ -40,14 +41,14 @@ type Nav = NativeStackNavigationProp<SalesManagerStackParamList, "SalesManagerDa
 
 /**
  * The Sales Manager dashboard (GET api/sales-manager/dashboard): Sales funnel, Team performance, Tour inquiries and
- * Renewals & desks for this month / quarter / year against the previous period, for all the manager's locations
- * or one of them (tour inquiries too: those without a branch count under "All my locations", as complaints do; a
- * manager with one location has no picker, and the notes and drill screens say the items without a branch are
- * included instead).
+ * Renewals & desks for this month / quarter / year or a custom date range (against the same number of days just before
+ * it), for all the manager's locations or one of them (tour inquiries too: those without a branch count under "All my
+ * locations", as complaints do; a manager with one location has no picker, and the notes and drill screens say the
+ * items without a branch are included instead).
  * Desks, never money ("91 desks booked"). Last comes Complaints, loaded on its own (GET api/sales-manager/complaints,
  * same period and location), so the rest keeps working when only that call fails. View only: tapping a chart element
- * or row drills down (a breakdown screen, then a records list; some open their records directly). Pull to refresh
- * reloads both.
+ * or row drills down (a breakdown screen, then a records list; some open their records directly), with the same
+ * period and range. Pull to refresh reloads both; they also reload quietly every 5 minutes while on screen.
  */
 export default function SalesManagerDashboardScreen() {
   const navigation = useNavigation<Nav>();
@@ -55,11 +56,23 @@ export default function SalesManagerDashboardScreen() {
   const reduceMotion = useReduceMotion();
   const { greetingName, roleDisplayLabel } = useAuth();
   const [period, setPeriod] = useState<CeoPeriod>("month");
+  /** The custom range (kept while a calendar period is chosen, so Custom opens with it again). */
+  const [range, setRange] = useState<DashRange | null>(null);
+  /** The date range editor is open: the auto refresh waits. */
+  const [editingRange, setEditingRange] = useState(false);
   const [locationId, setLocationId] = useState(0);
   /** The last location list the server sent (kept while a new answer loads). */
   const [knownLocations, setKnownLocations] = useState<SmLocation[]>([]);
 
-  const scope = useMemo<SmScope>(() => ({ period, locationId: locationId || null }), [period, locationId]);
+  // A calendar period carries no range, so its requests stay exactly as before.
+  const scope = useMemo<SmScope>(
+    () => (period === "custom" && range ? { period, locationId: locationId || null, range } : { period, locationId: locationId || null }),
+    [period, locationId, range],
+  );
+  const choosePeriod = useCallback((next: CeoPeriod, nextRange: DashRange | null) => {
+    setRange(nextRange);
+    setPeriod(next);
+  }, []);
 
   const load = useCallback(
     () =>
@@ -79,6 +92,19 @@ export default function SalesManagerDashboardScreen() {
     refreshDashboard();
     refreshComplaints();
   }, [refreshDashboard, refreshComplaints]);
+
+  // Every 5 minutes while on screen and in the foreground, quietly: the figures stay until the new ones arrive.
+  const { quietRefresh: quietDashboard } = dashboard;
+  const { quietRefresh: quietComplaints } = complaints;
+  const quietRefresh = useCallback(() => {
+    quietDashboard();
+    quietComplaints();
+  }, [quietDashboard, quietComplaints]);
+  const now = useAutoRefresh({
+    run: quietRefresh,
+    loadedAt: dashboard.loadedAt,
+    paused: editingRange || dashboard.loading || dashboard.refreshing || complaints.refreshing,
+  });
 
   // ─── Scroll targets for the KPI cards ──────────────────────────────────────────────────────────────────
   const scrollRef = useRef<ScrollView>(null);
@@ -105,7 +131,7 @@ export default function SalesManagerDashboardScreen() {
   );
 
   // ─── Drill-down ──────────────────────────────────────────────────────────────────────────────────────────
-  const periodText = d?.periodLabel || PERIOD_OPTIONS.find((p) => p.value === period)?.label;
+  const periodText = d?.periodLabel || (scope.range ? rangeLabel(scope.range) : PERIOD_OPTIONS.find((p) => p.value === period)?.label);
   // "I-8", "All my locations"; tour inquiry and complaint lists add "(plus items without a branch)" when no single
   // location is chosen (the API includes those then).
   const locationTextFor = useCallback(
@@ -124,7 +150,8 @@ export default function SalesManagerDashboardScreen() {
     () => ({
       scope,
       breakdown: (t: SmBreakdownTarget, trail: string[]) => {
-        const query = { ...t, period, locationId: scope.locationId ?? null };
+        // A custom period: every drill-down asks for the same range.
+        const query = { ...t, period, ...(scope.range ? { range: scope.range } : {}), locationId: scope.locationId ?? null };
         const label = scopeLabelFor(query.metric === "inquiries-type" ? "inquiries-type" : null);
         if (isCompleteSmBreakdown(query)) navigation.navigate("SalesManagerBreakdown", { query, trail, scopeLabel: label });
       },
@@ -169,7 +196,7 @@ export default function SalesManagerDashboardScreen() {
             <View style={styles.badgeRow}>
               <StatusPill label="View only" tone="neutral" icon="eye-outline" />
             </View>
-            <SegmentedControl accessibilityLabel="Period" options={PERIOD_OPTIONS} value={period} onChange={setPeriod} />
+            <PeriodControl period={period} range={range} onChange={choosePeriod} onEditingChange={setEditingRange} />
             {showLocationPicker ? (
               <SelectField
                 value={locationId}
@@ -183,9 +210,7 @@ export default function SalesManagerDashboardScreen() {
             ) : null}
             {d ? (
               <AppText variant="caption" color="textMuted">
-                {[scopeLabel, d.generatedAt ? `updated ${formatTime(d.generatedAt)}` : null]
-                  .filter(Boolean)
-                  .join(" · ")}
+                {[scopeLabel, updatedAgo(dashboard.loadedAt, now)].filter(Boolean).join(" · ")}
               </AppText>
             ) : null}
           </View>
@@ -208,7 +233,7 @@ export default function SalesManagerDashboardScreen() {
 
               <CeoSection
                 title="Team performance"
-                subtitle="Sales executives and admins at your locations"
+                subtitle="The sales executives at your locations"
                 loading={loading}
                 empty={!d?.team}
                 emptyMessage="No team figures were sent for this period."

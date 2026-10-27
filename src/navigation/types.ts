@@ -88,6 +88,8 @@ export type AppStackParamList = {
   UserManual: undefined;
   AccessRequest: undefined;
   UnlockDoor: undefined;
+  /** Free meeting-room hours of a private office (api/booking/meeting-room/*, like the website's My Meeting Rooms). */
+  MyMeetingRooms: undefined;
   Login: { redirectAfterLogin?: { screen: keyof AppStackParamList; params?: any } } | undefined;
   Signup: { redirectAfterLogin?: { screen: keyof AppStackParamList; params?: any } } | undefined;
   VerifyEmail: VerifyEmailParams;

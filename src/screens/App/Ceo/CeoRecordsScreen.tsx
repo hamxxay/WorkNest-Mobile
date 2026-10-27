@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { useRoute, type RouteProp } from "@react-navigation/native";
 import type { CeoStackParamList } from "../../../navigation/ceoTypes";
-import { getCeoRecords, recordCards } from "../../../services/ceo";
+import { getCeoRecords, recordCards, recordsSummaryText } from "../../../services/ceo";
 import { RecordsView, type RecordCardList } from "./RecordsView";
 
 type Route = RouteProp<CeoStackParamList, "CeoRecords">;
@@ -14,7 +14,7 @@ export default function CeoRecordsScreen() {
   const { params } = useRoute<Route>();
   const { query, trail, scopeLabel, title, keepTitle } = params;
   const load = useCallback(
-    () => getCeoRecords(query).then((r): RecordCardList => ({ title: r.title, total: r.total, cards: recordCards(r) })),
+    () => getCeoRecords(query).then((r): RecordCardList => ({ title: r.title, total: r.total, cards: recordCards(r), summary: recordsSummaryText(r) })),
     [query],
   );
   return (

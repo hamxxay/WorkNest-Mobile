@@ -2,17 +2,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import {
-  AppHeader,
-  AppText,
-  Banner,
-  Card,
-  Screen,
-  SectionHeader,
-  SegmentedControl,
-  SelectField,
-  greeting,
-} from "../../../components/ui";
+import { AppHeader, Banner, Card, Screen, SectionHeader, SelectField, greeting } from "../../../components/ui";
 import { useAuth } from "../../../context/AuthContext";
 import { useReduceMotion } from "../../../hooks/useReduceMotion";
 import type { CeoStackParamList } from "../../../navigation/ceoTypes";
@@ -28,19 +18,26 @@ import {
   overdueInvoicesRecords,
   PERIOD_OPTIONS,
   periodWords,
+  rangeLabel,
   recordsForCustomer,
   recordsForFunnelStage,
+  updatedAgo,
   type CeoDrillTarget,
   type CeoLocation,
   type CeoPeriod,
   type CeoRecordsQuery,
   type CeoScope,
+  type DashRange,
 } from "../../../services/ceo";
 import { spacing } from "../../../theme";
-import { formatTime } from "../../../utils/format";
+import { formatDate } from "../../../utils/format";
 import { useRefreshColors } from "../Staff/shared/refresh";
-import { CeoErrorState, CeoSection, ChartSkeleton, useCeoQuery } from "./parts";
+import { CeoErrorState, CeoSection, ChartSkeleton, ScopeLine, useCeoQuery } from "./parts";
+import { PeriodControl } from "./PeriodControl";
 import { RoomsBlock } from "./RoomsSection";
+import { DiscountsBlock } from "./DiscountsSection";
+import { SeatsBlock } from "./SeatsSection";
+import { useAutoRefresh } from "./useAutoRefresh";
 import {
   MoneySection,
   OccupancySection,
@@ -60,11 +57,13 @@ type Nav = NativeStackNavigationProp<CeoStackParamList, "CeoDashboard">;
 
 /**
  * The CEO dashboard (GET api/ceo/dashboard + GET api/dashboard/forecast + GET api/ceo/rooms): Money, Occupancy, Sales
- * and Team for this month / quarter / year against the previous period, for all locations or one, the 3-month outlook
- * and the Rooms report (occupancy and the price each room was sold at against its list / shift price).
+ * and Team for this month / quarter / year or a custom date range (against the same number of days just before it),
+ * for all locations or one, the 3-month outlook and the Rooms report (occupancy and the price each room was sold at
+ * against its list / shift price).
  * Read-only. Tapping a KPI card, a chart element or a row drills down: a breakdown screen (by location / space type /
  * month) or a list built from the dashboard (the period's months, aging buckets, locations), then a records list;
- * some open their records directly. Pull to refresh reloads everything.
+ * some open their records directly; every drill-down uses the dashboard's period and range. Pull to refresh reloads
+ * everything; it also reloads quietly every 5 minutes while on screen (./useAutoRefresh.ts).
  */
 export default function CeoDashboardScreen() {
   const navigation = useNavigation<Nav>();
@@ -72,11 +71,23 @@ export default function CeoDashboardScreen() {
   const reduceMotion = useReduceMotion();
   const { greetingName: firstName, roleDisplayLabel } = useAuth();
   const [period, setPeriod] = useState<CeoPeriod>("month");
+  /** The custom range (kept while a calendar period is chosen, so Custom opens with it again). */
+  const [range, setRange] = useState<DashRange | null>(null);
+  /** The date range editor is open: the auto refresh waits. */
+  const [editingRange, setEditingRange] = useState(false);
   const [locationId, setLocationId] = useState(0);
   /** The last location list the server sent (kept while a new answer loads). */
   const [knownLocations, setKnownLocations] = useState<CeoLocation[]>([]);
 
-  const scope = useMemo<CeoScope>(() => ({ period, locationId: locationId || null }), [period, locationId]);
+  // A calendar period carries no range, so its requests stay exactly as before.
+  const scope = useMemo<CeoScope>(
+    () => (period === "custom" && range ? { period, locationId: locationId || null, range } : { period, locationId: locationId || null }),
+    [period, locationId, range],
+  );
+  const choosePeriod = useCallback((next: CeoPeriod, nextRange: DashRange | null) => {
+    setRange(nextRange);
+    setPeriod(next);
+  }, []);
 
   const loadDashboard = useCallback(
     () =>
@@ -87,7 +98,7 @@ export default function CeoDashboardScreen() {
     [scope],
   );
   const loadForecast = useCallback(() => getCeoForecast(scope.locationId), [scope.locationId]);
-  const loadRooms = useCallback(() => getCeoRooms(scope.period, scope.locationId), [scope]);
+  const loadRooms = useCallback(() => getCeoRooms(scope.period, scope.locationId, scope.range), [scope]);
   const dashboard = useCeoQuery(loadDashboard);
   const forecast = useCeoQuery(loadForecast);
   const rooms = useCeoQuery(loadRooms);
@@ -120,16 +131,20 @@ export default function CeoDashboardScreen() {
   // ─── Drill-down ──────────────────────────────────────────────────────────────────────────────────────────
   const locationName = knownLocations.find((l) => l.locationId === locationId)?.name;
   const locationLabel = locationId ? locationName ?? "One location" : "All locations";
-  const scopeLabel = [d?.periodLabel || PERIOD_OPTIONS.find((p) => p.value === period)?.label, locationLabel].filter(Boolean).join(" · ");
+  const periodText = d?.periodLabel || (scope.range ? rangeLabel(scope.range) : PERIOD_OPTIONS.find((p) => p.value === period)?.label);
+  const scopeLabel = [periodText, locationLabel].filter(Boolean).join(" · ");
 
   const drill = useMemo<Drill>(
     () => ({
       period,
+      range: scope.range ?? null,
       locationId: scope.locationId ?? null,
       breakdown: (t: BreakdownTarget, trail: string[]) => {
         const query = {
           ...t,
           period,
+          // A custom period: every drill-down asks for the same range.
+          ...(scope.range ? { range: scope.range } : {}),
           // occupancy-location carries the tapped location; everything else the dashboard's filter.
           locationId: t.metric === "occupancy-location" ? t.locationId ?? null : scope.locationId ?? null,
         };
@@ -165,6 +180,21 @@ export default function CeoDashboardScreen() {
     rooms.refresh();
   };
 
+  // Every 5 minutes while on screen and in the foreground, quietly: the figures stay until the new ones arrive.
+  const { quietRefresh: quietDashboard } = dashboard;
+  const { quietRefresh: quietForecast } = forecast;
+  const { quietRefresh: quietRooms } = rooms;
+  const quietRefresh = useCallback(() => {
+    quietDashboard();
+    quietForecast();
+    quietRooms();
+  }, [quietDashboard, quietForecast, quietRooms]);
+  const now = useAutoRefresh({
+    run: quietRefresh,
+    loadedAt: dashboard.loadedAt,
+    paused: editingRange || dashboard.loading || dashboard.refreshing || forecast.refreshing || rooms.refreshing,
+  });
+
   const words = periodWords(period);
   const loading = dashboard.loading;
   const failedWithoutData = !loading && !d && !!dashboard.error;
@@ -176,6 +206,7 @@ export default function CeoDashboardScreen() {
         variant="dashboard"
         overline={roleDisplayLabel}
         title={firstName ? `${greeting()}, ${firstName}` : "CEO dashboard"}
+        subtitle={formatDate(now, { weekday: true, year: false })}
         actions={[{ icon: "person-circle-outline", accessibilityLabel: "Profile", onPress: () => navigation.navigate("CeoProfile") }]}
       />
       <ScrollView
@@ -185,7 +216,7 @@ export default function CeoDashboardScreen() {
       >
         <View ref={contentRef} collapsable={false} style={styles.stack}>
           <View style={styles.controls}>
-            <SegmentedControl accessibilityLabel="Period" options={PERIOD_OPTIONS} value={period} onChange={setPeriod} />
+            <PeriodControl period={period} range={range} onChange={choosePeriod} onEditingChange={setEditingRange} />
             <SelectField
               value={locationId}
               options={[{ label: "All locations", value: 0 }, ...knownLocations.map((l) => ({ label: l.name, value: l.locationId }))]}
@@ -195,11 +226,8 @@ export default function CeoDashboardScreen() {
               accessibilityLabel="Location shown"
               sheetTitle="Show location"
             />
-            {d ? (
-              <AppText variant="caption" color="textMuted">
-                {[scopeLabel, d.generatedAt ? `updated ${formatTime(d.generatedAt)}` : null].filter(Boolean).join(" · ")}
-              </AppText>
-            ) : null}
+            {/* The location is in the picker above: the line names the period and when the figures arrived. */}
+            <ScopeLine text={d ? periodText : undefined} updated={d ? updatedAgo(dashboard.loadedAt, now) : ""} loading={loading} stale={staleError} />
           </View>
 
           {staleError ? (
@@ -220,15 +248,22 @@ export default function CeoDashboardScreen() {
                 {d?.money ? <MoneySection money={d.money} drill={drill} /> : null}
               </CeoSection>
 
+              <DiscountsBlock scope={scope} reloadKey={dashboard.loadedAt} />
+
               <CeoSection
                 title="Occupancy"
-                subtitle="Spaces in use, new bookings and leases ending"
+                subtitle={
+                  d?.occupancy?.categories.length
+                    ? `Rooms in use now (confirmed bookings), new bookings ${words} and leases ending`
+                    : `Spaces in use now, new bookings ${words} and leases ending`
+                }
                 loading={loading}
                 empty={!d?.occupancy}
                 emptyMessage="No occupancy figures were sent for this period."
               >
                 {d?.occupancy ? <OccupancySection occupancy={d.occupancy} drill={drill} /> : null}
               </CeoSection>
+              <SeatsBlock scope={scope} drill={drill} refreshKey={dashboard.loadedAt} />
 
               <CeoSection
                 title="Sales"
@@ -243,7 +278,7 @@ export default function CeoDashboardScreen() {
 
               <CeoSection
                 title="Team"
-                subtitle="Admins and sales executives per location"
+                subtitle={`Sales executives and their revenue ${words}`}
                 loading={loading}
                 empty={!d?.team}
                 emptyMessage="No team figures were sent for this period."
@@ -254,7 +289,7 @@ export default function CeoDashboardScreen() {
           )}
 
           <View style={styles.section}>
-            <SectionHeader title="Outlook" subtitle="The next 3 months, from current leases" />
+            <SectionHeader variant="section" title="Outlook" subtitle="The next 3 months, from confirmed leases" />
             {forecast.loading ? (
               <ChartSkeleton height={130} />
             ) : forecast.data ? (
@@ -276,8 +311,9 @@ export default function CeoDashboardScreen() {
 
 const styles = StyleSheet.create({
   content: { padding: spacing.screen, paddingBottom: spacing.xxxl },
-  stack: { gap: spacing.xl },
+  // Sections breathe apart (32); inside a section the heading, tiles and cards sit 12 apart.
+  stack: { gap: spacing.xxl },
   // The period / location pickers keep a form width on a wide dashboard instead of stretching across it.
   controls: { gap: spacing.md, width: "100%", maxWidth: MAX_CONTENT_WIDTH },
-  section: { gap: spacing.sm },
+  section: { gap: spacing.md },
 });

@@ -27,6 +27,8 @@ import {
   pct,
   periodWords,
   roomCardView,
+  roomCategoryFilters,
+  roomCategoryTile,
   roomFilterCounts,
   roomFilterLabel,
   roomNowLabel,
@@ -48,7 +50,8 @@ import type { Drill } from "./sections";
 
 // The Rooms section of the CEO dashboard (GET api/ceo/rooms), loaded on its own: when it fails only this section
 // shows the error and the rest of the dashboard keeps working. Rooms sold monthly (private offices, shared spaces):
-// how full they are now and in the period, and the price each booking was sold at against the expected price (the
+// how full each category is now and in the period (one tile per category, never the two mixed; a server without
+// byCategory has it worked out from the rooms), and the price each booking was sold at against the expected price (the
 // list price; the shift price for Morning / Evening bookings). A booking on a room without a list price is shown as
 // "No list price" and not compared. Read-only; the tiles and the chart only filter the room list below them. Colours
 // come from the light / dark theme tokens; no emojis.
@@ -66,6 +69,9 @@ const FIGURE_MIN_WIDTH = 104;
 const CARD_INSET = 17;
 
 const SHIFT_NOTE = "Morning and Evening bookings are compared with their shift price";
+
+/** A category tile's icon (Ionicons): an office for private offices, people for shared spaces, a grid otherwise. */
+const CATEGORY_ICONS: Record<string, string> = { PrivateOffice: "business-outline", SharedSpace: "people-outline" };
 
 /** Text colour of a figure in a tone (the difference: red under, green over). */
 const TONE_TEXT: Partial<Record<Tone, TextColor>> = { danger: "danger", success: "success" };
@@ -100,6 +106,7 @@ export function RoomsBlock({ query, drill }: { query: CeoQuery<CeoRooms>; drill:
       subtitle={`Occupancy and the price each room was sold at, ${words}`}
       note={r && !r.available ? undefined : SHIFT_NOTE}
       loading={query.loading}
+      skeletonTiles={7}
       empty={false}
       emptyMessage=""
     >
@@ -133,32 +140,24 @@ export function RoomsContent({ report, drill }: { report: CeoRoomReport; drill: 
   const cards = useMemo(() => items.slice(0, shown).map((item, i) => roomCardView(item, drill.period, i)), [items, shown, drill.period]);
   const more = items.length - cards.length;
 
+  const categoryOptions = useMemo(() => roomCategoryFilters(s.byCategory), [s.byCategory]);
+
+  // One tile per room category (in use now, vacant, days occupied in the period), then the pricing tiles.
+  const categoryTiles: StatCardProps[] = s.byCategory.map((c) => {
+    const t = roomCategoryTile(c);
+    return {
+      label: t.label,
+      value: t.value,
+      sub: t.sub,
+      icon: CATEGORY_ICONS[c.categoryCode] ?? "grid-outline",
+      tone: t.tone,
+      onPress: t.hint ? () => showInList({ category: c.categoryCode, now: "occupied" }) : undefined,
+      accessibilityHint: t.hint ?? undefined,
+    };
+  });
+
   const tiles: StatCardProps[] = [
-    {
-      label: "Occupied now",
-      value: `${count(s.occupiedNow)} of ${count(s.rooms)}`,
-      sub: `${pct(s.occupancyNowPct)} of rooms`,
-      icon: "business-outline",
-      tone: s.occupancyNowPct >= 70 ? "success" : s.occupancyNowPct >= 40 ? "primary" : "warning",
-      onPress: () => showInList({ now: "occupied" }),
-      accessibilityHint: "Shows the occupied rooms in the list below",
-    },
-    {
-      label: "Vacant now",
-      value: count(s.vacantNow),
-      sub: s.vacantNow ? "rooms free to sell today" : "every room is in use",
-      icon: "key-outline",
-      tone: s.vacantNow ? "warning" : "success",
-      onPress: () => showInList({ now: "vacant" }),
-      accessibilityHint: "Shows the vacant rooms in the list below",
-    },
-    {
-      label: `Occupancy ${words}`,
-      value: pct(s.periodOccupancyPct),
-      sub: "of days with a booking",
-      icon: "calendar-outline",
-      tone: "info",
-    },
+    ...categoryTiles,
     {
       label: "Sold under price",
       value: count(s.under),
@@ -239,6 +238,14 @@ export function RoomsContent({ report, drill }: { report: CeoRoomReport; drill: 
             {roomsShownText(cards.length, items.length)}
           </AppText>
         </View>
+        {categoryOptions.length ? (
+          <FilterGroup
+            label="Category"
+            value={filters.category}
+            options={categoryOptions.map((o) => ({ ...o, count: counts.category[o.value] ?? 0 }))}
+            onChange={(category) => setFilters({ ...filters, category })}
+          />
+        ) : null}
         <FilterGroup
           label="Right now"
           value={filters.now}
@@ -344,11 +351,22 @@ export function RoomCard({ view }: { view: RoomCardView }) {
       {view.vacant ? (
         <>
           <Divider spacing={spacing.md} />
-          <View style={styles.head} accessible accessibilityLabel={`Vacant: ${view.vacantText}`}>
-            <AppText variant="bodySmall" color="textMuted" style={[styles.titleBlock, titleMin]}>
-              {view.vacantText}
-            </AppText>
-            <StatusPill label="Vacant" tone="neutral" style={styles.pill} />
+          <View
+            style={styles.head}
+            accessible
+            accessibilityLabel={[`Not let: ${view.vacantText}`, view.upcomingText].filter(Boolean).join(". ")}
+          >
+            <View style={[styles.titleBlock, titleMin]}>
+              <AppText variant="bodySmall" color="textMuted">
+                {view.vacantText}
+              </AppText>
+              {view.upcomingText ? (
+                <AppText variant="caption" color="textSecondary">
+                  {view.upcomingText}
+                </AppText>
+              ) : null}
+            </View>
+            <StatusPill label="Not let" tone="neutral" style={styles.pill} />
           </View>
         </>
       ) : (
@@ -372,7 +390,7 @@ function SaleBlock({ sale, titleMin, figuresWidth }: { sale: RoomSaleView; title
           <AppText variant="bodyStrong" numberOfLines={2}>
             {sale.tenant}
           </AppText>
-          <AppText variant="caption" color="textMuted" numberOfLines={2}>
+          <AppText variant="caption" color="textMuted" numberOfLines={3}>
             {sale.detail}
           </AppText>
         </View>

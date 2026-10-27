@@ -1,5 +1,7 @@
 import type { NavigatorScreenParams } from "@react-navigation/native";
-import type { StaffAgreement, StaffCustomer, StaffInvoice } from "../services/staff";
+import type { OverviewDetailRequest, OverviewDetailScope, StaffAgreement, StaffCustomer, StaffInvoice } from "../services/staff";
+import type { WaConversation } from "../services/staff/whatsappInbox";
+import type { StaffUser } from "../services/staff/users";
 
 // Route types for the staff apps (sales executive, admin, super admin). The customer app's routes live in
 // ./types.ts. Each staff role gets its own navigator (see ./staff/StaffNavigator.tsx), built from one shared
@@ -7,6 +9,9 @@ import type { StaffAgreement, StaffCustomer, StaffInvoice } from "../services/st
 
 /** Tour-inquiry list filter. */
 export type InquiryFilter = "all" | "new" | "due";
+
+/** Tour-inquiry list params: the filter and the sub-tab ("general" = Simple inquiries; default tour). */
+export type InquiryListParams = { filter?: InquiryFilter; category?: "tour" | "general" };
 
 /** A tour inquiry being turned into a quotation (prefills the customer search; feedback "converted" after saving). */
 export type InquiryPrefill = {
@@ -22,7 +27,7 @@ export type InquiryPrefill = {
 /** Bottom tabs. Which of them a role gets is in STAFF_TABS (./staff/access.ts). */
 export type StaffTabParamList = {
   Dashboard: undefined;
-  Inquiries: { filter?: InquiryFilter } | undefined;
+  Inquiries: InquiryListParams | undefined;
   Quotations: undefined;
   Customers: undefined;
   /** Admin / super admin: capacity requests (sales executives asking to add people to full rooms). */
@@ -67,7 +72,7 @@ export type StaffStackParamList = {
   BookingDetail: { bookingId: number; offerInitialInvoice?: { issuedOn?: string | null } };
   BookingForm: { customerId?: number } | undefined;
 
-  TourInquiries: { filter?: InquiryFilter } | undefined;
+  TourInquiries: InquiryListParams | undefined;
 
   AgreementList: { status?: string } | undefined;
   /** The API has no GET agreement/{id}: the list row is passed in. */
@@ -87,16 +92,37 @@ export type StaffStackParamList = {
   CapacityRequests: undefined;
 
   Complaints: undefined;
+  /** WhatsApp Inbox (read only): conversations with the WorkNest WhatsApp number. */
+  WhatsAppInbox: undefined;
+  /** One WhatsApp conversation's messages. The API has no GET conversation/{id}: the list row is passed in. */
+  WhatsAppConversation: { conversation: WaConversation };
   /** Admin / super admin: door access activity log. */
   AccessActivity: undefined;
   /** Admin / super admin, read-only. */
   Users: undefined;
+  /** Admin / super admin: new user (no `user`) or edit that user (the list row: the API has no fuller GET). */
+  UserForm: { user?: StaffUser } | undefined;
   Locations: undefined;
   Spaces: { locationId?: number } | undefined;
   /** Super admin: find a booking's challan and extend its validity. */
   ChallanValidity: undefined;
   StaffNotifications: undefined;
   StaffProfile: undefined;
+  /** Admin / super admin (the CMS Payments page), read-only. */
+  PaymentList: undefined;
+  /**
+   * Dashboard chart drill-down (GET dashboard/overview-details/{kind}): the records behind one bar / slice / point.
+   * `scope`: the dashboard's period and locations. `trail`: chart > element. `related`: opened from another list's
+   * link (offers no further link).
+   */
+  DashboardDetails: {
+    request: OverviewDetailRequest;
+    scope: OverviewDetailScope;
+    trail: string[];
+    scopeLabel?: string;
+    title?: string;
+    related?: boolean;
+  };
 };
 
 export type StaffRouteName = Exclude<keyof StaffStackParamList, "StaffTabs">;

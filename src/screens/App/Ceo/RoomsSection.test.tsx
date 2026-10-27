@@ -88,24 +88,25 @@ const REPORT = normalizeCeoRooms({
     periodLabel: "October 2026",
     summary: { rooms: 3, occupiedNow: 2, vacantNow: 1, occupancyNowPct: 66.7, periodOccupancyPct: 58.5, listMonthly: 168000, soldMonthly: 160000 },
     rooms: [
-      { spaceId: 1, name: "Office 1", code: "PO-1", location: "I-8", seats: 2, listSeatPrice: 30000, occupiedNow: true, periodOccupancyPct: 100, sales: [sale(11, "Acme", "24/7", "under", -10000)] },
+      { spaceId: 1, name: "Office 1", code: "PO-1", location: "I-8", categoryCode: "PrivateOffice", seats: 2, listSeatPrice: 30000, occupiedNow: true, periodOccupancyPct: 100, sales: [sale(11, "Acme", "24/7", "under", -10000)] },
       {
         spaceId: 2,
         name: "Shared A",
         location: "I-8",
+        categoryCode: "SharedSpace",
         seats: 8,
         listSeatPrice: 30000,
         occupiedNow: true,
         periodOccupancyPct: 75.5,
         sales: [sale(12, "Beta", "24/7", "at", 0), sale(13, "Gamma", "Morning", "over", 2000)],
       },
-      { spaceId: 3, name: "Office 2", location: "F-7", seats: 2, listSeatPrice: 30000, occupiedNow: false, periodOccupancyPct: 0, sales: [] },
+      { spaceId: 3, name: "Office 2", location: "F-7", categoryCode: "PrivateOffice", seats: 2, listSeatPrice: 30000, occupiedNow: false, periodOccupancyPct: 0, sales: [], upcomingStartOn: "2026-11-05" },
     ],
   },
 });
 
 function query(over: Partial<CeoQuery<CeoRooms>>): CeoQuery<CeoRooms> {
-  return { data: null, error: null, loading: false, refreshing: false, reload: jest.fn(), refresh: jest.fn(), ...over };
+  return { data: null, error: null, loading: false, refreshing: false, loadedAt: null, reload: jest.fn(), refresh: jest.fn(), quietRefresh: jest.fn(), ...over };
 }
 
 function makeDrill(): Drill & { focus: jest.Mock; target: jest.Mock } {
@@ -168,13 +169,13 @@ describe("RoomsBlock states", () => {
 });
 
 describe("RoomsContent", () => {
-  test("tiles: occupied now, occupancy in the period, under / at / over with the monthly gap and premium, sold a month", () => {
+  test("tiles: one per room category (never mixed), under / at / over with the monthly gap and premium, sold a month", () => {
+    // The server sent no byCategory: worked out from the rooms (private offices and shared spaces apart).
     const root = render(<RoomsBlock query={query({ data: REPORT })} drill={makeDrill()} />);
     const tiles = byType(root, "KpiGrid")[0].props.tiles;
     expect(tiles.map((t: any) => [t.label, t.value, t.sub, t.tone])).toEqual([
-      ["Occupied now", "2 of 3", "66.7% of rooms", "primary"],
-      ["Vacant now", "1", "rooms free to sell today", "warning"],
-      ["Occupancy this month", "58.5%", "of days with a booking", "info"],
+      ["Private Office", "1 of 2", "50% now · 1 vacant · 50% days occupied", "primary"],
+      ["Shared Space", "1 of 1", "100% now · 0 vacant · 75.5% days occupied", "success"],
       ["Sold under price", "1", "PKR 10K a month below", "danger"],
       ["At price", "1", "within 0.5% of expected", "neutral"],
       ["Sold over price", "1", "PKR 2K a month above", "success"],
@@ -206,8 +207,15 @@ describe("RoomsContent", () => {
   test("the room list: every room, a vacant one as vacant; chips carry their counts and filter the list", () => {
     const root = render(<RoomsBlock query={query({ data: REPORT })} drill={makeDrill()} />);
     expect(listed(root)).toEqual([["Office 1", "Acme"], ["Shared A", "Beta", "Gamma"], ["Office 2"]]);
-    const vacant = root.findAll((n) => n.type === ("StatusPill" as unknown) && n.props.label === "Vacant");
+    const vacant = root.findAll((n) => n.type === ("StatusPill" as unknown) && n.props.label === "Not let");
     expect(vacant).toHaveLength(1);
+    // CP_02: a room not let in the period says when its next booking starts.
+    expect(byType(root, "AppText").some((n) => n.props.children === "Starts 5 Nov 2026")).toBe(true);
+    expect(chips(root, "Category").props.options.map((o: any) => [o.label, o.value, o.count])).toEqual([
+      ["All", "all", 4],
+      ["Private Office", "PrivateOffice", 2],
+      ["Shared Space", "SharedSpace", 2],
+    ]);
     expect(chips(root, "Right now").props.options.map((o: any) => [o.label, o.count])).toEqual([
       ["All", 4],
       ["Occupied now", 3],
@@ -224,7 +232,7 @@ describe("RoomsContent", () => {
       ["Under", 1],
       ["At", 1],
       ["Over", 1],
-      ["Vacant", 1],
+      ["Not let", 1],
     ]);
 
     act(() => chips(root, "Shift").props.onChange("Morning"));
@@ -244,28 +252,59 @@ describe("RoomsContent", () => {
     const root = render(<RoomsBlock query={query({ data: REPORT })} drill={drill} />);
     expect(drill.target).toHaveBeenCalledWith("roomList");
     const tiles = byType(root, "KpiGrid")[0].props.tiles;
-    act(() => tiles[3].onPress());
+    act(() => tiles[2].onPress());
     expect(listed(root)).toEqual([["Office 1", "Acme"]]);
     expect(chips(root, "Pricing").props.value).toBe("under");
     act(() => byType(root, "BarChart")[0].props.onPressItem(1));
     expect(listed(root)).toEqual([["Shared A", "Gamma"]]);
     expect([chips(root, "Shift").props.value, chips(root, "Pricing").props.value]).toEqual(["Morning", "all"]);
-    // Occupied now / Vacant now: the rooms in use or not, right now.
+    // A category tile: that category's rooms in use right now.
     act(() => tiles[0].onPress());
-    expect(listed(root)).toEqual([["Office 1", "Acme"], ["Shared A", "Beta", "Gamma"]]);
-    expect(chips(root, "Right now").props.value).toBe("occupied");
+    expect(listed(root)).toEqual([["Office 1", "Acme"]]);
+    expect([chips(root, "Category").props.value, chips(root, "Right now").props.value]).toEqual(["PrivateOffice", "occupied"]);
     act(() => tiles[1].onPress());
-    expect(listed(root)).toEqual([["Office 2"]]);
+    expect(listed(root)).toEqual([["Shared A", "Beta", "Gamma"]]);
+    expect(chips(root, "Category").props.value).toBe("SharedSpace");
     expect(drill.focus.mock.calls).toEqual([["roomList"], ["roomList"], ["roomList"], ["roomList"]]);
     expect(tiles.filter((t: any) => t.onPress).map((t: any) => t.accessibilityHint)).toEqual([
-      "Shows the occupied rooms in the list below",
-      "Shows the vacant rooms in the list below",
+      "Shows the Private Office rooms in use now in the list below",
+      "Shows the Shared Space rooms in use now in the list below",
       "Shows the bookings sold under the price in the list below",
       "Shows the bookings sold at the price in the list below",
       "Shows the bookings sold over the price in the list below",
     ]);
     // Tiles without a list behind them do nothing on press.
-    expect(tiles[2].onPress).toBeUndefined();
+    expect(tiles[5].onPress).toBeUndefined();
+  });
+
+  test("category tiles take the server's byCategory (its labels); a category without rooms is a plain tile", () => {
+    const data = normalizeCeoRooms({
+      isSuccessful: true,
+      data: {
+        available: true,
+        summary: {
+          rooms: 3,
+          occupiedNow: 2,
+          byCategory: [
+            { categoryCode: "PrivateOffice", label: "Private Suites", rooms: 3, occupiedNow: 2, vacantNow: 1, occupancyNowPct: 66.7, periodOccupancyPct: 40.5 },
+            { categoryCode: "SharedSpace", label: "Co-working", rooms: 0, occupiedNow: 0, vacantNow: 0, occupancyNowPct: 0, periodOccupancyPct: 0 },
+          ],
+        },
+        rooms: [
+          { spaceId: 1, name: "Office 1", categoryCode: "PrivateOffice", occupiedNow: true, sales: [] },
+          { spaceId: 2, name: "Office 2", categoryCode: "PrivateOffice", occupiedNow: true, sales: [] },
+          { spaceId: 3, name: "Office 3", categoryCode: "PrivateOffice", sales: [] },
+        ],
+      },
+    });
+    const root = render(<RoomsBlock query={query({ data })} drill={makeDrill()} />);
+    const tiles = byType(root, "KpiGrid")[0].props.tiles;
+    expect(tiles.slice(0, 2).map((t: any) => [t.label, t.value, t.sub, t.tone, t.icon, typeof t.onPress])).toEqual([
+      ["Private Suites", "2 of 3", "66.7% now · 1 vacant · 40.5% days occupied", "primary", "business-outline", "function"],
+      ["Co-working", "0 of 0", "No rooms", "neutral", "people-outline", "undefined"],
+    ]);
+    // Only one category has rooms: no category chips.
+    expect(chips(root, "Category")).toBeUndefined();
   });
 
   test("a long list shows the first rooms and more on demand", () => {
@@ -311,7 +350,7 @@ describe("RoomsContent", () => {
       ["At", 0],
       ["Over", 0],
       ["No list price", 1],
-      ["Vacant", 0],
+      ["Not let", 0],
     ]);
     expect(root.findAll((n) => n.type === ("StatusPill" as unknown) && n.props.label === "No list price")[0].props.tone).toBe("warning");
   });

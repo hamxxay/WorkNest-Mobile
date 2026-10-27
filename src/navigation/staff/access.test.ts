@@ -25,6 +25,18 @@ describe("route access (mirrors the CMS)", () => {
     }
   });
 
+  it("Payments is for admins and super admins (CMS /admin/payments is not a sales executive page)", () => {
+    expect(canOpenRoute("sales_executive", "PaymentList")).toBe(false);
+    expect(canOpenRoute("admin", "PaymentList")).toBe(true);
+    expect(canOpenRoute("super_admin", "PaymentList")).toBe(true);
+  });
+
+  it("the Users form (create / edit) is admin and super admin only", () => {
+    expect(canOpenRoute("sales_executive", "UserForm")).toBe(false);
+    expect(canOpenRoute("admin", "UserForm")).toBe(true);
+    expect(canOpenRoute("super_admin", "UserForm")).toBe(true);
+  });
+
   it("Challan Validity is super admin only", () => {
     expect(canOpenRoute("sales_executive", "ChallanValidity")).toBe(false);
     expect(canOpenRoute("admin", "ChallanValidity")).toBe(false);
@@ -48,6 +60,8 @@ describe("route access (mirrors the CMS)", () => {
       "InvoiceDetail",
       "Attendants",
       "Complaints",
+      "WhatsAppInbox",
+      "WhatsAppConversation",
       "StaffProfile",
     ] as const;
     for (const role of STAFF_ROLES) {
@@ -83,6 +97,7 @@ describe("More menu", () => {
       "AgreementList",
       "KycList",
       "Complaints",
+      "WhatsAppInbox",
       "InvoiceList",
       "Attendants",
       "StaffProfile",
@@ -93,6 +108,8 @@ describe("More menu", () => {
       "AgreementList",
       "KycList",
       "Complaints",
+      "WhatsAppInbox",
+      "PaymentList",
       "InvoiceList",
       "Attendants",
       "AccessActivity",
@@ -102,7 +119,22 @@ describe("More menu", () => {
       "StaffProfile",
     ]);
     expect(routes("super_admin")).toContain("ChallanValidity");
+    expect(routes("super_admin")).toContain("PaymentList");
+    expect(routes("sales_executive")).not.toContain("PaymentList");
     expect(routes("admin")).not.toContain("ChallanValidity");
+    expect(routes("super_admin")).toContain("WhatsAppInbox");
+  });
+
+  it("lists WhatsApp Inbox under Sales for every role, with the WhatsApp icon and a green badge", () => {
+    for (const role of STAFF_ROLES) {
+      const sales = moreMenuFor(role).find((s) => s.title === "Sales");
+      expect(sales?.items.find((i) => i.route === "WhatsAppInbox")).toEqual({
+        route: "WhatsAppInbox",
+        label: "WhatsApp Inbox",
+        icon: "logo-whatsapp",
+        badgeTone: "success",
+      });
+    }
   });
 
   it("has no empty sections and no duplicate items", () => {

@@ -1,4 +1,4 @@
-import type { TourInquiry } from "../services/contactService";
+import type { InquiryCategory, TourInquiry } from "../services/contactService";
 import { INQUIRY_TYPE_LABELS, normalizeInquiryType } from "../theme/inquiryTypes";
 import { isValidPhone } from "./phone";
 
@@ -154,4 +154,33 @@ export async function resolveWhatsAppUrl(
   } catch {
     return fallbackUrl;
   }
+}
+
+/**
+ * The nav-badges routes (GET admin/nav-badges, CMS sidebar routes) holding each inquiry category's New count. The
+ * app's Inquiries badge stays the tour count ("/admin/contacts"), as the CMS sidebar.
+ */
+export const INQUIRY_CATEGORY_BADGE_ROUTES: Record<InquiryCategory, string> = {
+  tour: "/admin/contacts",
+  general: "/admin/contacts?category=general",
+};
+
+/** The Tour / Simple sub-tabs of the inquiry list, with each one's New count from the nav badges when it has one. */
+export function inquiryCategoryOptions(navBadges: Record<string, number>): { label: string; value: InquiryCategory; accessibilityLabel: string }[] {
+  const option = (value: InquiryCategory, label: string) => {
+    const n = navBadges[INQUIRY_CATEGORY_BADGE_ROUTES[value]];
+    const count = typeof n === "number" && Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+    return {
+      label: count ? `${label} (${count})` : label,
+      value,
+      accessibilityLabel: count ? `${label}, ${count} new` : label,
+    };
+  };
+  return [option("tour", "Tour Inquiries"), option("general", "Simple Inquiries")];
+}
+
+/** A route / link param naming the sub-tab: "general" or "simple" (any case) = Simple inquiries; anything else = Tour. */
+export function inquiryCategoryParam(value: unknown): InquiryCategory {
+  const v = typeof value === "string" ? value.trim().toLowerCase() : "";
+  return v === "general" || v === "simple" ? "general" : "tour";
 }

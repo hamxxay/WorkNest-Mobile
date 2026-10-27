@@ -1,6 +1,7 @@
 // Drill-down routing: each chart element opens the breakdown / records the contract names, with the right keys.
 
 import {
+  billedInAdvanceTarget,
   breakdownParams,
   isCompleteBreakdown,
   leasesExpiringRecords,
@@ -11,6 +12,7 @@ import {
   recordsForBreakdownRow,
   recordsForCustomer,
   recordsForFunnelStage,
+  recordsForPersonRevenue,
   rowLocation,
   trailForSpeech,
   trailOf,
@@ -148,6 +150,19 @@ describe("recordsForBreakdownRow (the contract's next-level column)", () => {
     });
   });
 
+  it("the 'Other' space type (id 0) opens like any other type (as the CMS)", () => {
+    expect(isCompleteBreakdown({ metric: "occupancy-type", spaceTypeId: 0, period: "month" })).toBe(true);
+    expect(breakdownParams({ metric: "occupancy-type", spaceTypeId: 0, period: "month" })).toMatchObject({ spaceTypeId: 0 });
+    expect(recordsForBreakdownRow({ metric: "occupancy-type", spaceTypeId: 0, period: "month" }, row("1", "I-8"))).toEqual({
+      kind: "spaces",
+      params: { spaceTypeId: 0, locationId: 1 },
+    });
+    expect(recordsForBreakdownRow({ metric: "occupancy-location", locationId: 1, period: "month" }, row("0", "Other"))).toEqual({
+      kind: "spaces",
+      params: { locationId: 1, spaceTypeId: 0 },
+    });
+  });
+
   it("is null for a row without a usable key (e.g. 'Other') or a query without its key", () => {
     expect(recordsForBreakdownRow({ metric: "revenue", month: "2026-10", period: "month" }, row("", "Other"))).toBeNull();
     expect(recordsForBreakdownRow({ metric: "inquiries-type", type: "Website", period: "month" }, row("7"))).toBeNull();
@@ -185,12 +200,43 @@ describe("records straight from the dashboard", () => {
     expect(recordsForFunnelStage("lost", scope, TODAY)).toBeNull();
   });
 
+  it("a sales executive's revenue opens the quotations they converted in the period (Team section)", () => {
+    expect(recordsForPersonRevenue(5, { period: "quarter", locationId: 2 }, TODAY)).toEqual({
+      kind: "quotations",
+      params: { stage: "converted", period: "quarter", from: "2026-10-01", to: "2026-10-14", locationId: 2, userId: 5 },
+    });
+    expect(recordsForPersonRevenue(7, { period: "month", locationId: null }, TODAY)?.params).toEqual({
+      stage: "converted",
+      period: "month",
+      from: "2026-10-01",
+      to: "2026-10-14",
+      userId: 7,
+    });
+    // A custom range goes as periodFrom / periodTo, as every drill-down of that range.
+    expect(
+      recordsForPersonRevenue(5, { period: "custom", locationId: null, range: { from: "2026-09-01", to: "2026-09-30" } }, TODAY)?.params,
+    ).toMatchObject({ stage: "converted", period: "custom", periodFrom: "2026-09-01", periodTo: "2026-09-30", userId: 5 });
+    expect(recordsForPersonRevenue(null, { period: "month" }, TODAY)).toBeNull();
+    expect(recordsForPersonRevenue(0, { period: "month" }, TODAY)).toBeNull();
+  });
+
   it("top customer, overdue and new bookings cards", () => {
     expect(recordsForCustomer(9, { period: "month" })).toEqual({ kind: "invoices", params: { customerId: 9 } });
     expect(recordsForCustomer(null, { period: "month" })).toBeNull();
     expect(overdueInvoicesRecords({ period: "year", locationId: 3 })).toEqual({ kind: "invoices", params: { status: "overdue", locationId: 3 } });
     expect(overdueInvoicesRecords({ period: "year", locationId: null })).toEqual({ kind: "invoices", params: { status: "overdue" } });
     expect(newBookingsRecords({ period: "month" })).toEqual({ kind: "bookings", params: { period: "month" } });
+  });
+
+  it("billed in advance -> the advance invoices, any period, with the location filter and its own title", () => {
+    expect(billedInAdvanceTarget({ period: "custom", range: { from: "2026-10-01", to: "2026-10-15" }, locationId: 3 })).toEqual({
+      kind: "records",
+      query: { kind: "invoices", params: { status: "advance", locationId: 3 } },
+      title: "Billed in advance",
+      keepTitle: true,
+      timeless: true,
+    });
+    expect(billedInAdvanceTarget({ period: "month", locationId: null })).toMatchObject({ query: { kind: "invoices", params: { status: "advance" } } });
   });
 
   it("leases expiring -> every lease ending in the next 90 days (no window), with the location filter", () => {

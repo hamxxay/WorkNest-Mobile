@@ -355,7 +355,7 @@ function Column({
 
 const styles = StyleSheet.create({
   root: { gap: 8 },
-  readout: { minHeight: 16 },
+  readout: { minHeight: 16, fontVariant: ["tabular-nums"] },
   tick: { position: "absolute", fontVariant: ["tabular-nums"] },
   xLabel: { position: "absolute" },
   hits: { position: "absolute", top: 0, right: 0, bottom: 0, flexDirection: "row" },

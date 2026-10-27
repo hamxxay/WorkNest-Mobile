@@ -1,5 +1,6 @@
 import { STAFF_ENDPOINTS } from "./endpoints";
 import { actionResult, downloadStaffFile, staffGet, staffPost, type ActionResult, type DownloadedFile } from "./http";
+import { listFilterQuery, type ListFilters } from "./listFilters";
 import { num, optNum, optStr, pick, str, toApiDate, toPage, unwrapEnvelope, withQuery, type Page } from "./normalize";
 
 // Invoices & billing (CMS admin.service.ts getInvoices / getInvoiceDetails / getCustomerInvoices /
@@ -8,7 +9,9 @@ import { num, optNum, optStr, pick, str, toApiDate, toPage, unwrapEnvelope, with
 // Admins / sales executives only get invoices at their locations in the list.
 //
 // API facts the screens rely on:
-//   - List / customer invoices are { isSuccessful, data, totalCount, page, limit }; no status filter on the list.
+//   - List / customer invoices are { isSuccessful, data, totalCount, page, limit }. The list takes the list filters
+//     (status = Unpaid / Partial / Paid / Overdue / Cancelled as GET invoice/statuses gives them, from / to = issue
+//     date; ./listFilters).
 //   - Rely on statusLabel (Unpaid | Paid | Partial | Overdue | Cancelled), not statusId. The CMS shows Unpaid /
 //     Partial invoices past their due date as Overdue.
 //   - balanceDue in the list already subtracts WHT; the detail may lack statusLabel (the CMS merges the list row
@@ -156,7 +159,7 @@ export function normalizeInvoice(raw: any): StaffInvoice {
 
 /** GET invoice?page=&limit=&search=&typeId=&locationId= — search: invoice number, customer name, email. */
 export async function listInvoices(
-  query: { page?: number; limit?: number; search?: string; typeId?: number | null; locationId?: number | null } = {},
+  query: { page?: number; limit?: number; search?: string; typeId?: number | null } & Partial<ListFilters> = {},
 ): Promise<Page<StaffInvoice>> {
   const page = query.page ?? 1;
   const limit = query.limit ?? 20;
@@ -166,7 +169,7 @@ export async function listInvoices(
       limit,
       search: query.search?.trim(),
       typeId: query.typeId && query.typeId > 0 ? query.typeId : undefined,
-      locationId: query.locationId && query.locationId > 0 ? query.locationId : undefined,
+      ...listFilterQuery(query),
     }),
   );
   return toPage(raw, normalizeInvoice, { page, limit });

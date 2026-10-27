@@ -3,6 +3,7 @@ import { StyleSheet, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { BarChart, Donut, HBarList, percentOf, type HBarItem } from "../../../../components/charts";
+import { ScalePressable } from "../../../../components/motion";
 import { AppText, Card, Divider, FilterChips, InfoRow, ListRow, SegmentedControl, StatusPill } from "../../../../components/ui";
 import type { StaffStackParamList } from "../../../../navigation/staffTypes";
 import { dashboardTrend, forecastRowsFor } from "../../../../services/staff";
@@ -19,6 +20,7 @@ import { spacing, type Tone } from "../../../../theme";
 import { formatDate, formatNumber, formatRelative } from "../../../../utils/format";
 import { ChartGrid } from "../../Ceo/parts";
 import { AttentionList, Fact, FigureTable, KpiGrid, money } from "./parts";
+import { occupancyNowTarget, revenueMonthTarget, spaceTypeTarget, type DrillTarget } from "./drill";
 
 type Nav = NativeStackNavigationProp<StaffStackParamList>;
 
@@ -174,13 +176,32 @@ function AttentionCard({
 
 // ─── Admin / super admin overview ─────────────────────────────────────────────────────────────────────────
 
-export function OverviewSection({ data, periodWord }: { data: DashboardOverview; periodWord: string }) {
+/**
+ * `onDrill`: a chart element was tapped; opens the records behind it (GET dashboard/overview-details, ./drill):
+ * a month of "Invoiced and paid", the occupancy ring (spaces in use now) or a space type. Without it the charts
+ * are read-only.
+ */
+export function OverviewSection({ data, periodWord, onDrill }: { data: DashboardOverview; periodWord: string; onDrill?: (target: DrillTarget) => void }) {
   const navigation = useNavigation<Nav>();
   const [tab, setTab] = useState<"overdue" | "ending" | "pending">("overdue");
   const d = data;
   const recent = d.months.slice(-12);
   const lastSix = d.months.slice(-6);
   const spaceTypes = d.spaceTypes.filter((t) => t.total > 0);
+  const drill = (target: DrillTarget | null) => {
+    if (target && onDrill) onDrill(target);
+  };
+  const occupancyText = `Occupancy ${pct(d.occupancyPct)}: ${d.occupiedSpaces} of ${d.totalSpaces} spaces in use. Last month ${pct(d.occupancyPctLastMonth)}.`;
+  const occupancyDonut = (
+    <Donut
+      size={DONUT_SIZE}
+      segments={[{ label: "Occupied", value: clampPct(d.occupancyPct) }]}
+      total={100}
+      centerLabel={pct(d.occupancyPct)}
+      centerCaption={d.totalSpaces ? "occupied" : "no spaces"}
+      accessibilityLabel={occupancyText}
+    />
+  );
   return (
     <>
       <KpiGrid
@@ -268,16 +289,30 @@ export function OverviewSection({ data, periodWord }: { data: DashboardOverview;
           )}
         </Card>
         <Card>
-          <AppText variant="subheading">Occupancy</AppText>
+          <AppText variant="subheading" accessibilityRole="header">
+            Occupancy
+          </AppText>
+          {onDrill ? (
+            <AppText variant="caption" color="textMuted">
+              {spaceTypes.length ? "Tap the ring for the spaces in use, a type for its spaces." : "Tap the ring for the spaces in use."}
+            </AppText>
+          ) : null}
           <View style={styles.donutRow}>
-            <Donut
-              size={DONUT_SIZE}
-              segments={[{ label: "Occupied", value: clampPct(d.occupancyPct) }]}
-              total={100}
-              centerLabel={pct(d.occupancyPct)}
-              centerCaption={d.totalSpaces ? "occupied" : "no spaces"}
-              accessibilityLabel={`Occupancy ${pct(d.occupancyPct)}: ${d.occupiedSpaces} of ${d.totalSpaces} spaces in use. Last month ${pct(d.occupancyPctLastMonth)}.`}
-            />
+            {onDrill ? (
+              // The ring is one button: it opens the spaces in use now (occupied-month of this month).
+              <ScalePressable
+                onPress={() => drill(occupancyNowTarget(d))}
+                accessibilityRole="button"
+                accessibilityLabel={occupancyText}
+                accessibilityHint="Opens the spaces in use now"
+              >
+                <View importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+                  {occupancyDonut}
+                </View>
+              </ScalePressable>
+            ) : (
+              occupancyDonut
+            )}
             <View style={styles.facts}>
               <Fact label="In use" value={`${d.occupiedSpaces} of ${d.totalSpaces} spaces`} />
               <Fact label="Free" value={`${Math.max(0, d.totalSpaces - d.occupiedSpaces)} spaces`} />
@@ -297,13 +332,22 @@ export function OverviewSection({ data, periodWord }: { data: DashboardOverview;
                   const share = Math.round(percentOf(t.occupied, t.total) * 10) / 10;
                   return { label: t.spaceType || "Other", value: share, valueLabel: `${pct(share)} · ${t.occupied}/${t.total}` };
                 })}
+                onPressItem={onDrill ? (_item, i) => drill(spaceTypeTarget(spaceTypes[i]?.spaceType ?? "")) : undefined}
+                itemAccessibilityHint="Opens the spaces of this type"
               />
             </>
           ) : null}
         </Card>
         {lastSix.length ? (
           <Card>
-            <AppText variant="subheading">Invoiced and paid</AppText>
+            <AppText variant="subheading" accessibilityRole="header">
+              Invoiced and paid
+            </AppText>
+            {onDrill ? (
+              <AppText variant="caption" color="textMuted">
+                Tap a month for the invoices issued in it.
+              </AppText>
+            ) : null}
             <BarChart
               style={styles.chart}
               label="Invoiced and paid by month"
@@ -311,6 +355,8 @@ export function OverviewSection({ data, periodWord }: { data: DashboardOverview;
               data={lastSix.map((m) => ({ label: monthShort(m.month), title: monthLabel(m.month), values: [m.invoiced, m.paid] }))}
               formatValue={money}
               emptyText="Nothing invoiced in these months."
+              onPressItem={onDrill ? (i) => drill(revenueMonthTarget(lastSix[i]?.month ?? "")) : undefined}
+              itemAccessibilityHint="Opens the invoices issued that month"
             />
             <View style={styles.chart}>
               <FigureTable
@@ -353,7 +399,7 @@ export function TeamSection({ team }: { team: TeamDashboard }) {
           { label: "KYC to review", value: t.kycPending, sub: "customers with pending documents", icon: "id-card-outline", tone: t.kycPending ? "warning" : "success", onPress: () => navigation.navigate("KycList") },
           { label: "Access suspended", value: t.accessSuspended, sub: "bookings locked for unpaid challans", icon: "lock-closed-outline", tone: t.accessSuspended ? "danger" : "success", onPress: () => navigation.navigate("Attendants") },
           { label: "Machines offline", value: `${t.machinesOffline}/${t.machines}`, sub: t.machinesOffline ? "door machines not reachable" : "all door machines online", icon: "hardware-chip-outline", tone: t.machinesOffline ? "danger" : "success", onPress: () => navigation.navigate("AccessActivity") },
-          { label: "WhatsApp unread", value: t.unreadWhatsApp, sub: "chats waiting (web portal)", icon: "logo-whatsapp", tone: t.unreadWhatsApp ? "warning" : "success" },
+          { label: "WhatsApp unread", value: t.unreadWhatsApp, sub: "chats with unread messages", icon: "logo-whatsapp", tone: t.unreadWhatsApp ? "warning" : "success", onPress: () => navigation.navigate("WhatsAppInbox") },
         ]}
       />
       {t.offlineMachines.length ? (

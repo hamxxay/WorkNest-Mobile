@@ -1,5 +1,6 @@
 import { STAFF_ENDPOINTS } from "./endpoints";
 import { actionResult, downloadStaffFile, staffGet, staffPost, type ActionResult, type DownloadedFile } from "./http";
+import { listFilterQuery, type ListFilters } from "./listFilters";
 import {
   bool,
   isApiDate,
@@ -184,7 +185,7 @@ export function normalizeQuotation(raw: any): StaffQuotation {
  * Admins / sales executives only get their own locations. Rows are full quotations (heavy): keep `limit` modest.
  */
 export async function listQuotations(
-  query: { page?: number; limit?: number; search?: string; locationId?: number | null } = {},
+  query: { page?: number; limit?: number; search?: string } & Partial<ListFilters> = {},
 ): Promise<Page<StaffQuotation>> {
   const page = query.page ?? 1;
   const limit = query.limit ?? 10;
@@ -193,7 +194,8 @@ export async function listQuotations(
       page,
       limit,
       search: query.search?.trim(),
-      locationId: query.locationId && query.locationId > 0 ? query.locationId : undefined,
+      // status = a quotation status from GET quotation/statuses, from / to = quotation date (./listFilters).
+      ...listFilterQuery(query),
     }),
   );
   return toPage(raw, normalizeQuotation, { page, limit });

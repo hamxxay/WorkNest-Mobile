@@ -248,3 +248,44 @@ describe("complaints (own call, database update SM_03)", () => {
     await expect(getSalesManagerComplaints({ period: "month" })).rejects.toBe(offline);
   });
 });
+
+describe("a custom date range (CS_01)", () => {
+  const range = { from: "2026-10-01", to: "2026-10-15" };
+  const CS_01 =
+    "Database update needed: run the script CS_01_ceo_sales_dates_TEST (CS_01_ceo_sales_dates_LIVE on the live database) to use a custom date range.";
+  it("dashboard and complaints send from / to; breakdown and records periodFrom / periodTo", async () => {
+    api.mockResolvedValue({ isSuccessful: true, data: {} });
+    await getSalesManagerDashboard({ period: "custom", locationId: 4, range });
+    expect(lastCall().path).toBe("/sales-manager/dashboard?period=custom&from=2026-10-01&to=2026-10-15&locationId=4");
+    await getSalesManagerComplaints({ period: "custom", range });
+    expect(lastCall().path).toBe("/sales-manager/complaints?period=custom&from=2026-10-01&to=2026-10-15");
+    await getSalesManagerBreakdown({ metric: "funnel-month", month: "2026-09", period: "custom", range, locationId: null });
+    expect(lastCall().path).toBe("/sales-manager/breakdown?metric=funnel-month&month=2026-09&period=custom&periodFrom=2026-10-01&periodTo=2026-10-15");
+  });
+
+  it("month / quarter / year requests are unchanged, also with a range kept aside", async () => {
+    api.mockResolvedValue({ isSuccessful: true, data: {} });
+    await getSalesManagerDashboard({ period: "year", locationId: 4, range });
+    expect(lastCall().path).toBe("/sales-manager/dashboard?period=year&locationId=4");
+    await getSalesManagerComplaints({ period: "month", range });
+    expect(lastCall().path).toBe("/sales-manager/complaints?period=month");
+  });
+
+  it("before CS_01 the 503 shows the API's own message (dashboard, complaints, drill-downs), not SM_02 / SM_03", async () => {
+    for (const call of [
+      () => getSalesManagerDashboard({ period: "custom", range }),
+      () => getSalesManagerComplaints({ period: "custom", range }),
+      () => getSalesManagerRecords({ kind: "complaints", params: { status: "new_period", period: "custom", periodFrom: "2026-10-01", periodTo: "2026-10-15" } }),
+      () => getSalesManagerBreakdown({ metric: "staff", userId: 5, period: "custom", range }),
+    ]) {
+      api.mockRejectedValueOnce(new ApiError("Unavailable", 503, { message: CS_01 }));
+      const error = await call().catch((e) => e);
+      expect(error.status).toBe(503);
+      expect(error.message).toBe(CS_01);
+      expect(salesManagerErrorView(error)).toMatchObject({ message: CS_01, databaseUpdate: true });
+      expect(salesManagerComplaintsErrorView(error)).toMatchObject({ message: CS_01, databaseUpdate: true });
+    }
+    // The other updates keep their own wording.
+    expect(salesManagerErrorView(new ApiError("x", 503, { message: "needs SM_02" })).message).toBe(smDatabaseUpdateMessage("SM_02"));
+  });
+});

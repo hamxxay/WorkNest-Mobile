@@ -36,6 +36,7 @@ import {
   toApiDate,
   updateInquiryLocation,
   updateInquiryStatus,
+  type InquiryCategory,
   type InquiryOutcome,
   type StaffInquiryType,
   type StaffLocation,
@@ -46,6 +47,8 @@ import { formatDate, formatRelative } from "../../../../utils/format";
 import { MAX_CONTENT_WIDTH, estimateButtonWidth, scaledMinWidth, useResponsive } from "../../../../utils/responsive";
 import {
   canContactByPhone,
+  inquiryCategoryOptions,
+  inquiryCategoryParam,
   inquiryFeedbackText,
   inquiryRowKey,
   inquiryTypeText,
@@ -78,12 +81,15 @@ const LIST_PADDING = 16;
  * staff can set or change the branch (PATCH contact/{publicId}/location) of the inquiries the API allows
  * (canChangeBranch: not the old website bookings). Old website bookings and newer inquiries can share an id, so rows
  * are keyed by the API's key and every write goes by public id (or id + source).
+ * Two sub-tabs, as the CMS: Tour inquiries and Simple inquiries (category=general: WhatsApp customers who typed free
+ * text instead of using the bot menu), each with its New count from the nav badges; same rows and actions. Staff add
+ * tour inquiries only, so the add action is on the Tour tab. Route / link param category "general" opens Simple.
  */
 export default function InquiryListScreen() {
   const inTabs = useInTabs();
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
-  const { role, profile, refreshBadges } = useStaffSession();
+  const { role, profile, navBadges, refreshBadges } = useStaffSession();
   const { user } = useAuth();
   const staffName = greetingName(user);
   // Reference inquiries: referred by the signed-in staff member unless another name is typed (as the CMS).
@@ -91,6 +97,13 @@ export default function InquiryListScreen() {
   const { choice: branches, locations } = useBranchChoice();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<InquiryFilter>(route.params?.filter ?? "all");
+  const routeCategory = route.params?.category;
+  const [category, setCategory] = useState<InquiryCategory>(inquiryCategoryParam(routeCategory));
+  // A link while the screen is open (the Inquiries tab stays mounted) brings a new param: follow it.
+  useEffect(() => {
+    if (routeCategory) setCategory(inquiryCategoryParam(routeCategory));
+  }, [routeCategory]);
+  const categoryOptions = useMemo(() => inquiryCategoryOptions(navBadges), [navBadges]);
   const [locationFilter, setLocationFilter] = useState(0);
   const [feedbackFor, setFeedbackFor] = useState<TourInquiry | null>(null);
   const [branchFor, setBranchFor] = useState<TourInquiry | null>(null);
@@ -102,10 +115,16 @@ export default function InquiryListScreen() {
 
   const fetchPage = useCallback(
     async (page: number) => {
-      const res = await getTourInquiries(page, PAGE_SIZE, search || undefined, branchFilterParam(locationId));
+      const res = await getTourInquiries(
+        page,
+        PAGE_SIZE,
+        search || undefined,
+        branchFilterParam(locationId),
+        category === "general" ? "general" : undefined,
+      );
       return { items: res.items, total: res.total, page, limit: PAGE_SIZE, hasMore: page * PAGE_SIZE < res.total };
     },
-    [search, locationId],
+    [search, locationId, category],
   );
   const list = usePagedList(fetchPage);
 
@@ -151,6 +170,9 @@ export default function InquiryListScreen() {
   const short = useShortWindow();
   const filters = (
     <>
+      <View style={styles.segment}>
+        <SegmentedControl accessibilityLabel="Inquiry list" options={categoryOptions} value={category} onChange={setCategory} />
+      </View>
       <SearchField value={query} onChangeText={setQuery} placeholder="Search name, email or phone" />
       <FilterChips
         value={filter}
@@ -182,8 +204,8 @@ export default function InquiryListScreen() {
       <AppHeader
         showBack={inTabs ? false : undefined}
         title="Tour inquiries"
-        subtitle={list.total ? `${list.total} inquiries` : undefined}
-        actions={[{ icon: "add", accessibilityLabel: "Add inquiry", onPress: () => setAdding(true) }]}
+        subtitle={list.total ? `${list.total} ${category === "general" ? "simple " : ""}inquiries` : undefined}
+        actions={category === "tour" ? [{ icon: "add", accessibilityLabel: "Add inquiry", onPress: () => setAdding(true) }] : undefined}
       />
       {short ? null : filters}
       <AsyncList
@@ -203,7 +225,12 @@ export default function InquiryListScreen() {
         empty={{
           illustration: "inbox",
           title: filter === "due" ? "No follow-ups due" : filter === "new" ? "No new inquiries" : "No inquiries",
-          message: filter === "all" ? "Tour requests from the website and app show up here." : undefined,
+          message:
+            filter !== "all"
+              ? undefined
+              : category === "general"
+                ? "WhatsApp customers who type a question instead of choosing from the menu show up here."
+                : "Tour requests from the website and app show up here.",
         }}
         renderItem={({ item }) => (
           <InquiryCard
@@ -720,6 +747,7 @@ function AddInquirySheet({
 
 const styles = StyleSheet.create({
   chipBar: { flexGrow: 0, flexShrink: 0 },
+  segment: { paddingHorizontal: spacing.screen, paddingTop: spacing.sm },
   // The filters as the list's header: over the list's padding, so they look as they do pinned above it.
   listHeader: { marginHorizontal: -LIST_PADDING, marginTop: -LIST_PADDING, paddingBottom: spacing.sm },
   chips: { paddingHorizontal: spacing.screen, paddingTop: spacing.sm },

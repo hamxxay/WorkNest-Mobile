@@ -7,6 +7,7 @@ import type { StaffStackParamList } from "../../../../navigation/staffTypes";
 import { INVOICE_TYPES, listInvoices, type StaffInvoice } from "../../../../services/staff";
 import { spacing } from "../../../../theme";
 import { formatDate, formatMoney } from "../../../../utils/format";
+import { ActiveFilterChips, ListFilterSheet, filteredEmpty, useListFilters } from "../shared/ListFilters";
 import { SearchField } from "../shared/SearchField";
 import { StaffScreen } from "../shared/StaffScreen";
 import { useDebounced, usePagedList } from "../shared/hooks";
@@ -17,15 +18,20 @@ const PAGE_SIZE = 20;
 
 const TYPE_FILTERS = [{ label: "All", value: 0 }, ...Object.entries(INVOICE_TYPES).map(([id, label]) => ({ label, value: Number(id) }))];
 
-/** Invoices & billing (GET invoice?page=&limit=&search=&typeId=): type filter on the server, CMS overdue rule. */
+/**
+ * Invoices & billing (GET invoice?page=&limit=&search=&typeId=&locationId=&status=&from=&to=): type, location,
+ * status and issue date filters on the server (../shared/ListFilters), CMS overdue rule.
+ */
 export default function InvoiceListScreen() {
   const navigation = useNavigation<Nav>();
   const [query, setQuery] = useState("");
   const [typeId, setTypeId] = useState(0);
   const search = useDebounced(query.trim());
+  const filter = useListFilters("invoices");
+  const listFilters = filter.filters;
   const fetchPage = useCallback(
-    (page: number) => listInvoices({ page, limit: PAGE_SIZE, search, typeId: typeId || null }),
-    [search, typeId],
+    (page: number) => listInvoices({ page, limit: PAGE_SIZE, search, typeId: typeId || null, ...listFilters }),
+    [search, typeId, listFilters],
   );
   const list = usePagedList(fetchPage);
   // Phone in landscape / large text: the search and the type filter scroll away with the list instead of
@@ -42,12 +48,13 @@ export default function InvoiceListScreen() {
         style={styles.chipBar}
         contentContainerStyle={short ? styles.chipsInList : styles.chips}
       />
+      <ActiveFilterChips state={filter} style={short ? styles.activeInList : undefined} />
     </>
   );
 
   return (
     <StaffScreen>
-      <AppHeader title="Invoices & billing" subtitle={list.total ? `${list.total} invoices` : undefined} />
+      <AppHeader title="Invoices & billing" subtitle={list.total ? `${list.total} invoices` : undefined} actions={[filter.headerAction]} />
       {short ? null : filters}
       <AsyncList
         ListHeaderComponent={short ? <View style={styles.listHeader}>{filters}</View> : undefined}
@@ -62,11 +69,17 @@ export default function InvoiceListScreen() {
         onEndReached={list.loadMore}
         gap={8}
         keyboardShouldPersistTaps="handled"
-        empty={{ illustration: search || typeId ? "search" : "receipt", title: search || typeId ? "No invoices found" : "No invoices yet" }}
+        empty={
+          filteredEmpty(filter, "invoices", search) ?? {
+            illustration: search || typeId ? "search" : "receipt",
+            title: search || typeId ? "No invoices found" : "No invoices yet",
+          }
+        }
         renderItem={({ item }) => (
           <InvoiceCard invoice={item} onPress={() => navigation.navigate("InvoiceDetail", { invoiceId: item.id, invoice: item })} />
         )}
       />
+      <ListFilterSheet state={filter} />
     </StaffScreen>
   );
 }
@@ -111,6 +124,7 @@ const styles = StyleSheet.create({
   chips: { paddingHorizontal: spacing.screen, paddingTop: spacing.sm },
   // Inside the list header (short windows) the list already pads the content.
   chipsInList: { paddingTop: spacing.sm },
+  activeInList: { paddingHorizontal: 0 },
   searchInList: { paddingHorizontal: 0, paddingTop: 0 },
   listHeader: { marginBottom: spacing.sm },
   row: { flexDirection: "row", alignItems: "center", gap: spacing.sm },

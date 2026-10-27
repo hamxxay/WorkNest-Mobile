@@ -31,7 +31,7 @@ jest.mock("../../../theme", () => {
 });
 
 import { darkColors, lightColors } from "../../../theme/colors";
-import { CeoSection } from "./parts";
+import { CeoSection, ScopeLine, useCeoQuery } from "./parts";
 
 const g = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
 g.IS_REACT_ACT_ENVIRONMENT = true;
@@ -83,5 +83,87 @@ describe("CeoSection", () => {
     );
     expect(textOf(root)).toEqual([]);
     expect(byType(root, "Ionicons")).toHaveLength(0);
+  });
+});
+
+describe("ScopeLine", () => {
+  test("first load: a placeholder of the same height, so the sections do not move when the figures arrive", () => {
+    const root = render(<ScopeLine loading />);
+    expect(byType(root, "SkeletonGroup")).toHaveLength(1);
+    expect(byType(root, "SkeletonBlock")).toHaveLength(2);
+    expect(textOf(root)).toEqual([]);
+  });
+
+  test.each([
+    ["light", false],
+    ["dark", true],
+  ])("the period, then when the figures arrived with a green dot; amber when the last refresh failed (%s)", (_name, dark) => {
+    mockDark = dark;
+    const colors = dark ? darkColors : lightColors;
+    const dot = (root: ReactTestInstance) =>
+      byType(root, "View").find((n) => n.props.style?.some?.((s: any) => s && s.backgroundColor))!.props.style.find((s: any) => s && s.backgroundColor)
+        .backgroundColor;
+
+    const fresh = render(<ScopeLine text="October 2026" updated="Updated just now" />);
+    expect(textOf(fresh)).toEqual(["October 2026", "Updated just now"]);
+    expect(byType(fresh, "View").filter((n) => n.props.accessible)[0].props.accessibilityLabel).toBe("October 2026. Updated just now");
+    expect(byType(fresh, "Ionicons")[0].props).toMatchObject({ name: "calendar-outline", color: colors.textMuted });
+    expect(dot(fresh)).toBe(colors.success);
+
+    const stale = render(<ScopeLine text="October 2026" updated="Updated 12 min ago" stale />);
+    expect(dot(stale)).toBe(colors.warning);
+  });
+
+  test("nothing to say (the dashboard failed before its first answer): nothing drawn", () => {
+    const root = render(<ScopeLine text={undefined} updated="" />);
+    expect(root.children).toHaveLength(0);
+  });
+});
+
+describe("useCeoQuery", () => {
+  type Probe = ReturnType<typeof useCeoQuery<string>>;
+  let latest: Probe | undefined;
+  function QueryProbe({ load }: { load: () => Promise<string> }) {
+    latest = useCeoQuery(load);
+    return null;
+  }
+
+  /** A load whose answers the test hands out one by one. */
+  function loader() {
+    const pending: { resolve: (v: string) => void; reject: (e: unknown) => void }[] = [];
+    const load = jest.fn(() => new Promise<string>((resolve, reject) => pending.push({ resolve, reject })));
+    return { load, answer: async (v: string) => act(async () => pending.shift()!.resolve(v)), fail: async (e: unknown) => act(async () => pending.shift()!.reject(e)) };
+  }
+
+  test("the quiet refresh keeps the figures on screen (no skeleton, no spinner) until the new ones arrive", async () => {
+    const { load, answer, fail } = loader();
+    render(<QueryProbe load={load} />);
+    expect(latest).toMatchObject({ data: null, loading: true, refreshing: false, loadedAt: null });
+    await answer("first");
+    expect(latest).toMatchObject({ data: "first", loading: false, refreshing: false });
+    const firstAt = latest!.loadedAt;
+    expect(typeof firstAt).toBe("number");
+
+    act(() => latest!.quietRefresh());
+    expect(load).toHaveBeenCalledTimes(2);
+    expect(latest).toMatchObject({ data: "first", loading: false, refreshing: false, error: null, loadedAt: firstAt });
+    await answer("second");
+    expect(latest).toMatchObject({ data: "second", loading: false, refreshing: false, error: null });
+
+    // A quiet refresh that fails keeps the figures and reports the error (the screen says they are from the last update).
+    act(() => latest!.quietRefresh());
+    await fail(new Error("offline"));
+    expect(latest).toMatchObject({ data: "second", loading: false, refreshing: false });
+    expect((latest!.error as Error).message).toBe("offline");
+  });
+
+  test("pull to refresh still shows its spinner", async () => {
+    const { load, answer } = loader();
+    render(<QueryProbe load={load} />);
+    await answer("first");
+    act(() => latest!.refresh());
+    expect(latest).toMatchObject({ data: "first", refreshing: true });
+    await answer("again");
+    expect(latest).toMatchObject({ data: "again", refreshing: false });
   });
 });

@@ -41,14 +41,22 @@ export const STAFF_ROUTE_ROLES: Record<StaffRouteName, readonly StaffRole[]> = {
   Attendants: ALL_STAFF,
   RoomAccess: ALL_STAFF,
   Complaints: ALL_STAFF,
+  // CMS /admin/whatsapp is in SALES_EXECUTIVE_ROUTES, and the API's WhatsAppInboxController lets every staff role
+  // read conversations (the API also allows a receptionist, which has no staff app: see context/roles.ts).
+  WhatsAppInbox: ALL_STAFF,
+  WhatsAppConversation: ALL_STAFF,
   StaffNotifications: ALL_STAFF,
   StaffProfile: ALL_STAFF,
   CapacityRequests: ADMIN_UP,
   AccessActivity: ADMIN_UP,
   Users: ADMIN_UP,
+  UserForm: ADMIN_UP,
   Locations: ADMIN_UP,
   Spaces: ADMIN_UP,
   ChallanValidity: SUPER_ONLY,
+  // CMS /admin/payments: not in SALES_EXECUTIVE_ROUTES, so admins and super admins only.
+  PaymentList: ADMIN_UP,
+  DashboardDetails: ALL_STAFF,
 };
 
 /** Bottom tabs per role, in display order. */
@@ -69,7 +77,14 @@ export const STAFF_TAB_ROLES: Record<StaffTabName, readonly StaffRole[]> = {
   Approvals: ADMIN_UP,
 };
 
-export type StaffMenuItem = { route: StaffRouteName; label: string; icon: string };
+export type StaffMenuItem = {
+  route: StaffRouteName;
+  label: string;
+  /** Ionicons name. */
+  icon: string;
+  /** Colour of the item's count badge; default the notification red. WhatsApp Inbox: green, as the CMS unread pill. */
+  badgeTone?: "success";
+};
 export type StaffMenuSection = { title: string; items: StaffMenuItem[] };
 
 const ITEM = {
@@ -79,6 +94,7 @@ const ITEM = {
   agreements: { route: "AgreementList", label: "Agreements", icon: "document-attach-outline" },
   kyc: { route: "KycList", label: "KYC Portal", icon: "id-card-outline" },
   complaints: { route: "Complaints", label: "Complaints", icon: "chatbox-ellipses-outline" },
+  whatsapp: { route: "WhatsAppInbox", label: "WhatsApp Inbox", icon: "logo-whatsapp", badgeTone: "success" },
   invoices: { route: "InvoiceList", label: "Invoices & Billing", icon: "receipt-outline" },
   challanValidity: { route: "ChallanValidity", label: "Challan Validity", icon: "time-outline" },
   attendants: { route: "Attendants", label: "Attendants & Access", icon: "people-circle-outline" },
@@ -87,6 +103,7 @@ const ITEM = {
   spaces: { route: "Spaces", label: "Spaces", icon: "business-outline" },
   users: { route: "Users", label: "Users", icon: "person-outline" },
   profile: { route: "StaffProfile", label: "Profile", icon: "person-circle-outline" },
+  payments: { route: "PaymentList", label: "Payments", icon: "card-outline" },
 } as const satisfies Record<string, StaffMenuItem>;
 
 /** Label and icon of every menu screen, by route (also for routes that are tabs for some roles). */
@@ -97,22 +114,22 @@ export const STAFF_MENU_ITEMS: Partial<Record<StaffRouteName, StaffMenuItem>> = 
 /** "More" tab per role, grouped like the CMS sidebar (Sales, Finance, Access Control, Spaces, Administration). */
 export const STAFF_MORE_MENU: Record<StaffRole, readonly StaffMenuSection[]> = {
   sales_executive: [
-    { title: "Sales", items: [ITEM.bookings, ITEM.agreements, ITEM.kyc, ITEM.complaints] },
+    { title: "Sales", items: [ITEM.bookings, ITEM.agreements, ITEM.kyc, ITEM.complaints, ITEM.whatsapp] },
     { title: "Finance", items: [ITEM.invoices] },
     { title: "Access Control", items: [ITEM.attendants] },
     { title: "Account", items: [ITEM.profile] },
   ],
   admin: [
-    { title: "Sales", items: [ITEM.quotations, ITEM.inquiries, ITEM.agreements, ITEM.kyc, ITEM.complaints] },
-    { title: "Finance", items: [ITEM.invoices] },
+    { title: "Sales", items: [ITEM.quotations, ITEM.inquiries, ITEM.agreements, ITEM.kyc, ITEM.complaints, ITEM.whatsapp] },
+    { title: "Finance", items: [ITEM.payments, ITEM.invoices] },
     { title: "Access Control", items: [ITEM.attendants, ITEM.accessActivity] },
     { title: "Spaces", items: [ITEM.locations, ITEM.spaces] },
     { title: "Administration", items: [ITEM.users] },
     { title: "Account", items: [ITEM.profile] },
   ],
   super_admin: [
-    { title: "Sales", items: [ITEM.quotations, ITEM.inquiries, ITEM.agreements, ITEM.kyc, ITEM.complaints] },
-    { title: "Finance", items: [ITEM.invoices, ITEM.challanValidity] },
+    { title: "Sales", items: [ITEM.quotations, ITEM.inquiries, ITEM.agreements, ITEM.kyc, ITEM.complaints, ITEM.whatsapp] },
+    { title: "Finance", items: [ITEM.payments, ITEM.invoices, ITEM.challanValidity] },
     { title: "Access Control", items: [ITEM.attendants, ITEM.accessActivity] },
     { title: "Spaces", items: [ITEM.locations, ITEM.spaces] },
     { title: "Administration", items: [ITEM.users] },

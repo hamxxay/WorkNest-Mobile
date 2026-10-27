@@ -2,6 +2,7 @@ import { INQUIRY_TYPE_LABELS, normalizeInquiryType } from "../../theme/inquiryTy
 import { bool, num, optNum, optStr, pick, str, unwrapEnvelope } from "../staff/normalize";
 import { byMonth, isObject, list, optId, payload, section, type Row } from "./readers";
 import { AGING_LABELS, AGING_ORDER, FUNNEL_LABELS, FUNNEL_ORDER, isMonthKey, monthLabel } from "./format";
+import { rangeOf } from "./period";
 import type {
   CeoAgingBucket,
   CeoAgingBucketKey,
@@ -9,12 +10,15 @@ import type {
   CeoBreakdown,
   CeoBreakdownMetric,
   CeoBreakdownRow,
+  CeoCategoryOccupancy,
+  CeoCategoryOccupancyPoint,
   CeoDashboard,
   CeoFunnelStage,
   CeoFunnelStageKey,
   CeoInquiryRecord,
   CeoInquiryTypeCount,
   CeoInvoiceRecord,
+  CeoInvoiceTotals,
   CeoLeaseExpiring,
   CeoLeaseRecord,
   CeoLocation,
@@ -22,11 +26,13 @@ import type {
   CeoOccupancy,
   CeoPeriod,
   CeoQuotationRecord,
+  CeoReceiptRecord,
   CeoRecordKind,
   CeoRecords,
   CeoSales,
   CeoSpaceRecord,
   CeoTeam,
+  DashRange,
 } from "./types";
 
 // Normalisers for the CEO API (pure, unit-tested in __tests__/normalize.test.ts). They never throw on a partial
@@ -37,7 +43,17 @@ import type {
 // the same contract style.
 
 export function normalizePeriod(value: unknown): CeoPeriod {
-  return value === "quarter" || value === "year" ? value : "month";
+  return value === "quarter" || value === "year" || value === "custom" ? value : "month";
+}
+
+/**
+ * A custom period's ranges from an answer (from / to, and previousFrom / previousTo when `withPrevious`): set only
+ * when sent, so a calendar period's answer keeps its shape.
+ */
+export function normalizeRanges(d: Row, withPrevious = false): { range?: DashRange; previousRange?: DashRange } {
+  const range = rangeOf(pick(d, "from"), pick(d, "to"));
+  const previous = withPrevious ? rangeOf(pick(d, "previousFrom"), pick(d, "previousTo")) : null;
+  return { ...(range ? { range } : {}), ...(previous ? { previousRange: previous } : {}) };
 }
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────────────────────────────────
@@ -94,6 +110,12 @@ export function normalizeAging(value: unknown): CeoAgingBucket[] {
   return [...ordered, ...extra];
 }
 
+/** Billed in advance: both null when the amount is not sent (an older API), else the count defaults to 0. */
+function normalizeBilledInAdvance(raw: Row): Pick<CeoMoney, "billedInAdvance" | "billedInAdvanceCount"> {
+  const amount = optNum(raw, "billedInAdvance");
+  return amount == null ? { billedInAdvance: null, billedInAdvanceCount: null } : { billedInAdvance: amount, billedInAdvanceCount: num(raw, "billedInAdvanceCount") };
+}
+
 function normalizeMoney(raw: Row | null): CeoMoney | null {
   if (!raw) return null;
   return {
@@ -105,6 +127,7 @@ function normalizeMoney(raw: Row | null): CeoMoney | null {
     outstandingCount: num(raw, "outstandingCount"),
     overdue: num(raw, "overdue"),
     overdueCount: num(raw, "overdueCount"),
+    ...normalizeBilledInAdvance(raw),
     collectionRate: optNum(raw, "collectionRate"),
     months: byMonth(
       list(raw, "months", (m) => ({ month: str(m, "month"), invoiced: num(m, "invoiced"), collected: num(m, "collected", "paid") })),
@@ -116,6 +139,14 @@ function normalizeMoney(raw: Row | null): CeoMoney | null {
       amount: num(c, "amount"),
       invoices: num(c, "invoices", "count"),
     })),
+    // CP_02 (all null / [] before the database update: the cards and the chart series are hidden).
+    securityDeposits: optNum(raw, "securityDeposits"),
+    securityDepositsPrev: optNum(raw, "securityDepositsPrev"),
+    securityDepositsCount: optNum(raw, "securityDepositsCount"),
+    received: optNum(raw, "received"),
+    receivedPrev: optNum(raw, "receivedPrev"),
+    receivedCount: optNum(raw, "receivedCount"),
+    receivedSeries: byMonth(list(raw, "receivedSeries", (m) => ({ month: str(m, "month").slice(0, 7), received: num(m, "received"), count: num(m, "count") }))),
   };
 }
 
@@ -130,6 +161,35 @@ const toLeaseExpiring = (b: Row): CeoLeaseExpiring => ({
 
 const toLeaseRecord = (b: Row): CeoLeaseRecord => ({ ...toLeaseExpiring(b), daysLeft: optNum(b, "daysLeft") });
 
+/** Private Office, then Shared Space, then any other category the server sends (CP_02). */
+const CATEGORY_ORDER = ["PrivateOffice", "SharedSpace"];
+const byCategory = <T extends { categoryCode: string }>(rows: T[]): T[] =>
+  rows
+    .map((row, i) => ({ row, i, rank: CATEGORY_ORDER.indexOf(row.categoryCode) }))
+    .sort((a, b) => (a.rank < 0 ? 99 : a.rank) - (b.rank < 0 ? 99 : b.rank) || a.i - b.i)
+    .map((x) => x.row);
+
+const toCategoryPoint = (c: Row): CeoCategoryOccupancyPoint => ({
+  categoryCode: str(c, "categoryCode").trim(),
+  label: optStr(c, "label", "name") ?? (str(c, "categoryCode").trim() || "Other"),
+  rooms: num(c, "rooms"),
+  occupied: num(c, "occupied"),
+  occupancyPct: num(c, "occupancyPct"),
+});
+
+const toCategory = (c: Row): CeoCategoryOccupancy => ({
+  ...toCategoryPoint(c),
+  roomsPrev: optNum(c, "roomsPrev"),
+  occupiedPrev: optNum(c, "occupiedPrev"),
+  occupancyPctPrev: optNum(c, "occupancyPctPrev"),
+  seats: num(c, "seats"),
+  seatsSold: num(c, "seatsSold"),
+  seatOccupancyPct: num(c, "seatOccupancyPct"),
+});
+
+/** A location id, or 0 for the "No location" row (CP_02); null when missing. */
+const locationKey = (row: Row): number | null => (optNum(row, "locationId") === 0 ? 0 : optId(row, "locationId"));
+
 function normalizeOccupancy(raw: Row | null): CeoOccupancy | null {
   if (!raw) return null;
   const leasesExpiring = list(raw, "leasesExpiring", toLeaseExpiring);
@@ -143,24 +203,37 @@ function normalizeOccupancy(raw: Row | null): CeoOccupancy | null {
     newBookings: num(raw, "newBookings"),
     newBookingsPrev: optNum(raw, "newBookingsPrev"),
     months: byMonth(
-      list(raw, "months", (m) => ({ month: str(m, "month"), occupancyPct: num(m, "occupancyPct"), newBookings: num(m, "newBookings") })),
+      list(raw, "months", (m) => ({
+        month: str(m, "month"),
+        occupancyPct: num(m, "occupancyPct"),
+        newBookings: num(m, "newBookings"),
+        categories: byCategory(list(m, "categories", toCategoryPoint)),
+      })),
     ),
     byType: list(raw, "byType", (t) => ({
-      spaceTypeId: optId(t, "spaceTypeId"),
+      // 0 = "Other" (spaces without a type): kept, so the row opens like any other (as on the CMS).
+      spaceTypeId: optNum(t, "spaceTypeId") === 0 ? 0 : optId(t, "spaceTypeId"),
       name: optStr(t, "name", "spaceType") ?? "Other",
       total: num(t, "total"),
       occupied: num(t, "occupied"),
     })),
     byLocation: list(raw, "byLocation", (l) => ({
-      locationId: optId(l, "locationId"),
-      name: optStr(l, "name", "location") ?? "Location",
+      locationId: locationKey(l),
+      name: optStr(l, "name", "location") ?? (locationKey(l) === 0 ? "No location" : "Location"),
       total: num(l, "total"),
       occupied: num(l, "occupied"),
+      seats: optNum(l, "seats"),
+      seatsSold: optNum(l, "seatsSold"),
+      categories: byCategory(list(l, "categories", toCategory)),
     })),
     leasesExpiring,
     // The full count when sent (never below the list it came with); null = unknown (only the list).
     leasesExpiringCount: count == null ? null : Math.max(leasesExpiring.length, Math.floor(count)),
     leasesExpiringMonthly: optNum(raw, "leasesExpiringMonthly"),
+    categories: byCategory(list(raw, "categories", toCategory)),
+    totalSeats: optNum(raw, "totalSeats"),
+    seatsSold: optNum(raw, "seatsSold"),
+    seatOccupancyPct: optNum(raw, "seatOccupancyPct"),
   };
 }
 
@@ -231,6 +304,12 @@ export function normalizeInquiryTypes(value: unknown): CeoInquiryTypeCount[] {
   return [...ordered, ...extra.values()];
 }
 
+/** One of the values the server may send (any case), or null. */
+function basisOf<T extends string>(value: unknown, values: readonly T[]): T | null {
+  const text = String(value ?? "").trim().toLowerCase();
+  return values.find((v) => v.toLowerCase() === text) ?? null;
+}
+
 function normalizeSales(raw: Row | null): CeoSales | null {
   if (!raw) return null;
   const funnel = normalizeFunnel(pick(raw, "funnel"));
@@ -243,29 +322,44 @@ function normalizeSales(raw: Row | null): CeoSales | null {
     bookingValue: num(raw, "bookingValue"),
     // Not sent (an older API): its inquiry figures never followed the location.
     inquiriesAllLocations: typeof pick(raw, "inquiriesAllLocations") === "boolean" ? pick(raw, "inquiriesAllLocations") : true,
+    bookingValueBasis: basisOf(pick(raw, "bookingValueBasis"), ["contract", "firstInvoice"]),
+    bookingsFromQuotations: optNum(raw, "bookingsFromQuotations"),
+    inquiriesNoBranch: optNum(raw, "inquiriesNoBranch"),
   };
 }
 
+/**
+ * Team section: the sales executives only (the API leaves every other role out), highest revenue first (then
+ * converted, quotations; ties keep the server's order). Revenue = their converted value (an older API: convertedValue).
+ */
 function normalizeTeam(raw: Row | null): CeoTeam | null {
   if (!raw) return null;
+  const people = list(raw, "people", (p) => ({
+    userId: optId(p, "userId"),
+    name: optStr(p, "name") ?? "Team member",
+    role: str(p, "role").replace(/_/g, " "),
+    locations: optStr(p, "locations"),
+    quotations: num(p, "quotations"),
+    converted: num(p, "converted"),
+    revenue: optNum(p, "revenue") ?? num(p, "convertedValue"),
+    bookings: optNum(p, "bookings"),
+  }))
+    .map((p, i) => ({ p, i }))
+    .sort((a, b) => b.p.revenue - a.p.revenue || b.p.converted - a.p.converted || b.p.quotations - a.p.quotations || a.i - b.i)
+    .map(({ p }) => p);
   return {
     perLocation: list(raw, "perLocation", (l) => ({
       locationId: optId(l, "locationId"),
       name: optStr(l, "name") ?? "Location",
-      admins: num(l, "admins"),
       salesExecutives: num(l, "salesExecutives"),
       quotations: num(l, "quotations"),
       converted: num(l, "converted"),
+      salesExecutivesOnly: bool(l, "salesExecutivesOnly"),
     })),
-    people: list(raw, "people", (p) => ({
-      userId: optId(p, "userId"),
-      name: optStr(p, "name") ?? "Team member",
-      role: str(p, "role").replace(/_/g, " "),
-      locations: optStr(p, "locations"),
-      quotations: num(p, "quotations"),
-      converted: num(p, "converted"),
-      convertedValue: num(p, "convertedValue"),
-    })),
+    people,
+    salesExecutives: optNum(raw, "salesExecutives") ?? people.length,
+    revenue: optNum(raw, "revenue") ?? people.reduce((sum, p) => sum + p.revenue, 0),
+    revenueBasis: basisOf(pick(raw, "revenueBasis"), ["bookings", "quotations"]) ?? "quotations",
   };
 }
 
@@ -290,6 +384,7 @@ export function normalizeCeoDashboard(raw: unknown, requested: CeoPeriod = "mont
     period,
     periodLabel: str(d, "periodLabel"),
     generatedAt: optStr(d, "generatedAt"),
+    ...normalizeRanges(d, true),
     locations: normalizeLocations(pick(d, "locations")),
     money: normalizeMoney(section(d, "money")),
     occupancy: normalizeOccupancy(section(d, "occupancy")),
@@ -309,6 +404,7 @@ const BREAKDOWN_DEFAULTS: Record<CeoBreakdownMetric, BreakdownDefaults> = {
   aging: { title: "Receivables by location", valueLabel: "Amount", value2Label: null },
   "occupancy-type": { title: "Occupancy by location", valueLabel: "Occupied", value2Label: "Total" },
   "occupancy-location": { title: "Occupancy by space type", valueLabel: "Occupied", value2Label: "Total" },
+  "occupancy-category": { title: "Occupancy by location", valueLabel: "Occupied", value2Label: "Rooms" },
   "bookings-month": { title: "New bookings by location", valueLabel: "New bookings", value2Label: null },
   "inquiries-type": { title: "Inquiries by month", valueLabel: "Inquiries", value2Label: null },
   staff: { title: "Quotations by month", valueLabel: "Quotations", value2Label: "Converted" },
@@ -361,6 +457,7 @@ const RECORD_TITLES: Record<CeoRecordKind, string> = {
   inquiries: "Tour inquiries",
   quotations: "Quotations",
   leases: "Leases expiring",
+  receipts: "Money received",
 };
 
 const toInvoice = (r: Row): CeoInvoiceRecord => ({
@@ -369,12 +466,39 @@ const toInvoice = (r: Row): CeoInvoiceRecord => ({
   customer: optStr(r, "customer", "customerName"),
   location: optStr(r, "location", "locationName"),
   issuedOn: optStr(r, "issuedOn", "invoiceDate"),
+  periodStart: optStr(r, "periodStart", "billingPeriodStart"),
+  periodEnd: optStr(r, "periodEnd", "billingPeriodEnd"),
   dueOn: optStr(r, "dueOn", "dueDate"),
   total: num(r, "total", "totalAmount"),
   paid: num(r, "paid", "paidAmount"),
   balance: num(r, "balance"),
   status: optStr(r, "status"),
+  wht: optNum(r, "wht"),
+  deposit: optNum(r, "deposit"),
+  billed: optNum(r, "billed"),
+  collected: optNum(r, "collected"),
 });
+
+/** records/receipts row (CP_02). */
+const toReceipt = (r: Row): CeoReceiptRecord => ({
+  kind: str(r, "kind").trim().toLowerCase() === "payment" ? "payment" : "receipt",
+  refId: optId(r, "refId", "id"),
+  reference: optStr(r, "reference"),
+  receivedOn: optStr(r, "receivedOn"),
+  customer: optStr(r, "customer"),
+  location: optStr(r, "location"),
+  invoiceId: optId(r, "invoiceId"),
+  invoiceNumber: optStr(r, "invoiceNumber"),
+  bookingId: optId(r, "bookingId"),
+  amount: num(r, "amount"),
+  method: optStr(r, "method"),
+});
+
+/** records/invoices totals of every matching invoice (CP_02); null when not sent. */
+function invoiceTotalsOf(d: Row): CeoInvoiceTotals | null {
+  const t = section(d, "invoiceTotals");
+  return t ? { billed: num(t, "billed"), collected: num(t, "collected"), balance: num(t, "balance") } : null;
+}
 
 const toSpace = (r: Row): CeoSpaceRecord => ({
   spaceId: optId(r, "spaceId", "id"),
@@ -385,6 +509,9 @@ const toSpace = (r: Row): CeoSpaceRecord => ({
   occupied: bool(r, "occupied"),
   customer: optStr(r, "customer"),
   bookingEndOn: optStr(r, "bookingEndOn"),
+  category: optStr(r, "category"),
+  categoryCode: optStr(r, "categoryCode"),
+  seatsSold: optNum(r, "seatsSold"),
 });
 
 export const toBookingRecord = (r: Row): CeoBookingRecord => ({
@@ -396,6 +523,9 @@ export const toBookingRecord = (r: Row): CeoBookingRecord => ({
   endOn: optStr(r, "endOn", "endDate"),
   status: optStr(r, "status"),
   totalAmount: optNum(r, "totalAmount", "total"),
+  sellerId: optId(r, "sellerId"),
+  seller: optStr(r, "seller"),
+  fromQuotation: typeof pick(r, "fromQuotation") === "boolean" ? pick(r, "fromQuotation") : null,
 });
 
 export const toInquiryRecord = (r: Row): CeoInquiryRecord => {
@@ -443,7 +573,11 @@ export function normalizeCeoRecords(kind: CeoRecordKind, raw: unknown): CeoRecor
   switch (kind) {
     case "invoices": {
       const rows = list(d, "rows", toInvoice);
-      return { kind, title, total: totalOf(rows.length), rows };
+      return { kind, title, total: totalOf(rows.length), rows, invoiceTotals: invoiceTotalsOf(d) };
+    }
+    case "receipts": {
+      const rows = list(d, "rows", toReceipt);
+      return { kind, title, total: totalOf(rows.length), rows, amount: optNum(d, "amount") };
     }
     case "spaces": {
       const rows = list(d, "rows", toSpace);

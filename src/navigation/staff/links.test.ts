@@ -32,14 +32,36 @@ describe("staff deep links / tapped pushes", () => {
     expect(staffLinkTarget("inquiries", "admin")).toMatchObject({ kind: "screen", route: "TourInquiries" });
   });
 
+  it("opens the Simple inquiries sub-tab from simple-inquiries or ?category=general", () => {
+    expect(staffStateFromPath("/admin/contacts?category=general", "sales_executive")).toEqual({
+      routes: [{ name: "StaffTabs", state: { routes: [{ name: "Inquiries", params: { category: "general" } }] } }],
+    });
+    expect(staffLinkTarget("simple-inquiries", "sales_executive")).toEqual({ kind: "tab", tab: "Inquiries", params: { category: "general" } });
+    expect(staffLinkTarget("inquiries?category=GENERAL", "admin")).toEqual({ kind: "screen", route: "TourInquiries", params: { category: "general" } });
+    expect(staffStateFromPath("simple-inquiries", "admin")).toEqual({
+      index: 1,
+      routes: [{ name: "StaffTabs" }, { name: "TourInquiries", params: { category: "general" } }],
+    });
+    // No category / tour: the list as before.
+    expect(staffLinkTarget("/admin/contacts", "sales_executive")).toEqual({ kind: "tab", tab: "Inquiries" });
+    expect(staffLinkTarget("contacts?category=tour", "sales_executive")).toEqual({ kind: "tab", tab: "Inquiries" });
+  });
+
   it("maps the customer app's push paths to staff screens", () => {
     expect(staffLinkTarget("notifications", "admin")).toMatchObject({ route: "StaffNotifications" });
-    expect(staffLinkTarget("payments", "admin")).toMatchObject({ route: "InvoiceList" });
+    expect(staffLinkTarget("payments", "admin")).toMatchObject({ route: "PaymentList" });
+    expect(staffLinkTarget("/admin/payments", "super_admin")).toMatchObject({ route: "PaymentList" });
+    // Sales executives cannot open Payments (as in the CMS): they keep the invoices.
+    expect(staffLinkTarget("payment", "sales_executive")).toMatchObject({ route: "InvoiceList" });
+    expect(staffLinkTarget("challan", "admin")).toMatchObject({ route: "InvoiceList" });
+    expect(staffLinkTarget("my-payments", "admin")).toMatchObject({ route: "InvoiceList" });
     expect(staffLinkTarget("invoice/411", "admin")).toMatchObject({ route: "InvoiceDetail", params: { invoiceId: 411 } });
     expect(staffLinkTarget("agreements", "super_admin")).toMatchObject({ route: "AgreementList" });
     expect(staffLinkTarget("booking/558", "sales_executive")).toMatchObject({ route: "BookingDetail", params: { bookingId: 558 } });
     expect(staffLinkTarget("home", "admin")).toEqual({ kind: "tab", tab: "Dashboard" });
     expect(staffLinkTarget("profile", "admin")).toMatchObject({ route: "StaffProfile" });
+    expect(staffLinkTarget("/admin/whatsapp", "sales_executive")).toMatchObject({ route: "WhatsAppInbox" });
+    expect(staffLinkTarget("whatsapp-inbox", "super_admin")).toMatchObject({ route: "WhatsAppInbox" });
   });
 
   it("never opens a screen the role may not open, nor an unknown path", () => {

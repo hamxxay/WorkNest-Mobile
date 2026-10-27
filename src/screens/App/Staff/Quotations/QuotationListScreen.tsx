@@ -7,6 +7,7 @@ import type { StaffStackParamList } from "../../../../navigation/staffTypes";
 import { listQuotations, type StaffQuotation } from "../../../../services/staff";
 import { spacing } from "../../../../theme";
 import { formatDate, formatMoney } from "../../../../utils/format";
+import { ActiveFilterChips, ListFilterSheet, filteredEmpty, useListFilters } from "../shared/ListFilters";
 import { SearchField } from "../shared/SearchField";
 import { StaffScreen, useInTabs } from "../shared/StaffScreen";
 import { useDebounced, usePagedList } from "../shared/hooks";
@@ -16,15 +17,18 @@ type Nav = NativeStackNavigationProp<StaffStackParamList>;
 const PAGE_SIZE = 15;
 
 /**
- * Quotations (GET quotation?page=&limit=&search=): every version is its own row, newest first; admins and sales
- * executives see their own locations. Search by quotation number or customer.
+ * Quotations (GET quotation?page=&limit=&search=&locationId=&status=&from=&to=): every version is its own row,
+ * newest first; admins and sales executives see their own locations. Search by quotation number or customer;
+ * filter by location, status and created date (on the server, ../shared/ListFilters).
  */
 export default function QuotationListScreen() {
   const inTabs = useInTabs();
   const navigation = useNavigation<Nav>();
   const [query, setQuery] = useState("");
   const search = useDebounced(query.trim());
-  const fetchPage = useCallback((page: number) => listQuotations({ page, limit: PAGE_SIZE, search }), [search]);
+  const filter = useListFilters("quotations");
+  const { filters } = filter;
+  const fetchPage = useCallback((page: number) => listQuotations({ page, limit: PAGE_SIZE, search, ...filters }), [search, filters]);
   const list = usePagedList(fetchPage);
 
   return (
@@ -33,9 +37,10 @@ export default function QuotationListScreen() {
         showBack={inTabs ? false : undefined}
         title="Quotations"
         subtitle={list.total ? `${list.total} in total` : undefined}
-        actions={[{ icon: "add", accessibilityLabel: "New quotation", onPress: () => navigation.navigate("QuotationForm") }]}
+        actions={[filter.headerAction, { icon: "add", accessibilityLabel: "New quotation", onPress: () => navigation.navigate("QuotationForm") }]}
       />
       <SearchField value={query} onChangeText={setQuery} placeholder="Search number or customer" />
+      <ActiveFilterChips state={filter} />
       <AsyncList
         data={list.items}
         keyExtractor={(q) => String(q.id)}
@@ -48,17 +53,20 @@ export default function QuotationListScreen() {
         onEndReached={list.loadMore}
         gap={8}
         keyboardShouldPersistTaps="handled"
-        empty={{
-          illustration: search ? "search" : "document",
-          title: search ? "No quotations found" : "No quotations yet",
-          message: search ? `Nothing matches "${search}".` : "Create a quotation for a customer.",
-          actionLabel: search ? undefined : "New quotation",
-          onAction: search ? undefined : () => navigation.navigate("QuotationForm"),
-        }}
+        empty={
+          filteredEmpty(filter, "quotations", search) ?? {
+            illustration: search ? "search" : "document",
+            title: search ? "No quotations found" : "No quotations yet",
+            message: search ? `Nothing matches "${search}".` : "Create a quotation for a customer.",
+            actionLabel: search ? undefined : "New quotation",
+            onAction: search ? undefined : () => navigation.navigate("QuotationForm"),
+          }
+        }
         renderItem={({ item }) => (
           <QuotationCard quotation={item} onPress={() => navigation.navigate("QuotationDetail", { quotationId: item.id })} />
         )}
       />
+      <ListFilterSheet state={filter} />
     </StaffScreen>
   );
 }

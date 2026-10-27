@@ -51,6 +51,25 @@ export function ceoDatabaseUpdateMessage(update: string | null): string {
   );
 }
 
+/**
+ * The custom date range's own update (CS_01_ceo_sales_dates_TEST / _LIVE): no word boundary after its number, since
+ * the script name goes on with "_ceo...".
+ */
+const RANGE_UPDATE = /\bCS_\d{2}(?!\d)/i;
+
+/**
+ * The server's own message for a 503 that names the custom date range's database update ("Database update needed:
+ * run the script CS_01_ceo_sales_dates_TEST ... to use a custom date range."), shown as it is; null for anything else.
+ */
+export function customRangeUpdateMessage(error: unknown): string | null {
+  if (statusOf(error) !== 503 || !error || typeof error !== "object") return null;
+  const e = error as { message?: unknown; details?: unknown };
+  for (const text of [serverMessage(e.details), e.message]) {
+    if (typeof text === "string" && RANGE_UPDATE.test(text) && text.trim().length <= 300) return text.trim();
+  }
+  return null;
+}
+
 /** The HTTP status of an error (ApiError or anything with a numeric `status`), or null. */
 export const statusOf = (error: unknown): number | null => {
   if (error instanceof ApiError) return error.status;
@@ -71,9 +90,12 @@ export function withDatabaseUpdateMessage(error: unknown, message: string): unkn
   return new ApiError(message, 503, error instanceof ApiError ? error.details : error);
 }
 
-/** The error to throw from a CEO call: a 503 becomes the "database update needed" message, anything else is kept. */
+/**
+ * The error to throw from a CEO call: a 503 becomes the "database update needed" message (the custom date range's
+ * update: the server's own words), anything else is kept.
+ */
 export function toCeoError(error: unknown): unknown {
-  return withDatabaseUpdateMessage(error, ceoDatabaseUpdateMessage(databaseUpdateNameOf(error, null)));
+  return withDatabaseUpdateMessage(error, customRangeUpdateMessage(error) ?? ceoDatabaseUpdateMessage(databaseUpdateNameOf(error, null)));
 }
 
 export type CeoErrorView = {
@@ -110,6 +132,6 @@ export function dashboardErrorView(error: unknown, texts: DashboardErrorTexts, f
 
 /** Title, message and icon for an error state on a CEO screen. */
 export function ceoErrorView(error: unknown, fallback = "Could not load the figures. Please try again."): CeoErrorView {
-  const databaseUpdate = ceoDatabaseUpdateMessage(databaseUpdateNameOf(error, null));
+  const databaseUpdate = customRangeUpdateMessage(error) ?? ceoDatabaseUpdateMessage(databaseUpdateNameOf(error, null));
   return dashboardErrorView(error, { databaseUpdate, forbidden: CEO_FORBIDDEN_MESSAGE }, fallback);
 }

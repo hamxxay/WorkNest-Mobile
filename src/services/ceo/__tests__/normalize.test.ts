@@ -31,6 +31,8 @@ const FULL = {
       outstandingCount: 7,
       overdue: 200000,
       overdueCount: 3,
+      billedInAdvance: 180000,
+      billedInAdvanceCount: 2,
       collectionRate: 75,
       months: [
         { month: "2026-10", invoiced: 300, collected: 200 },
@@ -72,8 +74,13 @@ const FULL = {
       bookingValue: 600000,
     },
     team: {
-      perLocation: [{ locationId: 1, name: "I-8", admins: 1, salesExecutives: 2, quotations: 6, converted: 2 }],
-      people: [{ userId: 5, name: "Sara", role: "Sales Executive", locations: "I-8", quotations: 6, converted: 2, convertedValue: 300000 }],
+      perLocation: [{ locationId: 1, name: "I-8", salesExecutives: 2, quotations: 6, converted: 2 }],
+      people: [
+        { userId: 5, name: "Sara", role: "Sales Executive", locations: "I-8", quotations: 6, converted: 2, revenue: 300000, convertedValue: 300000 },
+        { userId: 7, name: "Bilal", role: "Sales Executive", locations: "F-7", quotations: 3, converted: 1, revenue: 900000, convertedValue: 900000 },
+      ],
+      salesExecutives: 2,
+      revenue: 1200000,
     },
   },
 };
@@ -87,7 +94,7 @@ describe("normalizeCeoDashboard", () => {
       { locationId: 1, name: "I-8" },
       { locationId: 2, name: "F-7" },
     ]);
-    expect(d.money).toMatchObject({ invoiced: 1200000, invoicedPrev: 1000000, collectionRate: 75, overdueCount: 3 });
+    expect(d.money).toMatchObject({ invoiced: 1200000, invoicedPrev: 1000000, collectionRate: 75, overdueCount: 3, billedInAdvance: 180000, billedInAdvanceCount: 2 });
     // Months are put oldest first.
     expect(d.money?.months.map((m) => m.month)).toEqual(["2025-11", "2026-10"]);
     expect(d.money?.topCustomers).toEqual([{ customerId: 9, name: "Acme", amount: 400000, invoices: 4 }]);
@@ -103,7 +110,31 @@ describe("normalizeCeoDashboard", () => {
     // Conversion = this period's quotations that were booked / its quotations (2 of 10), not bookings / quotations.
     expect(d.sales?.conversionRate).toBe(20);
     expect(d.sales?.quotationsBooked).toBe(2);
-    expect(d.team?.people[0]).toMatchObject({ userId: 5, name: "Sara", convertedValue: 300000 });
+    // Team: the sales executives with their revenue, highest first, and the totals as sent.
+    expect(d.team?.people.map((p) => [p.name, p.revenue])).toEqual([
+      ["Bilal", 900000],
+      ["Sara", 300000],
+    ]);
+    expect(d.team?.people[1]).toEqual({ userId: 5, name: "Sara", role: "Sales Executive", locations: "I-8", quotations: 6, converted: 2, revenue: 300000, bookings: null });
+    expect(d.team).toMatchObject({ salesExecutives: 2, revenue: 1200000 });
+    expect(d.team?.perLocation).toEqual([{ locationId: 1, name: "I-8", salesExecutives: 2, quotations: 6, converted: 2, salesExecutivesOnly: false }]);
+    // Not sent (before CP_02): revenue is the converted quotations' value.
+    expect(d.team?.revenueBasis).toBe("quotations");
+  });
+
+  it("team from an older API: revenue from convertedValue, totals worked out, no admin count kept", () => {
+    const d = normalizeCeoDashboard({
+      team: {
+        perLocation: [{ locationId: 1, name: "I-8", admins: 4, salesExecutives: 1, quotations: 2, converted: 1 }],
+        people: [
+          { userId: 5, name: "Sara", quotations: 2, converted: 1, convertedValue: 250000 },
+          { userId: 6, name: "Omar", quotations: 4, converted: 0, convertedValue: 0 },
+        ],
+      },
+    });
+    expect(d.team?.people.map((p) => p.revenue)).toEqual([250000, 0]);
+    expect(d.team).toMatchObject({ salesExecutives: 2, revenue: 250000 });
+    expect(d.team?.perLocation[0]).not.toHaveProperty("admins");
   });
 
   it("turns an empty or broken answer into empty sections, never an error", () => {
@@ -133,18 +164,31 @@ describe("normalizeCeoDashboard", () => {
       outstandingCount: 0,
       overdue: 0,
       overdueCount: 0,
+      // Not sent (an API older than CP_01): null, so the Billed in advance card is hidden.
+      billedInAdvance: null,
+      billedInAdvanceCount: null,
       collectionRate: null,
       months: [],
       aging: [],
       topCustomers: [],
+      // Not sent (before CP_02): null / [], so the Received and Security deposits cards and the chart series are hidden.
+      securityDeposits: null,
+      securityDepositsPrev: null,
+      securityDepositsCount: null,
+      received: null,
+      receivedPrev: null,
+      receivedCount: null,
+      receivedSeries: [],
     });
     expect(d.occupancy?.occupancyPct).toBe(61.5);
+    expect(d.occupancy).toMatchObject({ categories: [], totalSeats: null, seatsSold: null, seatOccupancyPct: null });
+    expect(d.sales).toMatchObject({ bookingValueBasis: null, bookingsFromQuotations: null, inquiriesNoBranch: null });
     expect(d.occupancy?.occupancyPctPrev).toBeNull();
     expect(d.occupancy?.months).toEqual([]);
     expect(d.sales?.funnel).toEqual([]);
     expect(d.sales?.conversionRate).toBeNull();
     expect(d.sales?.quotationsBooked).toBe(0);
-    expect(d.team).toEqual({ perLocation: [], people: [] });
+    expect(d.team).toEqual({ perLocation: [], people: [], salesExecutives: 0, revenue: 0, revenueBasis: "quotations" });
   });
 
   it("conversion never passes 100%: an older API (all bookings / quotations, no quotationsBooked) is capped", () => {
@@ -335,6 +379,23 @@ describe("normalizeCeoRecords", () => {
     expect(r.title).toBe("Overdue invoices");
     expect(r.total).toBe(340);
     expect(r.rows[0]).toMatchObject({ invoiceId: 5, invoiceNumber: "INV-5", balance: 60, status: "Overdue", dueOn: null });
+  });
+
+  it("reads billed in advance (0 is kept, a missing count is 0) and an invoice's billing period", () => {
+    expect(normalizeCeoDashboard({ money: { billedInAdvance: 0 } }).money).toMatchObject({ billedInAdvance: 0, billedInAdvanceCount: 0 });
+    expect(normalizeCeoDashboard({ money: { billedInAdvance: "2500", billedInAdvanceCount: "1" } }).money).toMatchObject({
+      billedInAdvance: 2500,
+      billedInAdvanceCount: 1,
+    });
+    const r = normalizeCeoRecords("invoices", {
+      rows: [
+        { invoiceId: 58, issuedOn: "2026-10-17", periodStart: "2026-11-01", periodEnd: "2026-11-30" },
+        { invoiceId: 59, issuedOn: "2026-10-17" },
+      ],
+    });
+    if (r.kind !== "invoices") throw new Error("kind");
+    expect(r.rows[0]).toMatchObject({ issuedOn: "2026-10-17", periodStart: "2026-11-01", periodEnd: "2026-11-30" });
+    expect(r.rows[1]).toMatchObject({ periodStart: null, periodEnd: null });
   });
 
   it("uses a default title, counts the rows when no total is sent, and never reports fewer than shown", () => {

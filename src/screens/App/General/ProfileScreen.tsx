@@ -193,6 +193,14 @@ export default function ProfileScreen() {
 
             <SectionHeader title="My account" />
             <Card padding={0}>
+              <ListRow
+                leftIcon="easel-outline"
+                title="My meeting rooms"
+                subtitle="Free hours with your private office"
+                chevron
+                onPress={() => navigation.navigate("MyMeetingRooms")}
+              />
+              <Divider inset={68} />
               <ListRow leftIcon="document-text-outline" title="My quotations" chevron onPress={() => navigation.navigate("QuotationList")} />
               <Divider inset={68} />
               <ListRow leftIcon="notifications-outline" title="Notifications" chevron onPress={() => navigation.navigate("Notifications")} />

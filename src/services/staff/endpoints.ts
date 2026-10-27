@@ -17,6 +17,8 @@ export const STAFF_ENDPOINTS = {
     navBadges: "/admin/nav-badges",
     navBadgesRead: "/admin/nav-badges/read",
     accessOverview: "/access-suspensions/overview",
+    /** GET chart drill-down of the overview: the records behind one bar / slice / point (kind = revenue-month, ...). */
+    overviewDetails: (kind: string) => `/dashboard/overview-details/${seg(kind)}`,
   },
   customers: {
     list: "/customer",
@@ -30,6 +32,8 @@ export const STAFF_ENDPOINTS = {
     attendants: (customerId: Id) => `/customers/${seg(customerId)}/attendants`,
     /** Customer's booked spaces with a running booking (to assign attendants). */
     activeSpaces: (customerId: Id) => `/customers/${seg(customerId)}/active-spaces`,
+    /** Customer detail overview (int id): summary, bookings, receipts, payments, agreements, deposits, timeline. */
+    overview: (customerId: Id) => `/customer/${seg(customerId)}/overview`,
   },
   cities: "/city",
   kyc: {
@@ -155,6 +159,20 @@ export const STAFF_ENDPOINTS = {
     /** PATCH { locationId } — set / change the complaint's branch (location-bound staff: one of their locations). */
     branch: (id: Id) => `/complaints/${seg(id)}/branch`,
   },
+  whatsappInbox: {
+    /**
+     * GET ?page=&limit= (1-100)&search= -> { data: conversations, total }: unread first, then the latest message
+     * (WhatsAppInboxController; admin, super admin, receptionist, sales executive). Search matches the number, name,
+     * tags and last message.
+     */
+    conversations: "/whatsapp/conversations",
+    /**
+     * GET ?beforeId=&limit= (1-200) -> ApiResponse of messages, oldest first; 404 when the conversation is gone.
+     * Without beforeId (the newest page) the API marks the conversation read (unreadCount 0). Sending
+     * (POST, admin / super admin) is not used by the app.
+     */
+    messages: (conversationId: Id) => `/whatsapp/conversations/${seg(conversationId)}/messages`,
+  },
   inquiries: {
     /**
      * PATCH { statusId } (1 New, 2 In progress, 3 Resolved, 4 Closed) by public id. List / feedback and the path for a
@@ -179,6 +197,14 @@ export const STAFF_ENDPOINTS = {
   },
   users: {
     list: "/user",
+    /** POST UserCreateRequest (admin / super admin). */
+    create: "/user",
+    /** PUT UserUpdateRequest by int id or public id; `password` optional (blank keeps the current one). */
+    update: (id: Id) => `/user/${seg(id)}`,
+    activate: (id: Id) => `/user/${seg(id)}/activate`,
+    deactivate: (id: Id) => `/user/${seg(id)}/deactivate`,
+    /** GET [{ id, roleName, displayName }] from dbo.WN_Roles (admin / super admin): the Users form's role picker. */
+    roles: "/roles",
   },
   lookups: {
     /** Paged { data, total }; admins / sales executives get their own locations only. */
@@ -193,5 +219,17 @@ export const STAFF_ENDPOINTS = {
     billingPeriods: "/billing-periods",
     /** WHT rate options (dbo.WN_WHTaxRate): [{ id, description, rate }] (staff roles). */
     whtRates: "/amount-fields/wht-rates",
+  },
+  /** Status filter choices of the filtered lists (LST_01): GET -> ApiResponse of [{ value, label }] (staff roles). */
+  listStatuses: {
+    bookings: "/booking/statuses",
+    quotations: "/quotation/statuses",
+    invoices: "/invoice/statuses",
+    payments: "/payment/statuses",
+    customers: "/customer/statuses",
+  },
+  payments: {
+    /** Paged { data, total }: ?page=&limit= (at most 100)&search=&locationId=&status=&from=&to= (admin, super admin in the CMS). */
+    list: "/payment",
   },
 } as const;

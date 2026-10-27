@@ -133,6 +133,7 @@ export function BreakdownView<R>({
                       title={row.label}
                       subtitle={rowDetail(b, row)}
                       meta={rowMeta(row)}
+                      metaVariant="amount"
                       accessibilityHint={records ? rowAccessibilityHint : undefined}
                       onPress={records ? () => openRow(row) : undefined}
                     />

@@ -2,11 +2,12 @@ import type { Tone } from "../../theme/colors";
 import { formatDate, formatNumber } from "../../utils/format";
 import { bool, num, optNum, optStr, pick, str } from "../staff/normalize";
 import { count, moneyFull, money, pct, periodWords, shareOf, clampPct } from "./format";
-import { normalizePeriod } from "./normalize";
+import { normalizePeriod, normalizeRanges } from "./normalize";
 import { isObject, list, optId, payload, section, type Row } from "./readers";
 import type {
   CeoPeriod,
   CeoRoom,
+  CeoRoomCategory,
   CeoRoomPricing,
   CeoRoomSale,
   CeoRoomSalePricing,
@@ -75,6 +76,8 @@ function toSale(r: Row, roomSeats: number, roomSeatPrice: number | null): CeoRoo
   const soldSeatPrice = optNum(r, "soldSeatPrice") ?? (seatsSold > 0 ? soldMonthly / seatsSold : 0);
   const shiftDiscountCapPct = num(r, "shiftDiscountCapPct", "discountCapPct");
   const listSeatPriceAtSale = price(optNum(r, "listSeatPriceAtSale", "listSeatPrice")) ?? roomSeatPrice;
+  // CP_02: the fixed PKR discount a month (already off soldMonthly); 0 / false from an older API.
+  const fixedMonthly = Math.max(0, num(r, "fixedMonthly"));
   // 24/7 is compared with the full list price (a cap stored for it does not apply); a shift with the price less its cap.
   const expectedSeatPrice =
     price(optNum(r, "expectedSeatPrice")) ??
@@ -90,6 +93,8 @@ function toSale(r: Row, roomSeats: number, roomSeatPrice: number | null): CeoRoo
     shiftDiscountCapPct,
     soldMonthly,
     soldSeatPrice,
+    fixedMonthly,
+    fixedDiscount: bool(r, "fixedDiscount") || fixedMonthly > 0,
   };
   if (expectedSeatPrice == null) {
     // No list price known: shown as "No list price", not compared (as the server does).
@@ -112,6 +117,8 @@ function toRoom(r: Row): CeoRoom {
   const code = optStr(r, "code", "spaceCode");
   const seats = num(r, "seats", "capacity");
   const listSeatPrice = price(optNum(r, "listSeatPrice", "seatPrice"));
+  const occupiedDays = optNum(r, "occupiedDays");
+  const periodDays = optNum(r, "periodDays");
   return {
     spaceId,
     name: optStr(r, "name", "spaceName") ?? code ?? (spaceId ? `Room ${spaceId}` : "Room"),
@@ -124,9 +131,91 @@ function toRoom(r: Row): CeoRoom {
     listSeatPrice,
     listRoomPrice: price(optNum(r, "listRoomPrice")) ?? (listSeatPrice != null && seats > 0 ? listSeatPrice * seats : null),
     occupiedNow: bool(r, "occupiedNow", "occupied"),
-    periodOccupancyPct: clampPct(num(r, "periodOccupancyPct", "occupancyPct")),
+    periodOccupancyPct: clampPct(
+      optNum(r, "periodOccupancyPct", "occupancyPct") ?? (occupiedDays != null && periodDays ? (occupiedDays / periodDays) * 100 : 0),
+    ),
+    occupiedDays,
+    periodDays,
     sales: list(r, "sales", (s) => toSale(s, seats, listSeatPrice)),
+    upcomingStartOn: optStr(r, "upcomingStartOn"),
   };
+}
+
+// ─── Room categories (private offices, shared spaces) ─────────────────────────────────────────────────────
+
+/** The categories of the report's rooms, in the order the tiles show them (always both, as the server). */
+export const ROOM_CATEGORIES: readonly string[] = ["PrivateOffice", "SharedSpace"];
+
+/**
+ * A category's label only when the server sends none (a server from before byCategory): the words of its code
+ * ("PrivateOffice" -> "Private Office"), "Other" for rooms without one. The server's label (the database's) always wins.
+ */
+export function roomCategoryLabel(code: string | null | undefined): string {
+  const c = String(code ?? "").trim();
+  if (!c) return "Other";
+  return c
+    .replace(/_/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/^./, (ch) => ch.toUpperCase());
+}
+
+const sameCode = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
+/** A room's category as the tiles and the list group it: a known code in the report's spelling, else as sent. */
+export function roomCategoryOf(room: Pick<CeoRoom, "categoryCode">): string {
+  const c = String(room.categoryCode ?? "").trim();
+  return ROOM_CATEGORIES.find((k) => sameCode(k, c)) ?? c;
+}
+
+/**
+ * Occupancy per category worked out from the rooms, by the server's rule: both report categories first (zeros when
+ * there are none), then any other code; days occupied from the rooms' days (room-days), else their mean percent.
+ */
+export function summarizeRoomCategories(rooms: readonly CeoRoom[]): CeoRoomCategory[] {
+  const codes = [...ROOM_CATEGORIES];
+  for (const room of rooms) {
+    const c = roomCategoryOf(room);
+    if (!codes.some((k) => sameCode(k, c))) codes.push(c);
+  }
+  return codes.map((code) => {
+    const group = rooms.filter((r) => sameCode(roomCategoryOf(r), code));
+    const occupiedNow = group.filter((r) => r.occupiedNow).length;
+    const withDays = group.length > 0 && group.every((r) => (r.periodDays ?? 0) > 0);
+    const sum = (f: (r: CeoRoom) => number) => group.reduce((total, r) => total + f(r), 0);
+    return {
+      categoryCode: code,
+      label: roomCategoryLabel(code),
+      rooms: group.length,
+      occupiedNow,
+      vacantNow: group.length - occupiedNow,
+      occupancyNowPct: shareOf(occupiedNow, group.length),
+      periodOccupancyPct: withDays
+        ? shareOf(sum((r) => r.occupiedDays ?? 0), sum((r) => r.periodDays ?? 0))
+        : group.length
+          ? clampPct(sum((r) => r.periodOccupancyPct) / group.length)
+          : 0,
+    };
+  });
+}
+
+/** The server's byCategory (its labels and figures), a missing figure from the rooms; none sent = worked out from them. */
+function normalizeByCategory(value: unknown, worked: CeoRoomCategory[]): CeoRoomCategory[] {
+  const rows = Array.isArray(value) ? value.filter(isObject) : [];
+  if (!rows.length) return worked;
+  return rows.map((row) => {
+    const code = String(pick(row, "categoryCode", "code") ?? "").trim();
+    const w = worked.find((k) => sameCode(k.categoryCode, code));
+    const n = (key: Exclude<keyof CeoRoomCategory, "categoryCode" | "label">) => optNum(row, key) ?? w?.[key] ?? 0;
+    return {
+      categoryCode: w?.categoryCode ?? code,
+      label: optStr(row, "label") ?? w?.label ?? roomCategoryLabel(code),
+      rooms: n("rooms"),
+      occupiedNow: n("occupiedNow"),
+      vacantNow: n("vacantNow"),
+      occupancyNowPct: clampPct(n("occupancyNowPct")),
+      periodOccupancyPct: clampPct(n("periodOccupancyPct")),
+    };
+  });
 }
 
 const emptyShift = (shift: CeoRoomShift): CeoRoomShiftSummary => ({
@@ -178,6 +267,7 @@ export function summarizeRooms(rooms: readonly CeoRoom[]): CeoRoomSummary {
     underMonthly: Math.min(0, underMonthly),
     overMonthly: Math.max(0, overMonthly),
     byShift,
+    byCategory: summarizeRoomCategories(rooms),
   };
 }
 
@@ -220,6 +310,7 @@ function normalizeSummary(raw: Row | null, rooms: readonly CeoRoom[]): CeoRoomSu
     underMonthly: Math.min(0, n("underMonthly")),
     overMonthly: Math.max(0, n("overMonthly")),
     byShift: Array.isArray(byShift) ? normalizeByShift(byShift) : worked.byShift,
+    byCategory: normalizeByCategory(pick(raw, "byCategory"), worked.byCategory),
   };
 }
 
@@ -242,6 +333,7 @@ export function normalizeCeoRooms(raw: unknown, requested: CeoPeriod = "month"):
     period: pick(d, "period") != null ? normalizePeriod(pick(d, "period")) : requested,
     periodLabel: str(d, "periodLabel"),
     generatedAt: optStr(d, "generatedAt"),
+    ...normalizeRanges(d),
     summary: normalizeSummary(section(d, "summary"), rooms),
     rooms,
   };
@@ -250,13 +342,15 @@ export function normalizeCeoRooms(raw: unknown, requested: CeoPeriod = "month"):
 // ─── Filters ──────────────────────────────────────────────────────────────────────────────────────────────
 
 export type RoomShiftFilter = "all" | CeoRoomShift;
-/** "vacant": rooms without a booking in the period. */
+/** "vacant": rooms without a booking in the period (labelled "Not let", so it is not read as "Vacant now"). */
 export type RoomPricingFilter = "all" | CeoRoomSalePricing | "vacant";
-/** Whether a booking covers this moment (the Occupied now / Vacant now cards). */
+/** Whether a booking covers this moment (a category tile shows the rooms in use now). */
 export type RoomNowFilter = "all" | "occupied" | "vacant";
-export type RoomFilters = { shift: RoomShiftFilter; pricing: RoomPricingFilter; now: RoomNowFilter };
+/** "all", or a room category code (roomCategoryOf). */
+export type RoomCategoryFilter = string;
+export type RoomFilters = { shift: RoomShiftFilter; pricing: RoomPricingFilter; now: RoomNowFilter; category: RoomCategoryFilter };
 
-export const ALL_ROOMS: RoomFilters = { shift: "all", pricing: "all", now: "all" };
+export const ALL_ROOMS: RoomFilters = { shift: "all", pricing: "all", now: "all", category: "all" };
 
 export const ROOM_NOW_FILTERS: readonly RoomNowFilter[] = ["all", "occupied", "vacant"];
 
@@ -264,9 +358,13 @@ const NOW_LABELS: Record<RoomNowFilter, string> = { all: "All", occupied: "Occup
 
 export const roomNowLabel = (value: RoomNowFilter): string => NOW_LABELS[value];
 
-/** A room passes the "right now" filter. */
+/** A room passes the "right now" and the category filters. */
 export function roomNowMatches(room: CeoRoom, filters: RoomFilters): boolean {
-  return filters.now === "all" || room.occupiedNow === (filters.now === "occupied");
+  const category = filters.category ?? "all";
+  return (
+    (filters.now === "all" || room.occupiedNow === (filters.now === "occupied")) &&
+    (category === "all" || roomCategoryOf(room) === category)
+  );
 }
 
 export const ROOM_SHIFT_FILTERS: readonly RoomShiftFilter[] = ["all", ...ROOM_SHIFTS];
@@ -284,7 +382,8 @@ const FILTER_LABELS: Record<RoomShiftFilter | RoomPricingFilter, string> = {
   at: "At",
   over: "Over",
   unpriced: "No list price",
-  vacant: "Vacant",
+  // Not let in the period (the CMS word): "Vacant" sat next to "Vacant now" and read the same.
+  vacant: "Not let",
 };
 
 export const roomFilterLabel = (value: RoomShiftFilter | RoomPricingFilter): string => FILTER_LABELS[value];
@@ -338,6 +437,8 @@ export type RoomFilterCounts = {
   pricing: Record<RoomPricingFilter, number>;
   /** Rows each "right now" option would show with the other filters. */
   now: Record<RoomNowFilter, number>;
+  /** Rows "all" and each category of the rooms would show with the other filters. */
+  category: Record<RoomCategoryFilter, number>;
 };
 
 /** How many rows each filter chip would show, keeping the other filters as they are. */
@@ -348,7 +449,15 @@ export function roomFilterCounts(rooms: readonly CeoRoom[], filters: RoomFilters
   for (const value of ROOM_PRICING_FILTERS) pricing[value] = countRows(rooms, { ...filters, pricing: value });
   const now = {} as Record<RoomNowFilter, number>;
   for (const value of ROOM_NOW_FILTERS) now[value] = countRows(rooms, { ...filters, now: value });
-  return { shift, pricing, now };
+  const category: Record<RoomCategoryFilter, number> = { all: countRows(rooms, { ...filters, category: "all" }) };
+  for (const value of new Set(rooms.map(roomCategoryOf))) category[value] = countRows(rooms, { ...filters, category: value });
+  return { shift, pricing, now, category };
+}
+
+/** The category chips to offer: All, then the categories that have rooms (the server's labels); none when only one has. */
+export function roomCategoryFilters(categories: readonly CeoRoomCategory[]): { value: RoomCategoryFilter; label: string }[] {
+  const withRooms = categories.filter((c) => c.rooms > 0);
+  return withRooms.length > 1 ? [{ value: "all", label: "All" }, ...withRooms.map((c) => ({ value: c.categoryCode, label: c.label }))] : [];
 }
 
 // ─── Display ──────────────────────────────────────────────────────────────────────────────────────────────
@@ -383,6 +492,18 @@ export function signedPct(value: number | null): string {
 }
 
 export const seatsText = (n: number): string => `${count(n)} ${n === 1 ? "seat" : "seats"}`;
+
+/** A category tile's texts: "11 of 56" in use now, then the share, the vacant rooms and its days occupied in the period. */
+export function roomCategoryTile(c: CeoRoomCategory): { label: string; value: string; sub: string; tone: Tone; hint: string | null } {
+  if (!c.rooms) return { label: c.label, value: "0 of 0", sub: "No rooms", tone: "neutral", hint: null };
+  return {
+    label: c.label,
+    value: `${count(c.occupiedNow)} of ${count(c.rooms)}`,
+    sub: `${pct(c.occupancyNowPct)} now · ${count(c.vacantNow)} vacant · ${pct(c.periodOccupancyPct)} days occupied`,
+    tone: c.occupancyNowPct >= 70 ? "success" : c.occupancyNowPct >= 40 ? "primary" : "warning",
+    hint: `Shows the ${c.label} rooms in use now in the list below`,
+  };
+}
 
 const dateRange = (start: string | null, end: string | null): string | null => {
   if (start && end) return `${formatDate(start)} to ${formatDate(end)}`;
@@ -423,8 +544,10 @@ export type RoomCardView = {
   /** "List PKR 35,000 a seat · PKR 140,000 a room · 72% occupied this month". */
   facts: string;
   vacant: boolean;
-  /** "No booking this month" for a vacant room. */
+  /** "No booking this month" for a room not let in the period. */
   vacantText: string;
+  /** "Starts 5 Nov 2026": the next confirmed booking, starting after the period (CP_02); null when none / not sent. */
+  upcomingText: string | null;
   sales: RoomSaleView[];
   /** The room's own part (title to facts) for screen readers. */
   accessibilityLabel: string;
@@ -456,7 +579,13 @@ export function roomSaleView(sale: CeoRoomSale, index: number): RoomSaleView {
     : sale.shift !== "24/7" && sale.shiftDiscountCapPct > 0
       ? `${sale.shift} price: list less the ${pct(sale.shiftDiscountCapPct)} shift discount`
       : null;
-  const detail = joined(sale.shift, seatsText(sale.seatsSold), dateRange(sale.startOn, sale.endOn));
+  const detail = joined(
+    sale.shift,
+    seatsText(sale.seatsSold),
+    dateRange(sale.startOn, sale.endOn),
+    // CP_02: a fixed PKR discount (already off the sold price), as the CMS sale line.
+    (sale.fixedMonthly ?? 0) > 0 && `fixed discount ${moneyFull(sale.fixedMonthly ?? 0)} a month`,
+  );
   return {
     key: `sale-${sale.bookingId ?? "x"}-${index}`,
     tenant: sale.customer,
@@ -497,6 +626,7 @@ export function roomCardView(item: RoomListItem, period: CeoPeriod, index = 0): 
     facts,
     vacant: item.vacant,
     vacantText: `No booking ${words}`,
+    upcomingText: room.upcomingStartOn ? `Starts ${formatDate(room.upcomingStartOn)}` : null,
     sales: item.sales.map(roomSaleView),
     accessibilityLabel: [room.name, subtitle, now.label, facts].filter(Boolean).join(", "),
   };

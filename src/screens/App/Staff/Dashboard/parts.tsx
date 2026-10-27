@@ -79,7 +79,7 @@ export function Fact({ label, value }: { label: string; value: string }) {
       <AppText variant="caption" color="textMuted" numberOfLines={1}>
         {label}
       </AppText>
-      <AppText variant="bodyStrong" numberOfLines={2}>
+      <AppText variant="bodyStrong" numberOfLines={2} style={styles.tabular}>
         {value}
       </AppText>
     </View>
