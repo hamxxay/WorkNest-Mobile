@@ -26,6 +26,7 @@ import { useTheme, useThemedStyles, type AppColors, type Theme } from "../../../
 import { formatDate, formatMoney } from "../../../utils/format";
 import { useAuth } from "../../../context/AuthContext";
 import { useDoorAccess } from "../../../hooks/useDoorAccess";
+import { useAttendanceEnabled } from "../../../hooks/useAttendanceEnabled";
 import { useUnlockRoomDoor } from "../../../hooks/useUnlockRoomDoor";
 import { useNotificationsAction } from "../../../hooks/useHeaderActions";
 import { errorMessage } from "../../../services/apiClient";
@@ -63,6 +64,7 @@ export default function HomeScreen() {
   const { user } = useAuth();
   const bell = useNotificationsAction();
   const doorAccess = useDoorAccess();
+  const attendanceEnabled = useAttendanceEnabled();
   const { unlock, unlocking } = useUnlockRoomDoor(doorAccess);
 
   const [spaces, setSpaces] = useState<Workspace[]>([]);
@@ -274,6 +276,19 @@ export default function HomeScreen() {
 
         <SectionHeader title="Explore WorkNest" />
         <Card padding={0}>
+          {/* Only when WorkNest has turned attendance on for this customer (attendance/my/status). */}
+          {attendanceEnabled ? (
+            <>
+              <ListRow
+                leftIcon="finger-print-outline"
+                title="Attendance"
+                subtitle="Your employees' in and out times"
+                chevron
+                onPress={() => navigation.navigate("Attendance")}
+              />
+              <Divider inset={68} />
+            </>
+          ) : null}
           <ListRow leftIcon="images-outline" title="Gallery" subtitle="Photos of our spaces" chevron onPress={() => navigation.navigate("Gallery")} />
           <Divider inset={68} />
           <ListRow leftIcon="information-circle-outline" title="About WorkNest" chevron onPress={() => navigation.navigate("AboutUs")} />

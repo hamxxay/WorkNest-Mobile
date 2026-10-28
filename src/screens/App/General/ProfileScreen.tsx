@@ -26,6 +26,7 @@ import { useThemedStyles, type AppColors, type Theme } from "../../../theme";
 import { useAuth } from "../../../context/AuthContext";
 import { useNotificationsAction } from "../../../hooks/useHeaderActions";
 import { useDoorAccess } from "../../../hooks/useDoorAccess";
+import { useAttendanceEnabled } from "../../../hooks/useAttendanceEnabled";
 import { updateUserProfile } from "../../../services/authService";
 import { errorMessage } from "../../../services/apiClient";
 import { getMyBookings, summarizeBookings, type BookingSummary } from "../../../services/bookingService";
@@ -52,6 +53,7 @@ export default function ProfileScreen() {
   const { user, setUser } = useAuth();
   const bell = useNotificationsAction();
   const doorAccess = useDoorAccess();
+  const attendanceEnabled = useAttendanceEnabled();
   const toast = useToast();
   const { fontScale } = useWindowDimensions();
   // Large text: the name and email may take two lines instead of a few letters and "...".
@@ -201,6 +203,19 @@ export default function ProfileScreen() {
                 onPress={() => navigation.navigate("MyMeetingRooms")}
               />
               <Divider inset={68} />
+              {/* Only when WorkNest has turned attendance on for this customer (attendance/my/status). */}
+              {attendanceEnabled ? (
+                <>
+                  <ListRow
+                    leftIcon="finger-print-outline"
+                    title="Attendance"
+                    subtitle="Your employees' in and out times"
+                    chevron
+                    onPress={() => navigation.navigate("Attendance")}
+                  />
+                  <Divider inset={68} />
+                </>
+              ) : null}
               <ListRow leftIcon="document-text-outline" title="My quotations" chevron onPress={() => navigation.navigate("QuotationList")} />
               <Divider inset={68} />
               <ListRow leftIcon="notifications-outline" title="Notifications" chevron onPress={() => navigation.navigate("Notifications")} />

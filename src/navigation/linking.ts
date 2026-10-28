@@ -99,6 +99,7 @@ export const linking: LinkingOptions<RootStackParamList> = {
           UserManual: "manual",
           Notifications: "notifications",
           MyMeetingRooms: "my-meeting-rooms",
+          Attendance: "my-attendance",
         },
       },
     },
